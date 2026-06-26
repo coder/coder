@@ -1,7 +1,20 @@
-import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
-import type { Task, TasksFilter } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import {
+	EditIcon,
+	EllipsisIcon,
+	PanelLeftIcon,
+	PauseIcon,
+	PlayIcon,
+	TrashIcon,
+} from "lucide-react";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Link, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { pauseTask, resumeTask } from "#/api/queries/tasks";
+import type { Task, TasksFilter } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -9,32 +22,24 @@ import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useAuthenticated } from "hooks";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
-import {
-	EditIcon,
-	EllipsisIcon,
-	PanelLeftIcon,
-	Share2Icon,
-	TrashIcon,
-} from "lucide-react";
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate, useParams } from "react-router";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { cn } from "#/utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
+import { canPauseTask, canResumeTask, isPauseDisabled } from "../taskActions";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
@@ -57,17 +62,10 @@ export const TasksSidebar: FC = () => {
 			<div className="p-3 flex flex-col gap-6">
 				<div className="flex items-center place-content-between">
 					{!isCollapsed && (
-						<Button
-							size="icon"
-							variant="subtle"
-							className={cn(["size-8 p-0 transition-[margin,opacity]"])}
-							asChild
-						>
-							<RouterLink to="/tasks">
-								<CoderIcon className="fill-content-primary !size-6 !p-0" />
-								<span className="sr-only">Navigate to tasks</span>
-							</RouterLink>
-						</Button>
+						<Link to="/tasks">
+							<ProductLogo className="block size-6 m-1" />
+							<span className="sr-only">Navigate to tasks</span>
+						</Link>
 					)}
 
 					<TooltipProvider>
@@ -98,15 +96,13 @@ export const TasksSidebar: FC = () => {
 							<Button
 								variant={isCollapsed ? "subtle" : "default"}
 								size={isCollapsed ? "icon" : "sm"}
-								asChild={true}
-								className={cn({
-									"[&_svg]:p-0": isCollapsed,
-								})}
+								asChild
+								className={cn({ "[&_svg]:p-0": isCollapsed })}
 							>
-								<RouterLink to="/tasks">
+								<Link to="/tasks">
 									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
 									<EditIcon />
-								</RouterLink>
+								</Link>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="right" align="center">
@@ -187,6 +183,33 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const isActive = task.id === taskId;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const pauseMutation = useMutation({
+		...pauseTask(task, queryClient),
+		onError: (error: unknown) => {
+			toast.error(
+				getErrorMessage(error, `Failed to pause task "${task.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
+		},
+	});
+	const resumeMutation = useMutation({
+		...resumeTask(task, queryClient),
+		onError: (error: unknown) => {
+			toast.error(
+				getErrorMessage(error, `Failed to resume task "${task.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
+		},
+	});
+
+	const showPause = canPauseTask(task.status) && task.workspace_id;
+	const pauseDisabled = isPauseDisabled(task.status);
+	const showResume = canResumeTask(task.status) && task.workspace_id;
 
 	return (
 		<>
@@ -203,10 +226,10 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 					},
 				)}
 			>
-				<RouterLink
+				<Link
 					to={{
 						pathname: `/tasks/${task.owner_name}/${task.id}`,
-						search: window.location.search,
+						search: location.search,
 					}}
 				>
 					<TaskSidebarMenuItemStatus task={task} />
@@ -234,15 +257,35 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 
 						<DropdownMenuContent align="end">
 							<DropdownMenuGroup>
-								<DropdownMenuItem asChild>
-									<RouterLink
-										to={`/@${task.owner_name}/${task.workspace_name}/settings/sharing`}
+								{showPause && (
+									<DropdownMenuItem
+										disabled={pauseDisabled || pauseMutation.isPending}
+										onClick={(e) => {
+											e.stopPropagation();
+											pauseMutation.mutate();
+										}}
 									>
-										<Share2Icon />
-										Share
-									</RouterLink>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
+										<Spinner loading={pauseMutation.isPending}>
+											<PauseIcon />
+										</Spinner>
+										Pause
+									</DropdownMenuItem>
+								)}
+								{showResume && (
+									<DropdownMenuItem
+										disabled={resumeMutation.isPending}
+										onClick={(e) => {
+											e.stopPropagation();
+											resumeMutation.mutate();
+										}}
+									>
+										<Spinner loading={resumeMutation.isPending}>
+											<PlayIcon />
+										</Spinner>
+										Resume
+									</DropdownMenuItem>
+								)}
+								{(showPause || showResume) && <DropdownMenuSeparator />}
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={(e) => {
@@ -256,7 +299,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 							</DropdownMenuGroup>
 						</DropdownMenuContent>
 					</DropdownMenu>
-				</RouterLink>
+				</Link>
 			</Button>
 
 			<TaskDeleteDialog

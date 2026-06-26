@@ -51,7 +51,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -139,6 +139,59 @@ func TestBatchCreateLogs(t *testing.T) {
 		require.True(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
 
+	t.Run("SanitizesOutput", func(t *testing.T) {
+		t.Parallel()
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		now := dbtime.Now()
+		api := &agentapi.LogsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: dbM,
+			Log:      testutil.Logger(t),
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		rawOutput := "before\x00middle\xc3\x28after"
+		sanitizedOutput := agentsdk.SanitizeLogOutput(rawOutput)
+		expectedOutputLength := int32(len(sanitizedOutput)) //nolint:gosec // Test-controlled string length is small.
+		req := &agentproto.BatchCreateLogsRequest{
+			LogSourceId: logSource.ID[:],
+			Logs: []*agentproto.Log{
+				{
+					CreatedAt: timestamppb.New(now),
+					Level:     agentproto.Log_WARN,
+					Output:    rawOutput,
+				},
+			},
+		}
+
+		dbM.EXPECT().InsertWorkspaceAgentLogs(gomock.Any(), database.InsertWorkspaceAgentLogsParams{
+			AgentID:      agent.ID,
+			LogSourceID:  logSource.ID,
+			CreatedAt:    now,
+			Output:       []string{sanitizedOutput},
+			Level:        []database.LogLevel{database.LogLevelWarn},
+			OutputLength: expectedOutputLength,
+		}).Return([]database.WorkspaceAgentLog{
+			{
+				AgentID:     agent.ID,
+				CreatedAt:   now,
+				ID:          1,
+				Output:      sanitizedOutput,
+				Level:       database.LogLevelWarn,
+				LogSourceID: logSource.ID,
+			},
+		}, nil)
+
+		resp, err := api.BatchCreateLogs(context.Background(), req)
+		require.NoError(t, err)
+		require.Equal(t, &agentproto.BatchCreateLogsResponse{}, resp)
+	})
+
 	t.Run("NoWorkspacePublishIfNotFirstLogs", func(t *testing.T) {
 		t.Parallel()
 
@@ -155,7 +208,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -203,7 +256,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},
@@ -296,7 +349,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 				Database: dbM,
 				Log:      testutil.Logger(t),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+				PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
 				},
@@ -340,7 +393,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				},
 				Database: dbM,
 				Log:      testutil.Logger(t),
-				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+				PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
 				},
@@ -387,7 +440,7 @@ func TestBatchCreateLogs(t *testing.T) {
 			},
 			Database: dbM,
 			Log:      testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
 			},

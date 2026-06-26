@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/audittest"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestSlogExporter(t *testing.T) {
@@ -32,8 +33,8 @@ func TestSlogExporter(t *testing.T) {
 		var (
 			ctx, cancel = context.WithCancel(context.Background())
 
-			sink     = &fakeSink{}
-			logger   = slog.Make(sink)
+			sink     = testutil.NewFakeSink(t)
+			logger   = sink.Logger(slog.LevelInfo)
 			exporter = backends.NewSlogExporter(logger)
 
 			alog = audittest.RandomLog()
@@ -42,9 +43,10 @@ func TestSlogExporter(t *testing.T) {
 
 		err := exporter.ExportStruct(ctx, alog, "audit_log")
 		require.NoError(t, err)
-		require.Len(t, sink.entries, 1)
-		require.Equal(t, sink.entries[0].Message, "audit_log")
-		require.Len(t, sink.entries[0].Fields, len(structs.Fields(alog)))
+		entries := sink.Entries()
+		require.Len(t, entries, 1)
+		require.Equal(t, entries[0].Message, "audit_log")
+		require.Len(t, entries[0].Fields, len(structs.Fields(alog)))
 	})
 	t.Run("FormatsCorrectly", func(t *testing.T) {
 		t.Parallel()
@@ -98,13 +100,3 @@ func TestSlogExporter(t *testing.T) {
 		assert.Equal(t, expected, string(s.Fields))
 	})
 }
-
-type fakeSink struct {
-	entries []slog.SinkEntry
-}
-
-func (s *fakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
-	s.entries = append(s.entries, e)
-}
-
-func (*fakeSink) Sync() {}

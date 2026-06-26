@@ -1,50 +1,39 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
-import type { WorkspaceBuild } from "api/typesGenerated";
-import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import { InfoIcon } from "lucide-react";
+import type { WorkspaceBuild } from "#/api/typesGenerated";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon } from "lucide-react";
-import { createDayString } from "utils/createDayString";
+} from "#/components/Tooltip/Tooltip";
+import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
+import { cn } from "#/utils/cn";
+import { createDayString } from "#/utils/createDayString";
 import {
 	buildReasonLabels,
 	getDisplayWorkspaceBuildInitiatedBy,
-	getDisplayWorkspaceBuildStatus,
 	systemBuildReasons,
-} from "utils/workspace";
+} from "#/utils/workspace";
 
-export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
-	const theme = useTheme();
-	const statusType = getDisplayWorkspaceBuildStatus(theme, build).type;
+type WorkspaceBuildDataProps = {
+	build: WorkspaceBuild;
+};
 
+export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
+	build,
+}) => {
 	return (
-		<div css={styles.root}>
-			<BuildIcon
-				transition={build.transition}
-				css={{
-					width: 16,
-					height: 16,
-					color: theme.roles[statusType].fill.solid,
-				}}
-			/>
-			<div css={{ overflow: "hidden" }}>
+		<div className="flex flex-row items-center gap-3 leading-normal">
+			<BuildIcon transition={build.transition} jobStatus={build.job.status} />
+			<div className="overflow-hidden flex flex-col">
 				<div
-					css={{
-						color: theme.palette.text.primary,
-						textOverflow: "ellipsis",
-						overflow: "hidden",
-						whiteSpace: "nowrap",
-						display: "flex",
-						alignItems: "center",
-						gap: 4,
-					}}
+					className={cn(
+						"text-content-primary text-ellipsis overflow-hidden",
+						"whitespace-nowrap flex items-center gap-1",
+					)}
 				>
-					<span css={{ textTransform: "capitalize" }}>{build.transition}</span>{" "}
-					by{" "}
-					<span css={{ fontWeight: 500 }}>
+					<span className="capitalize">{build.transition}</span> by{" "}
+					<span className="font-medium">
 						{getDisplayWorkspaceBuildInitiatedBy(build)}
 					</span>
 					{!systemBuildReasons.includes(build.reason) &&
@@ -64,12 +53,7 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 							</Tooltip>
 						)}
 				</div>
-				<div
-					css={{
-						fontSize: 12,
-						color: theme.palette.text.secondary,
-					}}
-				>
+				<div className="text-xs font-normal text-content-secondary">
 					{createDayString(build.created_at)}
 				</div>
 			</div>
@@ -79,27 +63,12 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 
 export const WorkspaceBuildDataSkeleton = () => {
 	return (
-		<div css={styles.root}>
+		<div className="flex flex-row items-center gap-3 leading-normal">
 			<Skeleton variant="circular" width={16} height={16} />
-			<div>
-				<Skeleton variant="text" width={94} height={16} />
-				<Skeleton
-					variant="text"
-					width={60}
-					height={14}
-					css={{ marginTop: 2 }}
-				/>
+			<div className="flex flex-col">
+				<Skeleton variant="text" width={94} height={10} />
+				<Skeleton variant="text" width={60} height={8} />
 			</div>
 		</div>
 	);
 };
-
-const styles = {
-	root: {
-		display: "flex",
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 12,
-		lineHeight: "1.5",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

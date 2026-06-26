@@ -1,12 +1,25 @@
-import { useTheme } from "@emotion/react";
-import LinearProgress from "@mui/material/LinearProgress";
-import Link from "@mui/material/Link";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import chroma from "chroma-js";
+import {
+	CircleCheckIcon,
+	CircleXIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
+import {
+	type FC,
+	Fragment,
+	type HTMLAttributes,
+	type PropsWithChildren,
+	type ReactNode,
+	useId,
+} from "react";
+import { useQuery } from "react-query";
+import { type SetURLSearchParams, useSearchParams } from "react-router";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	insightsTemplate,
 	insightsUserActivity,
 	insightsUserLatency,
-} from "api/queries/insights";
+} from "#/api/queries/insights";
 import type {
 	Template,
 	TemplateAppUsage,
@@ -15,54 +28,45 @@ import type {
 	TemplateParameterValue,
 	UserActivityInsightsResponse,
 	UserLatencyInsightsResponse,
-} from "api/typesGenerated";
-import chroma from "chroma-js";
+} from "#/api/typesGenerated";
 import {
 	ActiveUserChart,
 	ActiveUsersTitle,
-} from "components/ActiveUserChart/ActiveUserChart";
-import { Avatar } from "components/Avatar/Avatar";
+} from "#/components/ActiveUserChart/ActiveUserChart";
+import { Avatar } from "#/components/Avatar/Avatar";
 import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "#/components/DateRangePicker/DateRangePicker";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
-	CircleCheck as CircleCheckIcon,
-	CircleXIcon,
-	LinkIcon,
-} from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import {
-	type FC,
-	type HTMLAttributes,
-	type PropsWithChildren,
-	type ReactNode,
-	useId,
-} from "react";
-import { useQuery } from "react-query";
-import { type SetURLSearchParams, useSearchParams } from "react-router";
-import { cn } from "utils/cn";
-import { getLatencyColor } from "utils/latency";
+} from "#/components/Tooltip/Tooltip";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
+
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
 import {
 	addTime,
 	formatDateTime,
 	startOfDay,
 	startOfHour,
 	subtractTime,
-} from "utils/time";
+} from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
@@ -70,7 +74,7 @@ import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
 export default function TemplateInsightsPage() {
-	const { template } = useTemplateLayoutContext();
+	const { template, permissions } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const defaultInterval = getDefaultInterval(template);
@@ -93,13 +97,25 @@ export default function TemplateInsightsPage() {
 		end_time: toISOLocal(dateRange.endDate, baseOffset),
 	};
 
+	const canViewInsights =
+		permissions.canUpdateTemplate || permissions.canReadInsights;
+
 	const insightsFilter = { ...commonFilters, interval };
-	const templateInsights = useQuery(insightsTemplate(insightsFilter));
-	const userLatency = useQuery(insightsUserLatency(commonFilters));
-	const userActivity = useQuery(insightsUserActivity(commonFilters));
+	const templateInsights = useQuery({
+		...insightsTemplate(insightsFilter),
+		enabled: canViewInsights,
+	});
+	const userLatency = useQuery({
+		...insightsUserLatency(commonFilters),
+		enabled: canViewInsights,
+	});
+	const userActivity = useQuery({
+		...insightsUserActivity(commonFilters),
+		enabled: canViewInsights,
+	});
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={canViewInsights}>
 			<title>{getTemplatePageTitle("Insights", template)}</title>
 
 			<TemplateInsightsPageView
@@ -117,7 +133,7 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 			/>
-		</>
+		</RequirePermission>
 	);
 }
 
@@ -127,6 +143,7 @@ interface TemplateInsightsControlsProps {
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
+	now?: Date;
 }
 
 export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
@@ -135,6 +152,7 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 	setDateRange,
 	searchParams,
 	setSearchParams,
+	now,
 }) => {
 	return (
 		<>
@@ -150,7 +168,12 @@ export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
 				}}
 			/>
 			{interval === "day" ? (
-				<DailyPicker value={dateRange} onChange={setDateRange} />
+				<DailyPicker
+					value={dateRange}
+					onChange={setDateRange}
+					now={now}
+					size="lg"
+				/>
 			) : (
 				<WeekPicker value={dateRange} onChange={setDateRange} />
 			)}
@@ -290,21 +313,20 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is latency calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								The median round trip time of user connections to workspaces.
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -314,17 +336,17 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 						.map((row) => (
 							<div
 								key={row.user_id}
-								className="flex justify-between items-center text-[14px] py-2"
+								className="flex justify-between items-center text-sm py-2"
 							>
 								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div className="font-medium">{row.username}</div>
 								</div>
 								<div
-									className="text-right font-medium text-[13px]"
-									css={{
-										color: getLatencyColor(theme, row.latency_ms.p50),
-									}}
+									className={cn(
+										"text-right font-medium text-[13px]",
+										getLatencyColor(row.latency_ms.p50),
+									)}
 								>
 									{row.latency_ms.p50.toFixed(0)}ms
 								</div>
@@ -351,16 +373,16 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpTooltip>
-						<HelpTooltipIconTrigger size="small" />
-						<HelpTooltipContent>
-							<HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
-							<HelpTooltipText>
+					<HelpPopover>
+						<HelpPopoverIconTrigger size="small" />
+						<HelpPopoverContent>
+							<HelpPopoverTitle>How is activity calculated?</HelpPopoverTitle>
+							<HelpPopoverText>
 								When a connection is initiated to a user&apos;s workspace they
 								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpTooltipText>
-						</HelpTooltipContent>
-					</HelpTooltip>
+							</HelpPopoverText>
+						</HelpPopoverContent>
+					</HelpPopover>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -370,7 +392,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 						.map((row) => (
 							<div
 								key={row.user_id}
-								className="flex justify-between items-center text-[14px] py-2"
+								className="flex justify-between items-center text-sm py-2"
 							>
 								<div className="flex items-center gap-3">
 									<Avatar fallback={row.username} src={row.avatar_url} />
@@ -397,15 +419,23 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 	className,
 	...panelProps
 }) => {
-	const theme = useTheme();
 	// The API returns a row for each app, even if the user didn't use it.
 	const validUsage = data
 		?.filter((u) => u.seconds > 0)
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
+	const style = getComputedStyle(document.documentElement);
+	const successHsl = style
+		.getPropertyValue("--content-success")
+		.trim()
+		.replace(/ /g, ", ");
+	const warningHsl = style
+		.getPropertyValue("--content-warning")
+		.trim()
+		.replace(/ /g, ", ");
 	const usageColors = chroma
-		.scale([theme.roles.success.fill.solid, theme.roles.warning.fill.solid])
+		.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
 		.mode("lch")
 		.colors(validUsage?.length ?? 0);
 
@@ -423,7 +453,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
 										<div className="flex justify-center items-center w-5 h-5">
-											<img
+											<ExternalImage
 												src={usage.icon}
 												alt=""
 												className="h-full w-full object-contain"
@@ -435,27 +465,22 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 									</div>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<LinearProgress
-												value={percentage}
-												variant="determinate"
-												className="w-full h-2 bg-surface-quaternary"
-												css={{
-													"& .MuiLinearProgress-bar": {
+											<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
+												<div
+													className="absolute inset-y-0 left-0 rounded-full"
+													style={{
+														width: `${percentage}%`,
 														backgroundColor: usageColors[i],
-														borderRadius: 999,
-													},
-												}}
-											/>
+													}}
+												/>
+											</div>
 										</TooltipTrigger>
 										<TooltipContent>
 											{Math.floor(percentage)}%
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-									<Stack
-										spacing={0}
-										className="text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]"
-									>
+									<div className="flex flex-col text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
@@ -463,7 +488,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 												{usage.times_used === 1 ? "time" : "times"}
 											</span>
 										)}
-									</Stack>
+									</div>
 								</div>
 							);
 						})}
@@ -498,42 +523,43 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 					return (
 						<div
 							key={parameter.name}
-							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6"
-							css={{
-								"&:first-of-type": {
-									borderTop: 0,
-								},
-							}}
+							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
-								<p className="text-[14px] m-0 text-content-secondary max-w-[400px]">
+								<p className="text-sm m-0 text-content-secondary max-w-[400px]">
 									{parameter.description}
 								</p>
 							</div>
-							<div className="flex-1 text-[14px]" style={{ flexGrow: 2 }}>
-								<ParameterUsageRow className="font-medium text-[13px] cursor-default text-content-secondary">
-									<div>Value</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div>Count</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											The number of workspaces using this value
-										</TooltipContent>
-									</Tooltip>
-								</ParameterUsageRow>
+							<div className="flex-1 grow-2 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
+								<div className="font-medium text-[13px] text-content-secondary py-1">
+									Value
+								</div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="font-medium text-[13px] text-content-secondary text-right py-1 cursor-default">
+											Count
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										The number of workspaces using this value
+									</TooltipContent>
+								</Tooltip>
 								{[...parameter.values]
 									.sort((a, b) => b.count - a.count)
 									.filter((usage) => filterOrphanValues(usage, parameter))
 									.map((usage, usageIndex) => (
-										<ParameterUsageRow key={`${parameterIndex}-${usageIndex}`}>
-											<ParameterUsageLabel
-												usage={usage}
-												parameter={parameter}
-											/>
-											<div className="text-right">{usage.count}</div>
-										</ParameterUsageRow>
+										<Fragment key={`${parameterIndex}-${usageIndex}`}>
+											<div className="min-w-0 py-1">
+												<ParameterUsageLabel
+													usage={usage}
+													parameter={parameter}
+												/>
+											</div>
+											<div className="text-right py-1">
+												{usage.count.toLocaleString()}
+											</div>
+										</Fragment>
 									))}
 							</div>
 						</div>
@@ -552,21 +578,6 @@ const filterOrphanValues = (
 		return parameter.options.some((o) => o.value === usage.value);
 	}
 	return true;
-};
-
-const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
-	children,
-	className,
-	...attrs
-}) => {
-	return (
-		<div
-			{...attrs}
-			className={cn("flex items-baseline justify-between py-1", className)}
-		>
-			{children}
-		</div>
-	);
 };
 
 interface ParameterUsageLabelProps {
@@ -589,7 +600,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 			<div className="flex items-center gap-4">
 				{icon && (
 					<div className="leading-none w-4 h-4">
-						<img
+						<ExternalImage
 							alt=""
 							src={icon}
 							className="w-full h-full object-contain"
@@ -604,15 +615,23 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 
 	if (usage.value.startsWith("http")) {
 		return (
-			<Link
-				href={usage.value}
-				target="_blank"
-				rel="noreferrer"
-				className="flex items-center gap-[1px] text-content-primary"
-			>
-				<TextValue>{usage.value}</TextValue>
-				<LinkIcon className="size-icon-xs text-content-link" />
-			</Link>
+			<span className="break-all">
+				<span className="mr-0.5 text-content-secondary">&quot;</span>
+				<Link
+					href={usage.value}
+					target="_blank"
+					rel="noreferrer"
+					showExternalIcon={false}
+					// We're using a manual underline because `inline`
+					// removes it from the first line of the text when it wraps.
+					className="inline hover:underline after:hover:content-none"
+				>
+					{usage.value}
+				</Link>
+				{/* Manual icon because we want to support multi-line. */}
+				<SquareArrowOutUpRightIcon className="inline-flex align-text-bottom size-icon-sm p-0.5 text-content-link" />
+				<span className="ml-0.5 text-content-secondary">&quot;</span>
+			</span>
 		);
 	}
 
@@ -687,7 +706,7 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	...attrs
 }) => {
 	return (
-		<div {...attrs} className={cn("text-[14px] font-medium", className)}>
+		<div {...attrs} className={cn("text-sm font-medium", className)}>
 			{children}
 		</div>
 	);
@@ -732,7 +751,7 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 
 const TextValue: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<span>
+		<span className="break-all">
 			<span className="mr-0.5 text-content-secondary">&quot;</span>
 			{children}
 			<span className="ml-0.5 text-content-secondary">&quot;</span>

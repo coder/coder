@@ -1,5 +1,5 @@
-import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockTemplate, MockTemplateVersion } from "#/testHelpers/entities";
 import { TemplateStats } from "./TemplateStats";
 
 const meta: Meta<typeof TemplateStats> = {

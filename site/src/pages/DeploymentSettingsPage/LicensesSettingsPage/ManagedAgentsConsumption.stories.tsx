@@ -9,8 +9,7 @@ const meta: Meta<typeof ManagedAgentsConsumption> = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: 50000,
-			soft_limit: 60000,
-			limit: 120000,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2025",
 				end: "February 27, 2026",
@@ -31,8 +30,7 @@ export const ZeroUsage: Story = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: 0,
-			soft_limit: 60000,
-			limit: 120000,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2025",
 				end: "February 27, 2026",
@@ -47,9 +45,8 @@ export const NearLimit: Story = {
 	args: {
 		managedAgentFeature: {
 			enabled: true,
-			actual: 115000,
-			soft_limit: 60000,
-			limit: 120000,
+			actual: 55000,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2025",
 				end: "February 27, 2026",
@@ -60,13 +57,12 @@ export const NearLimit: Story = {
 	},
 };
 
-export const OverIncluded: Story = {
+export const OverLimit: Story = {
 	args: {
 		managedAgentFeature: {
 			enabled: true,
 			actual: 80000,
-			soft_limit: 60000,
-			limit: 120000,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2025",
 				end: "February 27, 2026",
@@ -82,25 +78,7 @@ export const LowUsage: Story = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: 25000,
-			soft_limit: 60000,
-			limit: 120000,
-			usage_period: {
-				start: "February 27, 2025",
-				end: "February 27, 2026",
-				issued_at: "February 27, 2025",
-			},
-			entitlement: "entitled",
-		},
-	},
-};
-
-export const IncludedAtLimit: Story = {
-	args: {
-		managedAgentFeature: {
-			enabled: true,
-			actual: 25000,
-			soft_limit: 30500,
-			limit: 30500,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2025",
 				end: "February 27, 2026",
@@ -116,7 +94,6 @@ export const Disabled: Story = {
 		managedAgentFeature: {
 			enabled: false,
 			actual: undefined,
-			soft_limit: undefined,
 			limit: undefined,
 			usage_period: undefined,
 			entitlement: "not_entitled",
@@ -136,7 +113,6 @@ export const ErrorMissingData: Story = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: undefined,
-			soft_limit: undefined,
 			limit: undefined,
 			usage_period: undefined,
 			entitlement: "entitled",
@@ -149,25 +125,7 @@ export const ErrorNegativeValues: Story = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: -100,
-			soft_limit: 60000,
-			limit: 120000,
-			usage_period: {
-				start: "February 27, 2025",
-				end: "February 27, 2026",
-				issued_at: "February 27, 2025",
-			},
-			entitlement: "entitled",
-		},
-	},
-};
-
-export const ErrorSoftLimitExceedsLimit: Story = {
-	args: {
-		managedAgentFeature: {
-			enabled: true,
-			actual: 50000,
-			soft_limit: 150000,
-			limit: 120000,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2025",
 				end: "February 27, 2026",
@@ -183,8 +141,7 @@ export const ErrorInvalidDates: Story = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: 50000,
-			soft_limit: 60000,
-			limit: 120000,
+			limit: 60000,
 			usage_period: {
 				start: "invalid-date",
 				end: "February 27, 2026",
@@ -200,8 +157,7 @@ export const ErrorEndBeforeStart: Story = {
 		managedAgentFeature: {
 			enabled: true,
 			actual: 50000,
-			soft_limit: 60000,
-			limit: 120000,
+			limit: 60000,
 			usage_period: {
 				start: "February 27, 2026",
 				end: "February 27, 2025",

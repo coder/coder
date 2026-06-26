@@ -61,6 +61,16 @@ type Options struct {
 	BuiltinPostgres  bool
 	Tunnel           bool
 
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the server.
+	// Must be derived from the pre-WithoutSecrets DeploymentValues because the
+	// SCIM API key is annotated as a secret and is cleared before the config
+	// is handed to the telemetry reporter.
+	SCIMEnabled bool
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY. Not secret-scrubbed, but accepted alongside
+	// SCIMEnabled so both come from the same source.
+	SCIMUseLegacy bool
+
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
 }
@@ -332,6 +342,9 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
+	scimEnabled := r.options.SCIMEnabled
+	scimUseLegacy := r.options.SCIMUseLegacy
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -352,6 +365,8 @@ func (r *remoteReporter) deployment() error {
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
 		IDPOrgSync:      &idpOrgSync,
+		SCIMEnabled:     &scimEnabled,
+		SCIMUseLegacy:   &scimUseLegacy,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -416,9 +431,10 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
 		ctx = r.ctx
+		now = r.options.Clock.Now()
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = dbtime.Time(r.options.Clock.Now().Add(-1 * time.Hour)).UTC()
+		createdAfter = dbtime.Time(now.Add(-1 * time.Hour)).UTC()
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -740,17 +756,19 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
-			OwnerID:        uuid.Nil,
-			OrganizationID: uuid.Nil,
-			Status:         "",
-		})
+		tasks, err := CollectTasks(ctx, r.options.Database)
 		if err != nil {
-			return err
+			return xerrors.Errorf("collect tasks telemetry: %w", err)
 		}
-		for _, dbTask := range dbTasks {
-			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
+		snapshot.Tasks = tasks
+		return nil
+	})
+	eg.Go(func() error {
+		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter, now)
+		if err != nil {
+			return xerrors.Errorf("collect task events telemetry: %w", err)
 		}
+		snapshot.TaskEvents = events
 		return nil
 	})
 	eg.Go(func() error {
@@ -769,6 +787,65 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		// Only send a summary if there was actual usage.
 		if summary != nil && summary.UniqueUsers > 0 {
 			snapshot.BoundaryUsageSummary = summary
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		chats, err := r.options.Database.GetChatsUpdatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get chats updated after: %w", err)
+		}
+		snapshot.Chats = make([]Chat, 0, len(chats))
+		for _, chat := range chats {
+			snapshot.Chats = append(snapshot.Chats, ConvertChat(chat))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		summaries, err := r.options.Database.GetChatMessageSummariesPerChat(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get chat message summaries: %w", err)
+		}
+		snapshot.ChatMessageSummaries = make([]ChatMessageSummary, 0, len(summaries))
+		for _, s := range summaries {
+			snapshot.ChatMessageSummaries = append(snapshot.ChatMessageSummaries, ConvertChatMessageSummary(s))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		configs, err := r.options.Database.GetChatModelConfigsForTelemetry(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat model configs: %w", err)
+		}
+		snapshot.ChatModelConfigs = make([]ChatModelConfig, 0, len(configs))
+		for _, c := range configs {
+			snapshot.ChatModelConfigs = append(snapshot.ChatModelConfigs, ConvertChatModelConfig(c))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		row, err := r.options.Database.GetChatDiffStatusSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("get chat diff status summary: %w", err)
+		}
+		snapshot.ChatDiffStatusSummary = &ChatDiffStatusSummary{
+			Total:  row.Total,
+			Open:   row.Open,
+			Merged: row.Merged,
+			Closed: row.Closed,
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		summary, err := r.collectUserSecretsSummary(ctx)
+		if err != nil {
+			return xerrors.Errorf("collect user secrets summary: %w", err)
+		}
+		// summary is nil when another replica already claimed the
+		// telemetry lock for this period.
+		if summary != nil {
+			snapshot.UserSecretsSummary = summary
 		}
 		return nil
 	})
@@ -876,17 +953,20 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		return nil, xerrors.Errorf("insert boundary usage telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
 	}
 
-	summary, err := r.options.Database.GetBoundaryUsageSummary(boundaryCtx, maxStaleness.Milliseconds())
+	var summary database.GetAndResetBoundaryUsageSummaryRow
+	err = r.options.Database.InTx(func(tx database.Store) error {
+		// The advisory lock use here ensures a clean transition to the next snapshot by
+		// preventing replicas from upserting row(s) at the same time as we aggregate and
+		// delete all rows here.
+		var txErr error
+		if txErr = tx.AcquireLock(boundaryCtx, database.LockIDBoundaryUsageStats); txErr != nil {
+			return txErr
+		}
+		summary, txErr = tx.GetAndResetBoundaryUsageSummary(boundaryCtx, maxStaleness.Milliseconds())
+		return txErr
+	}, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("get boundary usage summary: %w", err)
-	}
-
-	// Reset stats after capturing the summary. This deletes all rows so each
-	// replica will detect a new period on their next flush. Note: there is a
-	// known race condition here that may result in a small telemetry inaccuracy
-	// with multiple replicas (https://github.com/coder/coder/issues/21770).
-	if err := r.options.Database.ResetBoundaryUsageStats(boundaryCtx); err != nil {
-		return nil, xerrors.Errorf("reset boundary usage stats: %w", err)
+		return nil, xerrors.Errorf("get and reset boundary usage summary: %w", err)
 	}
 
 	return &BoundaryUsageSummary{
@@ -897,6 +977,172 @@ func (r *remoteReporter) collectBoundaryUsageSummary(ctx context.Context) (*Boun
 		PeriodStart:                now.Add(-r.options.SnapshotFrequency),
 		PeriodDurationMilliseconds: r.options.SnapshotFrequency.Milliseconds(),
 	}, nil
+}
+
+// collectUserSecretsSummary returns a deployment-wide aggregate of user
+// secrets configuration. Returns nil if another replica has already
+// collected for this period.
+//
+// The summary has no natural per-row UUID for the telemetry server to
+// de-duplicate on, so we elect a single replica per snapshot period
+// via the telemetry_locks table.
+func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSecretsSummary, error) {
+	// Claim the telemetry lock for this period. Use snapshot frequency so
+	// each telemetry snapshot period gets exactly one collection across
+	// replicas.
+	periodEndingAt := dbtime.Time(r.options.Clock.Now()).UTC().Truncate(r.options.SnapshotFrequency)
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "user_secrets_summary",
+		PeriodEndingAt: periodEndingAt,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		r.options.Logger.Debug(ctx, "user secrets telemetry lock already claimed by another replica, skipping", slog.F("period_ending_at", periodEndingAt))
+		return nil, nil //nolint:nilnil // This is simple to handle when dealing with telemetry.
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert user secrets telemetry lock (period_ending_at=%q): %w", periodEndingAt, err)
+	}
+
+	row, err := r.options.Database.GetUserSecretsTelemetrySummary(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get user secrets telemetry summary: %w", err)
+	}
+	return &UserSecretsSummary{
+		UsersWithSecrets:  row.UsersWithSecrets,
+		TotalSecrets:      row.TotalSecrets,
+		EnvNameOnly:       row.EnvNameOnly,
+		FilePathOnly:      row.FilePathOnly,
+		Both:              row.Both,
+		Neither:           row.Neither,
+		SecretsPerUserMax: row.SecretsPerUserMax,
+		SecretsPerUserP25: row.SecretsPerUserP25,
+		SecretsPerUserP50: row.SecretsPerUserP50,
+		SecretsPerUserP75: row.SecretsPerUserP75,
+		SecretsPerUserP90: row.SecretsPerUserP90,
+	}, nil
+}
+
+func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
+	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
+		OwnerID:        uuid.Nil,
+		OrganizationID: uuid.Nil,
+		Status:         "",
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list tasks: %w", err)
+	}
+	if len(dbTasks) == 0 {
+		return []Task{}, nil
+	}
+
+	tasks := make([]Task, 0, len(dbTasks))
+	for _, dbTask := range dbTasks {
+		tasks = append(tasks, ConvertTask(dbTask))
+	}
+	return tasks, nil
+}
+
+// buildTaskEvent constructs a TaskEvent from the combined query row.
+func buildTaskEvent(
+	row database.GetTelemetryTaskEventsRow,
+	createdAfter time.Time,
+	now time.Time,
+) TaskEvent {
+	event := TaskEvent{
+		TaskID: row.TaskID.String(),
+	}
+
+	var (
+		hasStartBuild    = row.StartBuildCreatedAt.Valid
+		isResumed        = hasStartBuild && row.StartBuildNumber.Valid && row.StartBuildNumber.Int32 > 1
+		hasStopBuild     = row.StopBuildCreatedAt.Valid
+		startedAfterStop = hasStartBuild && hasStopBuild && row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
+		currentlyPaused  = hasStopBuild && !startedAfterStop
+	)
+
+	// Pause-related fields (requires a stop build).
+	if hasStopBuild {
+		event.LastPausedAt = &row.StopBuildCreatedAt.Time
+		switch {
+		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskAutoPause:
+			event.PauseReason = ptr.Ref("auto")
+		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskManualPause:
+			event.PauseReason = ptr.Ref("manual")
+		default:
+			event.PauseReason = ptr.Ref("other")
+		}
+
+		// Idle duration: time between last working status and the pause.
+		if row.LastWorkingStatusAt.Valid &&
+			row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
+			idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
+			event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
+		}
+	}
+
+	// Resume-related fields (requires task_resume start after stop).
+	if startedAfterStop {
+		// Paused duration: time between pause and resume.
+		if row.StartBuildCreatedAt.Time.After(createdAfter) {
+			paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
+			event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+		}
+
+		// Below only relevant for "resumed" tasks, not when initially created.
+		if isResumed {
+			event.LastResumedAt = &row.StartBuildCreatedAt.Time
+			switch {
+			// TODO(Cian): will this exist? Future readers may know better than I.
+			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
+			//	event.ResumeReason = ptr.Ref("auto")
+			case row.StartBuildReason.BuildReason == database.BuildReasonTaskResume:
+				event.ResumeReason = ptr.Ref("manual")
+			default: // Task resumed by starting workspace?
+				event.ResumeReason = ptr.Ref("other")
+			}
+		}
+	}
+
+	// Unresolved pause: report current paused duration.
+	if currentlyPaused {
+		paused := now.Sub(row.StopBuildCreatedAt.Time)
+		event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
+	}
+
+	// Resume-to-status duration.
+	if row.FirstStatusAfterResumeAt.Valid && isResumed {
+		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
+		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
+	}
+
+	// Active duration: from SQL calculation.
+	if row.ActiveDurationMs > 0 {
+		event.ActiveDurationMS = ptr.Ref(row.ActiveDurationMs)
+	}
+
+	return event
+}
+
+// CollectTaskEvents collects lifecycle events for tasks with recent activity.
+func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter, now time.Time) ([]TaskEvent, error) {
+	rows, err := db.GetTelemetryTaskEvents(ctx, database.GetTelemetryTaskEventsParams{
+		CreatedAfter: createdAfter,
+		Now:          now,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get telemetry task events: %w", err)
+	}
+	events := make([]TaskEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, buildTaskEvent(row, createdAfter, now))
+	}
+	return events, nil
+}
+
+// HashContent returns a SHA256 hash of the content as a hex string.
+// This is useful for hashing sensitive content like prompts for telemetry.
+func HashContent(content string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -1367,11 +1613,19 @@ type Snapshot struct {
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
 	Tasks                                []Task                                `json:"tasks"`
+	TaskEvents                           []TaskEvent                           `json:"task_events"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
 	AIBridgeInterceptionsSummaries       []AIBridgeInterceptionsSummary        `json:"aibridge_interceptions_summaries"`
 	BoundaryUsageSummary                 *BoundaryUsageSummary                 `json:"boundary_usage_summary"`
+	FirstUserOnboarding                  *FirstUserOnboarding                  `json:"first_user_onboarding"`
+	Chats                                []Chat                                `json:"chats"`
+	ChatMessageSummaries                 []ChatMessageSummary                  `json:"chat_message_summaries"`
+	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
+	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
+	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
+	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1397,6 +1651,15 @@ type Deployment struct {
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
 	IDPOrgSync *bool `json:"idp_org_sync"`
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the deployment.
+	// Reports configuration state, not license entitlement. Nullable so older
+	// Coder versions that do not emit the field decode as nil.
+	SCIMEnabled *bool `json:"scim_enabled"`
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY instead of the SCIM 2.0 handler in
+	// enterprise/coderd/scim. Nullable for the same backward compatibility
+	// reason as SCIMEnabled.
+	SCIMUseLegacy *bool `json:"scim_use_legacy"`
 }
 
 type APIKey struct {
@@ -1419,6 +1682,14 @@ type User struct {
 	GithubComUserID int64               `json:"github_com_user_id"`
 	// Omitempty for backwards compatibility.
 	LoginType string `json:"login_type,omitempty"`
+}
+
+// FirstUserOnboarding contains optional newsletter preference data
+// collected during first user setup. This is sent once when the first
+// user is created.
+type FirstUserOnboarding struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 type Group struct {
@@ -1928,25 +2199,36 @@ type Task struct {
 	WorkspaceAppID       *string   `json:"workspace_app_id"`
 	TemplateVersionID    string    `json:"template_version_id"`
 	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
-	CreatedAt            time.Time `json:"created_at"`
 	Status               string    `json:"status"`
+	CreatedAt            time.Time `json:"created_at"`
 }
 
-// ConvertTask anonymizes a Task.
+// TaskEvent represents lifecycle events for a task (pause/resume
+// cycles). The createdAfter parameter gates PausedDurationMS so
+// that only recent pause/resume pairs are reported.
+type TaskEvent struct {
+	TaskID           string     `json:"task_id"`
+	LastPausedAt     *time.Time `json:"last_paused_at"`
+	LastResumedAt    *time.Time `json:"last_resumed_at"`
+	PauseReason      *string    `json:"pause_reason"`
+	ResumeReason     *string    `json:"resume_reason"`
+	IdleDurationMS   *int64     `json:"idle_duration_ms"`
+	PausedDurationMS *int64     `json:"paused_duration_ms"`
+	ResumeToStatusMS *int64     `json:"resume_to_status_ms"`
+	ActiveDurationMS *int64     `json:"active_duration_ms"`
+}
+
+// ConvertTask converts a database Task to a telemetry Task.
 func ConvertTask(task database.Task) Task {
-	t := &Task{
-		ID:                   task.ID.String(),
-		OrganizationID:       task.OrganizationID.String(),
-		OwnerID:              task.OwnerID.String(),
-		Name:                 task.Name,
-		WorkspaceID:          nil,
-		WorkspaceBuildNumber: nil,
-		WorkspaceAgentID:     nil,
-		WorkspaceAppID:       nil,
-		TemplateVersionID:    task.TemplateVersionID.String(),
-		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
-		CreatedAt:            task.CreatedAt,
-		Status:               string(task.Status),
+	t := Task{
+		ID:                task.ID.String(),
+		OrganizationID:    task.OrganizationID.String(),
+		OwnerID:           task.OwnerID.String(),
+		Name:              task.Name,
+		TemplateVersionID: task.TemplateVersionID.String(),
+		PromptHash:        HashContent(task.Prompt),
+		Status:            string(task.Status),
+		CreatedAt:         task.CreatedAt,
 	}
 	if task.WorkspaceID.Valid {
 		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
@@ -1960,7 +2242,71 @@ func ConvertTask(task database.Task) Task {
 	if task.WorkspaceAppID.Valid {
 		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
 	}
-	return *t
+	return t
+}
+
+// ConvertChat converts a database chat row to a telemetry Chat.
+func ConvertChat(dbChat database.GetChatsUpdatedAfterRow) Chat {
+	c := Chat{
+		ID:                dbChat.ID,
+		OwnerID:           dbChat.OwnerID,
+		CreatedAt:         dbChat.CreatedAt,
+		UpdatedAt:         dbChat.UpdatedAt,
+		Status:            string(dbChat.Status),
+		HasParent:         dbChat.HasParent,
+		Archived:          dbChat.Archived,
+		LastModelConfigID: dbChat.LastModelConfigID,
+	}
+	if dbChat.RootChatID.Valid {
+		c.RootChatID = &dbChat.RootChatID.UUID
+	}
+	if dbChat.WorkspaceID.Valid {
+		c.WorkspaceID = &dbChat.WorkspaceID.UUID
+	}
+	if dbChat.Mode.Valid {
+		mode := string(dbChat.Mode.ChatMode)
+		c.Mode = &mode
+	}
+	c.ClientType = string(dbChat.ClientType)
+	if dbChat.PullRequestState.Valid {
+		c.PullRequestState = &dbChat.PullRequestState.String
+	}
+	return c
+}
+
+// ConvertChatMessageSummary converts a database chat message
+// summary row to a telemetry ChatMessageSummary.
+func ConvertChatMessageSummary(dbRow database.GetChatMessageSummariesPerChatRow) ChatMessageSummary {
+	return ChatMessageSummary{
+		ChatID:                   dbRow.ChatID,
+		MessageCount:             dbRow.MessageCount,
+		UserMessageCount:         dbRow.UserMessageCount,
+		AssistantMessageCount:    dbRow.AssistantMessageCount,
+		ToolMessageCount:         dbRow.ToolMessageCount,
+		SystemMessageCount:       dbRow.SystemMessageCount,
+		TotalInputTokens:         dbRow.TotalInputTokens,
+		TotalOutputTokens:        dbRow.TotalOutputTokens,
+		TotalReasoningTokens:     dbRow.TotalReasoningTokens,
+		TotalCacheCreationTokens: dbRow.TotalCacheCreationTokens,
+		TotalCacheReadTokens:     dbRow.TotalCacheReadTokens,
+		TotalCostMicros:          dbRow.TotalCostMicros,
+		TotalRuntimeMs:           dbRow.TotalRuntimeMs,
+		DistinctModelCount:       dbRow.DistinctModelCount,
+		CompressedMessageCount:   dbRow.CompressedMessageCount,
+	}
+}
+
+// ConvertChatModelConfig converts a database model config row to a
+// telemetry ChatModelConfig.
+func ConvertChatModelConfig(dbRow database.GetChatModelConfigsForTelemetryRow) ChatModelConfig {
+	return ChatModelConfig{
+		ID:           dbRow.ID,
+		Provider:     dbRow.Provider,
+		Model:        dbRow.Model,
+		ContextLimit: dbRow.ContextLimit,
+		Enabled:      dbRow.Enabled,
+		IsDefault:    dbRow.IsDefault,
+	}
 }
 
 type telemetryItemKey string
@@ -2082,6 +2428,113 @@ type BoundaryUsageSummary struct {
 	// PeriodDurationMilliseconds is the expected duration of the collection
 	// period (the telemetry snapshot frequency).
 	PeriodDurationMilliseconds int64 `json:"period_duration_ms"`
+}
+
+// Chat contains anonymized metadata about a chat for telemetry.
+// Titles and message content are excluded to avoid PII leakage.
+type Chat struct {
+	ID                uuid.UUID  `json:"id"`
+	OwnerID           uuid.UUID  `json:"owner_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	Status            string     `json:"status"`
+	HasParent         bool       `json:"has_parent"`
+	RootChatID        *uuid.UUID `json:"root_chat_id"`
+	WorkspaceID       *uuid.UUID `json:"workspace_id"`
+	Mode              *string    `json:"mode"`
+	Archived          bool       `json:"archived"`
+	LastModelConfigID uuid.UUID  `json:"last_model_config_id"`
+	ClientType        string     `json:"client_type"`
+	PullRequestState  *string    `json:"pull_request_state"`
+}
+
+// ChatMessageSummary contains per-chat aggregated message metrics
+// for telemetry. Individual message content is never included.
+type ChatMessageSummary struct {
+	ChatID                   uuid.UUID `json:"chat_id"`
+	MessageCount             int64     `json:"message_count"`
+	UserMessageCount         int64     `json:"user_message_count"`
+	AssistantMessageCount    int64     `json:"assistant_message_count"`
+	ToolMessageCount         int64     `json:"tool_message_count"`
+	SystemMessageCount       int64     `json:"system_message_count"`
+	TotalInputTokens         int64     `json:"total_input_tokens"`
+	TotalOutputTokens        int64     `json:"total_output_tokens"`
+	TotalReasoningTokens     int64     `json:"total_reasoning_tokens"`
+	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
+	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
+	TotalCostMicros          int64     `json:"total_cost_micros"`
+	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
+	DistinctModelCount       int64     `json:"distinct_model_count"`
+	CompressedMessageCount   int64     `json:"compressed_message_count"`
+}
+
+// ChatModelConfig contains model configuration metadata for
+// telemetry. Sensitive fields like API keys are excluded.
+type ChatModelConfig struct {
+	ID           uuid.UUID `json:"id"`
+	Provider     string    `json:"provider"`
+	Model        string    `json:"model"`
+	ContextLimit int64     `json:"context_limit"`
+	Enabled      bool      `json:"enabled"`
+	IsDefault    bool      `json:"is_default"`
+}
+
+// ChatDiffStatusSummary contains aggregate PR counts across all
+// agent chats. Total counts unique PRs with a known state
+// (open + merged + closed). Open, Merged, and Closed break that
+// total down by state.
+type ChatDiffStatusSummary struct {
+	Total  int64 `json:"total"`
+	Open   int64 `json:"open"`
+	Merged int64 `json:"merged"`
+	Closed int64 `json:"closed"`
+}
+
+// UserSecretsSummary contains deployment-wide aggregates about user
+// secrets. All counts are scoped to active non-system users so that
+// soft-deleted accounts, dormant or suspended users, and internal
+// subjects (e.g. the prebuilds user) do not skew the results. Status
+// transitions move users in and out of this denominator, so a
+// snapshot's UsersWithSecrets can drop without any secret being
+// deleted.
+//
+// UsersWithSecrets is the count of active non-system users that have
+// at least one secret. TotalSecrets is the count of secrets owned by
+// those users. EnvNameOnly, FilePathOnly, Both, and Neither break
+// TotalSecrets down by which injection fields are populated.
+//
+// The SecretsPerUser* fields describe the distribution of secrets per
+// user across the entire active non-system user base, including users
+// with zero secrets, so the percentiles reflect deployment-wide
+// adoption rather than only the power-user subset. Max and Px are the
+// maximum and the 25th, 50th, 75th, and 90th percentiles.
+type UserSecretsSummary struct {
+	UsersWithSecrets  int64 `json:"users_with_secrets"`
+	TotalSecrets      int64 `json:"total_secrets"`
+	EnvNameOnly       int64 `json:"env_name_only"`
+	FilePathOnly      int64 `json:"file_path_only"`
+	Both              int64 `json:"both"`
+	Neither           int64 `json:"neither"`
+	SecretsPerUserMax int64 `json:"secrets_per_user_max"`
+	SecretsPerUserP25 int64 `json:"secrets_per_user_p25"`
+	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
+	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
+	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
+}
+
+// TemplateBuilderSession tracks a single event in the template builder
+// wizard. Two events are emitted per session: one on wizard entry and
+// one on compose completion. User-supplied variable values are never
+// included.
+type TemplateBuilderSession struct {
+	ID              uuid.UUID `json:"id"`
+	EventType       string    `json:"event_type"`
+	UserID          uuid.UUID `json:"user_id"`
+	BaseTemplateID  string    `json:"base_template_id,omitempty"`
+	ModuleIDs       []string  `json:"module_ids,omitempty"`
+	DurationSeconds float64   `json:"duration_seconds,omitempty"`
+	Success         bool      `json:"success,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

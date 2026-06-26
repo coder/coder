@@ -88,6 +88,13 @@ func Test_Tasks(t *testing.T) {
 					o.Client = agentClient
 				})
 				coderdtest.NewWorkspaceAgentWaiter(t, userClient, tasks[0].WorkspaceID.UUID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
+				// Report the task app as idle so that waitForTaskIdle
+				// can proceed during the "send task message" step.
+				require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+					AppSlug: "task-sidebar",
+					State:   codersdk.WorkspaceAppStatusStateIdle,
+					Message: "ready",
+				}))
 			},
 		},
 		{
@@ -118,6 +125,40 @@ func Test_Tasks(t *testing.T) {
 				require.Equal(t, logs[1].Type, codersdk.TaskLogTypeInput, "second message should be an input")
 				require.Equal(t, logs[2].Content, "hello", "third message should be the echoed message")
 				require.Equal(t, logs[2].Type, codersdk.TaskLogTypeOutput, "third message should be an output")
+			},
+		},
+		{
+			name:    "pause task",
+			cmdArgs: []string{"task", "pause", taskName, "--yes"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				require.Contains(t, stdout, "has been paused", "pause output should confirm task was paused")
+			},
+		},
+		{
+			name:    "get task status after pause",
+			cmdArgs: []string{"task", "status", taskName, "--output", "json"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				var task codersdk.Task
+				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&task), "should unmarshal task status")
+				require.Equal(t, taskName, task.Name, "task name should match")
+				require.Equal(t, codersdk.TaskStatusPaused, task.Status, "task should be paused")
+			},
+		},
+		{
+			name:    "resume task",
+			cmdArgs: []string{"task", "resume", taskName, "--yes"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				require.Contains(t, stdout, "has been resumed", "resume output should confirm task was resumed")
+			},
+		},
+		{
+			name:    "get task status after resume",
+			cmdArgs: []string{"task", "status", taskName, "--output", "json"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				var task codersdk.Task
+				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&task), "should unmarshal task status")
+				require.Equal(t, taskName, task.Name, "task name should match")
+				require.Equal(t, codersdk.TaskStatusInitializing, task.Status, "task should be initializing after resume")
 			},
 		},
 		{
@@ -238,17 +279,26 @@ func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Mes
 // setupCLITaskTest creates a test workspace with an AI task template and agent,
 // with a fake agent API configured with the provided set of handlers.
 // Returns the user client and workspace.
-func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Task) {
+// setupCLITaskTestResult holds the return values from setupCLITaskTest.
+type setupCLITaskTestResult struct {
+	ownerClient *codersdk.Client
+	userClient  *codersdk.Client
+	task        codersdk.Task
+	agentToken  string
+	agent       agent.Agent
+}
+
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) setupCLITaskTestResult {
 	t.Helper()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	owner := coderdtest.CreateFirstUser(t, client)
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 	fakeAPI := startFakeAgentAPI(t, agentAPIHandlers)
 
 	authToken := uuid.NewString()
-	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
+	template := createAITaskTemplate(t, ownerClient, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
 
 	wantPrompt := "test prompt"
 	task, err := userClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
@@ -258,21 +308,56 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	})
 	require.NoError(t, err)
 
-	// Wait for the task's underlying workspace to be built
+	// Wait for the task's underlying workspace to be built.
 	require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
 	workspace, err := userClient.Workspace(ctx, task.WorkspaceID.UUID)
 	require.NoError(t, err)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
-	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+	agentClient := agentsdk.New(userClient.URL, agentsdk.WithFixedToken(authToken))
+	agt := agenttest.New(t, userClient.URL, authToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
 
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
+	coderdtest.NewWorkspaceAgentWaiter(t, userClient, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
 
-	return userClient, task
+	// Report the task app as idle so that waitForTaskIdle can proceed.
+	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+		AppSlug: "task-sidebar",
+		State:   codersdk.WorkspaceAppStatusStateIdle,
+		Message: "ready",
+	})
+	require.NoError(t, err)
+
+	return setupCLITaskTestResult{
+		ownerClient: ownerClient,
+		userClient:  userClient,
+		task:        task,
+		agentToken:  authToken,
+		agent:       agt,
+	}
+}
+
+// pauseTask pauses the task and waits for the stop build to complete.
+func pauseTask(ctx context.Context, t *testing.T, client *codersdk.Client, task codersdk.Task) {
+	t.Helper()
+
+	pauseResp, err := client.PauseTask(ctx, task.OwnerName, task.ID)
+	require.NoError(t, err)
+	require.NotNil(t, pauseResp.WorkspaceBuild)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, pauseResp.WorkspaceBuild.ID)
+}
+
+// resumeTask resumes the task waits for the start build to complete. The task
+// will be in "initializing" state after this returns because no agent is connected.
+func resumeTask(ctx context.Context, t *testing.T, client *codersdk.Client, task codersdk.Task) {
+	t.Helper()
+
+	resumeResp, err := client.ResumeTask(ctx, task.OwnerName, task.ID)
+	require.NoError(t, err)
+	require.NotNil(t, resumeResp.WorkspaceBuild)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, resumeResp.WorkspaceBuild.ID)
 }
 
 // setupCLITaskTestWithSnapshot creates a task in the specified status with a log snapshot.

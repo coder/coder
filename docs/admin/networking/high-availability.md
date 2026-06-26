@@ -29,6 +29,12 @@ user <-> Coder connections.
 Coder automatically enters HA mode when multiple instances simultaneously
 connect to the same Postgres endpoint.
 
+> [!NOTE]
+> When upgrading HA deployments, database migrations may require special
+> handling to avoid lock contention. See
+> [Upgrading Best Practices](../../install/upgrade-best-practices.md) for
+> recommended procedures.
+
 HA brings one configuration variable to set in each Coderd node:
 `CODER_DERP_SERVER_RELAY_URL`. The HA nodes use these URLs to communicate with
 each other. Inter-node communication is only required while using the embedded

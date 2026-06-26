@@ -1,9 +1,13 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
-import { isApiValidationError } from "api/errors";
-import { RBACResourceActions } from "api/rbacresourcesGenerated";
+import { useFormik } from "formik";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type ChangeEvent, type FC, useState } from "react";
+import { useNavigate } from "react-router";
+import * as Yup from "yup";
+import { isApiValidationError } from "#/api/errors";
+import { RBACResourceActions } from "#/api/rbacresourcesGenerated";
 import type {
 	AssignableRoles,
 	CustomRoleRequest,
@@ -11,17 +15,16 @@ import type {
 	RBACAction,
 	RBACResource,
 	Role,
-} from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { FormFields, FormFooter, VerticalForm } from "components/Form/Form";
+} from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { FormFields, FormFooter, VerticalForm } from "#/components/Form/Form";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -30,13 +33,8 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { useFormik } from "formik";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router";
-import { getFormHelpers, nameValidator } from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/components/Table/Table";
+import { getFormHelpers, nameValidator } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
@@ -80,11 +78,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>
 						{role ? "Edit" : "Create"} Custom Role
@@ -112,7 +106,7 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						{role !== undefined ? "Save" : "Create Role"}
 					</Button>
 				</div>
-			</Stack>
+			</div>
 
 			<VerticalForm onSubmit={form.handleSubmit}>
 				<FormFields>
@@ -329,7 +323,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 	return (
 		<TableRow key={resourceKey}>
 			<TableCell className="pl-0.5" colSpan={2}>
-				<li key={resourceKey} css={styles.checkBoxes}>
+				<li key={resourceKey} className="m-0 list-none">
 					<Checkbox
 						size="small"
 						name={`${resourceKey}`}
@@ -349,10 +343,10 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 						}
 					/>
 					{resourceKey}
-					<ul css={styles.checkBoxes}>
+					<ul className="m-0 list-none">
 						{Object.entries(value).map(([actionKey, value]) => (
-							<li key={actionKey} css={styles.actionItem}>
-								<span css={styles.actionText}>
+							<li key={actionKey} className="grid grid-cols-[270px_1fr]">
+								<span className="text-content-primary">
 									<Checkbox
 										size="small"
 										name={`${resourceKey}:${actionKey}`}
@@ -363,7 +357,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 									/>
 									{actionKey}
 								</span>
-								<span css={styles.actionDescription}>{value}</span>
+								<span className="pt-1.5 text-content-secondary">{value}</span>
 							</li>
 						))}
 					</ul>
@@ -406,23 +400,5 @@ const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	checkBoxes: {
-		margin: 0,
-		listStyleType: "none",
-	},
-	actionText: (theme) => ({
-		color: theme.palette.text.primary,
-	}),
-	actionDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		paddingTop: 6,
-	}),
-	actionItem: {
-		display: "grid",
-		gridTemplateColumns: "270px 1fr",
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default CreateEditRolePageView;

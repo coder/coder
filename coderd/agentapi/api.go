@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -57,6 +58,7 @@ type API struct {
 	*ConnLogAPI
 	*SubAgentAPI
 	*BoundaryLogsAPI
+	*ContextAPI
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
@@ -73,12 +75,15 @@ type Options struct {
 	OrganizationID    uuid.UUID
 	TemplateVersionID uuid.UUID
 
-	AuthenticatedCtx                  context.Context
-	Log                               slog.Logger
-	Clock                             quartz.Clock
-	Database                          database.Store
-	NotificationsEnqueuer             notifications.Enqueuer
-	Pubsub                            pubsub.Pubsub
+	AuthenticatedCtx      context.Context
+	Log                   slog.Logger
+	Clock                 quartz.Clock
+	Database              database.Store
+	NotificationsEnqueuer notifications.Enqueuer
+	Pubsub                pubsub.Pubsub
+	// ContextDirtyMarker is the chatd-backed hydrate/dirty fan-out invoked
+	// from PushContextState. Nil when chatd is disabled.
+	ContextDirtyMarker                ContextDirtyMarker
 	ConnectionLogger                  *atomic.Pointer[connectionlog.ConnectionLogger]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
@@ -89,6 +94,8 @@ type Options struct {
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 	BoundaryUsageTracker              *boundaryusage.Tracker
+	LifecycleMetrics                  *LifecycleMetrics
+	PortSharer                        *atomic.Pointer[portsharing.PortSharer]
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -102,7 +109,7 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options, workspace database.Workspace) *API {
+func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -155,7 +162,8 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.StatsAPI = &StatsAPI{
-		AgentFn:                   api.agent,
+		AgentID:                   agent.ID,
+		AgentName:                 agent.Name,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -170,17 +178,22 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Metrics:                  opts.LifecycleMetrics,
 	}
 
 	api.AppsAPI = &AppsAPI{
+		AgentID:                  agent.ID,
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
+		Workspace:                api.cachedWorkspaceFields,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Clock:                    opts.Clock,
+		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:   api.agent,
+		AgentID:   agent.ID,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Log:       opts.Log,
@@ -200,7 +213,8 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.ConnLogAPI = &ConnLogAPI{
-		AgentFn:          api.agent,
+		AgentID:          agent.ID,
+		AgentName:        agent.Name,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
@@ -218,20 +232,31 @@ func New(opts Options, workspace database.Workspace) *API {
 	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
-		AgentID:        opts.AgentID,
 		AgentFn:        api.agent,
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,
+		PortSharer:     opts.PortSharer,
 	}
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
 		Log:                  opts.Log,
+		Database:             opts.Database,
+		AgentID:              opts.AgentID,
 		WorkspaceID:          opts.WorkspaceID,
 		OwnerID:              opts.OwnerID,
 		TemplateID:           workspace.TemplateID,
 		TemplateVersionID:    opts.TemplateVersionID,
 		BoundaryUsageTracker: opts.BoundaryUsageTracker,
+	}
+
+	api.ContextAPI = &ContextAPI{
+		AgentID:     agent.ID,
+		Workspace:   api.cachedWorkspaceFields,
+		Log:         opts.Log,
+		Clock:       opts.Clock,
+		Database:    opts.Database,
+		DirtyMarker: opts.ContextDirtyMarker,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
@@ -293,8 +318,10 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
 	if err != nil {
+		// Do not clear the cache on transient DB errors. Stale data is
+		// preferable to no data, which forces callers to fall back to
+		// expensive queries like GetWorkspaceByAgentID.
 		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
-		a.cachedWorkspaceFields.Clear()
 		return
 	}
 
@@ -337,11 +364,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     &agent.ID,
+		AgentID:     &agentID,
 	})
 	return nil
 }

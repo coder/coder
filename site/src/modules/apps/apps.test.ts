@@ -1,9 +1,68 @@
+import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
-} from "testHelpers/entities";
-import { getAppHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
+} from "#/testHelpers/entities";
+import {
+	getAppHref,
+	getVSCodeHref,
+	isAppBlockedByMissingWildcard,
+	isWorkspaceAppEmbeddable,
+	openAppInNewWindow,
+	SESSION_TOKEN_PLACEHOLDER,
+} from "./apps";
+
+function buildApp(overrides: Partial<WorkspaceApp> = {}): WorkspaceApp {
+	return {
+		...MockWorkspaceApp,
+		health: "healthy",
+		...overrides,
+	};
+}
+
+describe("getVSCodeHref", () => {
+	it("includes the chat ID when provided", () => {
+		const folder = "/workspace/test";
+		const href = getVSCodeHref("vscode", {
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			token: "user-session-token",
+			agent: MockWorkspaceAgent.name,
+			folder,
+			chatId: "chat-123",
+		});
+		const query = new URLSearchParams({
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			url: location.origin,
+			token: "user-session-token",
+			openRecent: "true",
+			agent: MockWorkspaceAgent.name,
+			folder,
+			chatId: "chat-123",
+		});
+
+		expect(href).toBe(`vscode://coder.coder-remote/open?${query}`);
+	});
+
+	it("omits the chat ID when none is provided", () => {
+		const href = getVSCodeHref("cursor", {
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			token: "user-session-token",
+		});
+		const query = new URLSearchParams({
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			url: location.origin,
+			token: "user-session-token",
+			openRecent: "true",
+		});
+
+		expect(href).toBe(`cursor://coder.coder-remote/open?${query}`);
+	});
+});
 
 describe("getAppHref", () => {
 	it("returns the URL without changes when external app has regular URL", () => {
@@ -81,11 +140,11 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
+			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 
-	it("includes the command in the URL when app has a command", () => {
+	it("includes the app slug in the URL when app has a command", () => {
 		const app = {
 			...MockWorkspaceApp,
 			command: "ls -la",
@@ -97,7 +156,7 @@ describe("getAppHref", () => {
 			path: "",
 		});
 		expect(href).toBe(
-			`/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/terminal?command=ls%20-la`,
+			`/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/terminal?app=${app.slug}`,
 		);
 	});
 
@@ -129,7 +188,82 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
+			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
+	});
+});
+
+describe("openAppInNewWindow", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("severs opener and navigates popup to href on success", () => {
+		const popup = {
+			opener: window,
+			location: { href: "" },
+		};
+		vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+
+		openAppInNewWindow("https://app.example.com");
+
+		expect(popup.opener).toBeNull();
+		expect(popup.location.href).toBe("https://app.example.com");
+	});
+
+	it("still navigates when nulling opener throws", () => {
+		const popup = {
+			location: { href: "" },
+		};
+		Object.defineProperty(popup, "opener", {
+			set() {
+				throw new Error("Electron restriction");
+			},
+			get() {
+				return window;
+			},
+		});
+		vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+
+		openAppInNewWindow("https://app.example.com");
+
+		expect(popup.location.href).toBe("https://app.example.com");
+	});
+});
+
+describe("isWorkspaceAppEmbeddable", () => {
+	it("returns true for visible path-based apps", () => {
+		expect(isWorkspaceAppEmbeddable(buildApp())).toBe(true);
+	});
+
+	it("returns false for command apps, hidden apps, and external apps", () => {
+		expect(isWorkspaceAppEmbeddable(buildApp({ command: "run-preview" }))).toBe(
+			false,
+		);
+		expect(isWorkspaceAppEmbeddable(buildApp({ hidden: true }))).toBe(false);
+		expect(
+			isWorkspaceAppEmbeddable(
+				buildApp({ external: true, url: "https://example.com" }),
+			),
+		).toBe(false);
+	});
+});
+
+describe("isAppBlockedByMissingWildcard", () => {
+	it("blocks subdomain apps when no wildcard host is configured", () => {
+		const subdomainApp = buildApp({ subdomain: true });
+
+		expect(isAppBlockedByMissingWildcard(subdomainApp, "")).toBe(true);
+		expect(isAppBlockedByMissingWildcard(subdomainApp, undefined)).toBe(true);
+		expect(
+			isAppBlockedByMissingWildcard(subdomainApp, "*.apps.example.com"),
+		).toBe(false);
+	});
+
+	it("never blocks path-based apps", () => {
+		const pathApp = buildApp({ subdomain: false });
+
+		expect(isAppBlockedByMissingWildcard(pathApp, "")).toBe(false);
+		expect(isAppBlockedByMissingWildcard(pathApp, undefined)).toBe(false);
 	});
 });

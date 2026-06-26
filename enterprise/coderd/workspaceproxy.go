@@ -94,7 +94,7 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
 // @Param request body codersdk.PatchWorkspaceProxy true "Update workspace proxy request"
 // @Success 200 {object} codersdk.WorkspaceProxy
-// @Router /workspaceproxies/{workspaceproxy} [patch]
+// @Router /api/v2/workspaceproxies/{workspaceproxy} [patch]
 func (api *API) patchWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -204,7 +204,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 
 	args := database.UpsertDefaultProxyParams{
 		DisplayName: req.DisplayName,
-		IconUrl:     req.Icon,
+		IconURL:     req.Icon,
 	}
 	if req.DisplayName == "" || req.Icon == "" {
 		// If the user has not specified an update value, use the existing value.
@@ -217,7 +217,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 			args.DisplayName = existing.DisplayName
 		}
 		if req.Icon == "" {
-			args.IconUrl = existing.IconUrl
+			args.IconURL = existing.IconURL
 		}
 	}
 
@@ -243,7 +243,7 @@ func (api *API) patchPrimaryWorkspaceProxy(req codersdk.PatchWorkspaceProxy, rw 
 // @Tags Enterprise
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /workspaceproxies/{workspaceproxy} [delete]
+// @Router /api/v2/workspaceproxies/{workspaceproxy} [delete]
 func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -295,7 +295,7 @@ func (api *API) deleteWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param workspaceproxy path string true "Proxy ID or name" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceProxy
-// @Router /workspaceproxies/{workspaceproxy} [get]
+// @Router /api/v2/workspaceproxies/{workspaceproxy} [get]
 func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -313,7 +313,7 @@ func (api *API) workspaceProxy(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param request body codersdk.CreateWorkspaceProxyRequest true "Create workspace proxy request"
 // @Success 201 {object} codersdk.WorkspaceProxy
-// @Router /workspaceproxies [post]
+// @Router /api/v2/workspaceproxies [post]
 func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -417,7 +417,7 @@ func validateProxyURL(u string) error {
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.RegionsResponse[codersdk.WorkspaceProxy]
-// @Router /workspaceproxies [get]
+// @Router /api/v2/workspaceproxies [get]
 func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	proxies, err := api.fetchWorkspaceProxies(r.Context())
@@ -461,7 +461,7 @@ func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResp
 // @Tags Enterprise
 // @Param request body workspaceapps.IssueTokenRequest true "Issue signed app token request"
 // @Success 201 {object} wsproxysdk.IssueSignedAppTokenResponse
-// @Router /workspaceproxies/me/issue-signed-app-token [post]
+// @Router /api/v2/workspaceproxies/me/issue-signed-app-token [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -513,7 +513,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // @Tags Enterprise
 // @Param request body wsproxysdk.ReportAppStatsRequest true "Report app stats request"
 // @Success 204
-// @Router /workspaceproxies/me/app-stats [post]
+// @Router /api/v2/workspaceproxies/me/app-stats [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -553,7 +553,7 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 // @Tags Enterprise
 // @Param request body wsproxysdk.RegisterWorkspaceProxyRequest true "Register workspace proxy request"
 // @Success 201 {object} wsproxysdk.RegisterWorkspaceProxyResponse
-// @Router /workspaceproxies/me/register [post]
+// @Router /api/v2/workspaceproxies/me/register [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -604,6 +604,25 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Load the mesh key directly from the database. We don't retrieve the mesh
+	// key from the built-in DERP server because it may not be enabled.
+	//
+	// The mesh key is always generated at startup by an enterprise coderd
+	// server.
+	var meshKey string
+	if req.DerpEnabled {
+		var err error
+		meshKey, err = api.Database.GetDERPMeshKey(ctx)
+		if err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("get DERP mesh key: %w", err))
+			return
+		}
+		if meshKey == "" {
+			httpapi.InternalServerError(rw, xerrors.New("mesh key is empty"))
+			return
+		}
+	}
+
 	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
 	// #nosec G115 - Safe conversion as DERP region IDs are small integers expected to be within int32 range
 	regionID := int32(startingRegionID) + proxy.RegionID
@@ -648,6 +667,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				Error:           req.ReplicaError,
 				DatabaseLatency: 0,
 				Primary:         false,
+				ClusterHost:     "",
+				NATSPort:        0, // proxies do not run NATS
 			})
 			if err != nil {
 				return xerrors.Errorf("update replica: %w", err)
@@ -665,6 +686,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				Version:         req.Version,
 				DatabaseLatency: 0,
 				Primary:         false,
+				ClusterHost:     "",
+				NATSPort:        0, // proxies do not run NATS
 			})
 			if err != nil {
 				return xerrors.Errorf("insert replica: %w", err)
@@ -710,7 +733,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		DERPMeshKey:         api.DERPServer.MeshKey(),
+		DERPMeshKey:         meshKey,
 		DERPRegionID:        regionID,
 		DERPMap:             api.AGPL.DERPMap(),
 		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
@@ -732,7 +755,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // @Tags Enterprise
 // @Param feature query string true "Feature key"
 // @Success 200 {object} wsproxysdk.CryptoKeysResponse
-// @Router /workspaceproxies/me/crypto-keys [get]
+// @Router /api/v2/workspaceproxies/me/crypto-keys [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -770,7 +793,7 @@ func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request
 // @Tags Enterprise
 // @Param request body wsproxysdk.DeregisterWorkspaceProxyRequest true "Deregister workspace proxy request"
 // @Success 204
-// @Router /workspaceproxies/me/deregister [post]
+// @Router /api/v2/workspaceproxies/me/deregister [post]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -807,6 +830,8 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 			Error:           replica.Error,
 			DatabaseLatency: replica.DatabaseLatency,
 			Primary:         replica.Primary,
+			ClusterHost:     "",
+			NATSPort:        0, // proxies do not run NATS
 		})
 		if err != nil {
 			return xerrors.Errorf("update replica: %w", err)
@@ -847,7 +872,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Param request body codersdk.IssueReconnectingPTYSignedTokenRequest true "Issue reconnecting PTY signed token request"
 // @Success 200 {object} codersdk.IssueReconnectingPTYSignedTokenResponse
-// @Router /applications/reconnecting-pty-signed-token [post]
+// @Router /api/v2/applications/reconnecting-pty-signed-token [post]
 // @x-apidocgen {"skip": true}
 func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

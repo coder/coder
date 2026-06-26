@@ -1,23 +1,22 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { workspaceResolveAutostart } from "api/queries/workspaceQuota";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
+import { workspaceResolveAutostart } from "#/api/queries/workspaceQuota";
 import type {
 	Template,
 	TemplateVersion,
 	Workspace,
 	WorkspaceBuild,
-} from "api/typesGenerated";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
-import { type FC, useEffect, useState } from "react";
+} from "#/api/typesGenerated";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/InlineMarkdown";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
 
 dayjs.extend(relativeTime);
 
 import { useQuery } from "react-query";
-import { formatDate } from "utils/time";
+import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
 	NotificationActionButton,
@@ -91,37 +90,47 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		!workspace.health.healthy
 	) {
 		const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
-		const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
-		notifications.push({
-			title: "Workspace is unhealthy",
-			severity: "warning",
-			detail: (
-				<>
-					Your workspace is running but{" "}
-					{workspace.health.failing_agents.length > 1
-						? `${workspace.health.failing_agents.length} agents are unhealthy`
-						: "1 agent is unhealthy"}
-					.
-				</>
-			),
-			actions: hasActions ? (
-				<>
-					{permissions.updateWorkspace && (
-						<NotificationActionButton onClick={onRestartWorkspace}>
-							Restart
-						</NotificationActionButton>
-					)}
-					{troubleshootingURL && (
-						<NotificationActionButton
-							onClick={() => window.open(troubleshootingURL, "_blank")}
-						>
-							Troubleshooting
-						</NotificationActionButton>
-					)}
-				</>
-			) : undefined,
-		});
+		if (isStartupScriptFailure(workspace)) {
+			// Restarting won't fix a broken startup script, so omit the Restart
+			// button and guide the user to their template admin instead.
+			notifications.push({
+				title: "A startup script has failed",
+				severity: "warning",
+				detail:
+					"The workspace agent is running but a startup script exited with an error.",
+				actions: troubleshootingURL ? (
+					<NotificationActionButton
+						onClick={() => window.open(troubleshootingURL, "_blank")}
+					>
+						Troubleshooting
+					</NotificationActionButton>
+				) : undefined,
+			});
+		} else {
+			const hasActions = permissions.updateWorkspace || troubleshootingURL;
+			notifications.push({
+				title: "One or more workspace agents need attention",
+				severity: "warning",
+				detail: "Expand an agent's logs to view per-agent health details.",
+				actions: hasActions ? (
+					<>
+						{permissions.updateWorkspace && (
+							<NotificationActionButton onClick={onRestartWorkspace}>
+								Restart
+							</NotificationActionButton>
+						)}
+						{troubleshootingURL && (
+							<NotificationActionButton
+								onClick={() => window.open(troubleshootingURL, "_blank")}
+							>
+								Troubleshooting
+							</NotificationActionButton>
+						)}
+					</>
+				) : undefined,
+			});
+		}
 	}
 
 	// Dormant
@@ -214,7 +223,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 					This workspace build job is waiting for a provisioner to become
 					available. If you have been waiting for an extended period of time,
 					please contact your administrator for assistance.
-					<span css={{ display: "block", marginTop: 12 }}>
+					<span className="block mt-3">
 						Position in queue:{" "}
 						<strong>{workspace.latest_build.job.queue_position}</strong>
 					</span>
@@ -248,7 +257,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	}
 
 	return (
-		<div css={styles.notificationsGroup}>
+		<div className="flex items-center gap-3">
 			{infoNotifications.length > 0 && (
 				<Notifications
 					items={infoNotifications}
@@ -261,22 +270,16 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<Notifications
 					items={warningNotifications}
 					severity="warning"
-					icon={<TriangleAlertIcon className="size-icon-sm" />}
+					icon={
+						<TriangleAlertIcon aria-hidden="true" className="size-icon-sm" />
+					}
 				/>
 			)}
 		</div>
 	);
 };
 
-const styles = {
-	notificationsGroup: {
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
-
-export const findTroubleshootingURL = (
+const findTroubleshootingURL = (
 	workspaceBuild: WorkspaceBuild,
 ): string | undefined => {
 	for (const resource of workspaceBuild.resources) {
@@ -289,4 +292,25 @@ export const findTroubleshootingURL = (
 		}
 	}
 	return undefined;
+};
+
+/**
+ * Returns true when every failing agent's lifecycle state is "start_error",
+ * meaning the agent process is running but a startup script exited with an
+ * error. Restarting the workspace will not fix this because the template admin
+ * must correct the startup script.
+ */
+const isStartupScriptFailure = (workspace: Workspace): boolean => {
+	const failingIds = new Set(workspace.health.failing_agents);
+	if (failingIds.size === 0) {
+		return false;
+	}
+	for (const resource of workspace.latest_build.resources) {
+		for (const agent of resource.agents ?? []) {
+			if (failingIds.has(agent.id) && agent.lifecycle_state !== "start_error") {
+				return false;
+			}
+		}
+	}
+	return true;
 };

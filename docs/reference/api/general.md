@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/ \
   -H 'Accept: application/json'
 ```
 
-`GET /`
+`GET /api/v2/`
 
 ### Example responses
 
@@ -45,7 +45,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   -H 'Accept: application/json'
 ```
 
-`GET /buildinfo`
+`GET /api/v2/buildinfo`
 
 ### Example responses
 
@@ -83,7 +83,7 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /csp/reports`
+`POST /api/v2/csp/reports`
 
 > Body parameter
 
@@ -118,7 +118,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/config`
+`GET /api/v2/deployment/config`
 
 ### Example responses
 
@@ -163,6 +163,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "agent_stat_refresh_interval": 0,
     "ai": {
       "aibridge_proxy": {
+        "allowed_private_cidrs": [
+          "string"
+        ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -170,14 +174,18 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "tls_cert_file": "string",
+        "tls_key_file": "string",
         "upstream_proxy": "string",
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -186,6 +194,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -198,10 +208,24 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
+        "providers": [
+          {
+            "base_url": "string",
+            "bedrock_model": "string",
+            "bedrock_region": "string",
+            "bedrock_small_fast_model": "string",
+            "name": "string",
+            "type": "string"
+          }
+        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
+      },
+      "chat": {
+        "acquire_batch_size": 0,
+        "debug_logging_enabled": true
       }
     },
     "allow_workspace_renames": true,
@@ -209,6 +233,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -251,6 +278,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
@@ -277,6 +305,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "external_auth": {
       "value": [
         {
+          "api_base_url": "string",
           "app_install_url": "string",
           "app_installations_url": "string",
           "auth_url": "string",
@@ -304,6 +333,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       ]
     },
+    "external_auth_github_default_provider_enable": true,
     "external_token_encryption_keys": [
       "string"
     ],
@@ -314,6 +344,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
+      "host_prefix": true,
       "same_site": "string",
       "secure_auth_cookie": true
     },
@@ -396,6 +427,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -431,6 +463,19 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
       "scopes": [
         "string"
       ],
@@ -493,10 +538,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
+    "scim_use_legacy": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,
@@ -546,6 +593,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_builder": {
+      "disabled": true,
+      "registry_url": "string"
     },
     "terms_of_service_url": "string",
     "tls": {
@@ -650,7 +701,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/ssh`
+`GET /api/v2/deployment/ssh`
 
 ### Example responses
 
@@ -686,7 +737,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/stats`
+`GET /api/v2/deployment/stats`
 
 ### Example responses
 
@@ -738,7 +789,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experiments`
+`GET /api/v2/experiments`
 
 ### Example responses
 
@@ -777,7 +828,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experiments/available`
+`GET /api/v2/experiments/available`
 
 ### Example responses
 
@@ -815,7 +866,7 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
   -H 'Accept: application/json'
 ```
 
-`GET /updatecheck`
+`GET /api/v2/updatecheck`
 
 ### Example responses
 
@@ -846,7 +897,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens/tokenconfig`
+`GET /api/v2/users/{user}/keys/tokens/tokenconfig`
 
 ### Parameters
 

@@ -58,6 +58,65 @@ type WorkspaceBuildBuilder struct {
 	jobStatus  database.ProvisionerJobStatus
 	taskAppID  uuid.UUID
 	taskSeed   database.TaskTable
+
+	// Individual timestamp fields for job customization.
+	jobCreatedAt   time.Time
+	jobStartedAt   time.Time
+	jobUpdatedAt   time.Time
+	jobCompletedAt time.Time
+
+	jobError     string // Error message for failed jobs
+	jobErrorCode string // Error code for failed jobs
+
+	provisionerState []byte
+
+	prebuiltWorkspaceBuildStage sdkproto.PrebuiltWorkspaceBuildStage
+}
+
+// BuilderOption is a functional option for customizing job timestamps
+// on status methods.
+type BuilderOption func(*WorkspaceBuildBuilder)
+
+// WithJobCreatedAt sets the CreatedAt timestamp for the provisioner job.
+func WithJobCreatedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobCreatedAt = t
+	}
+}
+
+// WithJobStartedAt sets the StartedAt timestamp for the provisioner job.
+func WithJobStartedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobStartedAt = t
+	}
+}
+
+// WithJobUpdatedAt sets the UpdatedAt timestamp for the provisioner job.
+func WithJobUpdatedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobUpdatedAt = t
+	}
+}
+
+// WithJobCompletedAt sets the CompletedAt timestamp for the provisioner job.
+func WithJobCompletedAt(t time.Time) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobCompletedAt = t
+	}
+}
+
+// WithJobError sets the error message for the provisioner job.
+func WithJobError(msg string) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobError = msg
+	}
+}
+
+// WithJobErrorCode sets the error code for the provisioner job.
+func WithJobErrorCode(code string) BuilderOption {
+	return func(b *WorkspaceBuildBuilder) {
+		b.jobErrorCode = code
+	}
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -80,6 +139,23 @@ func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
 func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.seed = seed
+	return b
+}
+
+// ProvisionerState sets the provisioner state for the workspace build.
+// This is stored separately from the seed because ProvisionerState is
+// not part of the WorkspaceBuild view struct.
+func (b WorkspaceBuildBuilder) ProvisionerState(state []byte) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.provisionerState = state
+	return b
+}
+
+// MarkPrebuiltWorkspaceClaim marks the build's provisioner job as the claim
+// of a prebuilt workspace, mirroring wsbuilder.MarkPrebuiltWorkspaceClaim.
+func (b WorkspaceBuildBuilder) MarkPrebuiltWorkspaceClaim() WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
 	return b
 }
 
@@ -141,18 +217,59 @@ func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sd
 	})
 }
 
-func (b WorkspaceBuildBuilder) Starting() WorkspaceBuildBuilder {
+// Starting sets the job to running status.
+func (b WorkspaceBuildBuilder) Starting(opts ...BuilderOption) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusRunning
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
-func (b WorkspaceBuildBuilder) Pending() WorkspaceBuildBuilder {
+// Pending sets the job to pending status.
+func (b WorkspaceBuildBuilder) Pending(opts ...BuilderOption) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusPending
+	for _, opt := range opts {
+		opt(&b)
+	}
 	return b
 }
 
-func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
+// Canceled sets the job to canceled status.
+func (b WorkspaceBuildBuilder) Canceled(opts ...BuilderOption) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.jobStatus = database.ProvisionerJobStatusCanceled
+	for _, opt := range opts {
+		opt(&b)
+	}
+	return b
+}
+
+// Succeeded sets the job to succeeded status.
+// This is the default status.
+func (b WorkspaceBuildBuilder) Succeeded(opts ...BuilderOption) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobStatus = database.ProvisionerJobStatusSucceeded
+	for _, opt := range opts {
+		opt(&b)
+	}
+	return b
+}
+
+// Failed sets the provisioner job to a failed state. Use WithJobError and
+// WithJobErrorCode options to set the error message and code. If no error
+// message is provided, "failed" is used as the default.
+func (b WorkspaceBuildBuilder) Failed(opts ...BuilderOption) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.jobStatus = database.ProvisionerJobStatusFailed
+	for _, opt := range opts {
+		opt(&b)
+	}
+	if b.jobError == "" {
+		b.jobError = "failed"
+	}
 	return b
 }
 
@@ -167,7 +284,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	err := b.db.InTx(func(tx database.Store) error {
 		//nolint:revive // calls do on modified struct
 		b.db = tx
-		resp = b.doInTX()
+		resp = b.doInTX() // intxcheck:ignore // b.db is reassigned to tx on the line above
 		return nil
 	}, nil)
 	require.NoError(b.t, err)
@@ -261,14 +378,21 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	// Create a provisioner job for the build!
 	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: b.seed.ID,
+		WorkspaceBuildID:            b.seed.ID,
+		PrebuiltWorkspaceBuildStage: b.prebuiltWorkspaceBuildStage,
 	})
 	require.NoError(b.t, err)
 
+	// Tag the job so AcquireProvisionerJob only matches this
+	// builder's job, preventing cross-test interference when
+	// parallel tests share a database. Same pattern as
+	// dbgen.ProvisionerJob.
+	tags := database.StringMap{jobID.String(): "true", "scope": "organization"}
+
 	job, err := b.db.InsertProvisionerJob(ownerCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
-		CreatedAt:      dbtime.Now(),
-		UpdatedAt:      dbtime.Now(),
+		CreatedAt:      takeFirstTime(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirstTime(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
 		OrganizationID: b.ws.OrganizationID,
 		InitiatorID:    b.ws.OwnerID,
 		Provisioner:    database.ProvisionerTypeEcho,
@@ -276,7 +400,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		FileID:         uuid.New(),
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		Input:          payload,
-		Tags:           map[string]string{},
+		Tags:           tags,
 		TraceMetadata:  pqtype.NullRawMessage{},
 		LogsOverflowed: false,
 	})
@@ -288,54 +412,72 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// Provisioner jobs are created in 'pending' status
 		b.logger.Debug(context.Background(), "pending the provisioner job")
 	case database.ProvisionerJobStatusRunning:
-		// might need to do this multiple times if we got a template version
-		// import job as well
-		b.logger.Debug(context.Background(), "looping to acquire provisioner job")
-		for {
-			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
-				OrganizationID: job.OrganizationID,
-				StartedAt: sql.NullTime{
-					Time:  dbtime.Now(),
-					Valid: true,
-				},
-				WorkerID: uuid.NullUUID{
-					UUID:  uuid.New(),
-					Valid: true,
-				},
-				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-				ProvisionerTags: []byte(`{"scope": "organization"}`),
+		b.logger.Debug(context.Background(), "acquiring the provisioner job")
+		startedAt := takeFirstTime(b.jobStartedAt, dbtime.Now())
+		j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
+			OrganizationID: job.OrganizationID,
+			StartedAt: sql.NullTime{
+				Time:  startedAt,
+				Valid: true,
+			},
+			WorkerID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(tags)),
+		})
+		require.NoError(b.t, err, "acquire the provisioner job")
+		require.Equal(b.t, job.ID, j.ID, "acquired wrong provisioner job")
+		b.logger.Debug(context.Background(), "acquired provisioner job", slog.F("job_id", job.ID))
+		if !b.jobUpdatedAt.IsZero() {
+			err = b.db.UpdateProvisionerJobByID(ownerCtx, database.UpdateProvisionerJobByIDParams{
+				ID:        job.ID,
+				UpdatedAt: b.jobUpdatedAt,
 			})
-			require.NoError(b.t, err, "acquire starting job")
-			if j.ID == job.ID {
-				b.logger.Debug(context.Background(), "acquired provisioner job", slog.F("job_id", job.ID))
-				break
-			}
+			require.NoError(b.t, err, "update job updated_at")
 		}
 	case database.ProvisionerJobStatusCanceled:
 		// Set provisioner job status to 'canceled'
 		b.logger.Debug(context.Background(), "canceling the provisioner job")
+		completedAt := takeFirstTime(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCancelByID(ownerCtx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID: jobID,
 			CanceledAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  completedAt,
 				Valid: true,
 			},
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  completedAt,
 				Valid: true,
 			},
 		})
 		require.NoError(b.t, err, "cancel job")
+	case database.ProvisionerJobStatusFailed:
+		b.logger.Debug(context.Background(), "failing the provisioner job")
+		completedAt := takeFirstTime(b.jobCompletedAt, dbtime.Now())
+		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+			ID:        job.ID,
+			UpdatedAt: completedAt,
+			Error:     sql.NullString{String: b.jobError, Valid: b.jobError != ""},
+			ErrorCode: sql.NullString{String: b.jobErrorCode, Valid: b.jobErrorCode != ""},
+			CompletedAt: sql.NullTime{
+				Time:  completedAt,
+				Valid: true,
+			},
+		})
+		require.NoError(b.t, err, "fail job")
 	default:
 		// By default, consider jobs in 'succeeded' status
 		b.logger.Debug(context.Background(), "completing the provisioner job")
+		completedAt := takeFirstTime(b.jobCompletedAt, dbtime.Now())
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
-			UpdatedAt: dbtime.Now(),
+			UpdatedAt: completedAt,
 			Error:     sql.NullString{},
 			ErrorCode: sql.NullString{},
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  completedAt,
 				Valid: true,
 			},
 		})
@@ -344,6 +486,14 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	}
 
 	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
+	if len(b.provisionerState) > 0 {
+		err = b.db.UpdateWorkspaceBuildProvisionerStateByID(ownerCtx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               resp.Build.ID,
+			UpdatedAt:        dbtime.Now(),
+			ProvisionerState: b.provisionerState,
+		})
+		require.NoError(b.t, err, "update provisioner state")
+	}
 	b.logger.Debug(context.Background(), "created workspace build",
 		slog.F("build_id", resp.Build.ID),
 		slog.F("workspace_id", resp.Workspace.ID),
@@ -696,12 +846,16 @@ func (b JobCompleteBuilder) Pubsub(ps pubsub.Pubsub) JobCompleteBuilder {
 
 func (b JobCompleteBuilder) Do() JobCompleteResponse {
 	r := JobCompleteResponse{CompletedAt: dbtime.Now()}
-	err := b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+	err := b.db.UpdateProvisionerJobWithCompleteWithStartedAtByID(ownerCtx, database.UpdateProvisionerJobWithCompleteWithStartedAtByIDParams{
 		ID:        b.jobID,
 		UpdatedAt: r.CompletedAt,
 		Error:     sql.NullString{},
 		ErrorCode: sql.NullString{},
 		CompletedAt: sql.NullTime{
+			Time:  r.CompletedAt,
+			Valid: true,
+		},
+		StartedAt: sql.NullTime{
 			Time:  r.CompletedAt,
 			Valid: true,
 		},
@@ -744,6 +898,16 @@ func takeFirst[Value comparable](values ...Value) Value {
 	return takeFirstF(values, func(v Value) bool {
 		return v != empty
 	})
+}
+
+// takeFirstTime returns the first non-zero time.Time.
+func takeFirstTime(values ...time.Time) time.Time {
+	for _, v := range values {
+		if !v.IsZero() {
+			return v
+		}
+	}
+	return time.Time{}
 }
 
 // mustWorkspaceAppByWorkspaceAndBuildAndAppID finds a workspace app by

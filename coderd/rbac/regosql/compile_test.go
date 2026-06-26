@@ -218,6 +218,26 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.WorkspaceConverter(),
 		},
 		{
+			Name: "UserChatACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((chats_expanded.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (chats_expanded.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? '*'))",
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
+			Name: "ChatAllowList",
+			Queries: []string{
+				`input.object.id != ""`,
+				`input.object.id in ["9046b041-58ed-47a3-9c3a-de302577875a"]`,
+			},
+			ExpectedSQL: p(`(chats_expanded.id :: text != '') OR ` +
+				`(chats_expanded.id :: text = ANY(ARRAY ['9046b041-58ed-47a3-9c3a-de302577875a']))`),
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";
@@ -281,6 +301,55 @@ neq(input.object.owner, "");
 			ExpectedSQL: p(
 				p("'10d03e62-7703-4df5-a358-4f76577d4e2f' = id :: text") + " AND " + p("id :: text != ''") + " AND " + p("'' = ''"),
 			),
+		},
+		{
+			Name: "ChatOwnerMe",
+			Queries: []string{
+				`"me" = input.object.owner; input.object.owner != ""; input.object.org_owner = ""`,
+			},
+			ExpectedSQL:       p(p("'me' = owner_id :: text") + " AND " + p("owner_id :: text != ''") + " AND " + p("organization_id :: text = ''")),
+			VariableConverter: regosql.NoACLConverter(),
+		},
+		{
+			Name: "ChatOrgScopedMatches",
+			Queries: []string{
+				`input.object.org_owner = "org-id"`,
+			},
+			ExpectedSQL: p("organization_id :: text = 'org-id'"), VariableConverter: regosql.NoACLConverter(),
+		},
+		{
+			Name: "AuditLogUUID",
+			Queries: []string{
+				`"8c0b9bdc-a013-4b14-a49b-5747bc335708" = input.object.org_owner`,
+				`input.object.org_owner != ""`,
+				`neq(input.object.org_owner, "8c0b9bdc-a013-4b14-a49b-5747bc335708")`,
+				`input.object.org_owner in {"8c0b9bdc-a013-4b14-a49b-5747bc335708", "05f58202-4bfc-43ce-9ba4-5ff6e0174a71"}`,
+				`"read" in input.object.acl_group_list[input.object.org_owner]`,
+			},
+			ExpectedSQL: p(
+				p("audit_logs.organization_id = '8c0b9bdc-a013-4b14-a49b-5747bc335708'::uuid") + " OR " +
+					p("audit_logs.organization_id IS NOT NULL") + " OR " +
+					p("audit_logs.organization_id != '8c0b9bdc-a013-4b14-a49b-5747bc335708'::uuid") + " OR " +
+					p("audit_logs.organization_id = ANY(ARRAY ['05f58202-4bfc-43ce-9ba4-5ff6e0174a71'::uuid,'8c0b9bdc-a013-4b14-a49b-5747bc335708'::uuid])") + " OR " +
+					"(false)"),
+			VariableConverter: regosql.AuditLogConverter(),
+		},
+		{
+			Name: "ConnectionLogUUID",
+			Queries: []string{
+				`"8c0b9bdc-a013-4b14-a49b-5747bc335708" = input.object.org_owner`,
+				`input.object.org_owner != ""`,
+				`neq(input.object.org_owner, "8c0b9bdc-a013-4b14-a49b-5747bc335708")`,
+				`input.object.org_owner in {"8c0b9bdc-a013-4b14-a49b-5747bc335708"}`,
+				`"read" in input.object.acl_group_list[input.object.org_owner]`,
+			},
+			ExpectedSQL: p(
+				p("connection_logs.organization_id = '8c0b9bdc-a013-4b14-a49b-5747bc335708'::uuid") + " OR " +
+					p("connection_logs.organization_id IS NOT NULL") + " OR " +
+					p("connection_logs.organization_id != '8c0b9bdc-a013-4b14-a49b-5747bc335708'::uuid") + " OR " +
+					p("connection_logs.organization_id = ANY(ARRAY ['8c0b9bdc-a013-4b14-a49b-5747bc335708'::uuid])") + " OR " +
+					"(false)"),
+			VariableConverter: regosql.ConnectionLogConverter(),
 		},
 	}
 

@@ -50,6 +50,12 @@
 			"version": ""
 		},
 		{
+			"type": "panel",
+			"id": "piechart",
+			"name": "Pie chart",
+			"version": ""
+		},
+		{
 			"type": "datasource",
 			"id": "yesoreyeram-infinity-datasource",
 			"name": "Infinity",
@@ -199,9 +205,9 @@
 			},
 			"gridPos": {
 				"h": 12,
-				"w": 20,
-				"x": 0,
-				"y": 1
+				"w": 12,
+				"x": 4,
+				"y": 7
 			},
 			"id": 1,
 			"options": {
@@ -223,7 +229,7 @@
 					"mode": "single",
 					"sort": "none"
 				},
-				"xTickLabelRotation": 0,
+				"xTickLabelRotation": -30,
 				"xTickLabelSpacing": 0
 			},
 			"pluginVersion": "12.1.0",
@@ -236,7 +242,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "select u.username, sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\ngroup by u.username\norder by input desc",
+					"rawSql": "select u.username, sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by u.username\norder by input desc",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -273,9 +279,220 @@
 							"username": ""
 						}
 					}
+				},
+				{
+					"id": "sortBy",
+					"options": {
+						"fields": {},
+						"sort": [
+							{
+								"desc": true,
+								"field": "Cache Read"
+							}
+						]
+					}
 				}
 			],
 			"type": "barchart"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"custom": {
+						"hideFrom": {
+							"legend": false,
+							"tooltip": false,
+							"viz": false
+						}
+					},
+					"mappings": []
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 4,
+				"x": 16,
+				"y": 7
+			},
+			"id": 16,
+			"options": {
+				"displayLabels": [
+					"percent"
+				],
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"limit": 10,
+					"values": true
+				},
+				"tooltip": {
+					"hideZeros": false,
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "select i.model,\ncount(*) as interceptions\nfrom aibridge_interceptions i\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by i.model\norder by interceptions desc",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					},
+					"table": "aibridge_interceptions"
+				}
+			],
+			"title": "Top models by interception count",
+			"type": "piechart"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"custom": {
+						"hideFrom": {
+							"legend": false,
+							"tooltip": false,
+							"viz": false
+						}
+					},
+					"mappings": []
+				},
+				"overrides": [
+					{
+						"__systemRef": "hideSeriesFrom",
+						"matcher": {
+							"id": "byNames",
+							"options": {
+								"mode": "exclude",
+								"names": [
+									"interceptions"
+								],
+								"prefix": "All except:",
+								"readOnly": true
+							}
+						},
+						"properties": [
+							{
+								"id": "custom.hideFrom",
+								"value": {
+									"legend": false,
+									"tooltip": false,
+									"viz": true
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 4,
+				"x": 20,
+				"y": 7
+			},
+			"id": 17,
+			"options": {
+				"displayLabels": [
+					"percent"
+				],
+				"legend": {
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true
+				},
+				"pieType": "pie",
+				"reduceOptions": {
+					"calcs": [
+						"lastNotNull"
+					],
+					"fields": "",
+					"limit": 10,
+					"values": true
+				},
+				"tooltip": {
+					"hideZeros": false,
+					"mode": "multi",
+					"sort": "none"
+				}
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "select i.client,\ncount(*) as interceptions\nfrom aibridge_interceptions i\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by i.client\norder by interceptions desc",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					},
+					"table": "aibridge_interceptions"
+				}
+			],
+			"title": "Top clients by interception count",
+			"type": "piechart"
 		},
 		{
 			"datasource": {
@@ -304,8 +521,8 @@
 			"gridPos": {
 				"h": 12,
 				"w": 4,
-				"x": 20,
-				"y": 1
+				"x": 0,
+				"y": 7
 			},
 			"id": 3,
 			"options": {
@@ -315,7 +532,9 @@
 				"orientation": "auto",
 				"percentChangeColorMode": "standard",
 				"reduceOptions": {
-					"calcs": ["lastNotNull"],
+					"calcs": [
+						"lastNotNull"
+					],
 					"fields": "",
 					"values": false
 				},
@@ -333,7 +552,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "select sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\norder by input desc",
+					"rawSql": "select sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\norder by input desc",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -434,7 +653,7 @@
 				"h": 9,
 				"w": 24,
 				"x": 0,
-				"y": 13
+				"y": 19
 			},
 			"id": 12,
 			"options": {
@@ -442,7 +661,9 @@
 				"footer": {
 					"countRows": false,
 					"fields": "",
-					"reducer": ["sum"],
+					"reducer": [
+						"sum"
+					],
 					"show": true
 				},
 				"frameIndex": 0,
@@ -489,7 +710,7 @@
 					"format": "table",
 					"hide": false,
 					"rawQuery": true,
-					"rawSql": "select i.provider, i.model,\nsum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\ngroup by i.provider, i.model\norder by input desc",
+					"rawSql": "select i.provider, i.model,\nsum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\ngroup by i.provider, i.model\norder by input desc",
 					"refId": "B",
 					"sql": {
 						"columns": [
@@ -540,7 +761,10 @@
 						},
 						"mode": "binary",
 						"reduce": {
-							"include": ["input_cost_per_token A", "input"],
+							"include": [
+								"input_cost_per_token A",
+								"input"
+							],
 							"reducer": "sum"
 						}
 					}
@@ -666,20 +890,20 @@
 						},
 						"includeByName": {},
 						"indexByName": {
-							"Cache Read Cost": 12,
-							"Cache Write Cost": 13,
-							"Input Cost": 10,
-							"Output Cost": 11,
-							"Total Cost": 14,
-							"cache_creation_input": 9,
-							"cache_creation_input_token_cost A": 2,
-							"cache_read_input": 8,
-							"cache_read_input_token_cost A": 3,
-							"input": 6,
-							"input_cost_per_token A": 4,
+							"Cache Read Cost": 13,
+							"Cache Write Cost": 14,
+							"Input Cost": 11,
+							"Output Cost": 12,
+							"Total Cost": 2,
+							"cache_creation_input": 10,
+							"cache_creation_input_token_cost A": 3,
+							"cache_read_input": 9,
+							"cache_read_input_token_cost A": 4,
+							"input": 7,
+							"input_cost_per_token A": 5,
 							"model": 1,
-							"output": 7,
-							"output_cost_per_token A": 5,
+							"output": 8,
+							"output_cost_per_token A": 6,
 							"provider": 0
 						},
 						"renameByName": {
@@ -773,8 +997,8 @@
 			"gridPos": {
 				"h": 12,
 				"w": 20,
-				"x": 0,
-				"y": 23
+				"x": 4,
+				"y": 28
 			},
 			"id": 4,
 			"maxDataPoints": 30,
@@ -813,7 +1037,7 @@
 					"editorMode": "code",
 					"format": "time_series",
 					"rawQuery": true,
-					"rawSql": "SELECT\n$__timeGroupAlias(i.started_at, $__interval, NULL),\ncount(i.id) AS value,\nu.username AS metric\nFROM aibridge_interceptions i\njoin users u ON i.initiator_id = u.id\nWHERE\n$__timeFilter(i.started_at)\nAND u.username ~ '${username:regex}'\nAND i.provider ~ '${provider:regex}'\nAND i.model ~ '${model:regex}'\nGROUP BY u.username, $__timeGroup(i.started_at, $__interval)\nORDER BY $__timeGroup(i.started_at, $__interval)",
+					"rawSql": "SELECT\n$__timeGroupAlias(i.started_at, $__interval, NULL),\ncount(i.id) AS value,\nu.username AS metric\nFROM aibridge_interceptions i\njoin users u ON i.initiator_id = u.id\nWHERE\n$__timeFilter(i.started_at)\nAND u.username ~ '${username:regex}'\nAND i.provider ~ '${provider:regex}'\nAND i.model ~ '${model:regex}'\nAND i.client ~ '${client:regex}'\nGROUP BY u.username, $__timeGroup(i.started_at, $__interval)\nORDER BY $__timeGroup(i.started_at, $__interval)",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -888,8 +1112,8 @@
 			"gridPos": {
 				"h": 12,
 				"w": 4,
-				"x": 20,
-				"y": 23
+				"x": 0,
+				"y": 28
 			},
 			"id": 5,
 			"interval": "1m",
@@ -901,7 +1125,9 @@
 				"orientation": "auto",
 				"percentChangeColorMode": "standard",
 				"reduceOptions": {
-					"calcs": ["lastNotNull"],
+					"calcs": [
+						"lastNotNull"
+					],
 					"fields": "",
 					"values": false
 				},
@@ -919,7 +1145,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "select count(*) from aibridge_interceptions\nWHERE started_at > $__timeFrom() AND started_at <= $__timeTo()\nAND provider ~ '${provider:regex}'\nAND model ~ '${model:regex}'",
+					"rawSql": "select count(*) from aibridge_interceptions\nleft join users u ON initiator_id = u.id\nWHERE started_at > $__timeFrom() AND started_at <= $__timeTo()\nAND provider ~ '${provider:regex}'\nAND model ~ '${model:regex}'\nAND u.username ~ '${username:regex}'\nAND client ~ '${client:regex}'",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -1052,7 +1278,7 @@
 				"h": 14,
 				"w": 24,
 				"x": 0,
-				"y": 36
+				"y": 42
 			},
 			"id": 7,
 			"options": {
@@ -1060,7 +1286,9 @@
 				"footer": {
 					"countRows": false,
 					"fields": "",
-					"reducer": ["sum"],
+					"reducer": [
+						"sum"
+					],
 					"show": false
 				},
 				"showHeader": true,
@@ -1081,7 +1309,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "SELECT i.id,\n       u.username,\n       i.provider,\n       i.model,\n       p.prompt,\n       p.created_at\nFROM aibridge_user_prompts p\nJOIN aibridge_interceptions i ON p.interception_id = i.id\nJOIN users u ON i.initiator_id = u.id\nWHERE $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\nORDER BY p.created_at DESC;",
+					"rawSql": "SELECT i.id,\n       u.username,\n       i.client,\n       i.provider,\n       i.model,\n       p.prompt,\n       p.created_at\nFROM aibridge_user_prompts p\nJOIN aibridge_interceptions i ON p.interception_id = i.id\nJOIN users u ON i.initiator_id = u.id\nWHERE $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\n  AND i.client ~ '${client:regex}'\nORDER BY p.created_at DESC;",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -1111,6 +1339,7 @@
 						"includeByName": {},
 						"indexByName": {},
 						"renameByName": {
+							"client": "Client",
 							"created_at": "Created At",
 							"id": "Interception ID",
 							"input": "Tool Input",
@@ -1259,7 +1488,7 @@
 				"h": 14,
 				"w": 24,
 				"x": 0,
-				"y": 50
+				"y": 56
 			},
 			"id": 6,
 			"options": {
@@ -1267,16 +1496,13 @@
 				"footer": {
 					"countRows": false,
 					"fields": "",
-					"reducer": ["sum"],
+					"reducer": [
+						"sum"
+					],
 					"show": false
 				},
 				"showHeader": true,
-				"sortBy": [
-					{
-						"desc": true,
-						"displayName": "Created At"
-					}
-				]
+				"sortBy": []
 			},
 			"pluginVersion": "12.1.0",
 			"targets": [
@@ -1288,7 +1514,7 @@
 					"editorMode": "code",
 					"format": "table",
 					"rawQuery": true,
-					"rawSql": "select i.id, u.username, i.provider, i.model, t.server_url, t.tool, t.input, t.invocation_error, t.created_at FROM aibridge_tool_usages t\njoin aibridge_interceptions i ON t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\nAND u.username ~ '${username:regex}'\nAND i.provider ~ '${provider:regex}'\nAND i.model ~ '${model:regex}'\norder by t.created_at desc",
+					"rawSql": "select i.id, u.username, i.client, i.provider, i.model, t.server_url, t.tool, t.input, t.invocation_error, t.created_at FROM aibridge_tool_usages t\njoin aibridge_interceptions i ON t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\nAND u.username ~ '${username:regex}'\nAND i.provider ~ '${provider:regex}'\nAND i.model ~ '${model:regex}'\nAND i.client ~ '${client:regex}'\norder by t.created_at desc",
 					"refId": "A",
 					"sql": {
 						"columns": [
@@ -1318,6 +1544,7 @@
 						"includeByName": {},
 						"indexByName": {},
 						"renameByName": {
+							"client": "Client",
 							"created_at": "Created At",
 							"id": "Interception ID",
 							"input": "Tool Input",
@@ -1394,6 +1621,25 @@
 				"refresh": 1,
 				"regex": "",
 				"sort": 1,
+				"type": "query"
+			},
+			{
+				"allValue": ".+",
+				"current": {},
+				"datasource": {
+					"type": "grafana-postgresql-datasource",
+					"uid": "${DS_CODER-OBSERVABILITY-RO}"
+				},
+				"definition": "SELECT DISTINCT COALESCE(client, 'Unknown') AS client FROM aibridge_interceptions WHERE client IS NOT NULL ORDER BY 1;",
+				"description": "",
+				"includeAll": true,
+				"label": "client",
+				"multi": true,
+				"name": "client",
+				"options": [],
+				"query": "SELECT DISTINCT COALESCE(client, 'Unknown') AS client FROM aibridge_interceptions WHERE client IS NOT NULL ORDER BY 1;",
+				"refresh": 1,
+				"regex": "",
 				"type": "query"
 			}
 		]

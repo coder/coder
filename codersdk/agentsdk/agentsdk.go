@@ -3,10 +3,10 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"sync"
 	"time"
@@ -101,6 +101,15 @@ type PostMetadataRequest struct {
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
+// Manifest is the workspace agent's view of its own configuration.
+//
+// Secrets are intentionally not a field on this struct. The manifest
+// may be serialized (JSON, %+v, logger fields, debug endpoints) in
+// many places that do not and should not carry secret values.
+// Keeping Secrets off of the struct makes leaking them impossible
+// via any code path that only holds a *Manifest. Callers that need
+// secrets must load them explicitly via SecretsFromProto on the raw
+// proto.
 type Manifest struct {
 	ParentID  uuid.UUID `json:"parent_id"`
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -128,6 +137,16 @@ type Manifest struct {
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
 }
 
+// WorkspaceSecret is a user secret for injection into a workspace.
+//
+// Value carries decrypted secret material and is omitted from JSON
+// serialization to protect against future leaking of the secret.
+type WorkspaceSecret struct {
+	EnvName  string
+	FilePath string
+	Value    []byte `json:"-"`
+}
+
 type LogSource struct {
 	ID          uuid.UUID `json:"id"`
 	DisplayName string    `json:"display_name"`
@@ -152,7 +171,7 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 // Release Versions from 2.9+
 // Deprecated: use ConnectRPC20WithTailnet
 func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0), "")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +184,7 @@ func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, err
 func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 	proto.DRPCAgentClient20, tailnetproto.DRPCTailnetClient20, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -176,7 +195,7 @@ func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 // maximally compatible with Coderd Release Versions from 2.12+
 // Deprecated: use ConnectRPC21WithTailnet
 func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1), "")
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +207,7 @@ func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, err
 func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
 	proto.DRPCAgentClient21, tailnetproto.DRPCTailnetClient21, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -200,7 +219,7 @@ func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
 func (c *Client) ConnectRPC22(ctx context.Context) (
 	proto.DRPCAgentClient22, tailnetproto.DRPCTailnetClient22, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,7 +231,7 @@ func (c *Client) ConnectRPC22(ctx context.Context) (
 func (c *Client) ConnectRPC23(ctx context.Context) (
 	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -224,7 +243,7 @@ func (c *Client) ConnectRPC23(ctx context.Context) (
 func (c *Client) ConnectRPC24(ctx context.Context) (
 	proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -236,7 +255,7 @@ func (c *Client) ConnectRPC24(ctx context.Context) (
 func (c *Client) ConnectRPC25(ctx context.Context) (
 	proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -248,7 +267,7 @@ func (c *Client) ConnectRPC25(ctx context.Context) (
 func (c *Client) ConnectRPC26(ctx context.Context) (
 	proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -260,42 +279,127 @@ func (c *Client) ConnectRPC26(ctx context.Context) (
 func (c *Client) ConnectRPC27(ctx context.Context) (
 	proto.DRPCAgentClient27, tailnetproto.DRPCTailnetClient27, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 7))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 7), "")
 	if err != nil {
 		return nil, nil, err
 	}
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-// ConnectRPC connects to the workspace agent API and tailnet API
-func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
-	return c.connectRPCVersion(ctx, proto.CurrentVersion)
+// ConnectRPC28 returns a dRPC client to the Agent API v2.8.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.31+
+func (c *Client) ConnectRPC28(ctx context.Context) (
+	proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion) (drpc.Conn, error) {
+// ConnectRPC28WithRole is like ConnectRPC28 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC28WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC29 returns a dRPC client to the Agent API v2.9. It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.32+
+func (c *Client) ConnectRPC29(ctx context.Context) (
+	proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 9), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC29WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 9), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC210 returns a dRPC client to the Agent API v2.10. It is useful when
+// you want to be maximally compatible with newer Coderd Release Versions that
+// implement the PushContextState RPC.
+func (c *Client) ConnectRPC210(ctx context.Context) (
+	proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 10), "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC210WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 10), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC connects to the workspace agent API and tailnet API.
+// It does not send a role query parameter, so the server will apply
+// its default behavior (currently: enable connection monitoring for
+// backward compatibility). Use ConnectRPCWithRole to explicitly
+// identify the caller's role.
+func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion, "")
+}
+
+// ConnectRPCWithRole connects to the workspace agent RPC API with an
+// explicit role. The role parameter is sent to the server to identify
+// the type of client. Use "agent" for workspace agents to enable
+// connection monitoring.
+func (c *Client) ConnectRPCWithRole(ctx context.Context, role string) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion, role)
+}
+
+func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion, role string) (drpc.Conn, error) {
 	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := rpcURL.Query()
 	q.Add("version", version.String())
+	if role != "" {
+		q.Add("role", role)
+	}
 	rpcURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, rpcURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			codersdk.SessionTokenHeader: []string{c.SDK.SessionToken()},
+		},
 	})
 	if err != nil {
 		if res == nil {
@@ -431,6 +535,33 @@ func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
 	return nil
 }
 
+// InstanceIdentityConfig holds optional configuration for cloud
+// instance-identity authentication.
+type InstanceIdentityConfig struct {
+	AgentName string
+}
+
+// InstanceIdentityOption configures instance-identity authentication.
+type InstanceIdentityOption func(*InstanceIdentityConfig)
+
+// WithInstanceIdentityAgentName sets the agent name selector sent with
+// the instance-identity authentication request.
+func WithInstanceIdentityAgentName(name string) InstanceIdentityOption {
+	return func(c *InstanceIdentityConfig) {
+		c.AgentName = name
+	}
+}
+
+// applyInstanceIdentityOptions applies the given options and returns
+// the resulting configuration.
+func applyInstanceIdentityOptions(opts []InstanceIdentityOption) InstanceIdentityConfig {
+	var cfg InstanceIdentityConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return cfg
+}
+
 func WithFixedToken(token string) SessionTokenSetup {
 	return func(_ *codersdk.Client) RefreshableSessionTokenProvider {
 		return FixedSessionTokenProvider{FixedSessionTokenProvider: codersdk.FixedSessionTokenProvider{SessionToken: token}}
@@ -551,6 +682,8 @@ type PatchAppStatus struct {
 	NeedsUserAttention bool `json:"needs_user_attention"`
 }
 
+// PatchAppStatus updates the status of a workspace app.
+// Deprecated: use the DRPCAgentClient.UpdateAppStatus instead
 func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/app-status", req)
 	if err != nil {
@@ -605,6 +738,16 @@ type ExternalAuthRequest struct {
 	ID string
 	// Match is an arbitrary string matched against the regex of the provider.
 	Match string
+	// GitBranch is the current git branch in the working directory.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitBranch string
+	// GitRemoteOrigin is the remote origin URL of the git repository.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitRemoteOrigin string
+	// ChatID identifies which chat initiated the git operation.
+	ChatID string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -619,6 +762,15 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Listen {
 		q.Set("listen", "true")
+	}
+	if req.GitBranch != "" {
+		q.Set("git_branch", req.GitBranch)
+	}
+	if req.GitRemoteOrigin != "" {
+		q.Set("git_remote_origin", req.GitRemoteOrigin)
+	}
+	if req.ChatID != "" {
+		q.Set("chat_id", req.ChatID)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
@@ -652,8 +804,9 @@ const (
 )
 
 type ReinitializationEvent struct {
-	WorkspaceID uuid.UUID
+	WorkspaceID uuid.UUID              `json:"workspace_id" format:"uuid"`
 	Reason      ReinitializationReason `json:"reason"`
+	OwnerID     uuid.UUID              `json:"owner_id,omitzero" format:"uuid"`
 }
 
 func PrebuildClaimedChannel(id uuid.UUID) string {
@@ -668,17 +821,11 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	q := rpcURL.Query()
+	q.Set("wait", "true")
+	rpcURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 
@@ -686,6 +833,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	if err != nil {
 		return nil, xerrors.Errorf("build request: %w", err)
 	}
+	req.Header[codersdk.SessionTokenHeader] = []string{c.SDK.SessionToken()}
 
 	res, err := httpClient.Do(req)
 	if err != nil {
@@ -704,21 +852,33 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	return reinitEvent, nil
 }
 
+// WaitForReinitLoop polls the /reinit SSE endpoint in a retry loop and
+// forwards received reinitialization events to the returned channel. The
+// channel is closed when ctx is canceled or the server returns 409
+// Conflict (indicating the workspace is not a prebuilt workspace or the
+// claim build failed permanently). The caller should select on both the
+// channel and ctx.Done().
 func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) <-chan ReinitializationEvent {
 	reinitEvents := make(chan ReinitializationEvent)
 
 	go func() {
+		defer close(reinitEvents)
 		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "waiting for agent reinitialization instructions")
 			reinitEvent, err := client.WaitForReinit(ctx)
 			if err != nil {
+				var sdkErr *codersdk.Error
+				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
+					logger.Info(ctx, "received terminal 409, stopping reinit polling",
+						slog.Error(sdkErr))
+					return
+				}
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
 				continue
 			}
 			retrier.Reset()
 			select {
 			case <-ctx.Done():
-				close(reinitEvents)
 				return
 			case reinitEvents <- *reinitEvent:
 			}
@@ -828,4 +988,30 @@ func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*Reinitialization
 		}
 		return &reinitEvent, nil
 	}
+}
+
+// RefreshChatContextResponse is the response for refreshing chat context.
+type RefreshChatContextResponse struct {
+	// Refreshed is the number of drifted chats that were re-pinned to the
+	// agent's latest context snapshot.
+	Refreshed int `json:"refreshed"`
+}
+
+// RefreshChatContext re-pins every drifted chat bound to this agent to the
+// agent's latest context snapshot, clearing their drift markers. It backs
+// the in-workspace `coder exp chat context refresh` (no chat argument),
+// which authenticates with the agent token rather than a user session.
+func (c *Client) RefreshChatContext(ctx context.Context) (RefreshChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context/refresh", nil)
+	if err != nil {
+		return RefreshChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return RefreshChatContextResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp RefreshChatContextResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

@@ -1,10 +1,9 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CustomLogo } from "components/CustomLogo/CustomLogo";
-import { Loader } from "components/Loader/Loader";
 import { type FC, useState } from "react";
 import { useLocation } from "react-router";
+import type { AuthMethods, BuildInfoResponse } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { Loader } from "#/components/Loader/Loader";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
@@ -36,9 +35,9 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 		authMethods?.terms_of_service_url && !tosAccepted;
 
 	return (
-		<div css={styles.root}>
-			<div css={styles.container}>
-				<CustomLogo />
+		<div className="p-6 flex items-center justify-center min-h-full text-center">
+			<div className="w-full max-w-xs flex flex-col items-center gap-4">
+				<ProductLogo />
 				{isLoading ? (
 					<Loader />
 				) : tosAcceptanceRequired ? (
@@ -62,7 +61,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 						onSubmit={onSignIn}
 					/>
 				)}
-				<footer css={styles.footer}>
+				<footer className="text-xs text-content-secondary mt-6">
 					<div>
 						Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
 					</div>
@@ -75,33 +74,3 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	root: {
-		padding: 24,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		minHeight: "100%",
-		textAlign: "center",
-	},
-
-	container: {
-		width: "100%",
-		maxWidth: 320,
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "center",
-		gap: 16,
-	},
-
-	icon: {
-		fontSize: 64,
-	},
-
-	footer: (theme) => ({
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		marginTop: 24,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

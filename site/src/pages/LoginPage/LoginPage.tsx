@@ -1,17 +1,17 @@
-import { buildInfo } from "api/queries/buildInfo";
-import { authMethods } from "api/queries/users";
-import { useAuthContext } from "contexts/auth/AuthProvider";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
-import { Navigate, useLocation, useNavigate } from "react-router";
-import { getApplicationName } from "utils/appearance";
-import { retrieveRedirect } from "utils/redirect";
-import { sendDeploymentEvent } from "utils/telemetry";
+import { Navigate, useLocation } from "react-router";
+import { buildInfo } from "#/api/queries/buildInfo";
+import { authMethods } from "#/api/queries/users";
+import { useAuthContext } from "#/contexts/auth/AuthProvider";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { getApplicationName } from "#/utils/appearance";
+import { retrieveRedirect, sanitizeRedirect } from "#/utils/redirect";
+import { sendDeploymentEvent } from "#/utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 const LoginPage: FC = () => {
-	const location = useLocation();
+	const routerLocation = useLocation();
 	const {
 		isLoading,
 		isSignedIn,
@@ -22,9 +22,8 @@ const LoginPage: FC = () => {
 		user,
 	} = useAuthContext();
 	const authMethodsQuery = useQuery(authMethods());
-	const redirectTo = retrieveRedirect(location.search);
+	const redirectTo = retrieveRedirect(routerLocation.search);
 	const applicationName = getApplicationName();
-	const navigate = useNavigate();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	let redirectError: Error | null = null;
@@ -35,7 +34,9 @@ const LoginPage: FC = () => {
 		// Do nothing
 	}
 
-	const isApiRouteRedirect = redirectTo.startsWith("/api/v2");
+	const isApiRouteRedirect =
+		redirectTo.startsWith("/api/v2") ||
+		redirectTo.startsWith("/oauth2/authorize");
 
 	useEffect(() => {
 		if (!buildInfoQuery.data || isSignedIn) {
@@ -50,13 +51,12 @@ const LoginPage: FC = () => {
 	}, [isSignedIn, buildInfoQuery.data, user?.id]);
 
 	if (isSignedIn) {
-		// The reason we need `window.location.href` for api redirects is that
+		// The reason we need `location.href` for api redirects is that
 		// we need the page to reload and make a request to the backend. If we
 		// use `<Navigate>`, react would handle the redirect itself and never
 		// request the page from the backend.
 		if (isApiRouteRedirect) {
-			const sanitizedUrl = new URL(redirectTo, window.location.origin);
-			window.location.href = sanitizedUrl.pathname + sanitizedUrl.search;
+			location.href = sanitizeRedirect(redirectTo);
 			// Setting the href should immediately request a new page. Show an
 			// error state if it doesn't.
 			redirectError = new Error("unable to redirect");
@@ -85,7 +85,11 @@ const LoginPage: FC = () => {
 				isSigningIn={isSigningIn}
 				onSignIn={async ({ email, password }) => {
 					await signIn(email, password);
-					navigate("/");
+					// Use a hard reload instead of React Router navigation
+					// so the server re-renders the HTML with all metadata
+					// tags populated (userAppearance, user, permissions,
+					// etc.) using the new session cookie.
+					location.href = sanitizeRedirect(redirectTo);
 				}}
 				redirectTo={redirectTo}
 			/>

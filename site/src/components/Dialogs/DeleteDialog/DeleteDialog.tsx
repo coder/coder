@@ -1,7 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import TextField from "@mui/material/TextField";
-import { type FC, type FormEvent, useId, useState } from "react";
-import { Stack } from "../../Stack/Stack";
+import { useId, useState } from "react";
+import { Alert } from "#/components/Alert/Alert";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 interface DeleteDialogProps {
@@ -18,7 +17,7 @@ interface DeleteDialogProps {
 	confirmText?: string;
 }
 
-export const DeleteDialog: FC<DeleteDialogProps> = ({
+export const DeleteDialog: React.FC<DeleteDialogProps> = ({
 	isOpen,
 	onCancel,
 	onConfirm,
@@ -38,7 +37,7 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 	const [isFocused, setIsFocused] = useState(false);
 
 	const deletionConfirmed = name === userConfirmationText;
-	const onSubmit = (event: FormEvent) => {
+	const onSubmit = (event: React.SubmitEvent) => {
 		event.preventDefault();
 		if (deletionConfirmed) {
 			onConfirm();
@@ -62,23 +61,25 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 			confirmText={confirmText}
 			description={
 				<>
-					<Stack spacing={1.5}>
+					<div className="flex flex-col gap-3">
 						<p>
 							{verb ?? "Deleting"} this {entity} is irreversible!
 						</p>
-
-						{Boolean(info) && <div css={styles.callout}>{info}</div>}
-
+						{Boolean(info) && (
+							<Alert severity="warning" prominent>
+								{info}
+							</Alert>
+						)}
 						<p>
 							Type <strong>{name}</strong> below to confirm.
 						</p>
-					</Stack>
+					</div>
 
 					<form onSubmit={onSubmit}>
 						<TextField
 							fullWidth
 							autoFocus
-							css={{ marginTop: 24 }}
+							className="mt-6"
 							name="confirmation"
 							autoComplete="off"
 							id={`${hookId}-confirm`}
@@ -105,13 +106,3 @@ export const DeleteDialog: FC<DeleteDialogProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	callout: (theme) => ({
-		backgroundColor: theme.roles.danger.background,
-		border: `1px solid ${theme.roles.danger.outline}`,
-		borderRadius: theme.shape.borderRadius,
-		color: theme.roles.danger.text,
-		padding: "8px 16px",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

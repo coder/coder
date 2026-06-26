@@ -1,8 +1,8 @@
+import { MailIcon, WebhookIcon } from "lucide-react";
 import type {
 	NotificationPreference,
 	NotificationTemplate,
-} from "api/typesGenerated";
-import { MailIcon, WebhookIcon } from "lucide-react";
+} from "#/api/typesGenerated";
 
 // TODO: This should be provided by the auto generated types from codersdk
 const notificationMethods = ["smtp", "webhook"] as const;

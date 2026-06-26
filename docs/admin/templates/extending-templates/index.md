@@ -6,7 +6,7 @@ templates using the
 [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest/docs).
 The provider docs will provide code examples for usage; alternatively, you can
 view our
-[example templates](https://github.com/coder/coder/tree/main/examples/templates)
+[example templates](../../../../examples/templates)
 to get started.
 
 ## Workspace agents
@@ -138,6 +138,17 @@ resource "coder_app" "zed" {
 
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.
+
+## Environment variables
+
+Use the
+[`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
+resource to inject environment variables into workspace agents. Multiple
+resources can target the same variable using
+[merge strategies](./environment-variables.md) like `append` and `prepend`,
+which is useful for building up `PATH`-style variables across modules.
+
+See [Environment variables](./environment-variables.md) for details.
 
 ## Running scripts on workspace lifecycle
 

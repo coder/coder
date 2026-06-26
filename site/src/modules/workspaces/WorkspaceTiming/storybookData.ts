@@ -1,4 +1,4 @@
-import type { WorkspaceBuildTimings } from "api/typesGenerated";
+import type { WorkspaceBuildTimings } from "#/api/typesGenerated";
 
 export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 	provisioner_timings: [

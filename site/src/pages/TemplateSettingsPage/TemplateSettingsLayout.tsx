@@ -1,14 +1,13 @@
-import { checkAuthorization } from "api/queries/authCheck";
-import { templateByName } from "api/queries/templates";
-import type { AuthorizationResponse, Template } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { templateByName } from "#/api/queries/templates";
+import type { AuthorizationResponse, Template } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 
 const TemplateSettings = createContext<
@@ -54,7 +53,7 @@ export const TemplateSettingsLayout: FC = () => {
 			<title>{pageTitle(templateName, "Settings")}</title>
 
 			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={10}>
+				<div className="flex flex-row gap-20 py-12">
 					{templateQuery.isError || permissionsQuery.isError ? (
 						<ErrorAlert error={templateQuery.error} />
 					) : (
@@ -66,13 +65,13 @@ export const TemplateSettingsLayout: FC = () => {
 						>
 							<Sidebar template={templateQuery.data} />
 							<Suspense fallback={<Loader />}>
-								<main css={{ width: "100%" }}>
+								<div className="w-full">
 									<Outlet />
-								</main>
+								</div>
 							</Suspense>
 						</TemplateSettings.Provider>
 					)}
-				</Stack>
+				</div>
 			</Margins>
 		</>
 	);

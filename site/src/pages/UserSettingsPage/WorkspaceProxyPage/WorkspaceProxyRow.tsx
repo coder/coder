@@ -1,17 +1,17 @@
-import { useTheme } from "@emotion/react";
-import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
+import type { FC } from "react";
+import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
 import {
 	StatusHealthyIndicator,
 	StatusNotHealthyIndicator,
 	StatusNotReachableIndicator,
 	StatusNotRegisteredIndicator,
-} from "components/StatusIndicator/StatusIndicator";
-import { TableCell, TableRow } from "components/Table/Table";
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
-import type { FC, ReactNode } from "react";
-import { getLatencyColor } from "utils/latency";
+} from "#/components/StatusIndicator/StatusIndicator";
+import { TableCell, TableRow } from "#/components/Table/Table";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
+import { cn } from "#/utils/cn";
+import { getLatencyColor } from "#/utils/latency";
 
 interface ProxyRowProps {
 	latency?: ProxyLatencyReport;
@@ -19,8 +19,6 @@ interface ProxyRowProps {
 }
 
 export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
-	const theme = useTheme();
-
 	// If we have a more specific proxy status, use that.
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
@@ -71,17 +69,15 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 					/>
 				</TableCell>
 
-				<TableCell className="status">
-					<div className="flex items-center justify-end">{statusBadge}</div>
-				</TableCell>
+				<TableCell className="status">{statusBadge}</TableCell>
+
 				<TableCell
-					css={{
-						fontSize: 14,
-						textAlign: "right",
-						color: latency
-							? getLatencyColor(theme, latency.latencyMS)
-							: theme.palette.text.secondary,
-					}}
+					className={cn(
+						"text-sm",
+						latency
+							? getLatencyColor(latency.latencyMS)
+							: "text-content-secondary",
+					)}
 				>
 					{latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
 				</TableCell>
@@ -89,8 +85,8 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			{shouldShowMessages && (
 				<TableRow>
 					<TableCell
-						colSpan={4}
-						css={{ padding: "0 !important", borderBottom: 0 }}
+						colSpan={3}
+						className="!p-0 border-b-0 divide-y divide-solid overflow-clip"
 					>
 						<ProxyMessagesRow
 							proxy={proxy as WorkspaceProxy}
@@ -112,18 +108,16 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 	proxy,
 	extraWarnings,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<>
 			<ProxyMessagesList
-				title={<span css={{ color: theme.palette.error.light }}>Errors</span>}
+				title="Errors"
+				titleClassName="text-content-destructive"
 				messages={proxy.status?.report?.errors}
 			/>
 			<ProxyMessagesList
-				title={
-					<span css={{ color: theme.palette.warning.light }}>Warnings</span>
-				}
+				title="Warnings"
+				titleClassName="text-content-warning"
 				messages={[...(proxy.status?.report?.warnings ?? []), ...extraWarnings]}
 			/>
 		</>
@@ -131,44 +125,27 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 };
 
 interface ProxyMessagesListProps {
-	title: ReactNode;
+	title: string;
+	titleClassName: string;
 	messages?: readonly string[];
 }
 
-const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
-	const theme = useTheme();
-
+const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
+	title,
+	titleClassName,
+	messages,
+}) => {
 	if (!messages) {
 		return null;
 	}
 
 	return (
-		<div
-			css={{
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				backgroundColor: theme.palette.background.default,
-				padding: "16px 64px",
-			}}
-		>
-			<div
-				id="nested-list-subheader"
-				css={{
-					marginBottom: 4,
-					fontSize: 13,
-					fontWeight: 600,
-				}}
-			>
+		<div className="bg-surface-primary px-14 py-4 border-0">
+			<div className={cn("mb-1 text-xs font-semibold", titleClassName)}>
 				{title}
 			</div>
 			{messages.map((error, index) => (
-				<pre
-					key={index}
-					css={{
-						margin: "0 0 8px",
-						fontSize: 14,
-						whiteSpace: "pre-wrap",
-					}}
-				>
+				<pre key={index} className="m-0 text-sm whitespace-pre-wrap">
 					{error}
 				</pre>
 			))}

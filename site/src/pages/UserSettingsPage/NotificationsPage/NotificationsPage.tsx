@@ -1,11 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import Card from "@mui/material/Card";
-import Divider from "@mui/material/Divider";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemIcon from "@mui/material/ListItemIcon";
-import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
-import Switch from "@mui/material/Switch";
+import { type FC, Fragment, useEffect } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -14,21 +11,25 @@ import {
 	systemNotificationTemplates,
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
-} from "api/queries/notifications";
+} from "#/api/queries/notifications";
 import {
 	preferenceSettings,
 	updatePreferenceSettings,
-} from "api/queries/users";
-import type { NotificationTemplate } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
+} from "#/api/queries/users";
+import type { NotificationTemplate } from "#/api/typesGenerated";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useAuthenticated } from "hooks";
+} from "#/components/Tooltip/Tooltip";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	castNotificationMethod,
 	isTaskNotification,
@@ -36,13 +37,9 @@ import {
 	methodLabels,
 	notificationIsDisabled,
 	selectDisabledPreferences,
-} from "modules/notifications/utils";
-import type { Permissions } from "modules/permissions";
-import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
-import { Section } from "../Section";
+} from "#/modules/notifications/utils";
+import type { Permissions } from "#/modules/permissions";
+import { pageTitle } from "#/utils/page";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
@@ -89,10 +86,12 @@ const NotificationsPage: FC = () => {
 		disableMutation
 			.mutateAsync(disabledId)
 			.then(() => {
-				displaySuccess("Notification has been disabled");
+				toast.success("Notification has been disabled.");
 			})
-			.catch(() => {
-				displayError("Error disabling notification");
+			.catch((error) => {
+				toast.error("Error disabling notification.", {
+					description: getErrorDetail(error),
+				});
 			});
 	}, [searchParams.delete, disabledId, disableMutation]);
 
@@ -116,139 +115,157 @@ const NotificationsPage: FC = () => {
 		<>
 			<title>{pageTitle("Notifications Settings")}</title>
 
-			<Section
-				title="Notifications"
-				description="Control which notifications you receive."
-				layout="fluid"
-			>
-				{ready ? (
-					<Stack spacing={4}>
-						{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
-							if (!canSeeNotificationGroup(group, permissions)) {
-								return null;
-							}
+			<SettingsHeader>
+				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Control which notifications you receive.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
-							const allDisabled = templates.some((tpl) => {
-								return notificationIsDisabled(disabledPreferences.data, tpl);
-							});
+			{ready ? (
+				<div className="flex flex-col gap-8">
+					{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
+						if (!canSeeNotificationGroup(group, permissions)) {
+							return null;
+						}
 
-							return (
-								<Card
-									variant="outlined"
-									css={{ background: "transparent" }}
-									key={group}
-								>
-									<List>
-										<ListItem css={styles.listHeader}>
-											<ListItemIcon>
-												<Switch
-													id={group}
-													size="small"
-													checked={!allDisabled}
-													onChange={async (_, checked) => {
-														const updated = { ...disabledPreferences.data };
-														for (const tpl of templates) {
-															updated[tpl.id] = !checked;
-														}
-														await updatePreferences.mutateAsync({
+						const allDisabled = templates.some((tpl) => {
+							return notificationIsDisabled(disabledPreferences.data, tpl);
+						});
+
+						return (
+							<article
+								className="border border-solid rounded-lg overflow-hidden"
+								key={group}
+							>
+								<div className="flex flex-col">
+									<header className="flex items-center justify-start gap-2 bg-surface-secondary border-0 border-b border-solid px-4 py-3">
+										<div className="flex items-center gap-2">
+											<Switch
+												id={group}
+												checked={!allDisabled}
+												onCheckedChange={async (checked) => {
+													const updated = { ...disabledPreferences.data };
+													for (const tpl of templates) {
+														updated[tpl.id] = !checked;
+													}
+													await updatePreferences.mutateAsync(
+														{
 															template_disabled_map: updated,
-														});
-														displaySuccess("Notification preferences updated");
-													}}
-												/>
-											</ListItemIcon>
-											<ListItemText
-												css={styles.listItemText}
-												primary={group}
-												primaryTypographyProps={{
-													component: "label",
-													htmlFor: group,
+														},
+														{
+															onSuccess: () => {
+																toast.success(
+																	"Notification preferences updated.",
+																);
+															},
+															onError: (error) => {
+																toast.error(
+																	"Error updating notification preferences.",
+																	{
+																		description: getErrorDetail(error),
+																	},
+																);
+															},
+														},
+													);
 												}}
 											/>
-										</ListItem>
-										{templates.map((tmpl, i) => {
-											const method = castNotificationMethod(
-												tmpl.method || dispatchMethods.data.default,
-											);
-											const Icon = methodIcons[method];
-											const label = methodLabels[method];
-											const isLastItem = i === templates.length - 1;
+										</div>
+										<label htmlFor={group} className="font-medium text-sm">
+											{group}
+										</label>
+									</header>
+									{templates.map((tmpl) => {
+										const method = castNotificationMethod(
+											tmpl.method || dispatchMethods.data.default,
+										);
+										const Icon = methodIcons[method];
+										const label = methodLabels[method];
 
-											const disabled = notificationIsDisabled(
-												disabledPreferences.data,
-												tmpl,
-											);
+										const disabled = notificationIsDisabled(
+											disabledPreferences.data,
+											tmpl,
+										);
 
-											return (
-												<Fragment key={tmpl.id}>
-													<ListItem>
-														<ListItemIcon>
-															<Switch
-																size="small"
-																id={tmpl.id}
-																checked={!disabled}
-																onChange={async (_, checked) => {
-																	await updatePreferences.mutateAsync({
+										return (
+											<Fragment key={tmpl.id}>
+												<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid">
+													<div className="flex items-center gap-2">
+														<Switch
+															id={tmpl.id}
+															checked={!disabled}
+															onCheckedChange={async (checked) => {
+																await updatePreferences.mutateAsync(
+																	{
 																		template_disabled_map: {
 																			...disabledPreferences.data,
 																			[tmpl.id]: !checked,
 																		},
+																	},
+																	{
+																		onSuccess: () => {
+																			toast.success(
+																				"Notification preferences updated.",
+																			);
+																		},
+																		onError: (error) => {
+																			toast.error(
+																				"Error updating notification preferences.",
+																				{
+																					description: getErrorDetail(error),
+																				},
+																			);
+																		},
+																	},
+																);
+
+																// Clear the Tasks page warning dismissal when enabling a task notification
+																// This ensures that if the user disables task notifications again later,
+																// they will see the warning alert again.
+																if (
+																	isTaskNotification(tmpl) &&
+																	checked &&
+																	preferencesQuery.data
+																) {
+																	updatePreferencesMutation.mutate({
+																		...preferencesQuery.data,
+																		task_notification_alert_dismissed: false,
 																	});
-
-																	// Clear the Tasks page warning dismissal when enabling a task notification
-																	// This ensures that if the user disables task notifications again later,
-																	// they will see the warning alert again.
-																	if (
-																		isTaskNotification(tmpl) &&
-																		checked &&
-																		preferencesQuery.data
-																	) {
-																		updatePreferencesMutation.mutate({
-																			task_notification_alert_dismissed: false,
-																		});
-																	}
-
-																	displaySuccess(
-																		"Notification preferences updated",
-																	);
-																}}
-															/>
-														</ListItemIcon>
-														<ListItemText
-															primaryTypographyProps={{
-																component: "label",
-																htmlFor: tmpl.id,
+																}
 															}}
-															css={styles.listItemText}
-															primary={tmpl.name}
 														/>
-														<ListItemIcon
-															css={styles.listItemEndIcon}
-															aria-label="Delivery method"
+														<label
+															htmlFor={tmpl.id}
+															className="font-medium text-sm"
 														>
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<Icon aria-label={label} />
-																</TooltipTrigger>
-																<TooltipContent side="bottom">
-																	Delivery via {label}
-																</TooltipContent>
-															</Tooltip>
-														</ListItemIcon>
-													</ListItem>
-													{!isLastItem && <Divider />}
-												</Fragment>
-											);
-										})}
-									</List>
-								</Card>
-							);
-						})}
-					</Stack>
-				) : (
-					<Loader />
-				)}
-			</Section>
+															{tmpl.name}
+														</label>
+													</div>
+
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<Icon
+																className="size-icon-sm text-content-secondary"
+																aria-label={label}
+															/>
+														</TooltipTrigger>
+														<TooltipContent side="bottom">
+															Delivery via {label}
+														</TooltipContent>
+													</Tooltip>
+												</div>
+											</Fragment>
+										);
+									})}
+								</div>
+							</article>
+						);
+					})}
+				</div>
+			) : (
+				<Loader />
+			)}
 		</>
 	);
 };
@@ -266,35 +283,10 @@ function canSeeNotificationGroup(
 			return permissions.createUser;
 		case "Workspace Events":
 		case "Task Events":
+		case "Chat Events":
 		case "Custom Events":
 			return true;
 		default:
 			return false;
 	}
 }
-
-const styles = {
-	listHeader: (theme) => ({
-		background: theme.palette.background.paper,
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-	listItemText: {
-		[`& .${listItemTextClasses.primary}`]: {
-			fontSize: 14,
-			fontWeight: 500,
-			textTransform: "capitalize",
-		},
-		[`& .${listItemTextClasses.secondary}`]: {
-			fontSize: 14,
-		},
-	},
-	listItemEndIcon: (theme) => ({
-		minWidth: 0,
-		fontSize: 20,
-		color: theme.palette.text.secondary,
-
-		"& svg": {
-			fontSize: "inherit",
-		},
-	}),
-} as Record<string, Interpolation<Theme>>;

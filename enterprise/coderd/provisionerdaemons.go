@@ -153,7 +153,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 101
-// @Router /organizations/{organization}/provisionerdaemons/serve [get]
+// @Router /api/v2/organizations/{organization}/provisionerdaemons/serve [get]
 func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -356,6 +356,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		provisionerdserver.Options{
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 			OIDCConfig:          api.OIDCConfig,
+			AISeatTracker:       api.AGPL.AISeatTracker,
 			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,

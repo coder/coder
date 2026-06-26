@@ -1,12 +1,12 @@
-import { buildInfo } from "api/queries/buildInfo";
-import type { LinkConfig } from "api/typesGenerated";
-import { useProxy } from "contexts/ProxyContext";
-import { useAuthenticated } from "hooks";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { canViewDeploymentSettings } from "modules/permissions";
 import type { FC } from "react";
 import { useQuery } from "react-query";
+import { buildInfo } from "#/api/queries/buildInfo";
+import type { LinkConfig } from "#/api/typesGenerated";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { canViewDeploymentSettings } from "#/modules/permissions";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -27,6 +27,11 @@ export const Navbar: FC = () => {
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
+	const canViewAISettings =
+		permissions.viewAnyAIProvider ||
+		permissions.viewAIGatewayKeys ||
+		permissions.editDeploymentConfig;
+	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -37,7 +42,6 @@ export const Navbar: FC = () => {
 	return (
 		<NavbarView
 			user={me}
-			logo_url={appearance.logo_url}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
 			onSignOut={signOut}
@@ -47,6 +51,8 @@ export const Navbar: FC = () => {
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}
 			canViewAIBridge={canViewAIBridge}
+			canViewAISettings={canViewAISettings}
+			canCreateChat={canCreateChat}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

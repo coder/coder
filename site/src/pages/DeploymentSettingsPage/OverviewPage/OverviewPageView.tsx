@@ -1,20 +1,19 @@
+import type { FC } from "react";
 import type {
 	DAUsResponse,
 	Experiment,
 	SerpentOption,
-} from "api/typesGenerated";
-import { Link } from "components/Link/Link";
+} from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
-import { useDeploymentOptions } from "utils/deployOptions";
-import { docs } from "utils/docs";
-import { Alert, AlertTitle } from "../../../components/Alert/Alert";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useDeploymentOptions } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 
@@ -42,7 +41,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<Stack spacing={4}>
+			<div className="flex flex-col gap-8">
 				<UserEngagementChart
 					data={dailyActiveUsers?.entries.map((i) => ({
 						date: i.date,
@@ -62,7 +61,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 						It is recommended that you remove these experiments from your
 						configuration as they have no effect. See{" "}
 						<Link
-							href="https://coder.com/docs/reference/cli/server#--experiments"
+							href={docs("/reference/cli/server#--experiments")}
 							target="_blank"
 							rel="noreferrer"
 						>
@@ -80,7 +79,7 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 					)}
 					additionalValues={safeExperiments}
 				/>
-			</Stack>
+			</div>
 		</>
 	);
 };

@@ -1,112 +1,80 @@
-import { css } from "@emotion/css";
-import { useTheme } from "@emotion/react";
-import IconButton, { type IconButtonProps } from "@mui/material/IconButton";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
-import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	cloneElement,
 	type FC,
-	type ForwardedRef,
-	forwardRef,
 	type HTMLAttributes,
 	type ReactElement,
+	type Ref,
 } from "react";
-import { cn } from "utils/cn";
+import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
+import { Button, type ButtonProps } from "#/components/Button/Button";
+import { cn } from "#/utils/cn";
 
-export const Topbar: FC<HTMLAttributes<HTMLElement>> = (props) => {
-	const theme = useTheme();
-
+export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
+	className,
+	...props
+}) => {
 	return (
 		<header
 			{...props}
-			css={{
-				minHeight: 48,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				display: "flex",
-				alignItems: "center",
-				fontSize: 13,
-				lineHeight: "1.2",
-			}}
+			className={cn(
+				"min-h-12 border-0 border-b border-border border-solid flex items-center text-[13px] leading-tight",
+				className,
+			)}
 		/>
 	);
 };
 
-export const TopbarIconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
-	(props, ref) => {
-		return (
-			<IconButton
-				ref={ref}
-				{...props}
-				size="small"
-				css={{
-					padding: 0,
-					borderRadius: 0,
-					height: 48,
-					width: 48,
+type TopbarIconButtonProps = ButtonProps;
 
-					"& svg": {
-						fontSize: 20,
-					},
-				}}
-			/>
-		);
-	},
-) as typeof IconButton;
+export const TopbarIconButton = ({
+	className,
+	...props
+}: TopbarIconButtonProps) => {
+	return (
+		<Button
+			{...props}
+			size="icon-lg"
+			variant="subtle"
+			className={cn("p-0 rounded-none size-12", className)}
+		/>
+	);
+};
 
-export const TopbarButton = forwardRef<HTMLButtonElement, ButtonProps>(
-	(props: ButtonProps, ref) => {
-		return <Button ref={ref} variant="outline" size="sm" {...props} />;
-	},
-);
+export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
+	return <Button variant="outline" size="sm" {...props} />;
+};
 
 export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	return (
-		<div
-			{...props}
-			css={{
-				display: "flex",
-				gap: 8,
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-		/>
-	);
+	return <div {...props} className="flex gap-2 items-center justify-center" />;
 };
 
-export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
-	const theme = useTheme();
+export const TopbarDivider: FC<
+	Omit<HTMLAttributes<HTMLSpanElement>, "children">
+> = ({ className, ...props }) => {
 	return (
-		<span {...props} css={{ color: theme.palette.divider }}>
+		<span {...props} className={cn("text-border", className)}>
 			/
 		</span>
 	);
 };
 
 export const TopbarAvatar: FC<AvatarProps> = (props) => {
-	return <Avatar {...props} variant="icon" size="md" />;
+	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
-type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement>;
+type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
+	ref?: Ref<HTMLOrSVGElement>;
+};
 
-export const TopbarIcon = forwardRef<HTMLOrSVGElement, TopbarIconProps>(
-	(props: TopbarIconProps, ref) => {
-		const { children, className, ...restProps } = props;
-		const theme = useTheme();
-
-		return cloneElement(
-			children as ReactElement<
-				HTMLAttributes<HTMLOrSVGElement> & {
-					ref: ForwardedRef<HTMLOrSVGElement>;
-				}
-			>,
-			{
-				...restProps,
-				ref,
-				className: cn([
-					css({ fontSize: 16, color: theme.palette.text.disabled }),
-					"size-icon-sm",
-				]),
-			},
-		);
-	},
-);
+export const TopbarIcon: React.FC<TopbarIconProps> = ({
+	ref,
+	children,
+	className,
+	...restProps
+}) => {
+	return cloneElement(children as ReactElement<TopbarIconProps>, {
+		...restProps,
+		ref,
+		className: "text-base text-content-disabled size-icon-sm",
+	});
+};

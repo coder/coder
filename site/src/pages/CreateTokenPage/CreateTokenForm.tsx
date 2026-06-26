@@ -1,21 +1,20 @@
 import { css } from "@emotion/css";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import { Button } from "#/components/Button/Button";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers, onChangeTrimmed } from "#/utils/formUtils";
 import {
 	type CreateTokenData,
 	customLifetimeDay,
@@ -33,6 +32,7 @@ interface CreateTokenFormProps {
 	setFormError: (arg0: unknown) => void;
 	isCreating: boolean;
 	creationFailed: boolean;
+	now?: Date;
 }
 
 export const CreateTokenForm: FC<CreateTokenFormProps> = ({
@@ -42,6 +42,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	setFormError,
 	isCreating,
 	creationFailed,
+	now,
 }) => {
 	const navigate = useNavigate();
 
@@ -49,6 +50,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	const [lifetimeDays, setLifetimeDays] = useState<number | string>(
 		determineDefaultLtValue(maxTokenLifetime),
 	);
+	const currentTime = dayjs(now ?? new Date());
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: adding form will cause an infinite loop
 	useEffect(() => {
@@ -86,7 +88,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 						<>
 							The token will expire on{" "}
 							<span data-chromatic="ignore">
-								{dayjs()
+								{currentTime
 									.add(form.values.lifetime, "days")
 									.utc()
 									.format("MMMM DD, YYYY")}
@@ -99,7 +101,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				classes={{ sectionInfo: classNames.sectionInfo }}
 			>
 				<FormFields>
-					<Stack direction="row">
+					<div className="flex flex-row gap-4">
 						<TextField
 							select
 							label="Lifetime"
@@ -150,7 +152,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 								}}
 							/>
 						)}
-					</Stack>
+					</div>
 				</FormFields>
 			</FormSection>
 
@@ -169,6 +171,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 
 const classNames = {
 	sectionInfo: css`
-    min-width: 300px;
-  `,
+		min-width: 300px;
+	`,
 };

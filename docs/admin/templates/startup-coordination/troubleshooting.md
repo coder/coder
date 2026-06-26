@@ -47,34 +47,42 @@ Dependencies:
 No dependencies found
 ```
 
+## List All Units
+
+If you are unsure which units are registered, or want a quick overview of every unit's state, use `coder exp sync list`:
+
+```bash
+coder exp sync list
+```
+
+This displays all registered units, their statuses, and whether they are ready to start:
+
+```bash
+UNIT           STATUS     READY
+git-clone      completed  true
+env-setup      started    true
+ide-configure  pending    false
+```
+
+You can also get JSON output for scripting:
+
+```bash
+coder exp sync list --output json
+```
+
 ## Common Issues
 
-### Socket not enabled
-
-If the Coder Agent Socket Server is not enabled, you will see an error message similar to the below when running `coder exp sync ping`:
-
-```bash
-error: connect to agent socket: connect to socket: dial unix /tmp/coder-agent.sock: connect: no such file or directory
-```
-
-Verify `CODER_AGENT_SOCKET_SERVER_ENABLED=true` is set in the Coder agent's environment:
-
-```bash
-tr '\0' '\n' < /proc/$(pidof -s coder)/environ | grep CODER_AGENT_SOCKET_SERVER_ENABLED
-```
-
-If the output of the above command is empty, review your template and ensure that the environment variable is set such that it is readable by the Coder agent process. Setting it on the `coder_agent` resource directly is **not** sufficient.
-
-## Workspace startup script hangs
+### Workspace startup script hangs
 
 If the workspace startup scripts appear to 'hang', one or more of your startup scripts may be waiting for a dependency that never completes.
 
 * Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
     > **Tip:** add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
 * Review your template and verify that `coder exp sync complete <unit>` is called after the script completes e.g. with an exit trap.
+* List all units to identify which ones are blocked: `coder exp sync list`.
 * View the unit status using `coder exp sync status <unit>`.
 
-## Workspace startup scripts fail
+### Workspace startup scripts fail
 
 If the workspace startup scripts fail:
 
@@ -85,7 +93,7 @@ If the workspace startup scripts fail:
     command -v coder
     ```
 
-## Cycle detected
+### Cycle detected
 
 If you see an error similar to the below in your startup script logs, you have defined a cyclic dependency:
 

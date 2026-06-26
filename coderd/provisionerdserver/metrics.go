@@ -13,6 +13,7 @@ type Metrics struct {
 	logger                   slog.Logger
 	workspaceCreationTimings *prometheus.HistogramVec
 	workspaceClaimTimings    *prometheus.HistogramVec
+	jobQueueWait             *prometheus.HistogramVec
 }
 
 type WorkspaceTimingType int
@@ -28,6 +29,12 @@ const (
 	workspaceTypeRegular  = "regular"
 	workspaceTypePrebuild = "prebuild"
 )
+
+// BuildReasonPrebuild is the build_reason metric label value for prebuild
+// operations. This is distinct from database.BuildReason values since prebuilds
+// use BuildReasonInitiator in the database but we want to track them separately
+// in metrics. This is also used as a label value by the metrics in wsbuilder.
+const BuildReasonPrebuild = workspaceTypePrebuild
 
 type WorkspaceTimingFlags struct {
 	IsPrebuild   bool
@@ -90,6 +97,30 @@ func NewMetrics(logger slog.Logger) *Metrics {
 			NativeHistogramZeroThreshold:    0,
 			NativeHistogramMaxZeroThreshold: 0,
 		}, []string{"organization_name", "template_name", "preset_name"}),
+		jobQueueWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Name:      "provisioner_job_queue_wait_seconds",
+			Help:      "Time from job creation to acquisition by a provisioner daemon.",
+			Buckets: []float64{
+				0.1,  // 100ms
+				0.5,  // 500ms
+				1,    // 1s
+				5,    // 5s
+				10,   // 10s
+				30,   // 30s
+				60,   // 1m
+				120,  // 2m
+				300,  // 5m
+				600,  // 10m
+				900,  // 15m
+				1800, // 30m
+			},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: time.Hour,
+			NativeHistogramZeroThreshold:    0,
+			NativeHistogramMaxZeroThreshold: 0,
+		}, []string{"provisioner_type", "job_type", "transition", "build_reason"}),
 	}
 }
 
@@ -97,7 +128,10 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	if err := reg.Register(m.workspaceCreationTimings); err != nil {
 		return err
 	}
-	return reg.Register(m.workspaceClaimTimings)
+	if err := reg.Register(m.workspaceClaimTimings); err != nil {
+		return err
+	}
+	return reg.Register(m.jobQueueWait)
 }
 
 // IsTrackable returns true if the workspace build should be tracked in metrics.
@@ -161,4 +195,10 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 	default:
 		// Not a trackable build type (e.g. restart, stop, subsequent builds)
 	}
+}
+
+// ObserveJobQueueWait records the time a provisioner job spent waiting in the queue.
+// For non-workspace-build jobs, transition and buildReason should be empty strings.
+func (m *Metrics) ObserveJobQueueWait(provisionerType, jobType, transition, buildReason string, waitSeconds float64) {
+	m.jobQueueWait.WithLabelValues(provisionerType, jobType, transition, buildReason).Observe(waitSeconds)
 }

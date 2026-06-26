@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -21,10 +20,12 @@ import (
 	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -42,7 +43,7 @@ import (
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param request body codersdk.CreateTaskRequest true "Create task request"
 // @Success 201 {object} codersdk.Task
-// @Router /tasks/{user} [post]
+// @Router /api/v2/tasks/{user} [post]
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -190,7 +191,8 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAuditWS()
 
-	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, r, &createWorkspaceOptions{
+	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, &createWorkspaceOptions{
+		remoteAddr: r.RemoteAddr,
 		// Before creating the workspace, ensure that this task can be created.
 		preCreateInTX: func(ctx context.Context, tx database.Store) error {
 			// Create task record in the database before creating the workspace so that
@@ -312,6 +314,18 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
+// appStatusStateToTaskState converts a WorkspaceAppStatusState to a
+// TaskState. The two enums mostly share values but "failure" in the
+// app status maps to "failed" in the public task API.
+func appStatusStateToTaskState(s codersdk.WorkspaceAppStatusState) codersdk.TaskState {
+	switch s {
+	case codersdk.WorkspaceAppStatusStateFailure:
+		return codersdk.TaskStateFailed
+	default:
+		return codersdk.TaskState(s)
+	}
+}
+
 // deriveTaskCurrentState determines the current state of a task based on the
 // workspace's latest app status and initialization phase.
 // Returns nil if no valid state can be determined.
@@ -331,7 +345,7 @@ func deriveTaskCurrentState(
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
 			currentState = &codersdk.TaskStateEntry{
 				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				State:     appStatusStateToTaskState(ws.LatestAppStatus.State),
 				Message:   ws.LatestAppStatus.Message,
 				URI:       ws.LatestAppStatus.URI,
 			}
@@ -386,7 +400,7 @@ func deriveTaskCurrentState(
 // @Tags Tasks
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
 // @Success 200 {object} codersdk.TasksListResponse
-// @Router /tasks [get]
+// @Router /api/v2/tasks [get]
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -464,7 +478,6 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 
 	apiWorkspaces, err := convertWorkspaces(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		requesterID,
 		workspaces,
@@ -497,7 +510,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
-// @Router /tasks/{user}/{task} [get]
+// @Router /api/v2/tasks/{user}/{task} [get]
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -544,7 +557,6 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 
 	ws, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -572,7 +584,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 202
-// @Router /tasks/{user}/{task} [delete]
+// @Router /api/v2/tasks/{user}/{task} [delete]
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -646,7 +658,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
 // @Success 204
-// @Router /tasks/{user}/{task}/input [patch]
+// @Router /api/v2/tasks/{user}/{task}/input [patch]
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -726,7 +738,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 // @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
 // @Success 204
-// @Router /tasks/{user}/{task}/send [post]
+// @Router /api/v2/tasks/{user}/{task}/send [post]
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -760,7 +772,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if statusResp.Status != agentapisdk.StatusStable {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
 				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
@@ -818,7 +830,7 @@ func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]code
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse
-// @Router /tasks/{user}/{task}/logs [get]
+// @Router /api/v2/tasks/{user}/{task}/logs [get]
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -977,10 +989,27 @@ func (api *API) authAndDoWithTaskAppClient(
 	ctx := r.Context()
 
 	if task.Status != database.TaskStatusActive {
-		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task status must be active.",
-			Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
-		})
+		// Return 409 Conflict for valid requests blocked by current state
+		// (pending/initializing are transitional, paused requires resume).
+		// Return 400 Bad Request for error/unknown states.
+		switch task.Status {
+		case database.TaskStatusPending, database.TaskStatusInitializing:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Task is %s.", task.Status),
+				Detail:  "The task is resuming. Wait for the task to become active before sending messages.",
+			})
+		case database.TaskStatusPaused:
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Task is paused.",
+				Detail:  "Resume the task to send messages.",
+			})
+		default:
+			// Default handler for error and unknown status.
+			return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Task must be active.",
+				Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
+			})
+		}
 	}
 	if !task.WorkspaceID.Valid {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
@@ -1056,13 +1085,7 @@ func (api *API) authAndDoWithTaskAppClient(
 	}
 	defer release()
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return agentConn.DialContext(ctx, network, addr)
-			},
-		},
-	}
+	client := agentConn.AppHTTPClient()
 	return do(ctx, client, parsedURL)
 }
 
@@ -1087,7 +1110,7 @@ type TaskLogSnapshotEnvelope struct {
 // @Param format query string true "Snapshot format" enums(agentapi)
 // @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
 // @Success 204
-// @Router /workspaceagents/me/tasks/{task}/log-snapshot [post]
+// @Router /api/v2/workspaceagents/me/tasks/{task}/log-snapshot [post]
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx         = r.Context()
@@ -1226,4 +1249,184 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		slog.F("snapshot_size_bytes", len(snapshotJSON)))
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Pause task
+// @ID pause-task
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 {object} codersdk.PauseTaskResponse
+// @Router /api/v2/tasks/{user}/{task}/pause [post]
+func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskManualPause,
+	}
+	build, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+
+	if _, err := api.NotificationsEnqueuer.Enqueue(
+		// nolint:gocritic // Need notifier actor to enqueue notifications.
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateTaskPaused,
+		map[string]string{
+			"task":         task.Name,
+			"task_id":      task.ID.String(),
+			"workspace":    workspace.Name,
+			"pause_reason": "manual",
+		},
+		"api-task-pause",
+		workspace.ID, workspace.OwnerID, workspace.OrganizationID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of task paused", slog.Error(err), slog.F("task_id", task.ID), slog.F("workspace_id", workspace.ID))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.PauseTaskResponse{
+		WorkspaceBuild: &build,
+	})
+}
+
+// @Summary Resume task
+// @ID resume-task
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Tasks
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 {object} codersdk.ResumeTaskResponse
+// @Router /api/v2/tasks/{user}/{task}/resume [post]
+func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+		task   = httpmw.TaskParam(r)
+	)
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task workspace build job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspaceStatus := codersdk.ConvertWorkspaceStatus(
+		codersdk.ProvisionerJobStatus(job.JobStatus),
+		codersdk.WorkspaceTransition(latestBuild.Transition),
+	)
+	if workspaceStatus == codersdk.WorkspaceStatusRunning {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Task workspace is already running.",
+			Detail:  fmt.Sprintf("Workspace status is %q.", workspaceStatus),
+		})
+		return
+	}
+
+	buildReq := codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		Reason:     codersdk.CreateWorkspaceBuildReasonTaskResume,
+	}
+	build, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		apiKey,
+		workspace,
+		buildReq,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.Authorize(r, action, object)
+		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
+	)
+	if err != nil {
+		httperror.WriteWorkspaceBuildError(ctx, rw, err)
+		return
+	}
+	if _, err := api.NotificationsEnqueuer.Enqueue(
+		// nolint:gocritic // Need notifier actor to enqueue notifications.
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateTaskResumed,
+		map[string]string{
+			"task":      task.Name,
+			"task_id":   task.ID.String(),
+			"workspace": workspace.Name,
+		},
+		"api-task-resume",
+		workspace.ID, workspace.OwnerID, workspace.OrganizationID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of task resumed", slog.Error(err), slog.F("task_id", task.ID), slog.F("workspace_id", workspace.ID))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ResumeTaskResponse{
+		WorkspaceBuild: &build,
+	})
 }

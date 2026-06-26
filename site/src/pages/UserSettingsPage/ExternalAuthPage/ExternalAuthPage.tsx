@@ -1,15 +1,18 @@
-import { getErrorMessage } from "api/errors";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	externalAuths,
 	unlinkExternalAuths,
 	validateExternalAuth,
-} from "api/queries/externalAuth";
-import type { ExternalAuthLinkProvider } from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Section } from "../Section";
+} from "#/api/queries/externalAuth";
+import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {
@@ -24,7 +27,10 @@ const ExternalAuthPage: FC = () => {
 	const validateAppMutation = useMutation(validateExternalAuth(queryClient));
 
 	return (
-		<Section title="External Authentication" layout="fluid">
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>External Authentication</SettingsHeaderTitle>
+			</SettingsHeader>
 			<ExternalAuthPageView
 				isLoading={externalAuthsQuery.isLoading}
 				getAuthsError={externalAuthsQuery.error}
@@ -37,15 +43,19 @@ const ExternalAuthPage: FC = () => {
 					try {
 						const data = await validateAppMutation.mutateAsync(providerID);
 						if (data.authenticated) {
-							displaySuccess("Application link is valid.");
+							toast.success("Application link is valid.");
 						} else {
-							displayError(
-								"Application link is not valid. Please unlink the application and reauthenticate.",
-							);
+							toast.error("Application link is not valid.", {
+								description:
+									"Please unlink the application and reauthenticate.",
+							});
 						}
-					} catch (e) {
-						displayError(
-							getErrorMessage(e, "Error validating application link."),
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, "Error validating application link."),
+							{
+								description: getErrorDetail(error),
+							},
 						);
 					}
 				}}
@@ -66,9 +76,12 @@ const ExternalAuthPage: FC = () => {
 				entity="application"
 				onCancel={() => setAppToUnlink(undefined)}
 				onConfirm={async () => {
+					if (!appToUnlink) {
+						return;
+					}
 					try {
 						const unlinkResp = await unlinkAppMutation.mutateAsync(
-							appToUnlink?.id!,
+							appToUnlink.id,
 						);
 						// setAppToUnlink closes the modal
 						setAppToUnlink(undefined);
@@ -77,17 +90,19 @@ const ExternalAuthPage: FC = () => {
 						// this tells our child components to refetch their data
 						// as at least 1 provider was unlinked.
 						setUnlinked(unlinked + 1);
-						displaySuccess(
+						toast.success(
 							unlinkResp.token_revoked
 								? "Successfully deleted external auth link and revoked token from the OAuth2 provider."
 								: "Successfully deleted external auth link. Token has NOT been revoked from the OAuth2 provider.",
 						);
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error unlinking application."));
+						toast.error(getErrorMessage(e, "Error unlinking application."), {
+							description: getErrorDetail(e),
+						});
 					}
 				}}
 			/>
-		</Section>
+		</>
 	);
 };
 

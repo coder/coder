@@ -14,6 +14,8 @@ const (
 	LockIDCryptoKeyRotation
 	LockIDReconcilePrebuilds
 	LockIDReconcileSystemRoles
+	LockIDBoundaryUsageStats
+	LockIDAIProvidersEnvSeed
 )
 
 // GenLockID generates a unique and consistent lock ID from a given string.

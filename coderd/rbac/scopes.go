@@ -3,7 +3,6 @@ package rbac
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -66,6 +65,11 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 			{Type: ResourceTemplate.Type, ID: params.TemplateID.String()},
 			{Type: ResourceTemplate.Type, ID: params.VersionID.String()},
 			{Type: ResourceUser.Type, ID: params.OwnerID.String()},
+			// No pre-existing ID for new records; wildcard is required.
+			// Owner-scoped create (user-level) limits agents to their own
+			// logs. Adding site-level actions to the member role would
+			// bypass this and grant deployment-wide access.
+			{Type: ResourceBoundaryLog.Type, ID: policy.WildcardSymbol},
 		}, extraAllowList...),
 	}
 }
@@ -136,16 +140,25 @@ func BuiltinScopeNames() []ScopeName {
 var compositePerms = map[ScopeName]map[string][]policy.Action{
 	"coder:workspaces.create": {
 		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		ResourceWorkspace.Type: {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		// When creating a workspace, users need to be able to read the org member the
+		// workspace will be owned by. Even if that owner is "yourself".
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.operate": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+		ResourceTemplate.Type:           {policy.ActionRead},
+		ResourceWorkspace.Type:          {policy.ActionWorkspaceStop, policy.ActionWorkspaceStart, policy.ActionRead, policy.ActionUpdate},
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.delete": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
+		ResourceTemplate.Type:           {policy.ActionRead, policy.ActionUse},
+		ResourceWorkspace.Type:          {policy.ActionRead, policy.ActionDelete},
+		ResourceOrganizationMember.Type: {policy.ActionRead},
 	},
 	"coder:workspaces.access": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+		ResourceTemplate.Type:           {policy.ActionRead},
+		ResourceOrganizationMember.Type: {policy.ActionRead},
+		ResourceWorkspace.Type:          {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
 	},
 	"coder:templates.build": {
 		ResourceTemplate.Type: {policy.ActionRead},
@@ -176,7 +189,7 @@ func CompositeScopeNames() []string {
 	for k := range compositePerms {
 		out = append(out, string(k))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

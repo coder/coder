@@ -36,6 +36,7 @@ type Options struct {
 	RelayAddress    string
 	RegionID        int32
 	TLSConfig       *tls.Config
+	ClusterHost     string
 }
 
 // New registers the replica with the database and periodically updates to
@@ -77,6 +78,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         true,
+		ClusterHost:     options.ClusterHost,
+		NATSPort:        0, // set later via SetSelfNATSPort
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
@@ -122,10 +125,10 @@ type Manager struct {
 	closed      chan (struct{})
 	closeCancel context.CancelFunc
 
-	self     database.Replica
-	mutex    sync.Mutex
-	peers    []database.Replica
-	callback func()
+	self      database.Replica
+	mutex     sync.Mutex
+	peers     []database.Replica
+	callbacks map[string]func()
 }
 
 func (m *Manager) ID() uuid.UUID {
@@ -327,6 +330,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         m.self.Primary,
+		ClusterHost:     m.self.ClusterHost,
+		NATSPort:        m.self.NATSPort,
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -346,6 +351,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 			DatabaseLatency: int32(databaseLatency.Microseconds()),
 			Primary:         m.self.Primary,
+			ClusterHost:     m.self.ClusterHost,
+			NATSPort:        m.self.NATSPort,
 		})
 		if err != nil {
 			return xerrors.Errorf("update replica: %w", err)
@@ -359,8 +366,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 	}
 	m.self = replica
-	if m.callback != nil {
-		go m.callback()
+	for _, callback := range m.callbacks {
+		go callback()
 	}
 	return nil
 }
@@ -414,6 +421,27 @@ func (m *Manager) AllPrimary() []database.Replica {
 	return replicas
 }
 
+func (m *Manager) FetchNATSPeers() []string {
+	addresses := make([]string, 0, len(m.AllPrimary()))
+	for _, replica := range m.AllPrimary() {
+		if replica.ClusterHost == "" || replica.NATSPort == 0 {
+			continue
+		}
+		natsAddr := fmt.Sprintf("nats://%s:%d", replica.ClusterHost, replica.NATSPort)
+		addresses = append(addresses, natsAddr)
+	}
+	return addresses
+}
+
+func (m *Manager) SetSelfNATSPort(port int32) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.self.NATSPort = port
+	m.logger.Debug(context.Background(), "nats port updated", slog.F("port", port))
+	// We're not really in a rush here, since it will take some time for our peers to dial and establish connections
+	// to us. So, we're not going to trigger a synchronous update. We'll just wait for the periodic update ticker.
+}
+
 // InRegion returns every replica in the given DERP region excluding itself.
 func (m *Manager) InRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
@@ -439,12 +467,20 @@ func (m *Manager) regionID() int32 {
 	return m.self.RegionID
 }
 
-// SetCallback sets a function to execute whenever new peers
-// are refreshed or updated.
-func (m *Manager) SetCallback(callback func()) {
+// SetCallback sets a named function to execute whenever new peers are refreshed
+// or updated. Calling SetCallback again with the same name replaces the prior
+// callback. Passing nil removes the named callback.
+func (m *Manager) SetCallback(name string, callback func()) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.callback = callback
+	if callback == nil {
+		delete(m.callbacks, name)
+		return
+	}
+	if m.callbacks == nil {
+		m.callbacks = make(map[string]func())
+	}
+	m.callbacks[name] = callback
 	// Instantly call the callback to inform replicas!
 	go callback()
 }
@@ -481,6 +517,8 @@ func (m *Manager) Close() error {
 		Error:           m.self.Error,
 		DatabaseLatency: 0,     // A stopped replica has no latency.
 		Primary:         false, // A stopped replica cannot be primary.
+		ClusterHost:     m.self.ClusterHost,
+		NATSPort:        0, // A stopped replica cannot cluster with NATS
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -32,6 +34,8 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -163,14 +167,14 @@ func TestDERPForceWebSockets(t *testing.T) {
 
 	// Set the HTTP handler to a custom one that ensures all /derp calls are
 	// WebSockets and not `Upgrade: derp`.
-	var upgradeCount int64
+	var upgradeCount atomic.Int64
 	setHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
 			up := r.Header.Get("Upgrade")
 			if up != "" && up != "websocket" {
 				t.Errorf("expected Upgrade: websocket, got %q", up)
 			} else {
-				atomic.AddInt64(&upgradeCount, 1)
+				upgradeCount.Add(1)
 			}
 		}
 
@@ -183,7 +187,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 		_ = provisionerCloser.Close()
 	})
 
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
@@ -223,7 +227,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 	}()
 	conn.AwaitReachable(ctx)
 
-	require.GreaterOrEqual(t, atomic.LoadInt64(&upgradeCount), int64(1), "expected at least one /derp call")
+	require.GreaterOrEqual(t, upgradeCount.Load(), int64(1), "expected at least one /derp call")
 }
 
 func TestDERPLatencyCheck(t *testing.T) {
@@ -280,7 +284,9 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), "Swagger UI")
+		bodyString := string(body)
+		require.Contains(t, bodyString, "Swagger UI")
+		require.Contains(t, bodyString, "requestInterceptor")
 	})
 	t.Run("doc.json exposed", func(t *testing.T) {
 		t.Parallel()
@@ -299,7 +305,23 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), `"swagger": "2.0"`)
+		bodyString := string(body)
+		require.NotContains(t, bodyString, `"/api/v2/scim/v2`)
+
+		var doc struct {
+			Swagger  string                                `json:"swagger"`
+			BasePath string                                `json:"basePath"`
+			Paths    map[string]map[string]json.RawMessage `json:"paths"`
+		}
+		require.NoError(t, json.Unmarshal(body, &doc))
+		require.Equal(t, "2.0", doc.Swagger)
+		require.Equal(t, "/", doc.BasePath)
+		require.Contains(t, doc.Paths, "/api/v2/users")
+		require.Contains(t, doc.Paths, "/api/v2/oauth2-provider/apps")
+		require.Contains(t, doc.Paths, "/api/experimental/watch-all-workspacebuilds")
+		require.Contains(t, doc.Paths, "/.well-known/oauth-authorization-server")
+		require.Contains(t, doc.Paths, "/oauth2/tokens")
+		require.Contains(t, doc.Paths, "/scim/v2/Users")
 	})
 	t.Run("endpoint disabled by default", func(t *testing.T) {
 		t.Parallel()
@@ -384,9 +406,186 @@ func TestCSRFExempt(t *testing.T) {
 		data, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 
-		// A StatusBadGateway means Coderd tried to proxy to the agent and failed because the agent
+		// A StatusNotFound means Coderd tried to proxy to the agent and failed because the agent
 		// was not there. This means CSRF did not block the app request, which is what we want.
-		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "status code 500 is CSRF failure")
+		require.Equal(t, http.StatusNotFound, resp.StatusCode, "status code 500 is CSRF failure")
 		require.NotContains(t, string(data), "CSRF")
+	})
+}
+
+func TestDERPMetrics(t *testing.T) {
+	t.Parallel()
+
+	_, _, api := coderdtest.NewWithAPI(t, nil)
+
+	require.NotNil(t, api.Options.DERPServer, "DERP server should be configured")
+	require.NotNil(t, api.Options.PrometheusRegistry, "Prometheus registry should be configured")
+
+	// The registry is created internally by coderd. Gather from it
+	// to verify DERP metrics were registered during startup.
+	metrics, err := api.Options.PrometheusRegistry.Gather()
+	require.NoError(t, err)
+
+	names := make(map[string]struct{})
+	for _, m := range metrics {
+		names[m.GetName()] = struct{}{}
+	}
+
+	assert.Contains(t, names, "coder_derp_server_connections",
+		"expected coder_derp_server_connections to be registered")
+	assert.Contains(t, names, "coder_derp_server_bytes_received_total",
+		"expected coder_derp_server_bytes_received_total to be registered")
+	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
+		"expected coder_derp_server_packets_dropped_reason_total to be registered")
+}
+
+// TestWebSocketProbeMetrics verifies that the coderd_api_websocket_probes_total
+// metric is recorded end-to-end through a real coderd server.
+func TestWebSocketProbeMetrics(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	mClock := quartz.NewMock(t)
+
+	trap := mClock.Trap().NewTicker("WSWatcher")
+	defer trap.Close()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Clock: mClock,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	// Open a WebSocket connection to the inbox watch endpoint.
+	u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
+	require.NoError(t, err)
+
+	// nolint:bodyclose
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{member.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	// Start a reader to process control frames (pong responses).
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				_, _, err := wsConn.Read(ctx)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for the WSWatcher ticker to be created, then trigger one probe.
+	trap.MustWait(ctx).MustRelease(ctx)
+	mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+
+	// Assert the probe metric was recorded.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		metrics, err := api.Options.PrometheusRegistry.Gather()
+		assert.NoError(t, err)
+		return testutil.PromCounterHasValue(t, metrics, 1,
+			"coderd_api_websocket_probes_total", "/api/v2/notifications/inbox/watch", "ok")
+	}, testutil.IntervalFast, "websocket probe metric not recorded")
+}
+
+// TestRateLimitByUser verifies that rate limiting keys by user ID when
+// an authenticated session is present, rather than falling back to IP.
+// This is a regression test for https://github.com/coder/coder/issues/20857
+func TestRateLimitByUser(t *testing.T) {
+	t.Parallel()
+
+	const rateLimit = 5
+
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		APIRateLimit: rateLimit,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+
+	t.Run("HitsLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Make rateLimit requests — they should all succeed.
+		for i := 0; i < rateLimit; i++ {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+				ownerClient.URL.String()+"/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			req.Header.Set(codersdk.SessionTokenHeader, ownerClient.SessionToken())
+
+			resp, err := ownerClient.HTTPClient.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode,
+				"request %d should succeed", i+1)
+		}
+
+		// The next request should be rate-limited.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			ownerClient.URL.String()+"/api/v2/buildinfo", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, ownerClient.SessionToken())
+
+		resp, err := ownerClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode,
+			"request should be rate limited")
+	})
+
+	t.Run("BypassOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Owner with bypass header should not be rate-limited.
+		for i := 0; i < rateLimit+5; i++ {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+				ownerClient.URL.String()+"/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			req.Header.Set(codersdk.SessionTokenHeader, ownerClient.SessionToken())
+			req.Header.Set(codersdk.BypassRatelimitHeader, "true")
+
+			resp, err := ownerClient.HTTPClient.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode,
+				"owner bypass request %d should succeed", i+1)
+		}
+	})
+
+	t.Run("MemberCannotBypass", func(t *testing.T) {
+		t.Parallel()
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A member requesting the bypass header should be rejected
+		// with 428 Precondition Required — only owners may bypass.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			memberClient.URL.String()+"/api/v2/buildinfo", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, memberClient.SessionToken())
+		req.Header.Set(codersdk.BypassRatelimitHeader, "true")
+
+		resp, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode,
+			"member should not be able to bypass rate limit")
 	})
 }

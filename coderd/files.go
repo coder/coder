@@ -43,7 +43,7 @@ const (
 // @Param file formData file true "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems)."
 // @Success 200 {object} codersdk.UploadResponse "Returns existing file if duplicate"
 // @Success 201 {object} codersdk.UploadResponse "Returns newly created file"
-// @Router /files [post]
+// @Router /api/v2/files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -80,11 +80,24 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 
 		data, err = archive.CreateTarFromZip(zipReader, HTTPFileMaxBytes)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error processing .zip archive.",
-				Detail:  err.Error(),
-			})
-			return
+			switch {
+			case errors.Is(err, archive.ErrArchiveTooLarge):
+				httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Expanded .zip archive exceeds maximum size.",
+				})
+				return
+			case errors.Is(err, archive.ErrInvalidZipContent):
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid .zip archive contents.",
+				})
+				return
+			default:
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error processing .zip archive.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
 		contentType = tarMimeType
 	}
@@ -149,7 +162,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 // @Tags Files
 // @Param fileID path string true "File ID" format(uuid)
 // @Success 200
-// @Router /files/{fileID} [get]
+// @Router /api/v2/files/{fileID} [get]
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

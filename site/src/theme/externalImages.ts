@@ -1,17 +1,17 @@
-import type { CSSObject } from "@emotion/react";
+import type { CSSProperties } from "react";
 
 export interface ExternalImageModeStyles {
 	/**
 	 * monochrome icons will be flattened to a neutral, theme-appropriate color.
 	 * eg. white, light gray, dark gray, black
 	 */
-	monochrome?: CSSObject;
+	monochrome?: CSSProperties;
 	/**
 	 * @default
 	 * fullcolor icons should look their best of any background, with distinct colors
 	 * and good contrast. This is the default, and won't alter the image.
 	 */
-	fullcolor?: CSSObject;
+	fullcolor?: CSSProperties;
 	/**
 	 * whiteWithColor is useful for icons that are primarily white, or contain white text,
 	 * which are hard to see or look incorrect on light backgrounds. This setting will apply
@@ -20,7 +20,7 @@ export interface ExternalImageModeStyles {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	whiteWithColor?: CSSObject;
+	whiteWithColor?: CSSProperties;
 	/**
 	 * blackWithColor is useful for icons that are primarily black, or contain black text,
 	 * which are hard to see or look incorrect on dark backgrounds. This setting will apply
@@ -29,7 +29,7 @@ export interface ExternalImageModeStyles {
 	 * You can also specify a `brightness` level if your icon still doesn't look quite right.
 	 * eg. /icon/aws.svg?blackWithColor&brightness=1.5
 	 */
-	blackWithColor?: CSSObject;
+	blackWithColor?: CSSProperties;
 }
 
 export const forDarkThemes: ExternalImageModeStyles = {
@@ -64,14 +64,14 @@ const multiplier = /^\d+(\.\d+)?%?$/;
  */
 const parseInvertFilterParameters = (
 	params: URLSearchParams,
-	baseStyles?: CSSObject,
+	baseStyles?: CSSProperties,
 ) => {
 	// Only apply additional styles if the current theme supports this mode
 	if (!baseStyles) {
 		return;
 	}
 
-	let extraStyles: CSSObject | undefined;
+	let extraStyles: CSSProperties | undefined;
 
 	const brightness = params.get("brightness") ?? "";
 	if (multiplier.test(brightness)) {
@@ -93,10 +93,10 @@ const parseInvertFilterParameters = (
 export function parseImageParameters(
 	modes: ExternalImageModeStyles,
 	searchString: string,
-): CSSObject | undefined {
+): CSSProperties | undefined {
 	const params = new URLSearchParams(searchString);
 
-	let styles: CSSObject | undefined = modes.fullcolor;
+	let styles: CSSProperties | undefined = modes.fullcolor;
 
 	if (params.has("monochrome")) {
 		styles = modes.monochrome;
@@ -143,32 +143,40 @@ export function getExternalImageStylesFromUrl(
 export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/apple-black.svg", "monochrome"],
 	["/icon/auggie.svg", "monochrome"],
+	["/icon/anthropic.svg", "monochrome"],
 	["/icon/auto-dev-server.svg", "monochrome"],
+	["/icon/aws-monochrome.svg", "monochrome"],
 	["/icon/aws.png", "whiteWithColor&brightness=1.5"],
 	["/icon/aws.svg", "whiteWithColor&brightness=1.5"],
-	["/icon/aws-monochrome.svg", "monochrome"],
 	["/icon/coder.svg", "monochrome"],
 	["/icon/container.svg", "monochrome"],
 	["/icon/copyparty.svg", "blackWithColor"],
 	["/icon/database.svg", "monochrome"],
+	["/icon/devcontainers.svg", "monochrome"],
 	["/icon/docker-white.svg", "monochrome"],
 	["/icon/folder.svg", "monochrome"],
+	["/icon/gemini-monochrome.svg", "monochrome"],
+	["/icon/github-copilot.svg", "whiteWithColor"],
 	["/icon/github.svg", "monochrome"],
 	["/icon/image.svg", "monochrome"],
 	["/icon/jupyter.svg", "blackWithColor"],
 	["/icon/kasmvnc.svg", "whiteWithColor"],
+	["/icon/kilo-code.svg", "blackWithColor"],
 	["/icon/kiro.svg", "whiteWithColor"],
 	["/icon/memory.svg", "monochrome"],
 	["/icon/mux.svg", "monochrome"],
 	["/icon/nexus-repository.svg", "blackWithColor"],
 	["/icon/okta.svg", "monochrome"],
+	["/icon/openai-codex.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
+	["/icon/openwebui.svg", "monochrome"],
+	["/icon/perplexica.svg", "monochrome"],
+	["/icon/roo-code.svg", "whiteWithColor"],
 	["/icon/rust.svg", "monochrome"],
+	["/icon/tasks.svg", "monochrome"],
 	["/icon/terminal.svg", "monochrome"],
+	["/icon/vercel.svg", "whiteWithColor"],
 	["/icon/widgets.svg", "monochrome"],
 	["/icon/windsurf.svg", "monochrome"],
 	["/icon/zed.svg", "monochrome"],
-	["/icon/tasks.svg", "monochrome"],
-	["/icon/openwebui.svg", "monochrome"],
-	["/icon/perplexica.svg", "monochrome"],
 ]);

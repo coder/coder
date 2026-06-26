@@ -1,47 +1,52 @@
+import {
+	CircleAlertIcon,
+	EyeIcon,
+	EyeOffIcon,
+	HourglassIcon,
+	InfoIcon,
+	LinkIcon,
+	SettingsIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
+import { type FC, useId, useRef, useState } from "react";
+import * as Yup from "yup";
 import type {
 	NullHCLString,
 	PreviewParameter,
 	PreviewParameterOption,
 	WorkspaceBuildParameter,
-} from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import { Combobox } from "components/Combobox/Combobox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
+} from "#/api/typesGenerated";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import {
 	MultiSelectCombobox,
 	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import { Slider } from "components/Slider/Slider";
-import { Stack } from "components/Stack/Stack";
-import { Switch } from "components/Switch/Switch";
-import { TagInput } from "components/TagInput/TagInput";
-import { Textarea } from "components/Textarea/Textarea";
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Slider } from "#/components/Slider/Slider";
+import { Switch } from "#/components/Switch/Switch";
+import { TagInput } from "#/components/TagInput/TagInput";
+import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
-	CircleAlert,
-	Eye,
-	EyeOff,
-	Hourglass,
-	Info,
-	LinkIcon,
-	Settings,
-	TriangleAlert,
-} from "lucide-react";
-import { type FC, useId, useRef, useState } from "react";
-import { cn } from "utils/cn";
-import type { AutofillBuildParameter } from "utils/richParameters";
-import * as Yup from "yup";
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;
@@ -135,8 +140,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="warning" border="none">
-											<TriangleAlert />
+										<Badge size="sm" variant="warning">
+											<TriangleAlertIcon />
 											Immutable
 										</Badge>
 									</span>
@@ -153,8 +158,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="green" border="none">
-											<Hourglass />
+										<Badge size="sm" variant="green">
+											<HourglassIcon />
 											Ephemeral
 										</Badge>
 									</span>
@@ -172,7 +177,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
 										<Badge size="sm">
-											<Settings />
+											<SettingsIcon />
 											Preset
 										</Badge>
 									</span>
@@ -205,7 +210,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<span className="flex items-center">
-										<Badge size="sm" variant="destructive" border="none">
+										<Badge size="sm" variant="destructive">
 											Required
 										</Badge>
 									</span>
@@ -329,17 +334,24 @@ const ParameterField: FC<ParameterFieldProps> = ({
 
 		case "dropdown": {
 			return (
-				<Combobox
-					id={id}
-					value={value ?? ""}
-					onSelect={(value) => onChange(value)}
-					options={parameter.options.map((option) => ({
-						icon: option.icon,
-						displayName: option.name,
-						value: option.value.value,
-						description: option.description,
-					}))}
-				/>
+				<Select
+					value={value}
+					onValueChange={(newValue) => onChange(newValue ?? "")}
+					disabled={disabled}
+				>
+					<SelectTrigger>
+						<SelectValue
+							placeholder={parameter.styling?.placeholder || "Select option"}
+						/>
+					</SelectTrigger>
+					<SelectContent>
+						{parameter.options.map((option) => (
+							<SelectItem key={option.value.value} value={option.value.value}>
+								{option.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			);
 		}
 
@@ -492,7 +504,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<Stack direction="row" spacing={0} alignItems="center">
+		<div className="flex flex-row items-center">
 			<Input
 				id={id}
 				type={masked && showMaskedInput ? "text" : type}
@@ -510,19 +522,19 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					type="button"
 					variant="subtle"
 					size="icon"
-					onMouseDown={() => setShowMaskedInput(true)}
-					onMouseOut={() => setShowMaskedInput(false)}
-					onMouseUp={() => setShowMaskedInput(false)}
+					aria-label={showMaskedInput ? "Hide value" : "Show value"}
+					aria-pressed={showMaskedInput}
+					onClick={() => setShowMaskedInput((value) => !value)}
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOff className="h-4 w-4" />
+						<EyeOffIcon className="h-4 w-4" />
 					) : (
-						<Eye className="h-4 w-4" />
+						<EyeIcon className="h-4 w-4" />
 					)}
 				</Button>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
@@ -539,7 +551,7 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<Stack direction="row" spacing={0} alignItems="center">
+		<div className="flex flex-row items-center">
 			<Textarea
 				ref={textareaRef}
 				id={id}
@@ -564,19 +576,19 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					type="button"
 					variant="subtle"
 					size="icon"
-					onMouseDown={() => setShowMaskedInput(true)}
-					onMouseOut={() => setShowMaskedInput(false)}
-					onMouseUp={() => setShowMaskedInput(false)}
+					aria-label={showMaskedInput ? "Hide value" : "Show value"}
+					aria-pressed={showMaskedInput}
+					onClick={() => setShowMaskedInput((value) => !value)}
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOff className="h-4 w-4" />
+						<EyeOffIcon className="h-4 w-4" />
 					) : (
-						<Eye className="h-4 w-4" />
+						<EyeIcon className="h-4 w-4" />
 					)}
 				</Button>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
@@ -624,7 +636,7 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 				<TooltipProvider delayDuration={100}>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<Info className="w-3.5 h-3.5 text-content-secondary" />
+							<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
 						</TooltipTrigger>
 						<TooltipContent side="right" sideOffset={10}>
 							{option.description}
@@ -686,7 +698,8 @@ export const getInitialParameterValues = (
 		);
 
 		const useAutofill =
-			autofillParam?.value && isValidParameterOption(parameter, autofillParam);
+			autofillParam?.value !== undefined &&
+			isValidParameterOption(parameter, autofillParam);
 
 		return {
 			name: parameter.name,
@@ -846,7 +859,7 @@ export const useValidationSchemaForDynamicParameters = (
 										(v) =>
 											v.validation_regex !== null && v.validation_regex !== "",
 									);
-									if (!regex || !regex.validation_regex) {
+									if (!regex?.validation_regex) {
 										return true;
 									}
 
@@ -921,13 +934,13 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 				>
 					<div className="flex flex-row items-start">
 						{diagnostic.severity === "error" && (
-							<CircleAlert
+							<CircleAlertIcon
 								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
 								aria-hidden="true"
 							/>
 						)}
 						{diagnostic.severity === "warning" && (
-							<TriangleAlert
+							<TriangleAlertIcon
 								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
 								aria-hidden="true"
 							/>

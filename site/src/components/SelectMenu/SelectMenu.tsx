@@ -1,28 +1,28 @@
 import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
-import { Button, type ButtonProps } from "components/Button/Button";
+import { CheckIcon } from "lucide-react";
+import {
+	Children,
+	type FC,
+	type HTMLProps,
+	isValidElement,
+	type ReactElement,
+	useMemo,
+} from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	type PopoverContentProps,
 	PopoverTrigger,
 	type PopoverTriggerProps,
-} from "components/Popover/Popover";
+} from "#/components/Popover/Popover";
 import {
 	SearchField,
 	type SearchFieldProps,
-} from "components/SearchField/SearchField";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
-import {
-	Children,
-	type FC,
-	forwardRef,
-	type HTMLProps,
-	isValidElement,
-	type ReactElement,
-	useMemo,
-} from "react";
-import { cn } from "utils/cn";
+} from "#/components/SearchField/SearchField";
+import { cn } from "#/utils/cn";
 
 export const SelectMenu = Popover;
 
@@ -46,15 +46,16 @@ type SelectMenuButtonProps = ButtonProps & {
 	startIcon?: React.ReactNode;
 };
 
-export const SelectMenuButton = forwardRef<
-	HTMLButtonElement,
-	SelectMenuButtonProps
->(({ className, startIcon, children, ...props }, ref) => {
+export const SelectMenuButton: React.FC<SelectMenuButtonProps> = ({
+	className,
+	startIcon,
+	children,
+	...props
+}) => {
 	return (
 		<Button
 			variant="outline"
 			size="lg"
-			ref={ref}
 			// Shrink padding right slightly to account for visual weight of
 			// the chevron
 			className={cn("flex flex-row gap-2 pr-1.5", className)}
@@ -67,16 +68,20 @@ export const SelectMenuButton = forwardRef<
 			<ChevronDownIcon />
 		</Button>
 	);
-});
+};
 
-export const SelectMenuSearch: FC<SearchFieldProps> = (props) => {
+export const SelectMenuSearch: FC<SearchFieldProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<SearchField
-			fullWidth
-			size="medium"
-			className="border border-solid border-border [&_input]:text-sm [&_fieldset]:border-0 [&_fieldset]:rounded-none [&_.MuiInputBase-root]:px-4 [&_.MuiInputBase-root]:py-3"
+			className={cn(
+				"w-full border border-solid border-border [&_input]:text-sm",
+				className,
+			)}
+			autoFocus
 			{...props}
-			inputProps={{ autoFocus: true, ...props.inputProps }}
 		/>
 	);
 };

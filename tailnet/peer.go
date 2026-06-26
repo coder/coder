@@ -70,14 +70,16 @@ func (p *peer) batchUpdateMappingLocked(others []*peer, k proto.CoordinateRespon
 	if len(req.PeerUpdates) == 0 {
 		return nil
 	}
-	select {
-	case p.resps <- req:
-		p.lastWrite = time.Now()
-		p.logger.Debug(context.Background(), "wrote batched update", slog.F("num_peer_updates", len(req.PeerUpdates)))
-		return nil
-	default:
-		return ErrWouldBlock
+	for _, chunk := range req.Chunked() {
+		select {
+		case p.resps <- chunk:
+			p.lastWrite = time.Now()
+		default:
+			return ErrWouldBlock
+		}
 	}
+	p.logger.Debug(context.Background(), "wrote batched update", slog.F("num_peer_updates", len(req.PeerUpdates)))
+	return nil
 }
 
 var errNoResp = xerrors.New("no response needed")

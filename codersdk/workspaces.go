@@ -3,8 +3,10 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 type AutomaticUpdates string
@@ -109,6 +113,8 @@ const (
 	CreateWorkspaceBuildReasonSSHConnection       CreateWorkspaceBuildReason = "ssh_connection"
 	CreateWorkspaceBuildReasonVSCodeConnection    CreateWorkspaceBuildReason = "vscode_connection"
 	CreateWorkspaceBuildReasonJetbrainsConnection CreateWorkspaceBuildReason = "jetbrains_connection"
+	CreateWorkspaceBuildReasonTaskManualPause     CreateWorkspaceBuildReason = "task_manual_pause"
+	CreateWorkspaceBuildReasonTaskResume          CreateWorkspaceBuildReason = "task_resume"
 )
 
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
@@ -129,7 +135,7 @@ type CreateWorkspaceBuildRequest struct {
 	// TemplateVersionPresetID is the ID of the template version preset to use for the build.
 	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 	// Reason sets the reason for the workspace build.
-	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection"`
+	Reason CreateWorkspaceBuildReason `json:"reason,omitempty" validate:"omitempty,oneof=dashboard cli ssh_connection vscode_connection jetbrains_connection task_manual_pause"`
 }
 
 type WorkspaceOptions struct {
@@ -607,6 +613,53 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
 }
 
+// SplitWorkspaceIdentifier splits an identifier into owner and
+// workspace name. A bare name defaults the owner to Me ("me"). An
+// "owner/name" pair is accepted, and identifiers with more than one
+// "/" are rejected.
+func SplitWorkspaceIdentifier(identifier string) (owner, name string, err error) {
+	owner, name, ok := strings.Cut(identifier, "/")
+	if !ok {
+		return Me, identifier, nil
+	}
+	if strings.Contains(name, "/") {
+		return "", "", xerrors.Errorf("invalid workspace identifier: %q", identifier)
+	}
+	return owner, name, nil
+}
+
+// ResolveWorkspace fetches a workspace by identifier, which may be a
+// UUID, a bare name (owned by the current user), or an "owner/name"
+// pair. When the identifier parses as a valid UUID but no workspace
+// exists with that ID, the function falls back to a name-based
+// lookup because workspace names can be valid UUID strings.
+func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Workspace, error) {
+	if uid, err := uuid.Parse(identifier); err == nil {
+		ws, err := c.Workspace(ctx, uid)
+		if err == nil {
+			return ws, nil
+		}
+		// A workspace name might be a valid UUID string. If the
+		// ID-based lookup returned 404, fall through to name-based
+		// lookup below.
+		var sdkErr *Error
+		if !errors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
+			return Workspace{}, err
+		}
+		// A standard dashed UUID (36 chars) cannot be a valid
+		// workspace name (max 32 chars). Skip the wasted
+		// name-based round-trip.
+		if err := NameValid(identifier); err != nil {
+			return Workspace{}, sdkErr
+		}
+	}
+	owner, name, err := SplitWorkspaceIdentifier(identifier)
+	if err != nil {
+		return Workspace{}, err
+	}
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, WorkspaceOptions{})
+}
+
 type WorkspaceQuota struct {
 	CreditsConsumed int `json:"credits_consumed"`
 	Budget          int `json:"budget"`
@@ -784,4 +837,76 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 	}
 	var credentials ExternalAgentCredentials
 	return credentials, json.NewDecoder(res.Body).Decode(&credentials)
+}
+
+// WorkspaceBuildUpdate contains information about a workspace build state change.
+// This is published via the /watch-all-workspacebuilds SSE endpoint when the
+// workspace-build-updates experiment is enabled.
+type WorkspaceBuildUpdate struct {
+	WorkspaceID   uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceName string    `json:"workspace_name"`
+	BuildID       uuid.UUID `json:"build_id" format:"uuid"`
+	// Transition is the workspace transition type: "start", "stop", or "delete".
+	Transition string `json:"transition"`
+	// JobStatus is the provisioner job status: "pending", "running",
+	// "succeeded", "canceling", "canceled", or "failed".
+	JobStatus   string `json:"job_status"`
+	BuildNumber int32  `json:"build_number"`
+}
+
+// WatchAllWorkspaceBuilds watches for workspace build updates across all workspaces.
+// This requires the workspace-build-updates experiment to be enabled.
+// The returned decoder should be closed by calling Close() when done to properly
+// clean up the WebSocket connection.
+func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (*wsjson.Decoder[WorkspaceBuildUpdate], error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	serverURL, err := c.URL.Parse("/api/experimental/watch-all-workspacebuilds")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(serverURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
+	}
+
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient:      httpClient,
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, ReadBodyAsError(res)
+	}
+
+	d := wsjson.NewDecoder[WorkspaceBuildUpdate](conn, websocket.MessageText, c.logger)
+	return d, nil
+}
+
+// WorkspaceAvailableUsers returns users available for workspace creation.
+// This is used to populate the owner dropdown when creating workspaces for
+// other users.
+func (c *Client) WorkspaceAvailableUsers(ctx context.Context, organizationID uuid.UUID, userID string) ([]MinimalUser, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s/workspaces/available-users", organizationID, userID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var users []MinimalUser
+	return users, json.NewDecoder(res.Body).Decode(&users)
 }

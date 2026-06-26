@@ -2,15 +2,14 @@
  * Copied from shadcn/ui and modified on 12/13/2024
  * @see {@link https://ui.shadcn.com/docs/components/popover}
  */
-import * as PopoverPrimitive from "@radix-ui/react-popover";
-import {
-	type ComponentPropsWithoutRef,
-	type ElementRef,
-	forwardRef,
-} from "react";
-import { cn } from "utils/cn";
+import { Popover as PopoverPrimitive } from "radix-ui";
+import { cn } from "#/utils/cn";
 
-export type PopoverContentProps = PopoverPrimitive.PopoverContentProps;
+export type PopoverContentProps = React.ComponentPropsWithRef<
+	typeof PopoverPrimitive.Content
+> & {
+	disablePortal?: boolean;
+};
 
 export type PopoverTriggerProps = PopoverPrimitive.PopoverTriggerProps;
 
@@ -18,15 +17,17 @@ export const Popover = PopoverPrimitive.Root;
 
 export const PopoverTrigger = PopoverPrimitive.Trigger;
 
-export const PopoverClose = PopoverPrimitive.PopoverClose;
+export const PopoverAnchor = PopoverPrimitive.Anchor;
 
-export const PopoverContent = forwardRef<
-	ElementRef<typeof PopoverPrimitive.Content>,
-	ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
->(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
-	<PopoverPrimitive.Portal>
+export const PopoverContent: React.FC<PopoverContentProps> = ({
+	className,
+	align = "center",
+	sideOffset = 4,
+	disablePortal,
+	...props
+}) => {
+	const content = (
 		<PopoverPrimitive.Content
-			ref={ref}
 			align={align}
 			sideOffset={sideOffset}
 			collisionPadding={16}
@@ -43,5 +44,11 @@ export const PopoverContent = forwardRef<
 			)}
 			{...props}
 		/>
-	</PopoverPrimitive.Portal>
-));
+	);
+
+	return disablePortal ? (
+		content
+	) : (
+		<PopoverPrimitive.Portal>{content}</PopoverPrimitive.Portal>
+	);
+};

@@ -9,7 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -36,9 +36,11 @@ var (
 	//go:embed templates/gcp-linux
 	//go:embed templates/gcp-vm-container
 	//go:embed templates/gcp-windows
+	//go:embed templates/incus
 	//go:embed templates/kubernetes
 	//go:embed templates/kubernetes-devcontainer
 	//go:embed templates/nomad-docker
+	//go:embed templates/quickstart
 	//go:embed templates/scratch
 	//go:embed templates/tasks-docker
 	files embed.FS
@@ -105,8 +107,8 @@ func parseAndVerifyExamples() (examples []codersdk.TemplateExample, err error) {
 		}
 	}
 
-	sort.Strings(wantEmbedFiles)
-	sort.Strings(gotEmbedFiles)
+	slices.Sort(wantEmbedFiles)
+	slices.Sort(gotEmbedFiles)
 	want := strings.Join(wantEmbedFiles, ", ")
 	got := strings.Join(gotEmbedFiles, ", ")
 	if want != got {

@@ -1,0 +1,15 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations delete [flags] <organization_name_or_id>
+
+  Delete an organization
+
+  Aliases: rm
+
+OPTIONS:
+  -y, --yes bool
+          Bypass confirmation prompts.
+
+———
+Run `coder --help` for a list of global options.

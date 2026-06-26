@@ -3,39 +3,38 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { type FormikTouched, useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
 import {
 	CORSBehaviors,
 	type Template,
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
-} from "api/typesGenerated";
-import { PremiumBadge } from "components/Badges/Badges";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { PremiumBadge } from "#/components/Badges/Badges";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	StackLabel,
 	StackLabelHelperText,
-} from "components/StackLabel/StackLabel";
-import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/StackLabel/StackLabel";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
 	iconValidator,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/utils/formUtils";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -51,6 +50,7 @@ export const validationSchema = Yup.object({
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
 	use_classic_parameter_flow: Yup.boolean(),
+	disable_module_cache: Yup.boolean(),
 	deprecation_message: Yup.string(),
 	max_port_sharing_level: Yup.string().oneOf(WorkspaceAppSharingLevels),
 	cors_behavior: Yup.string().oneOf(Object.values(CORSBehaviors)),
@@ -96,6 +96,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			max_port_share_level: template.max_port_share_level,
 			use_classic_parameter_flow: template.use_classic_parameter_flow,
 			cors_behavior: template.cors_behavior,
+			disable_module_cache: template.disable_module_cache,
 		},
 		validationSchema,
 		onSubmit,
@@ -162,7 +163,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 				title="Operations"
 				description="Regulate actions allowed on workspaces created from this template."
 			>
-				<FormFields spacing={6}>
+				<FormFields className="gap-12">
 					<FormControlLabel
 						control={
 							<Checkbox
@@ -215,15 +216,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-										<Stack
-											direction="row"
-											spacing={2}
-											alignItems="center"
-											css={{ marginTop: 16 }}
-										>
+										<div className="flex flex-row gap-4 items-center mt-4">
 											<PremiumBadge />
 											<span>Premium license required to be enabled.</span>
-										</Stack>
+										</div>
 									)}
 								</StackLabelHelperText>
 							</StackLabel>
@@ -270,6 +266,31 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 							</StackLabel>
 						}
 					/>
+					<FormControlLabel
+						control={
+							<Checkbox
+								size="small"
+								id="disable_module_cache"
+								name="disable_module_cache"
+								checked={form.values.disable_module_cache}
+								onChange={form.handleChange}
+								disabled={isSubmitting}
+							/>
+						}
+						label={
+							<StackLabel>
+								Disable Terraform module caching
+								<StackLabelHelperText>
+									When checked, Terraform modules are re-downloaded for each
+									workspace build instead of using cached versions.{" "}
+									<strong>
+										Warning: This makes workspace builds less predictable and is
+										not recommended for production templates.
+									</strong>
+								</StackLabelHelperText>
+							</StackLabel>
+						}
+					/>
 				</FormFields>
 			</FormSection>
 
@@ -290,14 +311,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label="Deprecation Message"
 					/>
 					{!accessControlEnabled && (
-						<Stack direction="row" spacing={2} alignItems="center">
+						<div className="flex flex-row gap-4 items-center">
 							<PremiumBadge />
 							<FormHelperText>
 								Premium license required to deprecate templates.
 								{template.deprecated &&
 									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
 							</FormHelperText>
-						</Stack>
+						</div>
 					)}
 				</FormFields>
 			</FormSection>
@@ -331,12 +352,12 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						<MenuItem value="public">Public</MenuItem>
 					</TextField>
 					{!portSharingControlsEnabled && (
-						<Stack direction="row" spacing={2} alignItems="center">
+						<div className="flex flex-row gap-4 items-center">
 							<PremiumBadge />
 							<FormHelperText>
 								Premium license required to control max port sharing level.
 							</FormHelperText>
-						</Stack>
+						</div>
 					)}
 				</FormFields>
 			</FormSection>

@@ -12,6 +12,7 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 					type: "GitHub",
 					client_id: "client_id",
 					regex: "regex",
+					api_base_url: "",
 					auth_url: "",
 					token_url: "",
 					validate_url: "",

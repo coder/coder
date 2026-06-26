@@ -1,11 +1,10 @@
-import AlertTitle from "@mui/material/AlertTitle";
-import type { WorkspaceResource } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
-import { useProxy } from "contexts/ProxyContext";
-import { useAuthenticated } from "hooks/useAuthenticated";
 import type { FC } from "react";
-import { docs } from "utils/docs";
+import type { WorkspaceResource } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { docs } from "#/utils/docs";
 
 interface WildcardHostnameWarningProps {
 	// If resources are provided, show template-focused warning
@@ -48,7 +47,7 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 			}
 		>
 			<AlertTitle>Some workspace applications will not work</AlertTitle>
-			<AlertDetail>
+			<AlertDescription>
 				<div>
 					{hasResources
 						? "This template contains coder_app resources with"
@@ -79,7 +78,7 @@ export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
 						</span>
 					</Link>
 				</div>
-			</AlertDetail>
+			</AlertDescription>
 		</Alert>
 	);
 };

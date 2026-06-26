@@ -1,24 +1,7 @@
-import { MissingBuildParameters, ParameterValidationError } from "api/api";
-import { type ApiError, getErrorMessage, isApiError } from "api/errors";
-import {
-	changeVersion,
-	deleteWorkspace,
-	workspacePermissions,
-} from "api/queries/workspaces";
-import type { Workspace } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	CopyIcon,
 	DownloadIcon,
-	EllipsisVertical,
+	EllipsisVerticalIcon,
 	HistoryIcon,
 	SettingsIcon,
 	SquareIcon,
@@ -27,6 +10,28 @@ import {
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
+import { MissingBuildParameters, ParameterValidationError } from "#/api/api";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "#/api/errors";
+import {
+	changeVersion,
+	deleteWorkspace,
+	workspacePermissions,
+} from "#/api/queries/workspaces";
+import type { Workspace } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { WorkspaceErrorDialog } from "../ErrorDialog/WorkspaceErrorDialog";
 import { ChangeWorkspaceVersionDialog } from "./ChangeWorkspaceVersionDialog";
 import { DownloadLogsDialog } from "./DownloadLogsDialog";
@@ -40,6 +45,7 @@ type WorkspaceMoreActionsProps = {
 	disabled: boolean;
 	onStop?: () => void;
 	isStopping?: boolean;
+	onActionSuccess?: () => Promise<void> | void;
 };
 
 export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
@@ -47,6 +53,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	disabled,
 	onStop,
 	isStopping,
+	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -78,14 +85,27 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				error: error,
 			});
 		} else {
-			displayError(getErrorMessage(error, "Failed to delete workspace."));
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to delete workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 
 	// Delete
 	const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+	const deleteWorkspaceOptions = deleteWorkspace(workspace, queryClient);
 	const deleteWorkspaceMutation = useMutation({
-		...deleteWorkspace(workspace, queryClient),
+		...deleteWorkspaceOptions,
+		onSuccess: async (build) => {
+			await deleteWorkspaceOptions.onSuccess?.(build);
+			await onActionSuccess?.();
+		},
 		onError: (error: unknown) => {
 			handleError(error);
 		},
@@ -114,7 +134,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						aria-controls="workspace-options"
 						disabled={disabled}
 					>
-						<EllipsisVertical aria-hidden="true" />
+						<EllipsisVerticalIcon aria-hidden="true" />
 						<span className="sr-only">Workspace actions</span>
 					</Button>
 				</DropdownMenuTrigger>
@@ -236,7 +256,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 
 			<WorkspaceDeleteDialog
 				workspace={workspace}
-				canDeleteFailedWorkspace={!!permissions?.deleteFailedWorkspace}
+				canDeleteFailedWorkspace={Boolean(permissions?.deleteFailedWorkspace)}
 				isOpen={isConfirmingDelete}
 				onCancel={() => {
 					setIsConfirmingDelete(false);
@@ -255,7 +275,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}
-				isDeleting={true}
+				isDeleting
 			/>
 		</>
 	);

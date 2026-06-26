@@ -7,23 +7,23 @@ const meta: Meta<typeof AIGovernanceSettingsPageView> = {
 	args: {
 		options: [
 			{
-				name: "AI Bridge Enabled",
+				name: "AI Gateway Enabled",
 				value: true,
-				group: { name: "AI Bridge" },
-				flag: "aibridge-enabled",
+				group: { name: "AI Gateway" },
+				flag: "ai-gateway-enabled",
 				hidden: false,
 			},
 			{
-				name: "AI Bridge Circuit Breaker Enabled",
+				name: "AI Gateway Circuit Breaker Enabled",
 				description:
 					"Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits.",
 				value: false,
-				group: { name: "AI Bridge" },
-				flag: "aibridge-circuit-breaker-enabled",
+				group: { name: "AI Gateway" },
+				flag: "ai-gateway-circuit-breaker-enabled",
 				hidden: false,
 			},
 		],
-		featureAIBridgeEnabled: true,
+		featureAIBridgeEntitled: true,
 	},
 };
 
@@ -34,7 +34,7 @@ export const Page: Story = {};
 
 export const Paywall: Story = {
 	args: {
-		featureAIBridgeEnabled: false,
+		featureAIBridgeEntitled: false,
 		options: [],
 	},
 };

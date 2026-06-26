@@ -2,6 +2,7 @@ package database
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -128,6 +130,44 @@ func TestConnectionLogsQueryConsistency(t *testing.T) {
 	require.Equal(t, getWhereClause, countWhereClause, "getConnectionLogsOffset and countConnectionLogs queries should have the same WHERE clause")
 }
 
+// TestFinalizeStaleChatDebugRows_TerminalStatusAlignment asserts that the
+// NOT IN ('completed', 'error', 'interrupted') literals in the
+// FinalizeStaleChatDebugRows SQL query match the terminal statuses
+// defined by ChatDebugTerminalStatuses in codersdk.  If a new terminal
+// status is added to Go but not to the SQL, this test fails.
+func TestFinalizeStaleChatDebugRows_TerminalStatusAlignment(t *testing.T) {
+	t.Parallel()
+
+	// Extract all NOT IN (...) lists from the SQL constant.
+	re := regexp.MustCompile(`NOT IN\s*\(([^)]+)\)`)
+	matches := re.FindAllStringSubmatch(finalizeStaleChatDebugRows, -1)
+	require.NotEmpty(t, matches, "expected at least one NOT IN clause in finalizeStaleChatDebugRows")
+
+	// Parse the quoted status literals from each NOT IN clause.
+	literalRe := regexp.MustCompile(`'([^']+)'`)
+	goTerminal := codersdk.ChatDebugTerminalStatuses()
+
+	for _, match := range matches {
+		literals := literalRe.FindAllStringSubmatch(match[1], -1)
+		var sqlStatuses []string
+		for _, lit := range literals {
+			sqlStatuses = append(sqlStatuses, lit[1])
+		}
+		slices.Sort(sqlStatuses)
+
+		var goStatuses []string
+		for _, s := range goTerminal {
+			goStatuses = append(goStatuses, string(s))
+		}
+		slices.Sort(goStatuses)
+
+		require.Equal(t, goStatuses, sqlStatuses,
+			"terminal statuses in FinalizeStaleChatDebugRows SQL must match "+
+				"codersdk.ChatDebugTerminalStatuses(); update both when adding "+
+				"a new terminal status")
+	}
+}
+
 // extractWhereClause extracts the WHERE clause from a SQL query string
 func extractWhereClause(query string) string {
 	// Find WHERE and get everything after it
@@ -144,6 +184,14 @@ func extractWhereClause(query string) string {
 
 	// Remove SQL comments
 	whereClause = regexp.MustCompile(`(?m)--.*$`).ReplaceAllString(whereClause, "")
+
+	// Normalize indentation so subquery wrapping doesn't cause
+	// mismatches.
+	lines := strings.Split(whereClause, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimLeft(line, " \t")
+	}
+	whereClause = strings.Join(lines, "\n")
 
 	return strings.TrimSpace(whereClause)
 }

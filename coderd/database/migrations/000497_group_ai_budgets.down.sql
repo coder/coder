@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS group_ai_budgets CASCADE;

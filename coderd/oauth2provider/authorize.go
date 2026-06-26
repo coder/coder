@@ -1,14 +1,18 @@
 package oauth2provider
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	htmltemplate "html/template"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/justinas/nosurf"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -22,6 +26,7 @@ import (
 type authorizeParams struct {
 	clientID            string
 	redirectURL         *url.URL
+	redirectURIProvided bool
 	responseType        codersdk.OAuth2ProviderResponseType
 	scope               []string
 	state               string
@@ -34,11 +39,13 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 
+	// response_type and client_id are always required.
 	p.RequiredNotEmpty("response_type", "client_id")
 
 	params := authorizeParams{
 		clientID:            p.String(vals, "", "client_id"),
 		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
+		redirectURIProvided: vals.Get("redirect_uri") != "",
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
 		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 		state:               p.String(vals, "", "state"),
@@ -46,6 +53,15 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		codeChallenge:       p.String(vals, "", "code_challenge"),
 		codeChallengeMethod: p.String(vals, "", "code_challenge_method"),
 	}
+
+	// PKCE is required for authorization code flow requests.
+	if params.responseType == codersdk.OAuth2ProviderResponseTypeCode && params.codeChallenge == "" {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  "code_challenge",
+			Detail: `Query param "code_challenge" is required and cannot be empty`,
+		})
+	}
+
 	// Validate resource indicator syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
 		p.Errors = append(p.Errors, codersdk.ValidationError{
@@ -112,17 +128,57 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
+		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Unsupported Response Type",
+				Description: "Only response_type=code is supported.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
 		cancelQuery.Add("error", "access_denied")
+		cancelQuery.Add("error_description", "The resource owner or authorization server denied the request")
+		if params.state != "" {
+			cancelQuery.Add("state", params.state)
+		}
 		cancel.RawQuery = cancelQuery.Encode()
 
+		cancelURI := cancel.String()
+		if err := codersdk.ValidateRedirectURIScheme(cancel); err != nil {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusBadRequest,
+				HideStatus:  false,
+				Title:       "Invalid Callback URL",
+				Description: "The application's registered callback URL has an invalid scheme.",
+				Actions: []site.Action{
+					{
+						URL:  accessURL.String(),
+						Text: "Back to site",
+					},
+				},
+			})
+			return
+		}
+
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
-			AppIcon:     app.Icon,
-			AppName:     app.Name,
-			CancelURI:   cancel.String(),
-			RedirectURI: r.URL.String(),
-			Username:    ua.FriendlyName,
+			AppIcon: app.Icon,
+			AppName: app.Name,
+			// #nosec G203 -- The scheme is validated by
+			// codersdk.ValidateRedirectURIScheme above.
+			CancelURI:    htmltemplate.URL(cancelURI),
+			DashboardURL: accessURL.String(),
+			CSRFToken:    nosurf.Token(r),
+			Username:     ua.FriendlyName,
 		})
 	}
 }
@@ -147,16 +203,23 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 			return
 		}
 
-		// Validate PKCE for public clients (MCP requirement)
-		if params.codeChallenge != "" {
-			// If code_challenge is provided but method is not, default to S256
-			if params.codeChallengeMethod == "" {
-				params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
-			}
-			if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-				httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
-				return
-			}
+		// OAuth 2.1 removes the implicit grant. Only
+		// authorization code flow is supported.
+		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest,
+				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
+				"Only response_type=code is supported")
+			return
+		}
+
+		// code_challenge is required (enforced by RequiredNotEmpty above),
+		// but default the method to S256 if omitted.
+		if params.codeChallengeMethod == "" {
+			params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
+		}
+		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
+			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			return
 		}
 
 		// TODO: Ignoring scope for now, but should look into implementing.
@@ -194,6 +257,8 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
 				CodeChallenge:       sql.NullString{String: params.codeChallenge, Valid: params.codeChallenge != ""},
 				CodeChallengeMethod: sql.NullString{String: params.codeChallengeMethod, Valid: params.codeChallengeMethod != ""},
+				StateHash:           hashOAuth2State(params.state),
+				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert oauth2 authorization code: %w", err)
@@ -216,5 +281,18 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		// (ThomasK33): Use a 302 redirect as some (external) OAuth 2 apps and browsers
 		// do not work with the 307.
 		http.Redirect(rw, r, params.redirectURL.String(), http.StatusFound)
+	}
+}
+
+// hashOAuth2State returns a SHA-256 hash of the OAuth2 state parameter. If
+// the state is empty, it returns a null string.
+func hashOAuth2State(state string) sql.NullString {
+	if state == "" {
+		return sql.NullString{}
+	}
+	hash := sha256.Sum256([]byte(state))
+	return sql.NullString{
+		String: hex.EncodeToString(hash[:]),
+		Valid:  true,
 	}
 }

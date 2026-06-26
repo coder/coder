@@ -4,7 +4,7 @@ You can embed an "Open in Coder" button into your git repos or internal wikis to
 let developers quickly launch a new workspace.
 
 <video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/templates/open-in-coder.mp4?raw=true" type="video/mp4">
+  <source src="../../images/templates/open-in-coder.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
@@ -114,6 +114,25 @@ specified in your template in the `disable_params` search params list
 ```md
 [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?disable_params=first_parameter,second_parameter)
 ```
+
+### Security: consent dialog for automatic creation
+
+When using `mode=auto` with prefilled `param.*` values, Coder displays a
+security consent dialog before creating the workspace. This protects users
+from malicious links that could provision workspaces with untrusted
+configurations, such as dotfiles or startup scripts from unknown sources.
+
+The dialog shows:
+
+- A warning that a workspace is about to be created automatically from a link
+- All prefilled `param.*` values from the URL
+- **Confirm and Create** and **Cancel** buttons
+
+The workspace is only created if the user explicitly clicks **Confirm and
+Create**. Clicking **Cancel** falls back to the standard creation form where
+all parameters can be reviewed manually.
+
+![Consent dialog for automatic workspace creation](../../images/templates/auto-create-consent-dialog.png)
 
 ### Example: Kubernetes
 

@@ -1,6 +1,16 @@
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import { provisionerDaemons } from "api/queries/organizations";
+import { useFormik } from "formik";
+import camelCase from "lodash/camelCase";
+import capitalize from "lodash/capitalize";
+import { type FC, useState } from "react";
+import { useQuery } from "react-query";
+import { useSearchParams } from "react-router";
+import * as Yup from "yup";
+import {
+	permittedOrganizations,
+	provisionerDaemons,
+} from "#/api/queries/organizations";
 import type {
 	CreateTemplateVersionRequest,
 	Organization,
@@ -10,39 +20,33 @@ import type {
 	TemplateExample,
 	TemplateVersionVariable,
 	VariableValue,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
-import camelCase from "lodash/camelCase";
-import capitalize from "lodash/capitalize";
-import { ProvisionerTagsField } from "modules/provisioners/ProvisionerTagsField";
-import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
-import { type FC, useState } from "react";
-import { useQuery } from "react-query";
-import { useSearchParams } from "react-router";
-import { docs } from "utils/docs";
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { Label } from "#/components/Label/Label";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
+import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
-} from "utils/formUtils";
+} from "#/utils/formUtils";
 import {
 	sortedDays,
 	type TemplateAutostartRequirementDaysValue,
 	type TemplateAutostopRequirementDaysValue,
-} from "utils/schedule";
-import * as Yup from "yup";
+} from "#/utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
@@ -190,6 +194,10 @@ type CreateTemplateFormProps = (
 	showOrganizationPicker?: boolean;
 };
 
+// Stable reference for empty org options to avoid re-render loops
+// in the render-time state adjustment pattern.
+const emptyOrgs: Organization[] = [];
+
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	const [searchParams] = useSearchParams();
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -221,9 +229,37 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	});
 	const getFieldHelpers = getFormHelpers<CreateTemplateFormData>(form, error);
 
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "template" },
+			action: "create",
+		}),
+		enabled: Boolean(showOrganizationPicker),
+	});
+	const orgOptions = permittedOrgsQuery.data ?? emptyOrgs;
+
+	// Clear invalid selections when permission filtering removes the
+	// selected org. Uses the React render-time adjustment pattern.
+	const [prevOrgOptions, setPrevOrgOptions] = useState(orgOptions);
+	if (orgOptions !== prevOrgOptions) {
+		setPrevOrgOptions(orgOptions);
+		if (selectedOrg && !orgOptions.some((o) => o.id === selectedOrg.id)) {
+			setSelectedOrg(null);
+			void form.setFieldValue("organization", "");
+		}
+	}
+
+	// Auto-select when exactly one org is available and nothing is
+	// selected. Runs every render (not gated on options change) so it
+	// works when mock data is available synchronously on first render.
+	if (orgOptions.length === 1 && selectedOrg === null) {
+		setSelectedOrg(orgOptions[0]);
+		void form.setFieldValue("organization", orgOptions[0].name || "");
+	}
+
 	const { data: provisioners } = useQuery({
 		...provisionerDaemons(selectedOrg?.id ?? ""),
-		enabled: showOrganizationPicker && !!selectedOrg,
+		enabled: Boolean(showOrganizationPicker) && Boolean(selectedOrg),
 	});
 
 	// TODO: Ideally, we would have a backend endpoint that could notify the
@@ -235,7 +271,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
 
 	return (
-		<HorizontalForm onSubmit={form.handleSubmit}>
+		<HorizontalForm onSubmit={form.handleSubmit} className="pb-12">
 			{/* General info */}
 			<FormSection
 				title="General"
@@ -258,20 +294,23 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					{showOrganizationPicker && (
 						<>
 							{showProvisionerWarning && <ProvisionerWarning />}
-							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
-								required
-								label="Belongs to"
-								onChange={(newValue) => {
-									setSelectedOrg(newValue);
-									void form.setFieldValue("organization", newValue?.name || "");
-								}}
-								size="medium"
-								check={{
-									object: { resource_type: "template" },
-									action: "create",
-								}}
-							/>
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="organization">Organization</Label>
+								<OrganizationAutocomplete
+									id="organization"
+									required
+									value={selectedOrg}
+									options={orgOptions}
+									onChange={(newValue) => {
+										setSelectedOrg(newValue);
+										void form.setFieldValue(
+											"organization",
+											newValue?.name || "",
+										);
+									}}
+								/>
+							</div>
 						</>
 					)}
 
@@ -428,7 +467,7 @@ const fillNameAndDisplayWithFilename = async (
 
 const ProvisionerWarning: FC = () => {
 	return (
-		<Alert severity="warning" css={{ marginBottom: 16 }} prominent>
+		<Alert severity="warning" className="mb-4" prominent>
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
 			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>

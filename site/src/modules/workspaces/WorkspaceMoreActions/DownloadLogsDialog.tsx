@@ -1,18 +1,19 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Skeleton from "@mui/material/Skeleton";
-import { agentLogs, buildLogs } from "api/queries/workspaces";
-import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import {
-	ConfirmDialog,
-	type ConfirmDialogProps,
-} from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
+import { agentLogs, buildLogs } from "#/api/queries/workspaces";
+import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	ConfirmDialog,
+	type ConfirmDialogProps,
+} from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { cn } from "#/utils/cn";
+import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,
@@ -33,23 +34,18 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 	onClose,
 	download = saveAs,
 }) => {
-	const theme = useTheme();
-
 	const buildLogsQuery = useQuery({
 		...buildLogs(workspace),
 		enabled: open,
 	});
 
 	const allUniqueAgents = useMemo<readonly WorkspaceAgent[]>(() => {
-		const allAgents = workspace.latest_build.resources.flatMap(
-			(resource) => resource.agents ?? [],
-		);
+		const allAgents = getWorkspaceAgents(workspace);
 
 		// Can't use the "new Set()" trick because we're not dealing with primitives
 		const uniqueAgents = new Map(allAgents.map((agent) => [agent.id, agent]));
-		const iterable = [...uniqueAgents.values()];
-		return iterable;
-	}, [workspace.latest_build.resources]);
+		return [...uniqueAgents.values()];
+	}, [workspace]);
 
 	const agentLogQueries = useQueries({
 		queries: allUniqueAgents.map((agent) => ({
@@ -131,15 +127,17 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 
 					downloadTimeoutIdRef.current = window.setTimeout(() => {
 						setIsDownloading(false);
-					}, theme.transitions.duration.leavingScreen);
+					}, 200);
 				} catch (error) {
 					setIsDownloading(false);
-					displayError("Error downloading workspace logs");
+					toast.error(`Error downloading workspace "${workspace.name}" logs.`, {
+						description: getErrorDetail(error),
+					});
 					console.error(error);
 				}
 			}}
 			description={
-				<Stack css={{ paddingBottom: 16 }}>
+				<div className="flex flex-col gap-4 pb-4">
 					<p>
 						Downloading logs will create a zip file containing all logs from all
 						jobs in this workspace. This may take a while.
@@ -152,7 +150,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 						</Alert>
 					)}
 
-					<ul css={styles.list}>
+					<ul className="list-none p-0 m-0 flex flex-col gap-2">
 						{allFiles.map((f) => (
 							<DownloadingItem
 								key={f.name}
@@ -161,7 +159,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 							/>
 						))}
 					</ul>
-				</Stack>
+				</div>
 			}
 		/>
 	);
@@ -174,7 +172,6 @@ type DownloadingItemProps = Readonly<{
 }>;
 
 const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
-	const theme = useTheme();
 	const [isWaiting, setIsWaiting] = useState(true);
 
 	useEffect(() => {
@@ -194,45 +191,56 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 	const { baseName, fileExtension } = extractFileNameInfo(file.name);
 
 	return (
-		<li css={styles.listItem}>
+		<li className="w-full flex justify-between items-center gap-x-8">
 			<span
-				css={[
-					styles.listItemPrimary,
-					!isWaiting && { color: theme.palette.text.disabled },
-				]}
+				className={cn(
+					"font-medium text-content-primary",
+					"flex flex-row flex-nowrap gap-x-0 overflow-hidden",
+					!isWaiting && "text-content-disabled",
+				)}
 			>
-				<span css={styles.listItemPrimaryBaseName}>{baseName}</span>
-				<span css={styles.listItemPrimaryFileExtension}>.{fileExtension}</span>
+				<span className="min-w-0 flex-shrink overflow-hidden text-ellipsis">
+					{baseName}
+				</span>
+				<span className="flex-shrink-0">.{fileExtension}</span>
 			</span>
 
-			<span css={styles.listItemSecondary}>
+			<span className="flex-shrink-0 text-sm whitespace-nowrap">
 				{file.blob ? (
 					humanBlobSize(file.blob.size)
 				) : isWaiting ? (
 					<Skeleton variant="text" width={48} height={12} />
 				) : (
-					<p css={styles.notAvailableText}>Not available</p>
+					<p
+						className={cn(
+							"flex flex-row flex-nowrap items-center gap-x-1",
+							"text-content-disabled",
+						)}
+					>
+						Not available
+					</p>
 				)}
 			</span>
 		</li>
 	);
 };
 
-function humanBlobSize(size: number) {
+export function humanBlobSize(size: number) {
 	const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 	let i = 0;
-	let sizeIterator = size;
-	while (sizeIterator > 1024 && i < BLOB_SIZE_UNITS.length) {
-		sizeIterator /= 1024;
+	let sizeInUnits = size;
+	while (sizeInUnits >= 1024 && i < BLOB_SIZE_UNITS.length - 1) {
+		sizeInUnits /= 1024;
 		i++;
 	}
 
-	// The condition for the while loop above means that over time, we could break
-	// out of the loop because we accidentally shot past the array bounds and i
-	// is at index (BLOB_SIZE_UNITS.length). Adding a lot of redundant checks to
-	// make sure we always have a usable unit
-	const finalUnit = BLOB_SIZE_UNITS[i] ?? BLOB_SIZE_UNITS.at(-1) ?? "TB";
-	return `${size.toFixed(2)} ${finalUnit}`;
+	const finalUnit = BLOB_SIZE_UNITS[i];
+
+	// Round to 2 decimals and omit trailing zeros for whole numbers.
+	const formattedSize = new Intl.NumberFormat("en-US", {
+		maximumFractionDigits: 2,
+	}).format(sizeInUnits);
+	return `${formattedSize} ${finalUnit}`;
 }
 
 type FileNameInfo = Readonly<{
@@ -261,56 +269,3 @@ function extractFileNameInfo(filename: string): FileNameInfo {
 		fileExtension: filename.slice(periodIndex + 1),
 	};
 }
-
-const styles = {
-	list: {
-		listStyle: "none",
-		padding: 0,
-		margin: 0,
-		display: "flex",
-		flexDirection: "column",
-		gap: 8,
-	},
-
-	listItem: {
-		width: "100%",
-		display: "flex",
-		justifyContent: "space-between",
-		alignItems: "center",
-		columnGap: "32px",
-	},
-
-	listItemPrimary: (theme) => ({
-		fontWeight: 500,
-		color: theme.palette.text.primary,
-		display: "flex",
-		flexFlow: "row nowrap",
-		columnGap: 0,
-		overflow: "hidden",
-	}),
-
-	listItemPrimaryBaseName: {
-		minWidth: 0,
-		flexShrink: 1,
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-	},
-
-	listItemPrimaryFileExtension: {
-		flexShrink: 0,
-	},
-
-	listItemSecondary: {
-		flexShrink: 0,
-		fontSize: 14,
-		whiteSpace: "nowrap",
-	},
-
-	notAvailableText: (theme) => ({
-		display: "flex",
-		flexFlow: "row nowrap",
-		alignItems: "center",
-		columnGap: "4px",
-		color: theme.palette.text.disabled,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

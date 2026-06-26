@@ -1,4 +1,4 @@
-import type { SerpentOption } from "api/typesGenerated";
+import type { SerpentOption } from "#/api/typesGenerated";
 import { optionValue } from "./optionValue";
 
 const defaultOption: SerpentOption = {
@@ -147,10 +147,30 @@ describe("optionValue", () => {
 			},
 			expected: 30000000000,
 		},
-	])(
-		"[$option.name]optionValue($option.value)",
-		({ option, expected, additionalValues }) => {
-			expect(optionValue(option, additionalValues)).toEqual(expected);
+		{
+			option: {
+				...defaultOption,
+				name: "OIDC Client Secret Is Set",
+				value: "",
+				value_source: "env",
+				annotations: { secret: "true" },
+			},
+			expected: "Set",
 		},
-	);
+		{
+			option: {
+				...defaultOption,
+				name: "OIDC Client Secret Is Not Set",
+				value: "",
+				annotations: { secret: "true" },
+			},
+			expected: "",
+		},
+	])("[$option.name]optionValue($option.value)", ({
+		option,
+		expected,
+		additionalValues,
+	}) => {
+		expect(optionValue(option, additionalValues)).toEqual(expected);
+	});
 });

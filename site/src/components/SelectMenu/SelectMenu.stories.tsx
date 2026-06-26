@@ -1,8 +1,8 @@
-import { withDesktopViewport } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Avatar } from "components/Avatar/Avatar";
 import { action } from "storybook/actions";
 import { userEvent, within } from "storybook/test";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { withDesktopViewport } from "#/testHelpers/storybook";
 import {
 	SelectMenu,
 	SelectMenuButton,
@@ -31,7 +31,7 @@ const meta: Meta<typeof SelectMenu> = {
 					</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={() => {}} />
+					<SelectMenuSearch value="" onChange={() => {}} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
@@ -83,7 +83,7 @@ export const LongButtonText: Story = {
 					</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={() => {}} />
+					<SelectMenuSearch value="" onChange={() => {}} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
@@ -110,7 +110,7 @@ export const NoSelectedOption: Story = {
 					<SelectMenuButton className="w-48">All users</SelectMenuButton>
 				</SelectMenuTrigger>
 				<SelectMenuContent>
-					<SelectMenuSearch onChange={action("search")} />
+					<SelectMenuSearch value="" onChange={action("search")} />
 					<SelectMenuList>
 						{opts.map((o) => (
 							<SelectMenuItem key={o}>

@@ -65,6 +65,7 @@ type StateSnapshotter interface {
 type Claimer interface {
 	Claim(
 		ctx context.Context,
+		store database.Store,
 		now time.Time,
 		userID uuid.UUID,
 		name string,

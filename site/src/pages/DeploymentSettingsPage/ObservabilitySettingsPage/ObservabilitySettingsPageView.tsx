@@ -1,25 +1,24 @@
-import type { SerpentOption } from "api/typesGenerated";
+import type { FC } from "react";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
 	EnterpriseBadge,
 	PremiumBadge,
-} from "components/Badges/Badges";
-import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+} from "#/components/Badges/Badges";
+import { PopoverPaywall } from "#/components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/components/Tooltip/Tooltip";
+import { deploymentGroupHasParent } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type ObservabilitySettingsPageViewProps = {
@@ -32,17 +31,15 @@ export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
 > = ({ options, featureAuditLogEnabled, isPremium }) => {
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
-				<SettingsHeader>
+				<SettingsHeader
+					actions={<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />}
+				>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						Audit Logging
 					</SettingsHeaderTitle>
@@ -71,7 +68,7 @@ export const ObservabilitySettingsPageView: FC<
 							<PopoverPaywall
 								message="Observability"
 								description="With a Premium license, you can monitor your application with logs and metrics."
-								documentationLink="https://coder.com/docs/admin/appearance"
+								documentationLink={docs("/admin/monitoring")}
 							/>
 						</TooltipContent>
 					</Tooltip>
@@ -94,6 +91,6 @@ export const ObservabilitySettingsPageView: FC<
 					)}
 				/>
 			</div>
-		</Stack>
+		</div>
 	);
 };

@@ -1,12 +1,12 @@
-import * as Mocks from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { action } from "storybook/actions";
+import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import * as Mocks from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ProvisionerJobLog } from "api/typesGenerated";
-import { action } from "storybook/actions";
+} from "#/testHelpers/storybook";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { Workspace } from "./Workspace";
 import { defaultPermissions } from "./WorkspaceNotifications/WorkspaceNotifications.stories";
@@ -24,9 +24,9 @@ const createTimestamp = (
 
 const permissions: WorkspacePermissions = {
 	readWorkspace: true,
+	shareWorkspace: true,
 	updateWorkspace: true,
 	updateWorkspaceVersion: true,
-	deploymentConfig: true,
 	deleteFailedWorkspace: true,
 };
 

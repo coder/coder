@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import { getCurrentOrgId, setupApiCalls } from "../../api";
 import { users } from "../../constants";
 import { login } from "../../helpers";
@@ -39,7 +39,7 @@ test("update template schedule settings without override other settings", async 
 	});
 	await page.getByLabel("Default autostop (hours)").fill("48");
 	await page.getByRole("button", { name: /save/i }).click();
-	await expect(page.getByText("Template updated successfully")).toBeVisible();
+	await expect(page.getByText(/schedule updated successfully/)).toBeVisible();
 
 	const updatedTemplate = await API.getTemplate(template.id);
 	// Validate that the template data remains consistent, with the exception of

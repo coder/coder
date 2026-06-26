@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -46,7 +47,7 @@ func TestStart(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, oldVersion.ID)
 		require.Equal(t, oldVersion.ID, template.ActiveVersionID)
 		template = coderdtest.UpdateTemplateMeta(t, templateAdminClient, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
+			RequireActiveVersion: ptr.Ref(true),
 		})
 		require.True(t, template.RequireActiveVersion)
 
@@ -86,30 +87,32 @@ func TestStart(t *testing.T) {
 			ExpectedVersion uuid.UUID
 		}
 
+		// All users should be updated to the active version when
+		// require_active_version is set, matching web UI behavior.
 		cases := []testcase{
 			{
-				Name:            "OwnerUnchanged",
+				Name:            "OwnerUpdates",
 				Client:          ownerClient,
 				WorkspaceOwner:  owner.UserID,
-				ExpectedVersion: oldVersion.ID,
+				ExpectedVersion: activeVersion.ID,
 			},
 			{
-				Name:            "TemplateAdminUnchanged",
+				Name:            "TemplateAdminUpdates",
 				Client:          templateAdminClient,
 				WorkspaceOwner:  templateAdmin.ID,
-				ExpectedVersion: oldVersion.ID,
+				ExpectedVersion: activeVersion.ID,
 			},
 			{
-				Name:            "TemplateACLAdminUnchanged",
+				Name:            "TemplateACLAdminUpdates",
 				Client:          templateACLAdminClient,
 				WorkspaceOwner:  templateACLAdmin.ID,
-				ExpectedVersion: oldVersion.ID,
+				ExpectedVersion: activeVersion.ID,
 			},
 			{
-				Name:            "TemplateGroupACLAdminUnchanged",
+				Name:            "TemplateGroupACLAdminUpdates",
 				Client:          templateGroupACLAdminClient,
 				WorkspaceOwner:  templateGroupACLAdmin.ID,
-				ExpectedVersion: oldVersion.ID,
+				ExpectedVersion: activeVersion.ID,
 			},
 			{
 				Name:            "MemberUpdates",
@@ -156,16 +159,11 @@ func TestStart(t *testing.T) {
 
 						ws = coderdtest.MustWorkspace(t, c.Client, ws.ID)
 						require.Equal(t, c.ExpectedVersion, ws.LatestBuild.TemplateVersionID)
-						if initialTemplateVersion == ws.LatestBuild.TemplateVersionID {
-							return
-						}
-
-						if cmd == "start" {
-							require.Contains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
-						}
-
-						if cmd == "restart" {
-							require.Contains(t, buf.String(), "Unable to restart the workspace with the template version from the last build")
+						// The CLI should proactively use the active version
+						// without hitting the 403→retry path.
+						if initialTemplateVersion != ws.LatestBuild.TemplateVersionID {
+							require.NotContains(t, buf.String(), "Unable to start the workspace with the template version from the last build")
+							require.NotContains(t, buf.String(), "Unable to restart the workspace with the template version from the last build")
 						}
 					})
 				}

@@ -57,7 +57,7 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)) AND
+	(LOWER(username) = LOWER(@username) OR (@email != '' AND LOWER(email) = LOWER(@email))) AND
 	deleted = false
 LIMIT
 	1;
@@ -78,6 +78,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND is_service_account = false
 	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
@@ -92,13 +93,15 @@ INSERT INTO
 		updated_at,
 		rbac_roles,
 		login_type,
-		status
+		status,
+		is_service_account
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
-		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status)
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status),
+		@is_service_account::bool
 	) RETURNING *;
 
 -- name: UpdateUserProfile :one
@@ -122,14 +125,24 @@ SET
 WHERE
 	id = $1;
 
--- name: GetUserThemePreference :one
+-- name: GetUserAppearanceSettings :one
 SELECT
-	value as theme_preference
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_preference'), '')::text AS theme_preference,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
 FROM
 	user_configs
 WHERE
 	user_id = @user_id
-	AND key = 'theme_preference';
+	AND key IN (
+		'theme_preference',
+		'theme_mode',
+		'theme_light',
+		'theme_dark',
+		'terminal_font'
+	);
 
 -- name: UpdateUserThemePreference :one
 INSERT INTO
@@ -145,15 +158,6 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'theme_preference'
 RETURNING *;
 
--- name: GetUserTerminalFont :one
-SELECT
-	value as terminal_font
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'terminal_font';
-
 -- name: UpdateUserTerminalFont :one
 INSERT INTO
 	user_configs (user_id, key, value)
@@ -167,6 +171,135 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
+
+-- name: UpdateUserThemeMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_mode', @theme_mode)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_mode'
+RETURNING *;
+
+-- name: UpdateUserThemeLight :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_light', @theme_light)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_light
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_light'
+RETURNING *;
+
+-- name: UpdateUserThemeDark :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_dark', @theme_dark)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_dark
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_dark'
+RETURNING *;
+
+-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'chat_custom_prompt';
+
+-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'chat_custom_prompt', @chat_custom_prompt)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @chat_custom_prompt
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_custom_prompt'
+RETURNING *;
+
+-- name: ListUserChatCompactionThresholds :many
+SELECT user_id, key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+ORDER BY key;
+
+-- name: GetUserChatCompactionThreshold :one
+SELECT value AS threshold_percent FROM user_configs
+WHERE user_id = @user_id AND key = @key;
+
+-- name: UpdateUserChatCompactionThreshold :one
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id, @key, (@threshold_percent::int)::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = (@threshold_percent::int)::text
+RETURNING *;
+
+-- name: DeleteUserChatCompactionThreshold :exec
+DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
+
+-- name: GetUserChatDebugLoggingEnabled :one
+SELECT
+	COALESCE((
+		SELECT value = 'true'
+		FROM user_configs
+		WHERE user_id = @user_id
+			AND key = 'chat_debug_logging_enabled'
+	), false) :: boolean AS debug_logging_enabled;
+
+-- name: UpsertUserChatDebugLoggingEnabled :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	@user_id,
+	'chat_debug_logging_enabled',
+	CASE
+		WHEN sqlc.arg(debug_logging_enabled)::bool THEN 'true'
+		ELSE 'false'
+	END
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = CASE
+	WHEN sqlc.arg(debug_logging_enabled)::bool THEN 'true'
+	ELSE 'false'
+END
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_debug_logging_enabled';
+
+-- name: ListUserChatPersonalModelOverrides :many
+SELECT key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_personal\_model\_override:%'
+ORDER BY key;
+
+-- name: GetUserChatPersonalModelOverride :one
+SELECT value AS personal_model_override FROM user_configs
+WHERE user_id = @user_id
+	AND key = @key;
+
+-- name: UpsertUserChatPersonalModelOverride :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id::uuid, @key::text, @value::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = @value::text;
 
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
@@ -190,6 +323,98 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_task_notification_alert_dismissed'
 RETURNING value::boolean AS task_notification_alert_dismissed;
+
+-- name: GetUserThinkingDisplayMode :one
+SELECT
+	value AS thinking_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_thinking_display_mode';
+
+-- name: UpdateUserThinkingDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_thinking_display_mode', @thinking_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @thinking_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_thinking_display_mode'
+RETURNING value AS thinking_display_mode;
+
+-- name: GetUserShellToolDisplayMode :one
+SELECT
+	value AS shell_tool_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_shell_tool_display_mode';
+
+-- name: UpdateUserShellToolDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_shell_tool_display_mode', @shell_tool_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @shell_tool_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_shell_tool_display_mode'
+RETURNING value AS shell_tool_display_mode;
+
+-- name: GetUserCodeDiffDisplayMode :one
+SELECT
+	value AS code_diff_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_code_diff_display_mode';
+
+-- name: UpdateUserCodeDiffDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_code_diff_display_mode', @code_diff_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @code_diff_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_code_diff_display_mode'
+RETURNING value AS code_diff_display_mode;
+
+-- name: GetUserAgentChatSendShortcut :one
+SELECT
+	value AS agent_chat_send_shortcut
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_agent_chat_send_shortcut';
+
+-- name: UpdateUserAgentChatSendShortcut :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_agent_chat_send_shortcut', @agent_chat_send_shortcut::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @agent_chat_send_shortcut
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_agent_chat_send_shortcut'
+RETURNING value AS agent_chat_send_shortcut;
 
 -- name: UpdateUserRoles :one
 UPDATE
@@ -261,6 +486,18 @@ WHERE
 			name ILIKE concat('%', @name, '%')
 		ELSE true
 	END
+	-- Filter by exact username
+	AND CASE
+	  WHEN @exact_username :: text != '' THEN
+		  lower(username) = lower(@exact_username)
+	  ELSE true
+	END
+  	-- Filter by exact email
+  	AND CASE
+	  WHEN @exact_email :: text != '' THEN
+		  lower(email) = lower(@exact_email)
+	  ELSE true
+	END
 	-- Filter by status
 	AND CASE
 		-- @status needs to be a text because it can be empty, If it was
@@ -299,11 +536,12 @@ WHERE
 			created_at >= @created_after
 		ELSE true
 	END
-  	AND CASE
-  	    WHEN @include_system::bool THEN TRUE
-  	    ELSE
-			is_system = false
+	-- Filter by system type
+	AND CASE
+		WHEN @include_system::bool THEN TRUE
+		ELSE is_system = false
 	END
+	-- Filter by github.com user ID
 	AND CASE
 		WHEN @github_com_user_id :: bigint != 0 THEN
 			github_com_user_id = @github_com_user_id
@@ -313,6 +551,12 @@ WHERE
 	AND CASE
 		WHEN cardinality(@login_type :: login_type[]) > 0 THEN
 			login_type = ANY(@login_type :: login_type[])
+		ELSE true
+	END
+	-- Filter by service account.
+	AND CASE
+		WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
+			is_service_account = sqlc.narg('is_service_account') :: boolean
 		ELSE true
 	END
 	-- End of filters
@@ -365,10 +609,29 @@ SELECT
 				-- Concatenating the organization id scopes the organization roles.
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
-				organization_members,
-				-- All org_members get the organization-member role for their orgs
+				organization_members
+				JOIN organizations ON organizations.id = organization_members.organization_id,
+				-- All org members get an implied role for their orgs. Most members
+				-- get organization-member, but service accounts will get
+				-- organization-service-account instead. They're largely the same,
+				-- but having them be distinct means we can allow configuring
+				-- service-accounts to have slightly broader permissions, such as
+				-- for workspace sharing.
+				--
+				-- organizations.default_org_member_roles is unioned in so changes
+				-- to org defaults propagate to every member on the next request.
 				unnest(
-					array_append(roles, 'organization-member')
+					array_cat(
+						array_append(
+							roles,
+							CASE WHEN users.is_service_account THEN
+								'organization-service-account'
+							ELSE
+								'organization-member'
+							END
+						),
+						organizations.default_org_member_roles
+					)
 				) AS org_roles
 			WHERE
 				user_id = users.id
@@ -388,7 +651,7 @@ SELECT
 FROM
 	users
 WHERE
-	id = @user_id;
+	users.id = @user_id;
 
 -- name: UpdateUserQuietHoursSchedule :one
 UPDATE

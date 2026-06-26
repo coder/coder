@@ -1,21 +1,20 @@
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { type FormikContextType, useFormik } from "formik";
+import { type FC, useEffect, useState } from "react";
+import * as Yup from "yup";
 import type {
 	UpdateUserQuietHoursScheduleRequest,
 	UserQuietHoursScheduleResponse,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Form, FormFields } from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
-import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useState } from "react";
-import { getFormHelpers } from "utils/formUtils";
-import { quietHoursDisplay, timeToCron, validTime } from "utils/schedule";
-import { getPreferredTimezone, timeZones } from "utils/timeZones";
-import * as Yup from "yup";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Form, FormFields } from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { getFormHelpers } from "#/utils/formUtils";
+import { quietHoursDisplay, timeToCron, validTime } from "#/utils/schedule";
+import { getPreferredTimezone, timeZones } from "#/utils/timeZones";
 
 interface ScheduleFormValues {
 	time: string;
@@ -102,7 +101,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 					</Alert>
 				)}
 
-				<Stack direction="row">
+				<div className="flex flex-row gap-4">
 					<TextField
 						{...getFieldHelpers("time")}
 						disabled={isLoading || !initialValues.user_can_set}
@@ -123,7 +122,7 @@ export const ScheduleForm: FC<ScheduleFormProps> = ({
 							</MenuItem>
 						))}
 					</TextField>
-				</Stack>
+				</div>
 
 				<TextField
 					disabled

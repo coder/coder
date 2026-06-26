@@ -1,13 +1,15 @@
-import { groupsByOrganization } from "api/queries/groups";
-import { organizationMembers } from "api/queries/organizations";
-import type { Group, OrganizationMemberWithUserData } from "api/typesGenerated";
-import { Autocomplete } from "components/Autocomplete/Autocomplete";
-import { AvatarData } from "components/Avatar/AvatarData";
-
-import { Check } from "lucide-react";
-import { getGroupSubtitle, isGroup } from "modules/groups";
+import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { groupsByOrganization } from "#/api/queries/groups";
+import { organizationMembers } from "#/api/queries/organizations";
+import type {
+	Group,
+	OrganizationMemberWithUserData,
+} from "#/api/typesGenerated";
+import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { getGroupSubtitle, isGroup } from "#/modules/groups";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
 type AutocompleteOption = OrganizationMember | Group;
@@ -20,6 +22,7 @@ type UserOrGroupAutocompleteProps = {
 	onChange: (value: UserOrGroupAutocompleteValue) => void;
 	organizationId: string;
 	exclude: ExcludableOption[];
+	className?: string;
 };
 
 const normalizeMember = (
@@ -34,6 +37,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	onChange,
 	organizationId,
 	exclude,
+	className = "w-80",
 }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
@@ -49,7 +53,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	// This allows regular org members to see other members in their org
 	// for workspace sharing, without needing site-wide user:read permission.
 	const membersQuery = useQuery({
-		...organizationMembers(organizationId),
+		...organizationMembers(organizationId, { limit: 0 }),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
@@ -120,7 +124,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
 						src={option.avatar_url}
 					/>
-					{isSelected && <Check className="size-4 shrink-0" />}
+					{isSelected && <CheckIcon className="size-4 shrink-0" />}
 				</div>
 			)}
 			open={open}
@@ -130,7 +134,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			loading={membersQuery.isFetching || groupsQuery.isFetching}
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
-			className="w-80"
+			className={className}
 			id="workspace-user-or-group-autocomplete"
 		/>
 	);

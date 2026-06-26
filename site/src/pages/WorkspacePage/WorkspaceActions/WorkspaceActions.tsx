@@ -1,15 +1,14 @@
-import { deploymentConfig } from "api/queries/deployment";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { useAuthenticated } from "hooks/useAuthenticated";
+import { type FC, Fragment, type ReactNode } from "react";
+import { useQuery } from "react-query";
+import { deploymentConfig } from "#/api/queries/deployment";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	type ActionType,
 	abilitiesByWorkspaceStatus,
-} from "modules/workspaces/actions";
-import type { WorkspacePermissions } from "modules/workspaces/permissions";
-import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
-import { type FC, Fragment, type ReactNode } from "react";
-import { useQuery } from "react-query";
-import { mustUpdateWorkspace } from "utils/workspace";
+} from "#/modules/workspaces/actions";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
+import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import {
 	ActivateButton,
 	CancelButton,
@@ -29,7 +28,6 @@ interface WorkspaceActionsProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	permissions: WorkspacePermissions;
-	sharingDisabled?: boolean;
 	handleToggleFavorite: () => void;
 	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -46,7 +44,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	isUpdating,
 	isRestarting,
 	permissions,
-	sharingDisabled,
 	handleToggleFavorite,
 	handleStart,
 	handleStop,
@@ -57,26 +54,24 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	handleDebug,
 	handleDormantActivate,
 }) => {
-	const { user } = useAuthenticated();
+	const {
+		permissions: { viewDeploymentConfig },
+		user,
+	} = useAuthenticated();
 	const { data: deployment } = useQuery({
 		...deploymentConfig(),
-		enabled: permissions.deploymentConfig,
+		enabled: viewDeploymentConfig,
 	});
 	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
 		workspace,
 		{
-			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			canDebug: Boolean(deployment?.config.enable_terraform_debug_mode),
 			isOwner: user.roles.some((role) => role.name === "owner"),
 		},
 	);
 
-	const mustUpdate = mustUpdateWorkspace(
-		workspace,
-		permissions.updateWorkspaceVersion,
-	);
 	const tooltipText = getTooltipText(
 		workspace,
-		mustUpdate,
 		permissions.updateWorkspaceVersion,
 	);
 
@@ -93,21 +88,21 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 			<UpdateButton
 				handleAction={handleUpdate}
 				isRunning={false}
-				requireActiveVersion={true}
+				requireActiveVersion
 			/>
 		),
 		updateAndRestart: (
 			<UpdateButton
 				handleAction={handleUpdate}
-				isRunning={true}
+				isRunning
 				requireActiveVersion={false}
 			/>
 		),
 		updateAndRestartRequireActiveVersion: (
 			<UpdateButton
 				handleAction={handleUpdate}
-				isRunning={true}
-				requireActiveVersion={true}
+				isRunning
+				requireActiveVersion
 			/>
 		),
 		updating: <UpdateButton loading handleAction={handleUpdate} />,
@@ -115,7 +110,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 			<StartButton
 				workspace={workspace}
 				handleAction={handleStart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
@@ -124,17 +118,16 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				loading
 				workspace={workspace}
 				handleAction={handleStart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
+
 		stop: <StopButton handleAction={handleStop} />,
 		stopping: <StopButton loading handleAction={handleStop} />,
 		restart: (
 			<RestartButton
 				workspace={workspace}
 				handleAction={handleRestart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
@@ -143,10 +136,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				loading
 				workspace={workspace}
 				handleAction={handleRestart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
+
 		deleting: <DisabledButton label="Deleting" />,
 		canceling: <DisabledButton label="Canceling..." />,
 		deleted: <DisabledButton label="Deleted" />,
@@ -170,10 +163,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	};
 
 	return (
-		<div
-			css={{ display: "flex", alignItems: "center", gap: 8 }}
-			data-testid="workspace-actions"
-		>
+		<div className="flex items-center gap-2" data-testid="workspace-actions">
 			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
 			{isUpdating
 				? buttonMapping.updating
@@ -191,7 +181,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				onToggle={handleToggleFavorite}
 			/>
 
-			{!sharingDisabled && (
+			{permissions.shareWorkspace && (
 				<ShareButton
 					workspace={workspace}
 					canUpdatePermissions={permissions.updateWorkspace}
@@ -205,18 +195,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
 function getTooltipText(
 	workspace: Workspace,
-	mustUpdate: boolean,
 	canChangeVersions: boolean,
 ): string {
-	if (!mustUpdate && !canChangeVersions) {
-		return "";
-	}
-
-	if (
-		!mustUpdate &&
-		canChangeVersions &&
-		workspace.template_require_active_version
-	) {
+	if (canChangeVersions && workspace.template_require_active_version) {
 		return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
 	}
 

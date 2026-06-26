@@ -19,16 +19,17 @@ import (
 const (
 	namespace = "coderd_prebuilt_workspaces_"
 
-	MetricCreatedCount              = namespace + "created_total"
-	MetricFailedCount               = namespace + "failed_total"
-	MetricClaimedCount              = namespace + "claimed_total"
-	MetricResourceReplacementsCount = namespace + "resource_replacements_total"
-	MetricDesiredGauge              = namespace + "desired"
-	MetricRunningGauge              = namespace + "running"
-	MetricEligibleGauge             = namespace + "eligible"
-	MetricPresetHardLimitedGauge    = namespace + "preset_hard_limited"
-	MetricLastUpdatedGauge          = namespace + "metrics_last_updated"
-	MetricReconciliationPausedGauge = namespace + "reconciliation_paused"
+	MetricCreatedCount                = namespace + "created_total"
+	MetricFailedCount                 = namespace + "failed_total"
+	MetricClaimedCount                = namespace + "claimed_total"
+	MetricResourceReplacementsCount   = namespace + "resource_replacements_total"
+	MetricDesiredGauge                = namespace + "desired"
+	MetricRunningGauge                = namespace + "running"
+	MetricEligibleGauge               = namespace + "eligible"
+	MetricPresetHardLimitedGauge      = namespace + "preset_hard_limited"
+	MetricPresetValidationFailedGauge = namespace + "preset_validation_failed"
+	MetricLastUpdatedGauge            = namespace + "metrics_last_updated"
+	MetricReconciliationPausedGauge   = namespace + "reconciliation_paused"
 )
 
 var (
@@ -89,6 +90,12 @@ var (
 		labels,
 		nil,
 	)
+	presetValidationFailedDesc = prometheus.NewDesc(
+		MetricPresetValidationFailedGauge,
+		"Indicates whether a given preset has validation failures (1 = validation failed). Metric is omitted otherwise.",
+		labels,
+		nil,
+	)
 	lastUpdateDesc = prometheus.NewDesc(
 		MetricLastUpdatedGauge,
 		"The unix timestamp when the metrics related to prebuilt workspaces were last updated; these metrics are cached.",
@@ -121,6 +128,9 @@ type MetricsCollector struct {
 	isPresetHardLimited   map[hardLimitedPresetKey]bool
 	isPresetHardLimitedMu sync.Mutex
 
+	isPresetValidationFailed   map[hardLimitedPresetKey]bool
+	isPresetValidationFailedMu sync.Mutex
+
 	reconciliationPaused   bool
 	reconciliationPausedMu sync.RWMutex
 }
@@ -131,11 +141,12 @@ func NewMetricsCollector(db database.Store, logger slog.Logger, snapshotter preb
 	log := logger.Named("prebuilds_metrics_collector")
 
 	return &MetricsCollector{
-		database:            db,
-		logger:              log,
-		snapshotter:         snapshotter,
-		replacementsCounter: make(map[replacementKey]float64),
-		isPresetHardLimited: make(map[hardLimitedPresetKey]bool),
+		database:                 db,
+		logger:                   log,
+		snapshotter:              snapshotter,
+		replacementsCounter:      make(map[replacementKey]float64),
+		isPresetHardLimited:      make(map[hardLimitedPresetKey]bool),
+		isPresetValidationFailed: make(map[hardLimitedPresetKey]bool),
 	}
 }
 
@@ -148,6 +159,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 	descCh <- runningPrebuildsDesc
 	descCh <- eligiblePrebuildsDesc
 	descCh <- presetHardLimitedDesc
+	descCh <- presetValidationFailedDesc
 	descCh <- lastUpdateDesc
 	descCh <- reconciliationPausedDesc
 }
@@ -215,6 +227,17 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		metricsCh <- prometheus.MustNewConstMetric(presetHardLimitedDesc, prometheus.GaugeValue, val, key.templateName, key.presetName, key.orgName)
 	}
 	mc.isPresetHardLimitedMu.Unlock()
+
+	mc.isPresetValidationFailedMu.Lock()
+	for key, isValidationFailed := range mc.isPresetValidationFailed {
+		var val float64
+		if isValidationFailed {
+			val = 1
+		}
+
+		metricsCh <- prometheus.MustNewConstMetric(presetValidationFailedDesc, prometheus.GaugeValue, val, key.templateName, key.presetName, key.orgName)
+	}
+	mc.isPresetValidationFailedMu.Unlock()
 
 	metricsCh <- prometheus.MustNewConstMetric(lastUpdateDesc, prometheus.GaugeValue, float64(currentState.createdAt.Unix()))
 }
@@ -304,6 +327,13 @@ func (mc *MetricsCollector) registerHardLimitedPresets(isPresetHardLimited map[h
 	defer mc.isPresetHardLimitedMu.Unlock()
 
 	mc.isPresetHardLimited = isPresetHardLimited
+}
+
+func (mc *MetricsCollector) registerValidationFailedPresets(isPresetValidationFailed map[hardLimitedPresetKey]bool) {
+	mc.isPresetValidationFailedMu.Lock()
+	defer mc.isPresetValidationFailedMu.Unlock()
+
+	mc.isPresetValidationFailed = isPresetValidationFailed
 }
 
 func (mc *MetricsCollector) setReconciliationPaused(paused bool) {

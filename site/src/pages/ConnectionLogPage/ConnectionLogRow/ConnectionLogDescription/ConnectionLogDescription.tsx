@@ -1,8 +1,8 @@
-import Link from "@mui/material/Link";
-import type { ConnectionLog } from "api/typesGenerated";
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
-import { connectionTypeToFriendlyName } from "utils/connection";
+import type { ConnectionLog } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
+import { connectionTypeToFriendlyName } from "#/utils/connection";
 
 interface ConnectionLogDescriptionProps {
 	connectionLog: ConnectionLog;
@@ -62,11 +62,10 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 				<span>
 					{user ? user.username : "Unauthenticated user"} {actionText} in{" "}
 					{isOwnWorkspace ? "their" : `${workspace_owner_username}'s`}{" "}
-					<Link
-						component={RouterLink}
-						to={`/@${workspace_owner_username}/${workspace_name}`}
-					>
-						<strong>{workspace_name}</strong>
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
 					</Link>{" "}
 					workspace
 				</span>
@@ -81,11 +80,10 @@ export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 			return (
 				<span>
 					{friendlyType} session to {workspace_owner_username}'s{" "}
-					<Link
-						component={RouterLink}
-						to={`/@${workspace_owner_username}/${workspace_name}`}
-					>
-						<strong>{workspace_name}</strong>
+					<Link asChild showExternalIcon={false} className="text-base">
+						<RouterLink to={`/@${workspace_owner_username}/${workspace_name}`}>
+							<strong>{workspace_name}</strong>
+						</RouterLink>
 					</Link>{" "}
 					workspace{" "}
 				</span>

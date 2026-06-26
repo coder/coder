@@ -3,6 +3,7 @@ package codersdk
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -154,6 +155,9 @@ type Client struct {
 	// connection.
 	// Deprecated: Use WithDisableDirectConnections to set this.
 	DisableDirectConnections bool
+
+	// derpTLSConfig is an optional TLS config for DERP connections.
+	derpTLSConfig *tls.Config
 }
 
 // Logger returns the logger for the client.
@@ -368,6 +372,13 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 	if opts == nil {
 		opts = &websocket.DialOptions{}
 	}
+	// Propagate the client's HTTP client to the websocket dialer
+	// so that custom TLS configurations (e.g. mesh TLS between
+	// replicas) are used for the handshake request. Without this,
+	// the websocket library falls back to http.DefaultClient.
+	if opts.HTTPClient == nil {
+		opts.HTTPClient = c.HTTPClient
+	}
 	c.SessionTokenProvider.SetDialOption(opts)
 
 	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
@@ -532,6 +543,14 @@ func NewTestError(statusCode int, method string, u string) *Error {
 		statusCode: statusCode,
 		method:     method,
 		url:        u,
+	}
+}
+
+// NewError creates a new Error with the response and status code.
+func NewError(statusCode int, response Response) *Error {
+	return &Error{
+		statusCode: statusCode,
+		Response:   response,
 	}
 }
 
@@ -709,4 +728,15 @@ func WithDisableDirectConnections() ClientOption {
 	return func(c *Client) {
 		c.DisableDirectConnections = true
 	}
+}
+
+func WithDERPTLSConfig(cfg *tls.Config) ClientOption {
+	return func(c *Client) {
+		c.derpTLSConfig = cfg
+	}
+}
+
+// DERPTLSConfig returns the optional TLS config for DERP connections.
+func (c *Client) DERPTLSConfig() *tls.Config {
+	return c.derpTLSConfig
 }

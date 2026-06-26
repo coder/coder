@@ -51,15 +51,34 @@ func TestViewSubsetTemplateVersion(t *testing.T) {
 	}
 }
 
-// TestViewSubsetWorkspaceBuild ensures WorkspaceBuildTable is a subset of WorkspaceBuild
+// TestViewSubsetWorkspaceBuild ensures WorkspaceBuildTable is a subset of
+// WorkspaceBuild, with the exception of ProvisionerState which is
+// intentionally excluded from the workspace_build_with_user view to avoid
+// loading the large Terraform state blob on hot paths.
 func TestViewSubsetWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	table := reflect.TypeOf(database.WorkspaceBuildTable{})
 	joined := reflect.TypeOf(database.WorkspaceBuild{})
 
-	tableFields := allFields(table)
-	joinedFields := allFields(joined)
-	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
+	tableFields := fieldNames(allFields(table))
+	joinedFields := fieldNames(allFields(joined))
+
+	// ProvisionerState is intentionally excluded from the
+	// workspace_build_with_user view to avoid loading multi-MB Terraform
+	// state blobs on hot paths. Callers that need it use
+	// GetWorkspaceBuildProvisionerStateByID instead.
+	excludedFields := map[string]bool{
+		"ProvisionerState": true,
+	}
+
+	var filtered []string
+	for _, name := range tableFields {
+		if !excludedFields[name] {
+			filtered = append(filtered, name)
+		}
+	}
+
+	if !assert.Subset(t, joinedFields, filtered, "table is not subset") {
 		t.Log("Some fields were added to the WorkspaceBuild Table without updating the 'workspace_build_with_user' view.")
 		t.Log("See migration 000141_join_users_build_version.up.sql to create the view.")
 	}
@@ -76,6 +95,19 @@ func TestViewSubsetWorkspace(t *testing.T) {
 	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
 		t.Log("Some fields were added to the Workspace Table without updating the 'workspaces_expanded' view.")
 		t.Log("See migration 000262_workspace_with_names.up.sql to create the view.")
+	}
+}
+
+func TestViewSubsetChat(t *testing.T) {
+	t.Parallel()
+	table := reflect.TypeOf(database.ChatTable{})
+	joined := reflect.TypeOf(database.Chat{})
+
+	tableFields := allFields(table)
+	joinedFields := allFields(joined)
+	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
+		t.Log("Some fields were added to the Chat Table without updating the 'chats_expanded' view.")
+		t.Log("See migration 000496_chat_database_foundation.up.sql to create the view.")
 	}
 }
 

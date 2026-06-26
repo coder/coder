@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"database/sql"
 	"fmt"
 	"sort"
 
@@ -188,16 +189,17 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 
 				_, _ = fmt.Fprintln(inv.Stderr, "Creating user...")
 				newUser, err = tx.InsertUser(ctx, database.InsertUserParams{
-					ID:             uuid.New(),
-					Email:          newUserEmail,
-					Username:       newUserUsername,
-					Name:           "Admin User",
-					HashedPassword: []byte(hashedPassword),
-					CreatedAt:      dbtime.Now(),
-					UpdatedAt:      dbtime.Now(),
-					RBACRoles:      []string{rbac.RoleOwner().String()},
-					LoginType:      database.LoginTypePassword,
-					Status:         "",
+					ID:               uuid.New(),
+					Email:            newUserEmail,
+					Username:         newUserUsername,
+					Name:             "Admin User",
+					HashedPassword:   []byte(hashedPassword),
+					CreatedAt:        dbtime.Now(),
+					UpdatedAt:        dbtime.Now(),
+					RBACRoles:        []string{rbac.RoleOwner().String()},
+					LoginType:        database.LoginTypePassword,
+					Status:           "",
+					IsServiceAccount: false,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert user: %w", err)
@@ -209,11 +211,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return xerrors.Errorf("generate user gitsshkey: %w", err)
 				}
 				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
-					UserID:     newUser.ID,
-					CreatedAt:  dbtime.Now(),
-					UpdatedAt:  dbtime.Now(),
-					PrivateKey: privateKey,
-					PublicKey:  publicKey,
+					UserID:          newUser.ID,
+					CreatedAt:       dbtime.Now(),
+					UpdatedAt:       dbtime.Now(),
+					PrivateKey:      privateKey,
+					PrivateKeyKeyID: sql.NullString{}, // Plaintext; this CLI bypasses dbcrypt. Encrypted on next rotate.
+					PublicKey:       publicKey,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert user gitsshkey: %w", err)

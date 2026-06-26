@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -20,7 +21,7 @@ import (
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.GitSSHKey
-// @Router /users/{user}/gitsshkey [put]
+// @Router /api/v2/users/{user}/gitsshkey [put]
 func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -53,10 +54,11 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	newKey, err := api.Database.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
-		UserID:     user.ID,
-		UpdatedAt:  dbtime.Now(),
-		PrivateKey: privateKey,
-		PublicKey:  publicKey,
+		UserID:          user.ID,
+		UpdatedAt:       dbtime.Now(),
+		PrivateKey:      privateKey,
+		PrivateKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+		PublicKey:       publicKey,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -84,7 +86,7 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.GitSSHKey
-// @Router /users/{user}/gitsshkey [get]
+// @Router /api/v2/users/{user}/gitsshkey [get]
 func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
@@ -113,7 +115,7 @@ func (api *API) gitSSHKey(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Agents
 // @Success 200 {object} agentsdk.GitSSHKey
-// @Router /workspaceagents/me/gitsshkey [get]
+// @Router /api/v2/workspaceagents/me/gitsshkey [get]
 func (api *API) agentGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	agent := httpmw.WorkspaceAgent(r)

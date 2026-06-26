@@ -1,30 +1,34 @@
-import { API } from "api/api";
-import type {
-	AuthorizationRequest,
-	GenerateAPIKeyResponse,
-	GetUsersResponse,
-	RequestOneTimePasscodeRequest,
-	UpdateUserAppearanceSettingsRequest,
-	UpdateUserPasswordRequest,
-	UpdateUserPreferenceSettingsRequest,
-	UpdateUserProfileRequest,
-	User,
-	UserAppearanceSettings,
-	UserPreferenceSettings,
-	UsersRequest,
-} from "api/typesGenerated";
-import {
-	defaultMetadataManager,
-	type MetadataState,
-} from "hooks/useEmbeddedMetadata";
-import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import type {
 	MutationOptions,
 	QueryClient,
 	UseMutationOptions,
 	UseQueryOptions,
 } from "react-query";
-import { prepareQuery } from "utils/filters";
+import { API } from "#/api/api";
+import { isApiError } from "#/api/errors";
+import type {
+	AuthorizationRequest,
+	GenerateAPIKeyResponse,
+	GetUsersResponse,
+	MinimalUser,
+	RequestOneTimePasscodeRequest,
+	UpdateUserAppearanceSettingsRequest,
+	UpdateUserPasswordRequest,
+	UpdateUserPreferenceSettingsRequest,
+	UpdateUserProfileRequest,
+	UpsertUserAIBudgetOverrideRequest,
+	User,
+	UserAIBudgetOverride,
+	UserAppearanceSettings,
+	UserPreferenceSettings,
+	UsersRequest,
+} from "#/api/typesGenerated";
+import {
+	defaultMetadataManager,
+	type MetadataState,
+} from "#/hooks/useEmbeddedMetadata";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
@@ -54,6 +58,18 @@ export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
 	return {
 		queryKey: usersKey(req),
 		queryFn: ({ signal }) => API.getUsers(req, signal),
+		gcTime: 5 * 1000 * 60,
+	};
+};
+
+export const workspaceAvailableUsers = (
+	organizationId: string,
+	req: UsersRequest,
+): UseQueryOptions<MinimalUser[]> => {
+	return {
+		queryKey: ["workspaceAvailableUsers", organizationId, req],
+		queryFn: ({ signal }) =>
+			API.getWorkspaceAvailableUsers(organizationId, req, signal),
 		gcTime: 5 * 1000 * 60,
 	};
 };
@@ -141,6 +157,69 @@ export const me = (metadata: MetadataState<User>) => {
 	});
 };
 
+const userKey = (usernameOrId: string) => ["user", usernameOrId];
+
+export const user = (usernameOrId: string) => {
+	return {
+		queryKey: userKey(usernameOrId),
+		queryFn: () => API.getUser(usernameOrId),
+	};
+};
+
+export const getUserAIBudgetOverrideQueryKey = (userId: string) => [
+	"user",
+	userId,
+	"aiBudgetOverride",
+];
+
+export const userAIBudgetOverride = (
+	userId: string,
+): UseQueryOptions<UserAIBudgetOverride | null> => {
+	return {
+		queryKey: getUserAIBudgetOverrideQueryKey(userId),
+		queryFn: async () => {
+			try {
+				return await API.getUserAIBudgetOverride(userId);
+			} catch (error) {
+				if (isApiError(error) && error.response.status === 404) {
+					return null;
+				}
+
+				throw error;
+			}
+		},
+	};
+};
+
+export const saveUserAIBudgetOverride = (
+	queryClient: QueryClient,
+	userId: string,
+) => {
+	return {
+		mutationFn: (request: UpsertUserAIBudgetOverrideRequest) =>
+			API.upsertUserAIBudgetOverride(userId, request),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: getUserAIBudgetOverrideQueryKey(userId),
+			});
+		},
+	};
+};
+
+export const deleteUserAIBudgetOverride = (
+	queryClient: QueryClient,
+	userId: string,
+) => {
+	return {
+		mutationFn: () => API.deleteUserAIBudgetOverride(userId),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: getUserAIBudgetOverrideQueryKey(userId),
+			});
+		},
+	};
+};
+
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 	return {
 		queryKey: [...meKey, "apiKey"],
@@ -166,7 +245,7 @@ export const login = (
 		mutationFn: async (credentials: { email: string; password: string }) =>
 			loginFn({ ...credentials, authorization }),
 		onSuccess: async (data: Awaited<ReturnType<typeof loginFn>>) => {
-			queryClient.setQueryData(["me"], data.user);
+			queryClient.setQueryData(meKey, data.user);
 			queryClient.setQueryData(
 				getAuthorizationKey(authorization),
 				data.permissions,
@@ -240,7 +319,11 @@ export const updateProfile = (userId: string) => {
 	};
 };
 
-const myAppearanceKey = ["me", "appearance"];
+export const myAppearanceKey = ["me", "appearance"] as const;
+
+type AppearanceMutationContext = {
+	previousAppearanceSettings: UserAppearanceSettings | undefined;
+};
 
 export const appearanceSettings = (
 	metadata: MetadataState<UserAppearanceSettings>,
@@ -258,24 +341,42 @@ export const updateAppearanceSettings = (
 	UserAppearanceSettings,
 	unknown,
 	UpdateUserAppearanceSettingsRequest,
-	unknown
+	AppearanceMutationContext
 > => {
 	return {
 		mutationFn: (req) => API.updateAppearanceSettings(req),
 		onMutate: async (patch) => {
+			await queryClient.cancelQueries({ queryKey: myAppearanceKey });
+			const previousAppearanceSettings =
+				queryClient.getQueryData<UserAppearanceSettings>(myAppearanceKey);
+
 			// Mutate the `queryClient` optimistically to make the theme switcher
 			// more responsive.
-			queryClient.setQueryData(myAppearanceKey, {
+			queryClient.setQueryData<UserAppearanceSettings>(myAppearanceKey, {
 				theme_preference: patch.theme_preference,
+				theme_mode: patch.theme_mode,
+				theme_light: patch.theme_light,
+				theme_dark: patch.theme_dark,
 				terminal_font: patch.terminal_font,
 			});
+			return { previousAppearanceSettings };
 		},
-		onSuccess: async () =>
-			// Could technically invalidate more, but we only ever care about the
-			// `theme_preference` for the `me` query.
-			await queryClient.invalidateQueries({
-				queryKey: myAppearanceKey,
-			}),
+		onError: (_error, _patch, context) => {
+			if (context?.previousAppearanceSettings) {
+				queryClient.setQueryData<UserAppearanceSettings>(
+					myAppearanceKey,
+					context.previousAppearanceSettings,
+				);
+				return;
+			}
+			queryClient.removeQueries({ queryKey: myAppearanceKey, exact: true });
+		},
+		onSuccess: (settings, patch) => {
+			queryClient.setQueryData<UserAppearanceSettings>(myAppearanceKey, {
+				...patch,
+				...settings,
+			});
+		},
 	};
 };
 

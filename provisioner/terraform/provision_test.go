@@ -1013,7 +1013,6 @@ func TestProvision(t *testing.T) {
 				}},
 				HasExternalAgents: true,
 			},
-			SkipCacheProviders: true,
 		},
 		{
 			Name: "ai-task-app-id",
@@ -1046,7 +1045,6 @@ func TestProvision(t *testing.T) {
 				},
 				HasAiTasks: true,
 			},
-			SkipCacheProviders: true,
 		},
 		{
 			Name: "malicious-tar",
@@ -1107,6 +1105,7 @@ func TestProvision(t *testing.T) {
 				require.Contains(t, initComplete.Error, testCase.InitErrorContains)
 				return
 			}
+			require.Empty(t, initComplete.Error, "unexpected init error")
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 				Metadata: testCase.Metadata,
@@ -1297,6 +1296,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+	require.Contains(t, log, "AWS_SDK_UA_APP_ID=APN_1.1/pc_cdfmjwn8i6u8l9fwz8h82e4w3$")
 
 	apply := applyComplete.Type.(*proto.Response_Apply)
 	require.NotEmpty(t, apply.Apply.State, "state exists")

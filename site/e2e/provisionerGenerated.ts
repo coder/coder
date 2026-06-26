@@ -287,6 +287,12 @@ export interface DisplayApps {
 export interface Env {
   name: string;
   value: string;
+  /**
+   * merge_strategy controls how this env var is merged when multiple
+   * coder_env resources define the same name. Valid values: "replace"
+   * (default), "append", "prepend", "error".
+   */
+  mergeStrategy: string;
 }
 
 /** Script represents a script to be run on the workspace. */
@@ -520,11 +526,8 @@ export interface GraphComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
   /**
-   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-   * still need to know that such resources are defined.
-   *
-   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+   * Whether actual `coder_ai_task` resource instances exist.
+   * Resources defined with count = 0 do not set this flag.
    */
   hasAiTasks: boolean;
   aiTasks: AITask[];
@@ -1051,6 +1054,9 @@ export const Env = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value);
+    }
+    if (message.mergeStrategy !== "") {
+      writer.uint32(26).string(message.mergeStrategy);
     }
     return writer;
   },

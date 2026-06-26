@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { SerpentGroup } from "api/typesGenerated";
+import type { SerpentGroup } from "#/api/typesGenerated";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const oidcGroup: SerpentGroup = {
@@ -24,6 +24,17 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 				group: oidcGroup,
 				flag: "oidc",
 				flag_shorthand: "o",
+				hidden: false,
+			},
+			{
+				name: "OIDC Client Secret",
+				description: "Client secret to use for Login with OIDC.",
+				value: "",
+				value_source: "env",
+				env: "CODER_OIDC_CLIENT_SECRET",
+				group: oidcGroup,
+				flag: "oidc-client-secret",
+				annotations: { secret: "true" },
 				hidden: false,
 			},
 			{
@@ -70,6 +81,16 @@ const meta: Meta<typeof UserAuthSettingsPageView> = {
 				group: ghGroup,
 				flag: "oidc",
 				flag_shorthand: "o",
+				hidden: false,
+			},
+			{
+				name: "OAuth2 GitHub Client Secret",
+				description: "Client secret for Login with GitHub.",
+				value: "",
+				value_source: "flag",
+				group: ghGroup,
+				flag: "oauth2-github-client-secret",
+				annotations: { secret: "true" },
 				hidden: false,
 			},
 			{

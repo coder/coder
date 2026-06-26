@@ -10,12 +10,18 @@ coder:
   # - CODER_TLS_ENABLE: set if tls.secretName is not empty.
   # - CODER_TLS_CERT_FILE: set if tls.secretName is not empty.
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
-  # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:2112 and cannot be changed.
-  #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
-  # - CODER_PPROF_ADDRESS: set to 0.0.0.0:6060 and cannot be changed.
-  #   Profiling must still be enabled by setting CODER_PPROF_ENABLE.
   # - KUBE_POD_IP
   # - CODER_DERP_SERVER_RELAY_URL
+  # - CODER_CLUSTER_HOST: set to the pod IP
+  #
+  # The following environment variables have defaults but CAN be overridden:
+  # - CODER_PROMETHEUS_ADDRESS: defaults to 0.0.0.0:2112. Override to restrict
+  #   access (e.g., 127.0.0.1:2112 for localhost only).
+  #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
+  # - CODER_PPROF_ADDRESS: defaults to 0.0.0.0:6060. Override to restrict access
+  #   (e.g., 127.0.0.1:6060 for localhost only). This is recommended for security
+  #   as pprof can expose sensitive runtime information.
+  #   Profiling must still be enabled by setting CODER_PPROF_ENABLE.
   #
   # We will additionally set CODER_ACCESS_URL if unset to the cluster service
   # URL, unless coder.envUseClusterAccessURL is set to false.
@@ -240,7 +246,7 @@ coder:
   #     --icon "/emojis/xyz.png"
   #
   # This is an Enterprise feature. Contact sales@coder.com
-  # Docs: https://coder.com/docs/admin/workspace-proxies
+  # Docs: https://coder.com/docs/admin/networking/workspace-proxies
   workspaceProxy: false
 
   # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
@@ -351,6 +357,13 @@ coder:
     #   value: "value"
     #   effect: "NoSchedule"
 
+  # coder.hostAliases -- extra entries for pod's /etc/hosts.
+  # See: https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
+  hostAliases: []
+    # - hostnames:
+    #     - "some.host.name.com"
+    #   ip: 0.0.0.0
+
   # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
   nodeSelector: {}
@@ -423,6 +436,31 @@ coder:
       # coder.ingress.tls.wildcardSecretName -- The name of the TLS secret to
       # use for the wildcard host.
       wildcardSecretName: ""
+
+  # coder.httproute -- The HTTPRoute object to expose for Coder.
+  httproute:
+    # coder.httproute.enable -- Whether to create the HTTPRoute object. If using a
+    # Gateway, we recommend not specifying coder.tls.secretNames as the Gateway
+    # will handle TLS termination.
+    enable: false
+    # coder.httproute.parentRefs -- the parentRefs to bind the route to
+    # - name: my-gw
+    #   namespace: gateway-namespace
+    #   # sectionName is optional to fix to a specific listener
+    #   sectionName: listener-name
+    parentRefs: []
+    # coder.httproute.host -- The hostname to match on.
+    # Be sure to also set CODER_ACCESS_URL within coder.env[]
+    host: ""
+    # coder.httproute.wildcardHost -- The wildcard hostname to match on. Should be
+    # in the form "*.example.com" or "*-suffix.example.com". If you are using a
+    # suffix after the wildcard, the suffix will be stripped from the created
+    # ingress to ensure that it is a legal ingress host. Optional if not using
+    # applications over subdomains.
+    # Be sure to also set CODER_WILDCARD_ACCESS_URL within coder.env[]
+    wildcardHost: ""
+    # coder.httproute.annotations -- The HTTPRoute annotations.
+    annotations: {}
 
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.

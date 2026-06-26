@@ -5,7 +5,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 3.0"
+      version = "~> 4.0"
     }
     envbuilder = {
       source = "coder/envbuilder"
@@ -111,7 +111,7 @@ module "slackme" {
 
 module "dotfiles" {
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.3"
+  version  = "1.4.2"
   agent_id = coder_agent.dev.id
 }
 
@@ -123,7 +123,7 @@ module "personalize" {
 
 module "code-server" {
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.2"
+  version                 = "1.5.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -140,7 +140,7 @@ module "jetbrains" {
 
 module "filebrowser" {
   source   = "dev.registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.4"
+  version  = "1.1.5"
   agent_id = coder_agent.dev.id
 }
 

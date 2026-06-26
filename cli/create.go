@@ -42,10 +42,10 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 		stopAfter       time.Duration
 		workspaceName   string
 
-		parameterFlags       workspaceParameterFlags
-		autoUpdates          string
-		copyParametersFrom   string
-		useParameterDefaults bool
+		parameterFlags     workspaceParameterFlags
+		autoUpdates        string
+		copyParametersFrom string
+		noWait             bool
 		// Organization context is only required if more than 1 template
 		// shares the same name across multiple organizations.
 		orgContext = NewOrganizationContext()
@@ -68,7 +68,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			workspaceOwner := codersdk.Me
 			if len(inv.Args) >= 1 {
-				workspaceOwner, workspaceName, err = splitNamedWorkspace(inv.Args[0])
+				workspaceOwner, workspaceName, err = codersdk.SplitWorkspaceIdentifier(inv.Args[0])
 				if err != nil {
 					return err
 				}
@@ -104,7 +104,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 
 			var sourceWorkspace codersdk.Workspace
 			if copyParametersFrom != "" {
-				sourceWorkspaceOwner, sourceWorkspaceName, err := splitNamedWorkspace(copyParametersFrom)
+				sourceWorkspaceOwner, sourceWorkspaceName, err := codersdk.SplitWorkspaceIdentifier(copyParametersFrom)
 				if err != nil {
 					return err
 				}
@@ -271,6 +271,11 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				return xerrors.Errorf("can't parse given parameter defaults: %w", err)
 			}
 
+			cliEphemeralParameters, err := asWorkspaceBuildParameters(parameterFlags.ephemeralParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given ephemeral parameter values: %w", err)
+			}
+
 			var sourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
 			if copyParametersFrom != "" {
 				sourceWorkspaceParameters, err = client.WorkspaceBuildParameters(inv.Context(), sourceWorkspace.LatestBuild.ID)
@@ -323,15 +328,19 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				Action:            WorkspaceCreate,
 				TemplateVersionID: templateVersionID,
 				NewWorkspaceName:  workspaceName,
+				Owner:             workspaceOwner,
 
 				PresetParameters:      presetParameters,
 				RichParameterFile:     parameterFlags.richParameterFile,
 				RichParameters:        cliBuildParameters,
 				RichParameterDefaults: cliBuildParameterDefaults,
 
+				PromptEphemeralParameters: parameterFlags.promptEphemeralParameters,
+				EphemeralParameters:       cliEphemeralParameters,
+
 				SourceWorkspaceParameters: sourceWorkspaceParameters,
 
-				UseParameterDefaults: useParameterDefaults,
+				UseParameterDefaults: parameterFlags.useParameterDefaults,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -370,6 +379,14 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			}
 
 			cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+
+			if noWait {
+				_, _ = fmt.Fprintf(inv.Stdout,
+					"\nThe %s workspace has been created and is building in the background.\n",
+					cliui.Keyword(workspace.Name),
+				)
+				return nil
+			}
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
@@ -439,15 +456,15 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 			Value:       serpent.StringOf(&copyParametersFrom),
 		},
 		serpent.Option{
-			Flag:        "use-parameter-defaults",
-			Env:         "CODER_WORKSPACE_USE_PARAMETER_DEFAULTS",
-			Description: "Automatically accept parameter defaults when no value is provided.",
-			Value:       serpent.BoolOf(&useParameterDefaults),
+			Flag:        "no-wait",
+			Env:         "CODER_CREATE_NO_WAIT",
+			Description: "Return immediately after creating the workspace. The build will run in the background.",
+			Value:       serpent.BoolOf(&noWait),
 		},
 		cliui.SkipPromptOption(),
 	)
-	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
-	cmd.Options = append(cmd.Options, parameterFlags.cliParameterDefaults()...)
+	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
+
 	orgContext.AttachOptions(cmd)
 	return cmd
 }
@@ -456,6 +473,8 @@ type prepWorkspaceBuildArgs struct {
 	Action            WorkspaceCLIAction
 	TemplateVersionID uuid.UUID
 	NewWorkspaceName  string
+	// The owner is required when evaluating dynamic parameters
+	Owner string
 
 	LastBuildParameters       []codersdk.WorkspaceBuildParameter
 	SourceWorkspaceParameters []codersdk.WorkspaceBuildParameter
@@ -550,9 +569,14 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
-	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+	dynamicParameters := true
+	if templateVersion.TemplateID != nil {
+		// TODO: This fetch is often redundant, as the caller often has the template already.
+		template, err := client.Template(ctx, *templateVersion.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template: %w", err)
+		}
+		dynamicParameters = !template.UseClassicParameterFlow
 	}
 
 	parameterFile := map[string]string{}
@@ -574,6 +598,45 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		WithRichParametersFile(parameterFile).
 		WithRichParametersDefaults(args.RichParameterDefaults).
 		WithUseParameterDefaults(args.UseParameterDefaults)
+
+	var templateVersionParameters []codersdk.TemplateVersionParameter
+	if !dynamicParameters {
+		templateVersionParameters, err = client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template version rich parameters: %w", err)
+		}
+	} else {
+		var ownerID uuid.UUID
+		{ // Putting in its own block to limit scope of owningMember, as it might be nil
+			owningMember, err := client.OrganizationMember(ctx, templateVersion.OrganizationID.String(), args.Owner)
+			if err != nil {
+				// This is unfortunate, but if we are an org owner, then we can create workspaces
+				// for users that are not part of the organization.
+				owningUser, uerr := client.User(ctx, args.Owner)
+				if uerr != nil {
+					return nil, xerrors.Errorf("get owning member: %w", err)
+				}
+				ownerID = owningUser.ID
+			} else {
+				ownerID = owningMember.UserID
+			}
+		}
+
+		initial := make(map[string]string)
+		for _, v := range resolver.InitialValues() {
+			initial[v.Name] = v.Value
+		}
+
+		eval, err := client.EvaluateTemplateVersion(ctx, templateVersion.ID, ownerID, initial)
+		if err != nil {
+			return nil, xerrors.Errorf("evaluate template version dynamic parameters: %w", err)
+		}
+
+		for _, param := range eval.Parameters {
+			templateVersionParameters = append(templateVersionParameters, param.TemplateVersionParameter())
+		}
+	}
+
 	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err

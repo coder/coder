@@ -36,3 +36,35 @@ export const DisabledOff: Story = {
 		disabled: true,
 	},
 };
+
+export const SmallOn: Story = {
+	args: {
+		checked: true,
+		disabled: false,
+		size: "sm",
+	},
+};
+
+export const SmallOff: Story = {
+	args: {
+		checked: false,
+		disabled: false,
+		size: "sm",
+	},
+};
+
+export const SmallDisabledOn: Story = {
+	args: {
+		checked: true,
+		disabled: true,
+		size: "sm",
+	},
+};
+
+export const SmallDisabledOff: Story = {
+	args: {
+		checked: false,
+		disabled: true,
+		size: "sm",
+	},
+};

@@ -1,34 +1,35 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
-import Skeleton from "@mui/material/Skeleton";
-import type { GetLicensesResponse } from "api/api";
-import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import { PlusIcon, RotateCwIcon } from "lucide-react";
+import type { FC } from "react";
+import Confetti from "react-confetti";
+import { Link as RouterLink } from "react-router";
+import type { GetLicensesResponse } from "#/api/api";
+import type { Feature, UserStatusChangeCount } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useWindowSize } from "hooks/useWindowSize";
-import { PlusIcon, RotateCwIcon } from "lucide-react";
-import type { FC } from "react";
-import Confetti from "react-confetti";
-import { Link } from "react-router";
+} from "#/components/Tooltip/Tooltip";
+import { useWindowSize } from "#/hooks/useWindowSize";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
+import { SeatUsageBarCard } from "./SeatUsageBarCard";
 
 type Props = {
 	showConfetti: boolean;
 	isLoading: boolean;
+	hasUserLimitEntitlementData: boolean;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
@@ -44,6 +45,7 @@ type Props = {
 const LicensesSettingsPageView: FC<Props> = ({
 	showConfetti,
 	isLoading,
+	hasUserLimitEntitlementData,
 	userLimitActual,
 	userLimitLimit,
 	licenses,
@@ -68,11 +70,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
 			/>
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Licenses</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -80,12 +78,12 @@ const LicensesSettingsPageView: FC<Props> = ({
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Stack direction="row" spacing={2}>
+				<div className="flex flex-row gap-4">
 					<Button variant="outline" asChild>
-						<Link to="/deployment/licenses/add">
+						<RouterLink to="/deployment/licenses/add">
 							<PlusIcon />
 							Add a license
-						</Link>
+						</RouterLink>
 					</Button>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -95,7 +93,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 								variant="outline"
 							>
 								<Spinner loading={isRefreshing}>
-									<RotateCwIcon className="size-icon-xs" />
+									<RotateCwIcon />
 								</Spinner>
 								Refresh
 							</Button>
@@ -105,16 +103,14 @@ const LicensesSettingsPageView: FC<Props> = ({
 							minutes.
 						</TooltipContent>
 					</Tooltip>
-				</Stack>
-			</Stack>
+				</div>
+			</div>
 
 			<div className="flex flex-col gap-4">
-				{isLoading && (
-					<Skeleton className="rounded" variant="rectangular" height={78} />
-				)}
+				{isLoading && <Skeleton height={78} />}
 
 				{!isLoading && licenses && licenses?.length > 0 && (
-					<Stack spacing={4} className="licenses">
+					<div className="flex flex-col gap-8 licenses">
 						{[...(licenses ?? [])]
 							?.sort(
 								(a, b) =>
@@ -127,21 +123,22 @@ const LicensesSettingsPageView: FC<Props> = ({
 									license={license}
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
+									aiGovernanceUserFeature={aiGovernanceUserFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>
 							))}
-					</Stack>
+					</div>
 				)}
 
-				{!isLoading && licenses === null && (
-					<div css={styles.root}>
-						<Stack alignItems="center" spacing={1}>
-							<Stack alignItems="center" spacing={0.5}>
-								<span css={styles.title}>
+				{!isLoading && licenses?.length === 0 && (
+					<div className="min-h-[240px] flex items-center justify-center rounded-lg border border-solid border-border p-12">
+						<div className="flex flex-col gap-2 items-center">
+							<div className="flex flex-col gap-1 items-center">
+								<span className="text-base">
 									You don&apos;t have any licenses!
 								</span>
-								<span css={styles.description}>
+								<span className="text-content-secondary text-center max-w-[464px] mt-2">
 									You&apos;re missing out on high availability, RBAC, quotas,
 									and much more. Contact{" "}
 									<MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
@@ -150,29 +147,39 @@ const LicensesSettingsPageView: FC<Props> = ({
 									</MuiLink>{" "}
 									to get started.
 								</span>
-							</Stack>
-						</Stack>
+							</div>
+						</div>
 					</div>
 				)}
 
 				{licenses && licenses.length > 0 && (
-					<LicenseSeatConsumptionChart
-						limit={userLimitLimit}
-						data={activeUsers?.map((i) => ({
-							date: i.date,
-							users: i.count,
-							limit: 80,
-						}))}
-					/>
-				)}
-
-				{licenses && licenses.length > 0 && (
 					<>
+						<LicenseSeatConsumptionChart
+							limit={userLimitLimit}
+							data={activeUsers?.map((i) => ({
+								date: i.date,
+								users: i.count,
+								limit: 80,
+							}))}
+						/>
+
+						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+							{hasUserLimitEntitlementData && (
+								<SeatUsageBarCard
+									title="Seat usage"
+									actual={userLimitActual}
+									limit={userLimitLimit}
+									allowUnlimited
+								/>
+							)}
+							<AIGovernanceUsersConsumption
+								aiGovernanceUserFeature={aiGovernanceUserFeature}
+								licenses={licenses}
+							/>
+						</div>
+
 						<ManagedAgentsConsumption
 							managedAgentFeature={managedAgentFeature}
-						/>
-						<AIGovernanceUsersConsumption
-							aiGovernanceUserFeature={aiGovernanceUserFeature}
 						/>
 					</>
 				)}
@@ -180,28 +187,5 @@ const LicensesSettingsPageView: FC<Props> = ({
 		</>
 	);
 };
-
-const styles = {
-	title: {
-		fontSize: 16,
-	},
-
-	root: (theme) => ({
-		minHeight: 240,
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		padding: 48,
-	}),
-
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		maxWidth: 464,
-		marginTop: 8,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default LicensesSettingsPageView;

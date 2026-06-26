@@ -1,9 +1,11 @@
 import { useTheme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
-import type { APIKeyWithOwner } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { TrashIcon } from "lucide-react";
+import type { FC, ReactNode } from "react";
+import type { APIKeyWithOwner } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import {
 	Table,
 	TableBody,
@@ -11,13 +13,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { TrashIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 
 dayjs.extend(relativeTime);
 
@@ -45,10 +43,8 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 	onDelete,
 	deleteTokenError,
 }) => {
-	const theme = useTheme();
-
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			{Boolean(getTokensError) && <ErrorAlert error={getTokensError} />}
 			{Boolean(deleteTokenError) && <ErrorAlert error={deleteTokenError} />}
 
@@ -64,70 +60,88 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
-						<Cond condition={hasLoaded && (!tokens || tokens.length === 0)}>
-							<TableEmpty message="No tokens found" />
-						</Cond>
-						<Cond>
-							{tokens?.map((token) => {
-								return (
-									<TableRow
-										key={token.id}
-										data-testid={`token-${token.id}`}
-										tabIndex={0}
-									>
-										<TableCell>
-											<span style={{ color: theme.palette.text.secondary }}>
-												{token.id}
-											</span>
-										</TableCell>
-
-										<TableCell>
-											<span style={{ color: theme.palette.text.secondary }}>
-												{token.token_name}
-											</span>
-										</TableCell>
-
-										<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
-
-										<TableCell>
-											<span
-												style={{ color: theme.palette.text.secondary }}
-												data-chromatic="ignore"
-											>
-												{dayjs(token.expires_at).fromNow()}
-											</span>
-										</TableCell>
-
-										<TableCell>
-											<span style={{ color: theme.palette.text.secondary }}>
-												{dayjs(token.created_at).fromNow()}
-											</span>
-										</TableCell>
-
-										<TableCell>
-											<span style={{ color: theme.palette.text.secondary }}>
-												<IconButton
-													onClick={() => {
-														onDelete(token);
-													}}
-													size="medium"
-													aria-label="Delete token"
-												>
-													<TrashIcon className="size-icon-sm" />
-												</IconButton>
-											</span>
-										</TableCell>
-									</TableRow>
-								);
-							})}
-						</Cond>
-					</ChooseOne>
+					<TokensTableBody
+						tokens={tokens}
+						isLoading={isLoading}
+						hasLoaded={hasLoaded}
+						onDelete={onDelete}
+					/>
 				</TableBody>
 			</Table>
-		</Stack>
+		</div>
+	);
+};
+
+interface TokensTableBodyProps {
+	tokens?: APIKeyWithOwner[];
+	isLoading: boolean;
+	hasLoaded: boolean;
+	onDelete: (token: APIKeyWithOwner) => void;
+}
+
+const TokensTableBody: FC<TokensTableBodyProps> = ({
+	tokens,
+	isLoading,
+	hasLoaded,
+	onDelete,
+}) => {
+	const theme = useTheme();
+
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (hasLoaded && (!tokens || tokens.length === 0)) {
+		return <TableEmpty message="No tokens found" />;
+	}
+	return (
+		<>
+			{tokens?.map((token) => (
+				<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
+					<TableCell>
+						<span style={{ color: theme.palette.text.secondary }}>
+							{token.id}
+						</span>
+					</TableCell>
+
+					<TableCell>
+						<span style={{ color: theme.palette.text.secondary }}>
+							{token.token_name}
+						</span>
+					</TableCell>
+
+					<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
+
+					<TableCell>
+						<span
+							style={{ color: theme.palette.text.secondary }}
+							data-chromatic="ignore"
+						>
+							{dayjs(token.expires_at).fromNow()}
+						</span>
+					</TableCell>
+
+					<TableCell>
+						<span style={{ color: theme.palette.text.secondary }}>
+							{dayjs(token.created_at).fromNow()}
+						</span>
+					</TableCell>
+
+					<TableCell>
+						<span style={{ color: theme.palette.text.secondary }}>
+							<Button
+								onClick={() => {
+									onDelete(token);
+								}}
+								size="icon"
+								variant="destructive"
+								aria-label="Delete token"
+							>
+								<TrashIcon className="size-icon-sm" />
+							</Button>
+						</span>
+					</TableCell>
+				</TableRow>
+			))}
+		</>
 	);
 };

@@ -4,6 +4,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "document": "string",
   "signature": "string"
 }
@@ -11,10 +12,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `document`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `document`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.AuthenticateResponse
 
@@ -34,6 +36,7 @@
 
 ```json
 {
+  "agent_name": "string",
   "encoding": "string",
   "signature": "string"
 }
@@ -41,10 +44,11 @@
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description |
-|-------------|--------|----------|--------------|-------------|
-| `encoding`  | string | true     |              |             |
-| `signature` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                      |
+|--------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name` | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `encoding`   | string | true     |              |                                                                                                                                                  |
+| `signature`  | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.ExternalAuthResponse
 
@@ -90,15 +94,17 @@
 
 ```json
 {
+  "agent_name": "string",
   "json_web_token": "string"
 }
 ```
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `json_web_token` | string | true     |              |             |
+| Name             | Type   | Required | Restrictions | Description                                                                                                                                      |
+|------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`     | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
+| `json_web_token` | string | true     |              |                                                                                                                                                  |
 
 ## agentsdk.Log
 
@@ -186,17 +192,19 @@
 
 ```json
 {
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "reason": "prebuild_claimed",
-  "workspaceID": "string"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name          | Type                                                               | Required | Restrictions | Description |
-|---------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `reason`      | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
-| `workspaceID` | string                                                             | false    |              |             |
+| Name           | Type                                                               | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `owner_id`     | string                                                             | false    |              |             |
+| `reason`       | [agentsdk.ReinitializationReason](#agentsdkreinitializationreason) | false    |              |             |
+| `workspace_id` | string                                                             | false    |              |             |
 
 ## agentsdk.ReinitializationReason
 
@@ -211,57 +219,6 @@
 | Value(s)           |
 |--------------------|
 | `prebuild_claimed` |
-
-## coderd.SCIMUser
-
-```json
-{
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [
-    null
-  ],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": [
-    "string"
-  ],
-  "userName": "string"
-}
-```
-
-### Properties
-
-| Name             | Type               | Required | Restrictions | Description                                                                 |
-|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
-| `emails`         | array of object    | false    |              |                                                                             |
-| `» display`      | string             | false    |              |                                                                             |
-| `» primary`      | boolean            | false    |              |                                                                             |
-| `» type`         | string             | false    |              |                                                                             |
-| `» value`        | string             | false    |              |                                                                             |
-| `groups`         | array of undefined | false    |              |                                                                             |
-| `id`             | string             | false    |              |                                                                             |
-| `meta`           | object             | false    |              |                                                                             |
-| `» resourceType` | string             | false    |              |                                                                             |
-| `name`           | object             | false    |              |                                                                             |
-| `» familyName`   | string             | false    |              |                                                                             |
-| `» givenName`    | string             | false    |              |                                                                             |
-| `schemas`        | array of string    | false    |              |                                                                             |
-| `userName`       | string             | false    |              |                                                                             |
 
 ## coderd.cspViolation
 
@@ -292,6 +249,7 @@
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -316,6 +274,7 @@
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -334,6 +293,54 @@
 |----------|-------------------------------------------------------|----------|--------------|-------------|
 | `groups` | array of [codersdk.Group](#codersdkgroup)             | false    |              |             |
 | `users`  | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
+
+## codersdk.AIBridgeAgenticAction
+
+```json
+{
+  "model": "string",
+  "thinking": [
+    {
+      "text": "string"
+    }
+  ],
+  "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  },
+  "tool_calls": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "injected": true,
+      "input": "string",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "provider_response_id": "string",
+      "server_url": "string",
+      "tool": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                   | Required | Restrictions | Description |
+|---------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `model`       | string                                                                                 | false    |              |             |
+| `thinking`    | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |             |
+| `token_usage` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| `tool_calls`  | array of [codersdk.AIBridgeToolCall](#codersdkaibridgetoolcall)                        | false    |              |             |
 
 ## codersdk.AIBridgeAnthropicConfig
 
@@ -379,10 +386,12 @@
 
 ```json
 {
+  "allow_byok": true,
   "anthropic": {
     "base_url": "string",
     "key": "string"
   },
+  "api_dump_dir": "string",
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
@@ -391,6 +400,8 @@
     "region": "string",
     "small_fast_model": "string"
   },
+  "budget_period": "string",
+  "budget_policy": "string",
   "circuit_breaker_enabled": true,
   "circuit_breaker_failure_threshold": 0,
   "circuit_breaker_interval": 0,
@@ -403,6 +414,16 @@
     "base_url": "string",
     "key": "string"
   },
+  "providers": [
+    {
+      "base_url": "string",
+      "bedrock_model": "string",
+      "bedrock_region": "string",
+      "bedrock_small_fast_model": "string",
+      "name": "string",
+      "type": "string"
+    }
+  ],
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
@@ -412,175 +433,65 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                           |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |                                                                                                                       |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded). |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                       |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                       |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                       |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                   |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.        |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                            |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                               |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                  |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                               |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                               |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                               |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 
-## codersdk.AIBridgeInterception
-
-```json
-{
-  "api_key_id": "string",
-  "ended_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string",
-    "username": "string"
-  },
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "model": "string",
-  "provider": "string",
-  "started_at": "2019-08-24T14:15:22Z",
-  "token_usages": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "input_tokens": 0,
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "output_tokens": 0,
-      "provider_response_id": "string"
-    }
-  ],
-  "tool_usages": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "injected": true,
-      "input": "string",
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "invocation_error": "string",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "provider_response_id": "string",
-      "server_url": "string",
-      "tool": "string"
-    }
-  ],
-  "user_prompts": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "prompt": "string",
-      "provider_response_id": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name               | Type                                                                | Required | Restrictions | Description |
-|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `api_key_id`       | string                                                              | false    |              |             |
-| `ended_at`         | string                                                              | false    |              |             |
-| `id`               | string                                                              | false    |              |             |
-| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
-| `metadata`         | object                                                              | false    |              |             |
-| » `[any property]` | any                                                                 | false    |              |             |
-| `model`            | string                                                              | false    |              |             |
-| `provider`         | string                                                              | false    |              |             |
-| `started_at`       | string                                                              | false    |              |             |
-| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
-| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
-| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
-
-## codersdk.AIBridgeListInterceptionsResponse
+## codersdk.AIBridgeListSessionsResponse
 
 ```json
 {
   "count": 0,
-  "results": [
+  "sessions": [
     {
-      "api_key_id": "string",
+      "client": "string",
       "ended_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "id": "string",
       "initiator": {
         "avatar_url": "http://example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "name": "string",
         "username": "string"
       },
+      "last_active_at": "2019-08-24T14:15:22Z",
+      "last_prompt": "string",
       "metadata": {
         "property1": null,
         "property2": null
       },
-      "model": "string",
-      "provider": "string",
+      "models": [
+        "string"
+      ],
+      "providers": [
+        "string"
+      ],
       "started_at": "2019-08-24T14:15:22Z",
-      "token_usages": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "input_tokens": 0,
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "output_tokens": 0,
-          "provider_response_id": "string"
-        }
-      ],
-      "tool_usages": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "injected": true,
-          "input": "string",
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "invocation_error": "string",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "provider_response_id": "string",
-          "server_url": "string",
-          "tool": "string"
-        }
-      ],
-      "user_prompts": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "prompt": "string",
-          "provider_response_id": "string"
-        }
-      ]
+      "threads": 0,
+      "token_usage_summary": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0
+      }
     }
   ]
 }
@@ -588,10 +499,24 @@
 
 ### Properties
 
-| Name      | Type                                                                    | Required | Restrictions | Description |
-|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
-| `count`   | integer                                                                 | false    |              |             |
-| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+| Name       | Type                                                          | Required | Restrictions | Description |
+|------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `count`    | integer                                                       | false    |              |             |
+| `sessions` | array of [codersdk.AIBridgeSession](#codersdkaibridgesession) | false    |              |             |
+
+## codersdk.AIBridgeModelThought
+
+```json
+{
+  "text": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `text` | string | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
 
@@ -613,6 +538,10 @@
 
 ```json
 {
+  "allowed_private_cidrs": [
+    "string"
+  ],
+  "api_dump_dir": "string",
   "cert_file": "string",
   "domain_allowlist": [
     "string"
@@ -620,6 +549,8 @@
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string",
+  "tls_cert_file": "string",
+  "tls_key_file": "string",
   "upstream_proxy": "string",
   "upstream_proxy_ca": "string"
 }
@@ -627,47 +558,318 @@
 
 ### Properties
 
-| Name                | Type            | Required | Restrictions | Description |
-|---------------------|-----------------|----------|--------------|-------------|
-| `cert_file`         | string          | false    |              |             |
-| `domain_allowlist`  | array of string | false    |              |             |
-| `enabled`           | boolean         | false    |              |             |
-| `key_file`          | string          | false    |              |             |
-| `listen_addr`       | string          | false    |              |             |
-| `upstream_proxy`    | string          | false    |              |             |
-| `upstream_proxy_ca` | string          | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allowed_private_cidrs` | array of string | false    |              |             |
+| `api_dump_dir`          | string          | false    |              |             |
+| `cert_file`             | string          | false    |              |             |
+| `domain_allowlist`      | array of string | false    |              |             |
+| `enabled`               | boolean         | false    |              |             |
+| `key_file`              | string          | false    |              |             |
+| `listen_addr`           | string          | false    |              |             |
+| `tls_cert_file`         | string          | false    |              |             |
+| `tls_key_file`          | string          | false    |              |             |
+| `upstream_proxy`        | string          | false    |              |             |
+| `upstream_proxy_ca`     | string          | false    |              |             |
 
-## codersdk.AIBridgeTokenUsage
+## codersdk.AIBridgeSession
 
 ```json
 {
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "input_tokens": 0,
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "client": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "last_active_at": "2019-08-24T14:15:22Z",
+  "last_prompt": "string",
   "metadata": {
     "property1": null,
     "property2": null
   },
-  "output_tokens": 0,
-  "provider_response_id": "string"
+  "models": [
+    "string"
+  ],
+  "providers": [
+    "string"
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "threads": 0,
+  "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
 }
 ```
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `input_tokens`         | integer | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `output_tokens`        | integer | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
+| Name                  | Type                                                                                   | Required | Restrictions | Description |
+|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client`              | string                                                                                 | false    |              |             |
+| `ended_at`            | string                                                                                 | false    |              |             |
+| `id`                  | string                                                                                 | false    |              |             |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `last_active_at`      | string                                                                                 | false    |              |             |
+| `last_prompt`         | string                                                                                 | false    |              |             |
+| `metadata`            | object                                                                                 | false    |              |             |
+| » `[any property]`    | any                                                                                    | false    |              |             |
+| `models`              | array of string                                                                        | false    |              |             |
+| `providers`           | array of string                                                                        | false    |              |             |
+| `started_at`          | string                                                                                 | false    |              |             |
+| `threads`             | integer                                                                                | false    |              |             |
+| `token_usage_summary` | [codersdk.AIBridgeSessionTokenUsageSummary](#codersdkaibridgesessiontokenusagesummary) | false    |              |             |
 
-## codersdk.AIBridgeToolUsage
+## codersdk.AIBridgeSessionThreadsResponse
+
+```json
+{
+  "client": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "models": [
+    "string"
+  ],
+  "page_ended_at": "2019-08-24T14:15:22Z",
+  "page_started_at": "2019-08-24T14:15:22Z",
+  "providers": [
+    "string"
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "threads": [
+    {
+      "agent_firewall_sequence_number": 0,
+      "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
+      "agentic_actions": [
+        {
+          "model": "string",
+          "thinking": [
+            {
+              "text": "string"
+            }
+          ],
+          "token_usage": {
+            "cache_read_input_tokens": 0,
+            "cache_write_input_tokens": 0,
+            "input_tokens": 0,
+            "metadata": {
+              "property1": null,
+              "property2": null
+            },
+            "output_tokens": 0
+          },
+          "tool_calls": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "injected": true,
+              "input": "string",
+              "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+              "metadata": {
+                "property1": null,
+                "property2": null
+              },
+              "provider_response_id": "string",
+              "server_url": "string",
+              "tool": "string"
+            }
+          ]
+        }
+      ],
+      "credential_hint": "string",
+      "credential_kind": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "model": "string",
+      "prompt": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "input_tokens": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "output_tokens": 0
+      }
+    }
+  ],
+  "token_usage_summary": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                   | Required | Restrictions | Description |
+|-----------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `client`              | string                                                                                 | false    |              |             |
+| `ended_at`            | string                                                                                 | false    |              |             |
+| `id`                  | string                                                                                 | false    |              |             |
+| `initiator`           | [codersdk.MinimalUser](#codersdkminimaluser)                                           | false    |              |             |
+| `metadata`            | object                                                                                 | false    |              |             |
+| » `[any property]`    | any                                                                                    | false    |              |             |
+| `models`              | array of string                                                                        | false    |              |             |
+| `page_ended_at`       | string                                                                                 | false    |              |             |
+| `page_started_at`     | string                                                                                 | false    |              |             |
+| `providers`           | array of string                                                                        | false    |              |             |
+| `started_at`          | string                                                                                 | false    |              |             |
+| `threads`             | array of [codersdk.AIBridgeThread](#codersdkaibridgethread)                            | false    |              |             |
+| `token_usage_summary` | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+
+## codersdk.AIBridgeSessionThreadsTokenUsage
+
+```json
+{
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "input_tokens": 0,
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "output_tokens": 0
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `metadata`                 | object  | false    |              |             |
+| » `[any property]`         | any     | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+
+## codersdk.AIBridgeSessionTokenUsageSummary
+
+```json
+{
+  "cache_read_input_tokens": 0,
+  "cache_write_input_tokens": 0,
+  "input_tokens": 0,
+  "output_tokens": 0
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description |
+|----------------------------|---------|----------|--------------|-------------|
+| `cache_read_input_tokens`  | integer | false    |              |             |
+| `cache_write_input_tokens` | integer | false    |              |             |
+| `input_tokens`             | integer | false    |              |             |
+| `output_tokens`            | integer | false    |              |             |
+
+## codersdk.AIBridgeThread
+
+```json
+{
+  "agent_firewall_sequence_number": 0,
+  "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
+  "agentic_actions": [
+    {
+      "model": "string",
+      "thinking": [
+        {
+          "text": "string"
+        }
+      ],
+      "token_usage": {
+        "cache_read_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "input_tokens": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "output_tokens": 0
+      },
+      "tool_calls": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "injected": true,
+          "input": "string",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "provider_response_id": "string",
+          "server_url": "string",
+          "tool": "string"
+        }
+      ]
+    }
+  ],
+  "credential_hint": "string",
+  "credential_kind": "string",
+  "ended_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model": "string",
+  "prompt": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "token_usage": {
+    "cache_read_input_tokens": 0,
+    "cache_write_input_tokens": 0,
+    "input_tokens": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "output_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name                             | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|----------------------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
+| `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
+| `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `token_usage`                    | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                                                                                                                                           |
+
+## codersdk.AIBridgeToolCall
 
 ```json
 {
@@ -676,7 +878,6 @@
   "injected": true,
   "input": "string",
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "invocation_error": "string",
   "metadata": {
     "property1": null,
     "property2": null
@@ -696,46 +897,21 @@
 | `injected`             | boolean | false    |              |             |
 | `input`                | string  | false    |              |             |
 | `interception_id`      | string  | false    |              |             |
-| `invocation_error`     | string  | false    |              |             |
 | `metadata`             | object  | false    |              |             |
 | » `[any property]`     | any     | false    |              |             |
 | `provider_response_id` | string  | false    |              |             |
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
 
-## codersdk.AIBridgeUserPrompt
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "prompt": "string",
-  "provider_response_id": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type   | Required | Restrictions | Description |
-|------------------------|--------|----------|--------------|-------------|
-| `created_at`           | string | false    |              |             |
-| `id`                   | string | false    |              |             |
-| `interception_id`      | string | false    |              |             |
-| `metadata`             | object | false    |              |             |
-| » `[any property]`     | any    | false    |              |             |
-| `prompt`               | string | false    |              |             |
-| `provider_response_id` | string | false    |              |             |
-
 ## codersdk.AIConfig
 
 ```json
 {
   "aibridge_proxy": {
+    "allowed_private_cidrs": [
+      "string"
+    ],
+    "api_dump_dir": "string",
     "cert_file": "string",
     "domain_allowlist": [
       "string"
@@ -743,14 +919,18 @@
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string",
+    "tls_cert_file": "string",
+    "tls_key_file": "string",
     "upstream_proxy": "string",
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "allow_byok": true,
     "anthropic": {
       "base_url": "string",
       "key": "string"
     },
+    "api_dump_dir": "string",
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
@@ -759,6 +939,8 @@
       "region": "string",
       "small_fast_model": "string"
     },
+    "budget_period": "string",
+    "budget_policy": "string",
     "circuit_breaker_enabled": true,
     "circuit_breaker_failure_threshold": 0,
     "circuit_breaker_interval": 0,
@@ -771,10 +953,24 @@
       "base_url": "string",
       "key": "string"
     },
+    "providers": [
+      {
+        "base_url": "string",
+        "bedrock_model": "string",
+        "bedrock_region": "string",
+        "bedrock_small_fast_model": "string",
+        "name": "string",
+        "type": "string"
+      }
+    ],
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
     "structured_logging": true
+  },
+  "chat": {
+    "acquire_batch_size": 0,
+    "debug_logging_enabled": true
   }
 }
 ```
@@ -785,6 +981,149 @@
 |------------------|--------------------------------------------------------------|----------|--------------|-------------|
 | `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
+| `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
+
+## codersdk.AIGatewayKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key_prefix": "string",
+  "last_used_at": "2019-08-24T14:15:22Z",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `created_at`   | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `key_prefix`   | string | false    |              |             |
+| `last_used_at` | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
+## codersdk.AIProvider
+
+```json
+{
+  "api_keys": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
+  ],
+  "base_url": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "settings": {},
+  "type": "openai",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                       | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |             |
+| `base_url`     | string                                                     | false    |              |             |
+| `created_at`   | string                                                     | false    |              |             |
+| `display_name` | string                                                     | false    |              |             |
+| `enabled`      | boolean                                                    | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
+| `updated_at`   | string                                                     | false    |              |             |
+
+## codersdk.AIProviderConfig
+
+```json
+{
+  "base_url": "string",
+  "bedrock_model": "string",
+  "bedrock_region": "string",
+  "bedrock_small_fast_model": "string",
+  "name": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type   | Required | Restrictions | Description                                                                                                                                           |
+|----------------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                |
+| `bedrock_model`            | string | false    |              |                                                                                                                                                       |
+| `bedrock_region`           | string | false    |              |                                                                                                                                                       |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
+| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
+
+## codersdk.AIProviderKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "masked": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `masked`     | string | false    |              |             |
+
+## codersdk.AIProviderKeyMutation
+
+```json
+{
+  "api_key": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `api_key` | string | false    |              |             |
+| `id`      | string | false    |              |             |
+
+## codersdk.AIProviderSettings
+
+```json
+{}
+```
+
+### Properties
+
+None
+
+## codersdk.AIProviderType
+
+```json
+"openai"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                |
+|---------------------------------------------------------------------------------------------------------|
+| `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 ## codersdk.APIAllowListTarget
 
@@ -862,9 +1201,9 @@
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -879,6 +1218,20 @@
 | Name      | Type   | Required | Restrictions | Description |
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
+
+## codersdk.AgentChatSendShortcut
+
+```json
+"enter"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                  |
+|---------------------------|
+| `enter`, `modifier_enter` |
 
 ## codersdk.AgentConnectionTiming
 
@@ -901,6 +1254,101 @@
 | `started_at`           | string                                       | false    |              |             |
 | `workspace_agent_id`   | string                                       | false    |              |             |
 | `workspace_agent_name` | string                                       | false    |              |             |
+
+## codersdk.AgentDisplayMode
+
+```json
+"auto"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                      |
+|-----------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto` |
+
+## codersdk.AgentFirewallLog
+
+```json
+{
+  "allowed": true,
+  "captured_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "detail": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "matched_rule": "string",
+  "method": "string",
+  "proto": "string",
+  "sequence_number": 0,
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `allowed`         | boolean | false    |              |             |
+| `captured_at`     | string  | false    |              |             |
+| `created_at`      | string  | false    |              |             |
+| `detail`          | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `matched_rule`    | string  | false    |              |             |
+| `method`          | string  | false    |              |             |
+| `proto`           | string  | false    |              |             |
+| `sequence_number` | integer | false    |              |             |
+| `session_id`      | string  | false    |              |             |
+
+## codersdk.AgentFirewallSession
+
+```json
+{
+  "confined_process": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `confined_process` | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `owner_id`         | string | false    |              |             |
+| `started_at`       | string | false    |              |             |
+| `workspace_id`     | string | false    |              |             |
+
+## codersdk.AgentFirewallSessionLogsResponse
+
+```json
+{
+  "results": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                            | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog) | false    |              |             |
 
 ## codersdk.AgentScriptTiming
 
@@ -1163,7 +1611,9 @@
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
+    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
     "name": "string",
@@ -1253,7 +1703,9 @@
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
+        "has_ai_seat": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -1275,7 +1727,8 @@
       "user_agent": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -1285,6 +1738,7 @@
 |--------------|-------------------------------------------------|----------|--------------|-------------|
 | `audit_logs` | array of [codersdk.AuditLog](#codersdkauditlog) | false    |              |             |
 | `count`      | integer                                         | false    |              |             |
+| `count_cap`  | integer                                         | false    |              |             |
 
 ## codersdk.AuthMethod
 
@@ -1508,9 +1962,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------|
-| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                                                                                                                   |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `task_auto_pause`, `task_manual_pause`, `task_resume`, `vscode_connection` |
 
 ## codersdk.CORSBehavior
 
@@ -1543,6 +1997,2009 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`             | string | true     |              |             |
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
+
+## codersdk.Chat
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "archived": true,
+  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "children": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "children": [],
+      "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "resources": [
+          {
+            "error": "string",
+            "kind": "instruction_file",
+            "size_bytes": 0,
+            "skill_description": "string",
+            "skill_name": "string",
+            "source": "string",
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
+          }
+        ]
+      },
+      "created_at": "2019-08-24T14:15:22Z",
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
+      "status": "waiting",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "resources": [
+      {
+        "error": "string",
+        "kind": "instruction_file",
+        "size_bytes": 0,
+        "skill_description": "string",
+        "skill_name": "string",
+        "source": "string",
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
+      }
+    ]
+  },
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "files": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "mime_type": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+    }
+  ],
+  "has_unread": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
+  "status": "waiting",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": [
+    "string"
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `archived`             | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `build_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `children`             | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`              | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `created_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`          | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `files`                | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
+| `has_unread`           | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `labels`               | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`           | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_model_config_id` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_server_ids`       | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `organization_id`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `parent_chat_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `pin_order`            | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `root_chat_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `shared`               | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `status`               | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `title`                | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `updated_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `warnings`             | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `workspace_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+
+## codersdk.ChatACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                              | Required | Restrictions | Description |
+|----------|---------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
+
+## codersdk.ChatBusyBehavior
+
+```json
+"queue"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| `interrupt`, `queue` |
+
+## codersdk.ChatClientType
+
+```json
+"ui"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)    |
+|-------------|
+| `api`, `ui` |
+
+## codersdk.ChatConfig
+
+```json
+{
+  "acquire_batch_size": 0,
+  "debug_logging_enabled": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `acquire_batch_size`    | integer | false    |              |             |
+| `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.ChatContext
+
+```json
+{
+  "dirty": true,
+  "dirty_since": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "resources": [
+    {
+      "error": "string",
+      "kind": "instruction_file",
+      "size_bytes": 0,
+      "skill_description": "string",
+      "skill_name": "string",
+      "source": "string",
+      "status": "ok",
+      "tools": [
+        {
+          "description": "string",
+          "name": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
+|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
+| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
+| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
+| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+
+## codersdk.ChatContextResource
+
+```json
+{
+  "error": "string",
+  "kind": "instruction_file",
+  "size_bytes": 0,
+  "skill_description": "string",
+  "skill_name": "string",
+  "source": "string",
+  "status": "ok",
+  "tools": [
+    {
+      "description": "string",
+      "name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`             | string                                                                   | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
+| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
+| `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
+| `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
+| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
+| `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)            | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+
+## codersdk.ChatContextResourceKind
+
+```json
+"instruction_file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                |
+|---------------------------------------------------------|
+| `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+
+## codersdk.ChatContextResourceStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                              |
+|-------------------------------------------------------|
+| `excluded`, `invalid`, `ok`, `oversize`, `unreadable` |
+
+## codersdk.ChatContextTool
+
+```json
+{
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                                                       |
+|---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
+| `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
+
+## codersdk.ChatDiffContents
+
+```json
+{
+  "branch": "string",
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "diff": "string",
+  "provider": "string",
+  "pull_request_url": "string",
+  "remote_origin": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `branch`           | string | false    |              |             |
+| `chat_id`          | string | false    |              |             |
+| `diff`             | string | false    |              |             |
+| `provider`         | string | false    |              |             |
+| `pull_request_url` | string | false    |              |             |
+| `remote_origin`    | string | false    |              |             |
+
+## codersdk.ChatDiffStatus
+
+```json
+{
+  "additions": 0,
+  "approved": true,
+  "author_avatar_url": "string",
+  "author_login": "string",
+  "base_branch": "string",
+  "changed_files": 0,
+  "changes_requested": true,
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "commits": 0,
+  "deletions": 0,
+  "head_branch": "string",
+  "pr_number": 0,
+  "pull_request_draft": true,
+  "pull_request_state": "string",
+  "pull_request_title": "string",
+  "refreshed_at": "2019-08-24T14:15:22Z",
+  "reviewer_count": 0,
+  "stale_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `additions`          | integer | false    |              |             |
+| `approved`           | boolean | false    |              |             |
+| `author_avatar_url`  | string  | false    |              |             |
+| `author_login`       | string  | false    |              |             |
+| `base_branch`        | string  | false    |              |             |
+| `changed_files`      | integer | false    |              |             |
+| `changes_requested`  | boolean | false    |              |             |
+| `chat_id`            | string  | false    |              |             |
+| `commits`            | integer | false    |              |             |
+| `deletions`          | integer | false    |              |             |
+| `head_branch`        | string  | false    |              |             |
+| `pr_number`          | integer | false    |              |             |
+| `pull_request_draft` | boolean | false    |              |             |
+| `pull_request_state` | string  | false    |              |             |
+| `pull_request_title` | string  | false    |              |             |
+| `refreshed_at`       | string  | false    |              |             |
+| `reviewer_count`     | integer | false    |              |             |
+| `stale_at`           | string  | false    |              |             |
+| `url`                | string  | false    |              |             |
+
+## codersdk.ChatError
+
+```json
+{
+  "detail": "string",
+  "kind": "generic",
+  "message": "string",
+  "provider": "string",
+  "retryable": true,
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name          | Type                                             | Required | Restrictions | Description                                                                                               |
+|---------------|--------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------|
+| `detail`      | string                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available. |
+| `kind`        | [codersdk.ChatErrorKind](#codersdkchaterrorkind) | false    |              | Kind classifies the error for consistent client rendering.                                                |
+| `message`     | string                                           | false    |              | Message is the normalized, user-facing error message.                                                     |
+| `provider`    | string                                           | false    |              | Provider identifies the upstream model provider when known.                                               |
+| `retryable`   | boolean                                          | false    |              | Retryable reports whether the underlying error is transient.                                              |
+| `status_code` | integer                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                 |
+
+## codersdk.ChatErrorKind
+
+```json
+"generic"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+
+## codersdk.ChatFileMetadata
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "mime_type": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+}
+```
+
+### Properties
+
+| Name              | Type   | Required | Restrictions | Description |
+|-------------------|--------|----------|--------------|-------------|
+| `created_at`      | string | false    |              |             |
+| `id`              | string | false    |              |             |
+| `mime_type`       | string | false    |              |             |
+| `name`            | string | false    |              |             |
+| `organization_id` | string | false    |              |             |
+| `owner_id`        | string | false    |              |             |
+
+## codersdk.ChatGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatRole](#codersdkchatrole)                | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
+## codersdk.ChatInputPart
+
+```json
+{
+  "content": "string",
+  "end_line": 0,
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "file_name": "string",
+  "start_line": 0,
+  "text": "string",
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name         | Type                                                     | Required | Restrictions | Description                                                                    |
+|--------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
+| `content`    | string                                                   | false    |              | The code content from the diff that was commented on.                          |
+| `end_line`   | integer                                                  | false    |              |                                                                                |
+| `file_id`    | string                                                   | false    |              |                                                                                |
+| `file_name`  | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference. |
+| `start_line` | integer                                                  | false    |              |                                                                                |
+| `text`       | string                                                   | false    |              |                                                                                |
+| `type`       | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                |
+
+## codersdk.ChatInputPartType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                         |
+|----------------------------------|
+| `file`, `file-reference`, `text` |
+
+## codersdk.ChatMessage
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "content": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+  "id": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "role": "system",
+  "usage": {
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "context_limit": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                          | Required | Restrictions | Description |
+|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`         | string                                                        | false    |              |             |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `created_at`      | string                                                        | false    |              |             |
+| `created_by`      | string                                                        | false    |              |             |
+| `id`              | integer                                                       | false    |              |             |
+| `model_config_id` | string                                                        | false    |              |             |
+| `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
+| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
+
+## codersdk.ChatMessagePart
+
+```json
+{
+  "args": [
+    0
+  ],
+  "args_delta": "string",
+  "completed_at": "2019-08-24T14:15:22Z",
+  "content": "string",
+  "context_file_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "context_file_content": "string",
+  "context_file_directory": "string",
+  "context_file_os": "string",
+  "context_file_path": "string",
+  "context_file_skill_meta_file": "string",
+  "context_file_truncated": true,
+  "created_at": "2019-08-24T14:15:22Z",
+  "data": [
+    0
+  ],
+  "end_line": 0,
+  "file_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "file_name": "string",
+  "is_error": true,
+  "is_media": true,
+  "mcp_server_config_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "media_type": "string",
+  "name": "string",
+  "parsed_commands": [
+    [
+      "string"
+    ]
+  ],
+  "provider_executed": true,
+  "provider_metadata": [
+    0
+  ],
+  "result": [
+    0
+  ],
+  "result_delta": "string",
+  "result_reset": true,
+  "signature": "string",
+  "skill_description": "string",
+  "skill_dir": "string",
+  "skill_name": "string",
+  "source_id": "string",
+  "start_line": 0,
+  "text": "string",
+  "title": "string",
+  "tool_call_id": "string",
+  "tool_name": "string",
+  "type": "text",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
+|--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
+| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
+| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
+| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
+| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
+| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                                                                                                         |
+| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
+| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
+| `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
+| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
+| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
+| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+## codersdk.ChatMessagePartType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                     |
+|--------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+
+## codersdk.ChatMessageRole
+
+```json
+"system"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                              |
+|---------------------------------------|
+| `assistant`, `system`, `tool`, `user` |
+
+## codersdk.ChatMessageUsage
+
+```json
+{
+  "cache_creation_tokens": 0,
+  "cache_read_tokens": 0,
+  "context_limit": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "reasoning_tokens": 0,
+  "total_tokens": 0
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `cache_creation_tokens` | integer | false    |              |             |
+| `cache_read_tokens`     | integer | false    |              |             |
+| `context_limit`         | integer | false    |              |             |
+| `input_tokens`          | integer | false    |              |             |
+| `output_tokens`         | integer | false    |              |             |
+| `reasoning_tokens`      | integer | false    |              |             |
+| `total_tokens`          | integer | false    |              |             |
+
+## codersdk.ChatMessagesResponse
+
+```json
+{
+  "has_more": true,
+  "messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  ],
+  "queued_messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name              | Type                                                              | Required | Restrictions | Description |
+|-------------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `has_more`        | boolean                                                           | false    |              |             |
+| `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+
+## codersdk.ChatModel
+
+```json
+{
+  "display_name": "string",
+  "id": "string",
+  "model": "string",
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `display_name` | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `model`        | string | false    |              |             |
+| `provider`     | string | false    |              |             |
+
+## codersdk.ChatModelProvider
+
+```json
+{
+  "available": true,
+  "models": [
+    {
+      "display_name": "string",
+      "id": "string",
+      "model": "string",
+      "provider": "string"
+    }
+  ],
+  "provider": "string",
+  "unavailable_reason": "missing_api_key"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                                       | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `available`          | boolean                                                                                    | false    |              |             |
+| `models`             | array of [codersdk.ChatModel](#codersdkchatmodel)                                          | false    |              |             |
+| `provider`           | string                                                                                     | false    |              |             |
+| `unavailable_reason` | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
+
+## codersdk.ChatModelProviderUnavailableReason
+
+```json
+"missing_api_key"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                   |
+|------------------------------------------------------------|
+| `fetch_failed`, `missing_api_key`, `user_api_key_required` |
+
+## codersdk.ChatModelsResponse
+
+```json
+{
+  "providers": [
+    {
+      "available": true,
+      "models": [
+        {
+          "display_name": "string",
+          "id": "string",
+          "model": "string",
+          "provider": "string"
+        }
+      ],
+      "provider": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                              | Required | Restrictions | Description |
+|-------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `providers` | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider) | false    |              |             |
+
+## codersdk.ChatPlanMode
+
+```json
+"plan"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s) |
+|----------|
+| `plan`   |
+
+## codersdk.ChatPrompt
+
+```json
+{
+  "id": 0,
+  "text": "string"
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+|--------|---------|----------|--------------|-------------|
+| `id`   | integer | false    |              |             |
+| `text` | string  | false    |              |             |
+
+## codersdk.ChatPromptsResponse
+
+```json
+{
+  "prompts": [
+    {
+      "id": 0,
+      "text": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `prompts` | array of [codersdk.ChatPrompt](#codersdkchatprompt) | false    |              |             |
+
+## codersdk.ChatQueuedMessage
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "content": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Properties
+
+| Name              | Type                                                          | Required | Restrictions | Description |
+|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`         | string                                                        | false    |              |             |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `created_at`      | string                                                        | false    |              |             |
+| `id`              | integer                                                       | false    |              |             |
+| `model_config_id` | string                                                        | false    |              |             |
+
+## codersdk.ChatRetentionDaysResponse
+
+```json
+{
+  "retention_days": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `retention_days` | integer | false    |              |             |
+
+## codersdk.ChatRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
+
+## codersdk.ChatStatus
+
+```json
+"waiting"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                           |
+|----------------------------------------------------------------------------------------------------|
+| `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
+
+## codersdk.ChatStreamActionRequired
+
+```json
+{
+  "tool_calls": [
+    {
+      "args": "string",
+      "tool_call_id": "string",
+      "tool_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+
+## codersdk.ChatStreamEvent
+
+```json
+{
+  "action_required": {
+    "tool_calls": [
+      {
+        "args": "string",
+        "tool_call_id": "string",
+        "tool_name": "string"
+      }
+    ]
+  },
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_reset": true,
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "role": "system",
+    "usage": {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "context_limit": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "message_part": {
+    "generation_attempt": 0,
+    "history_version": 0,
+    "part": {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    },
+    "role": "system",
+    "seq": 0
+  },
+  "queued_messages": [
+    {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "content": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    }
+  ],
+  "retry": {
+    "attempt": 0,
+    "delay_ms": 0,
+    "error": "string",
+    "kind": "generic",
+    "provider": "string",
+    "retrying_at": "2019-08-24T14:15:22Z",
+    "status_code": 0
+  },
+  "status": {
+    "status": "waiting"
+  },
+  "type": "message_part"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                   | Required | Restrictions | Description |
+|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
+| `chat_id`         | string                                                                 | false    |              |             |
+| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+
+## codersdk.ChatStreamEventType
+
+```json
+"message_part"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
+
+## codersdk.ChatStreamMessagePart
+
+```json
+{
+  "generation_attempt": 0,
+  "history_version": 0,
+  "part": {
+    "args": [
+      0
+    ],
+    "args_delta": "string",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "content": "string",
+    "context_file_agent_id": {
+      "uuid": "string",
+      "valid": true
+    },
+    "context_file_content": "string",
+    "context_file_directory": "string",
+    "context_file_os": "string",
+    "context_file_path": "string",
+    "context_file_skill_meta_file": "string",
+    "context_file_truncated": true,
+    "created_at": "2019-08-24T14:15:22Z",
+    "data": [
+      0
+    ],
+    "end_line": 0,
+    "file_id": {
+      "uuid": "string",
+      "valid": true
+    },
+    "file_name": "string",
+    "is_error": true,
+    "is_media": true,
+    "mcp_server_config_id": {
+      "uuid": "string",
+      "valid": true
+    },
+    "media_type": "string",
+    "name": "string",
+    "parsed_commands": [
+      [
+        "string"
+      ]
+    ],
+    "provider_executed": true,
+    "provider_metadata": [
+      0
+    ],
+    "result": [
+      0
+    ],
+    "result_delta": "string",
+    "result_reset": true,
+    "signature": "string",
+    "skill_description": "string",
+    "skill_dir": "string",
+    "skill_name": "string",
+    "source_id": "string",
+    "start_line": 0,
+    "text": "string",
+    "title": "string",
+    "tool_call_id": "string",
+    "tool_name": "string",
+    "type": "text",
+    "url": "string"
+  },
+  "role": "system",
+  "seq": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                 | Required | Restrictions | Description |
+|----------------------|------------------------------------------------------|----------|--------------|-------------|
+| `generation_attempt` | integer                                              | false    |              |             |
+| `history_version`    | integer                                              | false    |              |             |
+| `part`               | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| `seq`                | integer                                              | false    |              |             |
+
+## codersdk.ChatStreamRetry
+
+```json
+{
+  "attempt": 0,
+  "delay_ms": 0,
+  "error": "string",
+  "kind": "generic",
+  "provider": "string",
+  "retrying_at": "2019-08-24T14:15:22Z",
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name          | Type                                             | Required | Restrictions | Description                                                       |
+|---------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------|
+| `attempt`     | integer                                          | false    |              | Attempt is the 1-indexed retry attempt number.                    |
+| `delay_ms`    | integer                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.   |
+| `error`       | string                                           | false    |              | Error is the normalized error message from the failed attempt.    |
+| `kind`        | [codersdk.ChatErrorKind](#codersdkchaterrorkind) | false    |              | Kind classifies the retry reason for consistent client rendering. |
+| `provider`    | string                                           | false    |              | Provider identifies the upstream model provider when known.       |
+| `retrying_at` | string                                           | false    |              | Retrying at is the timestamp when the retry will be attempted.    |
+| `status_code` | integer                                          | false    |              | Status code is the best-effort upstream HTTP status code.         |
+
+## codersdk.ChatStreamStatus
+
+```json
+{
+  "status": "waiting"
+}
+```
+
+### Properties
+
+| Name     | Type                                       | Required | Restrictions | Description |
+|----------|--------------------------------------------|----------|--------------|-------------|
+| `status` | [codersdk.ChatStatus](#codersdkchatstatus) | false    |              |             |
+
+## codersdk.ChatStreamToolCall
+
+```json
+{
+  "args": "string",
+  "tool_call_id": "string",
+  "tool_name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `args`         | string | false    |              |             |
+| `tool_call_id` | string | false    |              |             |
+| `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                   | Required | Restrictions | Description |
+|--------------|----------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                 | false    |              |             |
+| `id`         | string                                 | true     |              |             |
+| `name`       | string                                 | false    |              |             |
+| `role`       | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `username`   | string                                 | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
+## codersdk.ChatWatchEvent
+
+```json
+{
+  "chat": {
+    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+    "archived": true,
+    "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+    "children": [
+      {}
+    ],
+    "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "resources": [
+        {
+          "error": "string",
+          "kind": "instruction_file",
+          "size_bytes": 0,
+          "skill_description": "string",
+          "skill_name": "string",
+          "source": "string",
+          "status": "ok",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ]
+        }
+      ]
+    },
+    "created_at": "2019-08-24T14:15:22Z",
+    "diff_status": {
+      "additions": 0,
+      "approved": true,
+      "author_avatar_url": "string",
+      "author_login": "string",
+      "base_branch": "string",
+      "changed_files": 0,
+      "changes_requested": true,
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "commits": 0,
+      "deletions": 0,
+      "head_branch": "string",
+      "pr_number": 0,
+      "pull_request_draft": true,
+      "pull_request_state": "string",
+      "pull_request_title": "string",
+      "refreshed_at": "2019-08-24T14:15:22Z",
+      "reviewer_count": 0,
+      "stale_at": "2019-08-24T14:15:22Z",
+      "url": "string"
+    },
+    "files": [
+      {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "mime_type": "string",
+        "name": "string",
+        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      }
+    ],
+    "has_unread": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "labels": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "last_error": {
+      "detail": "string",
+      "kind": "generic",
+      "message": "string",
+      "provider": "string",
+      "retryable": true,
+      "status_code": 0
+    },
+    "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_turn_summary": "string",
+    "mcp_server_ids": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
+    "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+    "pin_order": 0,
+    "plan_mode": "plan",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
+    "status": "waiting",
+    "title": "string",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "warnings": [
+      "string"
+    ],
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  },
+  "kind": "status_change",
+  "tool_calls": [
+    {
+      "args": "string",
+      "tool_call_id": "string",
+      "tool_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `chat`       | [codersdk.Chat](#codersdkchat)                                      | false    |              |             |
+| `kind`       | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |             |
+| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+
+## codersdk.ChatWatchEventKind
+
+```json
+"status_change"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+
+## codersdk.ClusterConfig
+
+```json
+{
+  "host": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `host` | string | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -1588,7 +4045,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -1663,7 +4122,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "avatar_url": "http://example.com",
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
+          "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -1690,7 +4151,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "workspace_owner_username": "string"
     }
   ],
-  "count": 0
+  "count": 0,
+  "count_cap": 0
 }
 ```
 
@@ -1700,6 +4162,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|-----------------------------------------------------------|----------|--------------|-------------|
 | `connection_logs` | array of [codersdk.ConnectionLog](#codersdkconnectionlog) | false    |              |             |
 | `count`           | integer                                                   | false    |              |             |
+| `count_cap`       | integer                                                   | false    |              |             |
 
 ## codersdk.ConnectionLogSSHInfo
 
@@ -1731,7 +4194,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
+    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
     "name": "string",
@@ -1793,12 +4258,363 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateAIGatewayKeyRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `name` | string | true     |              |             |
+
+## codersdk.CreateAIGatewayKeyResponse
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `key`        | string | false    |              |             |
+| `key_prefix` | string | false    |              |             |
+| `name`       | string | false    |              |             |
+
+## codersdk.CreateAIProviderRequest
+
+```json
+{
+  "api_keys": [
+    "string"
+  ],
+  "base_url": "string",
+  "display_name": "string",
+  "enabled": true,
+  "name": "string",
+  "settings": {},
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                                       | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of string                                            | false    |              |             |
+| `base_url`     | string                                                     | false    |              |             |
+| `display_name` | string                                                     | false    |              |             |
+| `enabled`      | boolean                                                    | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
+
+## codersdk.CreateChatMessageRequest
+
+```json
+{
+  "busy_behavior": "queue",
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "plan_mode": "plan"
+}
+```
+
+### Properties
+
+| Name              | Type                                                      | Required | Restrictions | Description                                                                                                  |
+|-------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
+| `mcp_server_ids`  | array of string                                           | false    |              |                                                                                                              |
+| `model_config_id` | string                                                    | false    |              |                                                                                                              |
+| `plan_mode`       | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+
+#### Enumerated Values
+
+| Property        | Value(s)             |
+|-----------------|----------------------|
+| `busy_behavior` | `interrupt`, `queue` |
+
+## codersdk.CreateChatMessageResponse
+
+```json
+{
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_reset": true,
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "role": "system",
+    "usage": {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "context_limit": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "queued": true,
+  "queued_message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_reset": true,
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  },
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name             | Type                                                     | Required | Restrictions | Description |
+|------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
+| `queued`         | boolean                                                  | false    |              |             |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
+| `warnings`       | array of string                                          | false    |              |             |
+
+## codersdk.CreateChatRequest
+
+```json
+{
+  "client_type": "ui",
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "plan_mode": "plan",
+  "system_prompt": "string",
+  "unsafe_dynamic_tools": [
+    {
+      "description": "string",
+      "input_schema": [
+        0
+      ],
+      "name": "string"
+    }
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
+|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
+| `labels`               | object                                                    | false    |              |                                                                                                                                            |
+| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
+| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
+| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
+| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
+| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
+| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+
+## codersdk.CreateFirstUserOnboardingInfo
+
+```json
+{
+  "newsletter_marketing": true,
+  "newsletter_releases": true
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `newsletter_marketing` | boolean | false    |              |             |
+| `newsletter_releases`  | boolean | false    |              |             |
+
 ## codersdk.CreateFirstUserRequest
 
 ```json
 {
   "email": "string",
   "name": "string",
+  "onboarding_info": {
+    "newsletter_marketing": true,
+    "newsletter_releases": true
+  },
   "password": "string",
   "trial": true,
   "trial_info": {
@@ -1816,14 +4632,15 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                   | Required | Restrictions | Description |
-|--------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `email`      | string                                                                 | true     |              |             |
-| `name`       | string                                                                 | false    |              |             |
-| `password`   | string                                                                 | true     |              |             |
-| `trial`      | boolean                                                                | false    |              |             |
-| `trial_info` | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo) | false    |              |             |
-| `username`   | string                                                                 | true     |              |             |
+| Name              | Type                                                                             | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `email`           | string                                                                           | true     |              |             |
+| `name`            | string                                                                           | false    |              |             |
+| `onboarding_info` | [codersdk.CreateFirstUserOnboardingInfo](#codersdkcreatefirstuseronboardinginfo) | false    |              |             |
+| `password`        | string                                                                           | true     |              |             |
+| `trial`           | boolean                                                                          | false    |              |             |
+| `trial_info`      | [codersdk.CreateFirstUserTrialInfo](#codersdkcreatefirstusertrialinfo)           | false    |              |             |
+| `username`        | string                                                                           | true     |              |             |
 
 ## codersdk.CreateFirstUserResponse
 
@@ -1975,7 +4792,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "require_active_version": true,
   "template_use_classic_parameter_flow": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "time_til_autostop_notify_ms": 0
 }
 ```
 
@@ -2004,6 +4822,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `template_use_classic_parameter_flow` | boolean                                                                        | false    |              | Template use classic parameter flow allows optionally specifying whether the template should use the classic parameter flow. The default if unset is true, and is why `*bool` is used here. When dynamic parameters becomes the default, this will default to false.                                                |
 |`template_version_id`|string|true||Template version ID is an in-progress or completed job to use as an initial version of the template.
 This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users.|
+|`time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled).|
 
 ## codersdk.CreateTemplateVersionDryRunRequest
 
@@ -2157,6 +4976,10 @@ This is required on creation to enable a user-flow of validating a template work
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "roles": [
+    "string"
+  ],
+  "service_account": true,
   "user_status": "active",
   "username": "string"
 }
@@ -2166,13 +4989,51 @@ This is required on creation to enable a user-flow of validating a template work
 
 | Name               | Type                                       | Required | Restrictions | Description                                                                         |
 |--------------------|--------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------|
-| `email`            | string                                     | true     |              |                                                                                     |
+| `email`            | string                                     | false    |              |                                                                                     |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
 | `name`             | string                                     | false    |              |                                                                                     |
 | `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
 | `password`         | string                                     | false    |              |                                                                                     |
+| `roles`            | array of string                            | false    |              | Roles is an optional list of site-level roles to assign at creation.                |
+| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
+
+## codersdk.CreateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `value`       | string | false    |              |             |
+
+## codersdk.CreateUserSkillRequest
+
+```json
+{
+  "content": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
+|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
 
 ## codersdk.CreateWorkspaceBuildReason
 
@@ -2184,9 +5045,9 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Value(s)                                                                          |
-|-----------------------------------------------------------------------------------|
-| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
+| Value(s)                                                                                                              |
+|-----------------------------------------------------------------------------------------------------------------------|
+| `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `task_resume`, `vscode_connection` |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -2227,11 +5088,11 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                          |
-|--------------|-----------------------------------------------------------------------------------|
-| `log_level`  | `debug`                                                                           |
-| `reason`     | `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `vscode_connection` |
-| `transition` | `delete`, `start`, `stop`                                                         |
+| Property     | Value(s)                                                                                               |
+|--------------|--------------------------------------------------------------------------------------------------------|
+| `log_level`  | `debug`                                                                                                |
+| `reason`     | `cli`, `dashboard`, `jetbrains_connection`, `ssh_connection`, `task_manual_pause`, `vscode_connection` |
+| `transition` | `delete`, `start`, `stop`                                                                              |
 
 ## codersdk.CreateWorkspaceProxyRequest
 
@@ -2661,6 +5522,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "agent_stat_refresh_interval": 0,
     "ai": {
       "aibridge_proxy": {
+        "allowed_private_cidrs": [
+          "string"
+        ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -2668,14 +5533,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "tls_cert_file": "string",
+        "tls_key_file": "string",
         "upstream_proxy": "string",
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "allow_byok": true,
         "anthropic": {
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -2684,6 +5553,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -2696,10 +5567,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "providers": [
+          {
+            "base_url": "string",
+            "bedrock_model": "string",
+            "bedrock_region": "string",
+            "bedrock_small_fast_model": "string",
+            "name": "string",
+            "type": "string"
+          }
+        ],
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
+      },
+      "chat": {
+        "acquire_batch_size": 0,
+        "debug_logging_enabled": true
       }
     },
     "allow_workspace_renames": true,
@@ -2707,6 +5592,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -2749,6 +5637,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
@@ -2775,6 +5664,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "external_auth": {
       "value": [
         {
+          "api_base_url": "string",
           "app_install_url": "string",
           "app_installations_url": "string",
           "auth_url": "string",
@@ -2802,6 +5692,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         }
       ]
     },
+    "external_auth_github_default_provider_enable": true,
     "external_token_encryption_keys": [
       "string"
     ],
@@ -2812,6 +5703,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
+      "host_prefix": true,
       "same_site": "string",
       "secure_auth_cookie": true
     },
@@ -2894,6 +5786,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -2929,6 +5822,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
       "scopes": [
         "string"
       ],
@@ -2991,10 +5897,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
+    "scim_use_legacy": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,
@@ -3044,6 +5952,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_builder": {
+      "disabled": true,
+      "registry_url": "string"
     },
     "terms_of_service_url": "string",
     "tls": {
@@ -3215,6 +6127,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "agent_stat_refresh_interval": 0,
   "ai": {
     "aibridge_proxy": {
+      "allowed_private_cidrs": [
+        "string"
+      ],
+      "api_dump_dir": "string",
       "cert_file": "string",
       "domain_allowlist": [
         "string"
@@ -3222,14 +6138,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string",
+      "tls_cert_file": "string",
+      "tls_key_file": "string",
       "upstream_proxy": "string",
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "allow_byok": true,
       "anthropic": {
         "base_url": "string",
         "key": "string"
       },
+      "api_dump_dir": "string",
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
@@ -3238,6 +6158,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "region": "string",
         "small_fast_model": "string"
       },
+      "budget_period": "string",
+      "budget_policy": "string",
       "circuit_breaker_enabled": true,
       "circuit_breaker_failure_threshold": 0,
       "circuit_breaker_interval": 0,
@@ -3250,10 +6172,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "base_url": "string",
         "key": "string"
       },
+      "providers": [
+        {
+          "base_url": "string",
+          "bedrock_model": "string",
+          "bedrock_region": "string",
+          "bedrock_small_fast_model": "string",
+          "name": "string",
+          "type": "string"
+        }
+      ],
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
       "structured_logging": true
+    },
+    "chat": {
+      "acquire_batch_size": 0,
+      "debug_logging_enabled": true
     }
   },
   "allow_workspace_renames": true,
@@ -3261,6 +6197,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "browser_only": true,
   "cache_directory": "string",
   "cli_upgrade_message": "string",
+  "cluster": {
+    "host": "string"
+  },
   "config": "string",
   "config_ssh": {
     "deploymentName": "string",
@@ -3303,6 +6242,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ]
     }
   },
+  "disable_chat_sharing": true,
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
@@ -3329,6 +6269,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "external_auth": {
     "value": [
       {
+        "api_base_url": "string",
         "app_install_url": "string",
         "app_installations_url": "string",
         "auth_url": "string",
@@ -3356,6 +6297,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       }
     ]
   },
+  "external_auth_github_default_provider_enable": true,
   "external_token_encryption_keys": [
     "string"
   ],
@@ -3366,6 +6308,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
+    "host_prefix": true,
     "same_site": "string",
     "secure_auth_cookie": true
   },
@@ -3448,6 +6391,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
+    "auto_repair_links": true,
     "client_cert_file": "string",
     "client_id": "string",
     "client_key_file": "string",
@@ -3483,6 +6427,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "organization_assign_default": true,
     "organization_field": "string",
     "organization_mapping": {},
+    "redirect_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
     "scopes": [
       "string"
     ],
@@ -3545,10 +6502,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
+    "boundary_logs": 0,
     "connection_logs": 0,
     "workspace_agent_logs": 0
   },
   "scim_api_key": "string",
+  "scim_use_legacy": true,
   "session_lifetime": {
     "default_duration": 0,
     "default_token_lifetime": 0,
@@ -3598,6 +6557,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     }
+  },
+  "template_builder": {
+    "disabled": true,
+    "registry_url": "string"
   },
   "terms_of_service_url": "string",
   "tls": {
@@ -3651,78 +6614,83 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                                 | Type                                                                                                 | Required | Restrictions | Description                                                        |
-|--------------------------------------|------------------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
-| `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
-| `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
-| `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
-| `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
-| `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
-| `ai`                                 | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
-| `allow_workspace_renames`            | boolean                                                                                              | false    |              |                                                                    |
-| `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
-| `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
-| `cache_directory`                    | string                                                                                               | false    |              |                                                                    |
-| `cli_upgrade_message`                | string                                                                                               | false    |              |                                                                    |
-| `config`                             | string                                                                                               | false    |              |                                                                    |
-| `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
-| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
-| `derp`                               | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                    |
-| `disable_owner_workspace_exec`       | boolean                                                                                              | false    |              |                                                                    |
-| `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
-| `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
-| `disable_workspace_sharing`          | boolean                                                                                              | false    |              |                                                                    |
-| `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
-| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
-| `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
-| `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
-| `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
-| `external_auth`                      | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
-| `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
-| `healthcheck`                        | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
-| `hide_ai_tasks`                      | boolean                                                                                              | false    |              |                                                                    |
-| `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
-| `http_cookies`                       | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
-| `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
-| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
-| `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |
-| `notifications`                      | [codersdk.NotificationsConfig](#codersdknotificationsconfig)                                         | false    |              |                                                                    |
-| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
-| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
-| `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
-| `pg_conn_max_idle`                   | string                                                                                               | false    |              |                                                                    |
-| `pg_conn_max_open`                   | integer                                                                                              | false    |              |                                                                    |
-| `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
-| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
-| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
-| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                             | false    |              |                                                                    |
-| `proxy_health_status_interval`       | integer                                                                                              | false    |              |                                                                    |
-| `proxy_trusted_headers`              | array of string                                                                                      | false    |              |                                                                    |
-| `proxy_trusted_origins`              | array of string                                                                                      | false    |              |                                                                    |
-| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                 | false    |              |                                                                    |
-| `redirect_to_access_url`             | boolean                                                                                              | false    |              |                                                                    |
-| `retention`                          | [codersdk.RetentionConfig](#codersdkretentionconfig)                                                 | false    |              |                                                                    |
-| `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
-| `session_lifetime`                   | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
-| `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
-| `stats_collection`                   | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                    |
-| `strict_transport_security`          | integer                                                                                              | false    |              |                                                                    |
-| `strict_transport_security_options`  | array of string                                                                                      | false    |              |                                                                    |
-| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
-| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
-| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
-| `terms_of_service_url`               | string                                                                                               | false    |              |                                                                    |
-| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
-| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
-| `update_check`                       | boolean                                                                                              | false    |              |                                                                    |
-| `user_quiet_hours_schedule`          | [codersdk.UserQuietHoursScheduleConfig](#codersdkuserquiethoursscheduleconfig)                       | false    |              |                                                                    |
-| `verbose`                            | boolean                                                                                              | false    |              |                                                                    |
-| `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
-| `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
-| `wildcard_access_url`                | string                                                                                               | false    |              |                                                                    |
-| `workspace_hostname_suffix`          | string                                                                                               | false    |              |                                                                    |
-| `workspace_prebuilds`                | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
-| `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
+| Name                                           | Type                                                                                                 | Required | Restrictions | Description                                                        |
+|------------------------------------------------|------------------------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
+| `access_url`                                   | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `additional_csp_policy`                        | array of string                                                                                      | false    |              |                                                                    |
+| `address`                                      | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
+| `agent_fallback_troubleshooting_url`           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `agent_stat_refresh_interval`                  | integer                                                                                              | false    |              |                                                                    |
+| `ai`                                           | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
+| `allow_workspace_renames`                      | boolean                                                                                              | false    |              |                                                                    |
+| `autobuild_poll_interval`                      | integer                                                                                              | false    |              |                                                                    |
+| `browser_only`                                 | boolean                                                                                              | false    |              |                                                                    |
+| `cache_directory`                              | string                                                                                               | false    |              |                                                                    |
+| `cli_upgrade_message`                          | string                                                                                               | false    |              |                                                                    |
+| `cluster`                                      | [codersdk.ClusterConfig](#codersdkclusterconfig)                                                     | false    |              |                                                                    |
+| `config`                                       | string                                                                                               | false    |              |                                                                    |
+| `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
+| `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
+| `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                    |
+| `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                    |
+| `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                    |
+| `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                    |
+| `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
+| `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                    |
+| `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                    |
+| `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                    |
+| `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                    |
+| `experiments`                                  | array of string                                                                                      | false    |              |                                                                    |
+| `external_auth`                                | [serpent.Struct-array_codersdk_ExternalAuthConfig](#serpentstruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
+| `external_auth_github_default_provider_enable` | boolean                                                                                              | false    |              |                                                                    |
+| `external_token_encryption_keys`               | array of string                                                                                      | false    |              |                                                                    |
+| `healthcheck`                                  | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
+| `hide_ai_tasks`                                | boolean                                                                                              | false    |              |                                                                    |
+| `http_address`                                 | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
+| `http_cookies`                                 | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
+| `job_hang_detector_interval`                   | integer                                                                                              | false    |              |                                                                    |
+| `logging`                                      | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
+| `metrics_cache_refresh_interval`               | integer                                                                                              | false    |              |                                                                    |
+| `notifications`                                | [codersdk.NotificationsConfig](#codersdknotificationsconfig)                                         | false    |              |                                                                    |
+| `oauth2`                                       | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
+| `oidc`                                         | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
+| `pg_auth`                                      | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_idle`                             | string                                                                                               | false    |              |                                                                    |
+| `pg_conn_max_open`                             | integer                                                                                              | false    |              |                                                                    |
+| `pg_connection_url`                            | string                                                                                               | false    |              |                                                                    |
+| `pprof`                                        | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
+| `prometheus`                                   | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
+| `provisioner`                                  | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                             | false    |              |                                                                    |
+| `proxy_health_status_interval`                 | integer                                                                                              | false    |              |                                                                    |
+| `proxy_trusted_headers`                        | array of string                                                                                      | false    |              |                                                                    |
+| `proxy_trusted_origins`                        | array of string                                                                                      | false    |              |                                                                    |
+| `rate_limit`                                   | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                 | false    |              |                                                                    |
+| `redirect_to_access_url`                       | boolean                                                                                              | false    |              |                                                                    |
+| `retention`                                    | [codersdk.RetentionConfig](#codersdkretentionconfig)                                                 | false    |              |                                                                    |
+| `scim_api_key`                                 | string                                                                                               | false    |              |                                                                    |
+| `scim_use_legacy`                              | boolean                                                                                              | false    |              |                                                                    |
+| `session_lifetime`                             | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
+| `ssh_keygen_algorithm`                         | string                                                                                               | false    |              |                                                                    |
+| `stats_collection`                             | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                    |
+| `strict_transport_security`                    | integer                                                                                              | false    |              |                                                                    |
+| `strict_transport_security_options`            | array of string                                                                                      | false    |              |                                                                    |
+| `support`                                      | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
+| `swagger`                                      | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
+| `telemetry`                                    | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
+| `template_builder`                             | [codersdk.TemplateBuilderConfig](#codersdktemplatebuilderconfig)                                     | false    |              |                                                                    |
+| `terms_of_service_url`                         | string                                                                                               | false    |              |                                                                    |
+| `tls`                                          | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
+| `trace`                                        | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
+| `update_check`                                 | boolean                                                                                              | false    |              |                                                                    |
+| `user_quiet_hours_schedule`                    | [codersdk.UserQuietHoursScheduleConfig](#codersdkuserquiethoursscheduleconfig)                       | false    |              |                                                                    |
+| `verbose`                                      | boolean                                                                                              | false    |              |                                                                    |
+| `web_terminal_renderer`                        | string                                                                                               | false    |              |                                                                    |
+| `wgtunnel_host`                                | string                                                                                               | false    |              |                                                                    |
+| `wildcard_access_url`                          | string                                                                                               | false    |              |                                                                    |
+| `workspace_hostname_suffix`                    | string                                                                                               | false    |              |                                                                    |
+| `workspace_prebuilds`                          | [codersdk.PrebuildsConfig](#codersdkprebuildsconfig)                                                 | false    |              |                                                                    |
+| `write_config`                                 | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DiagnosticExtra
 
@@ -3872,6 +6840,150 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`          | integer                                                             | false    |              |             |
 | `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
+## codersdk.DynamicTool
+
+```json
+{
+  "description": "string",
+  "input_schema": [
+    0
+  ],
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type             | Required | Restrictions | Description                                                                                                                                  |
+|----------------|------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `description`  | string           | false    |              |                                                                                                                                              |
+| `input_schema` | array of integer | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
+| `name`         | string           | false    |              |                                                                                                                                              |
+
+## codersdk.EditChatMessageRequest
+
+```json
+{
+  "content": [
+    {
+      "content": "string",
+      "end_line": 0,
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "file_name": "string",
+      "start_line": 0,
+      "text": "string",
+      "type": "text"
+    }
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+}
+```
+
+### Properties
+
+| Name              | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
+|-------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
+| `model_config_id` | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
+
+## codersdk.EditChatMessageResponse
+
+```json
+{
+  "message": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "content": [
+      {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_reset": true,
+        "signature": "string",
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
+    "id": 0,
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "role": "system",
+    "usage": {
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "context_limit": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "reasoning_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                         | Required | Restrictions | Description |
+|------------|----------------------------------------------|----------|--------------|-------------|
+| `message`  | [codersdk.ChatMessage](#codersdkchatmessage) | false    |              |             |
+| `warnings` | array of string                              | false    |              |             |
+
 ## codersdk.Entitlement
 
 ```json
@@ -3899,7 +7011,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "entitlement": "entitled",
       "limit": 0,
-      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -3911,7 +7022,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "entitlement": "entitled",
       "limit": 0,
-      "soft_limit": 0,
       "usage_period": {
         "end": "2019-08-24T14:15:22Z",
         "issued_at": "2019-08-24T14:15:22Z",
@@ -3952,9 +7062,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-sharing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                             |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-app-tabs`, `ai-gateway-cost-control`, `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -4062,6 +7172,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "api_base_url": "string",
   "app_install_url": "string",
   "app_installations_url": "string",
   "auth_url": "string",
@@ -4091,22 +7202,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                               | Type            | Required | Restrictions | Description                                                                                                       |
-|------------------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
-| `app_install_url`                  | string          | false    |              |                                                                                                                   |
-| `app_installations_url`            | string          | false    |              |                                                                                                                   |
-| `auth_url`                         | string          | false    |              |                                                                                                                   |
-| `client_id`                        | string          | false    |              |                                                                                                                   |
-| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256". |
-| `device_code_url`                  | string          | false    |              |                                                                                                                   |
-| `device_flow`                      | boolean         | false    |              |                                                                                                                   |
-| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                            |
-| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                      |
-| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                           |
-| `mcp_tool_allow_regex`             | string          | false    |              |                                                                                                                   |
-| `mcp_tool_deny_regex`              | string          | false    |              |                                                                                                                   |
-| `mcp_url`                          | string          | false    |              |                                                                                                                   |
-| `no_refresh`                       | boolean         | false    |              |                                                                                                                   |
+| Name                               | Type            | Required | Restrictions | Description                                                                                                                                                 |
+|------------------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_base_url`                     | string          | false    |              | Api base URL is the base URL for provider REST API calls (e.g., "https://api.github.com" for GitHub). Derived from defaults when not explicitly configured. |
+| `app_install_url`                  | string          | false    |              |                                                                                                                                                             |
+| `app_installations_url`            | string          | false    |              |                                                                                                                                                             |
+| `auth_url`                         | string          | false    |              |                                                                                                                                                             |
+| `client_id`                        | string          | false    |              |                                                                                                                                                             |
+| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256".                                           |
+| `device_code_url`                  | string          | false    |              |                                                                                                                                                             |
+| `device_flow`                      | boolean         | false    |              |                                                                                                                                                             |
+| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                                                                      |
+| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                                                                |
+| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                                                                     |
+| `mcp_tool_allow_regex`             | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
+| `mcp_tool_deny_regex`              | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
+| `mcp_url`                          | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
+| `no_refresh`                       | boolean         | false    |              |                                                                                                                                                             |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
 |`revoke_url`|string|false|||
@@ -4193,7 +7305,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "enabled": true,
   "entitlement": "entitled",
   "limit": 0,
-  "soft_limit": 0,
   "usage_period": {
     "end": "2019-08-24T14:15:22Z",
     "issued_at": "2019-08-24T14:15:22Z",
@@ -4204,13 +7315,12 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name          | Type                                         | Required | Restrictions | Description                                                                                                                                                                  |
-|---------------|----------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `actual`      | integer                                      | false    |              |                                                                                                                                                                              |
-| `enabled`     | boolean                                      | false    |              |                                                                                                                                                                              |
-| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                              |
-| `limit`       | integer                                      | false    |              |                                                                                                                                                                              |
-| `soft_limit`  | integer                                      | false    |              | Soft limit is the soft limit of the feature, and is only used for showing included limits in the dashboard. No license validation or warnings are generated from this value. |
+| Name          | Type                                         | Required | Restrictions | Description |
+|---------------|----------------------------------------------|----------|--------------|-------------|
+| `actual`      | integer                                      | false    |              |             |
+| `enabled`     | boolean                                      | false    |              |             |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
+| `limit`       | integer                                      | false    |              |             |
 |`usage_period`|[codersdk.UsagePeriod](#codersdkusageperiod)|false||Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license).
 These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go.
 Only certain features set these fields: - FeatureManagedAgentLimit|
@@ -4323,7 +7433,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -4402,6 +7514,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -4436,6 +7549,57 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
 | `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
 | `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+## codersdk.GroupAIBudget
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `created_at`         | string  | false    |              |             |
+| `group_id`           | string  | false    |              |             |
+| `spend_limit_micros` | integer | false    |              |             |
+| `updated_at`         | string  | false    |              |             |
+
+## codersdk.GroupMembersResponse
+
+```json
+{
+  "count": 0,
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                  | Required | Restrictions | Description |
+|---------|-------------------------------------------------------|----------|--------------|-------------|
+| `count` | integer                                               | false    |              |             |
+| `users` | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
 ## codersdk.GroupSource
 
@@ -4489,6 +7653,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
+  "host_prefix": true,
   "same_site": "string",
   "secure_auth_cookie": true
 }
@@ -4498,6 +7663,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Name                 | Type    | Required | Restrictions | Description |
 |----------------------|---------|----------|--------------|-------------|
+| `host_prefix`        | boolean | false    |              |             |
 | `same_site`          | string  | false    |              |             |
 | `secure_auth_cookie` | boolean | false    |              |             |
 
@@ -4682,9 +7848,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                      |
-|-------------------------------|
-| `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -5687,12 +8853,27 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `iconUrl`    | string  | false    |              |             |
 | `signInText` | string  | false    |              |             |
 
+## codersdk.OIDCClaimsResponse
+
+```json
+{
+  "claims": {}
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description                                                                                                                                                                 |
+|----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `claims` | object | false    |              | Claims are the merged claims from the OIDC provider. These are the union of the ID token claims and the userinfo claims, where userinfo claims take precedence on conflict. |
+
 ## codersdk.OIDCConfig
 
 ```json
 {
   "allow_signups": true,
   "auth_url_params": {},
+  "auto_repair_links": true,
   "client_cert_file": "string",
   "client_id": "string",
   "client_key_file": "string",
@@ -5728,6 +8909,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "organization_assign_default": true,
   "organization_field": "string",
   "organization_mapping": {},
+  "redirect_url": {
+    "forceQuery": true,
+    "fragment": "string",
+    "host": "string",
+    "omitHost": true,
+    "opaque": "string",
+    "path": "string",
+    "rawFragment": "string",
+    "rawPath": "string",
+    "rawQuery": "string",
+    "scheme": "string",
+    "user": {}
+  },
   "scopes": [
     "string"
   ],
@@ -5750,6 +8944,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------------------------------|----------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allow_signups`                      | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `auth_url_params`                    | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `auto_repair_links`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_cert_file`                   | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_id`                          | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |
@@ -5769,6 +8964,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization_assign_default`        | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `organization_field`                 | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `organization_mapping`               | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `redirect_url`                       | [serpent.URL](#serpenturl)       | false    |              | Redirect URL is optional, defaulting to 'ACCESS_URL'. Only useful in niche situations where the OIDC callback domain is different from the ACCESS_URL domain.                                                                                                                                                                                                      |
 | `scopes`                             | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `sign_in_text`                       | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `signups_disabled_text`              | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
@@ -5798,6 +8994,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -5810,16 +9009,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `created_at`   | string  | true     |              |             |
-| `description`  | string  | false    |              |             |
-| `display_name` | string  | false    |              |             |
-| `icon`         | string  | false    |              |             |
-| `id`           | string  | true     |              |             |
-| `is_default`   | boolean | true     |              |             |
-| `name`         | string  | false    |              |             |
-| `updated_at`   | string  | true     |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                                                                                     |
+|----------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string          | true     |              |                                                                                                                                                 |
+| `default_org_member_roles` | array of string | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `description`              | string          | false    |              |                                                                                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                                                                                 |
+| `id`                       | string          | true     |              |                                                                                                                                                 |
+| `is_default`               | boolean         | true     |              |                                                                                                                                                 |
+| `name`                     | string          | false    |              |                                                                                                                                                 |
+| `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
 ## codersdk.OrganizationMember
 
@@ -5863,6 +9063,10 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "has_ai_seat": true,
+  "is_service_account": true,
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -5872,26 +9076,42 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "status": "active",
   "updated_at": "2019-08-24T14:15:22Z",
+  "user_created_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "user_updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                            | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`      | string                                          | false    |              |             |
-| `created_at`      | string                                          | false    |              |             |
-| `email`           | string                                          | false    |              |             |
-| `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `name`            | string                                          | false    |              |             |
-| `organization_id` | string                                          | false    |              |             |
-| `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `updated_at`      | string                                          | false    |              |             |
-| `user_id`         | string                                          | false    |              |             |
-| `username`        | string                                          | false    |              |             |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | false    |              |                                                                                                  |
+| `email`              | string                                          | false    |              |                                                                                                  |
+| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_id`    | string                                          | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `user_created_at`    | string                                          | false    |              |                                                                                                  |
+| `user_id`            | string                                          | false    |              |                                                                                                  |
+| `user_updated_at`    | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | false    |              |                                                                                                  |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.OrganizationSyncSettings
 
@@ -5936,6 +9156,10 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "has_ai_seat": true,
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "roles": [
@@ -5945,8 +9169,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "status": "active",
       "updated_at": "2019-08-24T14:15:22Z",
+      "user_created_at": "2019-08-24T14:15:22Z",
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "user_updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]
@@ -6177,6 +9404,228 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `id`               | string  | true     |              |             |
 | `name`             | string  | true     |              |             |
 | `regenerate_token` | boolean | false    |              |             |
+
+## codersdk.PauseTaskResponse
+
+```json
+{
+  "workspace_build": {
+    "build_number": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
+    "has_external_agent": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+    "initiator_name": "string",
+    "job": {
+      "available_workers": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "input": {
+        "error": "string",
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+      },
+      "logs_overflowed": true,
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_build_transition": "start",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "queue_position": 0,
+      "queue_size": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "type": "template_version_import",
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
+    },
+    "matched_provisioners": {
+      "available": 0,
+      "count": 0,
+      "most_recently_seen": "2019-08-24T14:15:22Z"
+    },
+    "max_deadline": "2019-08-24T14:15:22Z",
+    "reason": "initiator",
+    "resources": [
+      {
+        "agents": [
+          {
+            "api_version": "string",
+            "apps": [
+              {
+                "command": "string",
+                "display_name": "string",
+                "external": true,
+                "group": "string",
+                "health": "disabled",
+                "healthcheck": {
+                  "interval": 0,
+                  "threshold": 0,
+                  "url": "string"
+                },
+                "hidden": true,
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "open_in": "slim-window",
+                "sharing_level": "owner",
+                "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
+                "subdomain": true,
+                "subdomain_name": "string",
+                "tooltip": "string",
+                "url": "string"
+              }
+            ],
+            "architecture": "string",
+            "connection_timeout_seconds": 0,
+            "created_at": "2019-08-24T14:15:22Z",
+            "directory": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": [
+              "vscode"
+            ],
+            "environment_variables": {
+              "property1": "string",
+              "property2": "string"
+            },
+            "expanded_directory": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "instance_id": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
+            "latency": {
+              "property1": {
+                "latency_ms": 0,
+                "preferred": true
+              },
+              "property2": {
+                "latency_ms": 0,
+                "preferred": true
+              }
+            },
+            "lifecycle_state": "created",
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
+            "logs_length": 0,
+            "logs_overflowed": true,
+            "name": "string",
+            "operating_system": "string",
+            "parent_id": {
+              "uuid": "string",
+              "valid": true
+            },
+            "ready_at": "2019-08-24T14:15:22Z",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "scripts": [
+              {
+                "cron": "string",
+                "display_name": "string",
+                "exit_code": 0,
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "status": "ok",
+                "timeout": 0
+              }
+            ],
+            "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
+            "status": "connecting",
+            "subsystems": [
+              "envbox"
+            ],
+            "troubleshooting_url": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
+            "version": "string"
+          }
+        ],
+        "created_at": "2019-08-24T14:15:22Z",
+        "daily_cost": 0,
+        "hide": true,
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+        "metadata": [
+          {
+            "key": "string",
+            "sensitive": true,
+            "value": "string"
+          }
+        ],
+        "name": "string",
+        "type": "string",
+        "workspace_transition": "start"
+      }
+    ],
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+    "workspace_name": "string",
+    "workspace_owner_avatar_url": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+    "workspace_owner_name": "string"
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                               | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------|----------|--------------|-------------|
+| `workspace_build` | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
 
 ## codersdk.Permission
 
@@ -6663,6 +10112,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
+    "workspace_build_transition": "start",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string"
   },
@@ -6712,7 +10162,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Property     | Value(s)                                                             |
 |--------------|----------------------------------------------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                        |
+| `error_code` | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                  |
 | `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
 
 ## codersdk.ProvisionerJobInput
@@ -6772,6 +10222,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_version_name": "string",
+  "workspace_build_transition": "start",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string"
 }
@@ -6779,15 +10230,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                    | Type   | Required | Restrictions | Description |
-|-------------------------|--------|----------|--------------|-------------|
-| `template_display_name` | string | false    |              |             |
-| `template_icon`         | string | false    |              |             |
-| `template_id`           | string | false    |              |             |
-| `template_name`         | string | false    |              |             |
-| `template_version_name` | string | false    |              |             |
-| `workspace_id`          | string | false    |              |             |
-| `workspace_name`        | string | false    |              |             |
+| Name                         | Type                                                         | Required | Restrictions | Description |
+|------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `template_display_name`      | string                                                       | false    |              |             |
+| `template_icon`              | string                                                       | false    |              |             |
+| `template_id`                | string                                                       | false    |              |             |
+| `template_name`              | string                                                       | false    |              |             |
+| `template_version_name`      | string                                                       | false    |              |             |
+| `workspace_build_transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition) | false    |              |             |
+| `workspace_id`               | string                                                       | false    |              |             |
+| `workspace_name`             | string                                                       | false    |              |             |
 
 ## codersdk.ProvisionerJobStatus
 
@@ -7046,9 +10498,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                       |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_personal`, `use`, `view_insights` |
+| Value(s)                                                                                                                                                                                                                       |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `application_connect`, `assign`, `create`, `create_agent`, `delete`, `delete_agent`, `read`, `read_personal`, `share`, `ssh`, `start`, `stop`, `unassign`, `update`, `update_agent`, `update_personal`, `use`, `view_insights` |
 
 ## codersdk.RBACResource
 
@@ -7060,9 +10512,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -7088,6 +10540,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -7100,19 +10553,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name               | Type                                       | Required | Restrictions | Description                                                                                |
-|--------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`       | string                                     | false    |              |                                                                                            |
-| `created_at`       | string                                     | true     |              |                                                                                            |
-| `email`            | string                                     | true     |              |                                                                                            |
-| `id`               | string                                     | true     |              |                                                                                            |
-| `last_seen_at`     | string                                     | false    |              |                                                                                            |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |                                                                                            |
-| `name`             | string                                     | false    |              |                                                                                            |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |                                                                                            |
-| `theme_preference` | string                                     | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`       | string                                     | false    |              |                                                                                            |
-| `username`         | string                                     | true     |              |                                                                                            |
+| Name                 | Type                                       | Required | Restrictions | Description                                                                                |
+|----------------------|--------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                     | false    |              |                                                                                            |
+| `created_at`         | string                                     | true     |              |                                                                                            |
+| `email`              | string                                     | true     |              |                                                                                            |
+| `id`                 | string                                     | true     |              |                                                                                            |
+| `is_service_account` | boolean                                    | false    |              |                                                                                            |
+| `last_seen_at`       | string                                     | false    |              |                                                                                            |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)   | false    |              |                                                                                            |
+| `name`               | string                                     | false    |              |                                                                                            |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |                                                                                            |
+| `theme_preference`   | string                                     | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
+| `updated_at`         | string                                     | false    |              |                                                                                            |
+| `username`           | string                                     | true     |              |                                                                                            |
 
 #### Enumerated Values
 
@@ -7276,9 +10730,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -7303,12 +10757,235 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `message`     | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
 | `validations` | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    |              | Validations are form field-specific friendly error messages. They will be shown on a form field in the UI. These can also be used to add additional context if there is a set of errors in the primary 'Message'.                  |
 
+## codersdk.ResumeTaskResponse
+
+```json
+{
+  "workspace_build": {
+    "build_number": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "deadline": "2019-08-24T14:15:22Z",
+    "has_ai_task": true,
+    "has_external_agent": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+    "initiator_name": "string",
+    "job": {
+      "available_workers": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "input": {
+        "error": "string",
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+      },
+      "logs_overflowed": true,
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_build_transition": "start",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "queue_position": 0,
+      "queue_size": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "type": "template_version_import",
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
+      "worker_name": "string"
+    },
+    "matched_provisioners": {
+      "available": 0,
+      "count": 0,
+      "most_recently_seen": "2019-08-24T14:15:22Z"
+    },
+    "max_deadline": "2019-08-24T14:15:22Z",
+    "reason": "initiator",
+    "resources": [
+      {
+        "agents": [
+          {
+            "api_version": "string",
+            "apps": [
+              {
+                "command": "string",
+                "display_name": "string",
+                "external": true,
+                "group": "string",
+                "health": "disabled",
+                "healthcheck": {
+                  "interval": 0,
+                  "threshold": 0,
+                  "url": "string"
+                },
+                "hidden": true,
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "open_in": "slim-window",
+                "sharing_level": "owner",
+                "slug": "string",
+                "statuses": [
+                  {
+                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "message": "string",
+                    "needs_user_attention": true,
+                    "state": "working",
+                    "uri": "string",
+                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+                  }
+                ],
+                "subdomain": true,
+                "subdomain_name": "string",
+                "tooltip": "string",
+                "url": "string"
+              }
+            ],
+            "architecture": "string",
+            "connection_timeout_seconds": 0,
+            "created_at": "2019-08-24T14:15:22Z",
+            "directory": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": [
+              "vscode"
+            ],
+            "environment_variables": {
+              "property1": "string",
+              "property2": "string"
+            },
+            "expanded_directory": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "instance_id": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
+            "latency": {
+              "property1": {
+                "latency_ms": 0,
+                "preferred": true
+              },
+              "property2": {
+                "latency_ms": 0,
+                "preferred": true
+              }
+            },
+            "lifecycle_state": "created",
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
+            "logs_length": 0,
+            "logs_overflowed": true,
+            "name": "string",
+            "operating_system": "string",
+            "parent_id": {
+              "uuid": "string",
+              "valid": true
+            },
+            "ready_at": "2019-08-24T14:15:22Z",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "scripts": [
+              {
+                "cron": "string",
+                "display_name": "string",
+                "exit_code": 0,
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "status": "ok",
+                "timeout": 0
+              }
+            ],
+            "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
+            "status": "connecting",
+            "subsystems": [
+              "envbox"
+            ],
+            "troubleshooting_url": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
+            "version": "string"
+          }
+        ],
+        "created_at": "2019-08-24T14:15:22Z",
+        "daily_cost": 0,
+        "hide": true,
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+        "metadata": [
+          {
+            "key": "string",
+            "sensitive": true,
+            "value": "string"
+          }
+        ],
+        "name": "string",
+        "type": "string",
+        "workspace_transition": "start"
+      }
+    ],
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_name": "string",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+    "workspace_name": "string",
+    "workspace_owner_avatar_url": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+    "workspace_owner_name": "string"
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                               | Required | Restrictions | Description |
+|-------------------|----------------------------------------------------|----------|--------------|-------------|
+| `workspace_build` | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
+
 ## codersdk.RetentionConfig
 
 ```json
 {
   "api_keys": 0,
   "audit_logs": 0,
+  "boundary_logs": 0,
   "connection_logs": 0,
   "workspace_agent_logs": 0
 }
@@ -7316,12 +10993,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
-| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
-| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
-| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                          |
+|------------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                                         |
+| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                                |
+| `boundary_logs`        | integer | false    |              | Boundary logs controls how long boundary audit log entries are retained. Boundary logs record every HTTP request processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements. |
+| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                      |
+| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior.                     |
 
 ## codersdk.Role
 
@@ -7510,6 +11188,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `max_admin_token_lifetime` | integer | false    |              |                                                                                                                                                                                        |
 | `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
 | `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
+
+## codersdk.ShareableWorkspaceOwners
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                               |
+|----------------------------------------|
+| `everyone`, `none`, `service_accounts` |
 
 ## codersdk.SharedWorkspaceActor
 
@@ -8005,9 +11697,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -8020,6 +11714,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -8045,9 +11740,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `deleted`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `deprecated`                       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `deprecation_message`              | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
+| `disable_module_cache`             | boolean                                                                        | false    |              | Disable module cache disables the use of cached Terraform modules during provisioning.                                                                                                          |
 | `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `failure_ttl_ms`                   | integer                                                                        | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -8060,6 +11757,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization_name`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
+| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                     |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -8086,6 +11784,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -8110,7 +11809,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -8239,6 +11940,385 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------|------------------------------------------------------|----------|--------------|-------------|
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
+## codersdk.TemplateBuilderBase
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "os": "string",
+  "prerequisites": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name            | Type                                                                                      | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description`   | string                                                                                    | false    |              |             |
+| `icon`          | string                                                                                    | false    |              |             |
+| `id`            | string                                                                                    | false    |              |             |
+| `name`          | string                                                                                    | false    |              |             |
+| `os`            | string                                                                                    | false    |              |             |
+| `prerequisites` | string                                                                                    | false    |              |             |
+| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+
+## codersdk.TemplateBuilderBasesResponse
+
+```json
+{
+  "bases": [
+    {
+      "description": "string",
+      "icon": "string",
+      "id": "string",
+      "name": "string",
+      "os": "string",
+      "prerequisites": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                  | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------------------|----------|--------------|-------------|
+| `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              |             |
+
+## codersdk.TemplateBuilderComposeModule
+
+```json
+{
+  "id": "string",
+  "variables": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `id`               | string | false    |              |             |
+| `variables`        | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+
+## codersdk.TemplateBuilderComposeRequest
+
+```json
+{
+  "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+
+## codersdk.TemplateBuilderConfig
+
+```json
+{
+  "disabled": true,
+  "registry_url": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `disabled`     | boolean | false    |              |             |
+| `registry_url` | string  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateRequest
+
+```json
+{
+  "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `description`          | string                                                                                  | false    |              |             |
+| `display_name`         | string                                                                                  | false    |              |             |
+| `icon`                 | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`                 | string                                                                                  | true     |              |             |
+| `organization_id`      | string                                                                                  | true     |              |             |
+| `provisioner_tags`     | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateResponse
+
+```json
+{
+  "template": {
+    "active_user_count": 0,
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
+    "allow_user_cancel_workspace_jobs": true,
+    "autostart_requirement": {
+      "days_of_week": [
+        "monday"
+      ]
+    },
+    "autostop_requirement": {
+      "days_of_week": [
+        "monday"
+      ],
+      "weeks": 0
+    },
+    "build_time_stats": {
+      "property1": {
+        "p50": 123,
+        "p95": 146
+      },
+      "property2": {
+        "p50": 123,
+        "p95": 146
+      }
+    },
+    "cors_behavior": "simple",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+    "created_by_name": "string",
+    "default_ttl_ms": 0,
+    "deleted": true,
+    "deprecated": true,
+    "deprecation_message": "string",
+    "description": "string",
+    "disable_module_cache": true,
+    "display_name": "string",
+    "failure_ttl_ms": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
+    "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
+    "provisioner": "terraform",
+    "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                   | Required | Restrictions | Description |
+|------------|----------------------------------------|----------|--------------|-------------|
+| `template` | [codersdk.Template](#codersdktemplate) | false    |              |             |
+
+## codersdk.TemplateBuilderModule
+
+```json
+{
+  "category": "string",
+  "compatible_os": [
+    "string"
+  ],
+  "conflicts_with": [
+    "string"
+  ],
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ],
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                                                                      | Required | Restrictions | Description |
+|------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `category`       | string                                                                                    | false    |              |             |
+| `compatible_os`  | array of string                                                                           | false    |              |             |
+| `conflicts_with` | array of string                                                                           | false    |              |             |
+| `description`    | string                                                                                    | false    |              |             |
+| `display_name`   | string                                                                                    | false    |              |             |
+| `icon`           | string                                                                                    | false    |              |             |
+| `id`             | string                                                                                    | false    |              |             |
+| `variables`      | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| `version`        | string                                                                                    | false    |              |             |
+
+## codersdk.TemplateBuilderModuleVariable
+
+```json
+{
+  "default": [
+    0
+  ],
+  "description": "string",
+  "name": "string",
+  "required": true,
+  "sensitive": true,
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                         | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `default`     | array of integer                                                             | false    |              |             |
+| `description` | string                                                                       | false    |              |             |
+| `name`        | string                                                                       | false    |              |             |
+| `required`    | boolean                                                                      | false    |              |             |
+| `sensitive`   | boolean                                                                      | false    |              |             |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
+
+## codersdk.TemplateBuilderModulesResponse
+
+```json
+{
+  "modules": [
+    {
+      "category": "string",
+      "compatible_os": [
+        "string"
+      ],
+      "conflicts_with": [
+        "string"
+      ],
+      "description": "string",
+      "display_name": "string",
+      "icon": "string",
+      "id": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ],
+      "version": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                      | Required | Restrictions | Description |
+|-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderVariableType
+
+```json
+"string"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `bool`, `number`, `string` |
+
 ## codersdk.TemplateExample
 
 ```json
@@ -8280,6 +12360,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -8557,7 +12638,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -8581,22 +12664,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                            | Required | Restrictions | Description                                                                                |
-|--------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`       | string                                          | false    |              |                                                                                            |
-| `created_at`       | string                                          | true     |              |                                                                                            |
-| `email`            | string                                          | true     |              |                                                                                            |
-| `id`               | string                                          | true     |              |                                                                                            |
-| `last_seen_at`     | string                                          | false    |              |                                                                                            |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
-| `name`             | string                                          | false    |              |                                                                                            |
-| `organization_ids` | array of string                                 | false    |              |                                                                                            |
-| `role`             | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                            |
-| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
-| `theme_preference` | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`       | string                                          | false    |              |                                                                                            |
-| `username`         | string                                          | true     |              |                                                                                            |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | true     |              |                                                                                                  |
+| `email`              | string                                          | true     |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                                  |
+| `role`               | [codersdk.TemplateRole](#codersdktemplaterole)  | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | true     |              |                                                                                                  |
 
 #### Enumerated Values
 
@@ -8643,6 +12728,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -8858,9 +12944,37 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Value(s)                                                              |
-|-----------------------------------------------------------------------|
-| ``, `fira-code`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
+| Value(s)                                                                            |
+|-------------------------------------------------------------------------------------|
+| ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
+
+## codersdk.ThemeMode
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| ``, `single`, `sync` |
+
+## codersdk.ThinkingDisplayMode
+
+```json
+"auto"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                 |
+|----------------------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto`, `preview` |
 
 ## codersdk.TimingStage
 
@@ -8926,6 +13040,33 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UpdateAIProviderRequest
+
+```json
+{
+  "api_keys": [
+    {
+      "api_key": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    }
+  ],
+  "base_url": "string",
+  "display_name": "string",
+  "enabled": true,
+  "settings": {}
+}
+```
+
+### Properties
+
+| Name           | Type                                                                      | Required | Restrictions | Description |
+|----------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |             |
+| `base_url`     | string                                                                    | false    |              |             |
+| `display_name` | string                                                                    | false    |              |             |
+| `enabled`      | boolean                                                                   | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              |             |
+
 ## codersdk.UpdateActiveTemplateVersion
 
 ```json
@@ -8970,6 +13111,72 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
 
+## codersdk.UpdateChatACL
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `user_roles`       | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+
+## codersdk.UpdateChatRequest
+
+```json
+{
+  "archived": true,
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "title": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|--------------------|------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `archived`         | boolean                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `labels`           | object                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
+| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
+| `title`            | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `workspace_id`     | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+## codersdk.UpdateChatRetentionDaysRequest
+
+```json
+{
+  "retention_days": 0
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `retention_days` | integer | false    |              |             |
+
 ## codersdk.UpdateCheckResponse
 
 ```json
@@ -8992,6 +13199,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -9001,12 +13211,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `description`  | string | false    |              |             |
-| `display_name` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                     |
+|----------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------|
+| `default_org_member_roles` | array of string | false    |              | Default org member roles when non-nil, replaces the org's default member roles. |
+| `description`              | string          | false    |              |                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                 |
+| `name`                     | string          | false    |              |                                                                                 |
 
 ## codersdk.UpdateRoles
 
@@ -9086,12 +13297,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "deprecation_message": "string",
   "description": "string",
   "disable_everyone_group_access": true,
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
@@ -9115,12 +13328,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `deprecation_message`              | string                                                                         | false    |              | Deprecation message if set, will mark the template as deprecated and block any new workspaces from using this template. If passed an empty string, will remove the deprecated message, making the template usable for new workspaces again.                                                                                                                                        |
 | `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `disable_everyone_group_access`    | boolean                                                                        | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template.                                                                |
+| `disable_module_cache`             | boolean                                                                        | false    |              | Disable module cache disables the using of cached Terraform modules during provisioning. It is recommended not to disable this.                                                                                                                                                                                                                                                    |
 | `display_name`                     | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `failure_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `icon`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates workspaces built using this template use the active version of the template. This option has no effect on template admins.                                                                                                                                                                                                                         |
+| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled). Omitting the field keeps the existing value.                                                                                                                      |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
@@ -9132,16 +13347,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "light",
+  "theme_light": "light",
+  "theme_mode": "sync",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
-| `theme_preference` | string                                                 | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
+|--------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| `theme_dark`       | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
+| `theme_light`      | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
+| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property      | Value(s)                                                                                    |
+|---------------|---------------------------------------------------------------------------------------------|
+| `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_mode`  | `single`, `sync`                                                                            |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -9181,15 +13410,23 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "agent_chat_send_shortcut": "enter",
+  "code_diff_display_mode": "auto",
+  "shell_tool_display_mode": "auto",
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description |
-|-------------------------------------|---------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean | false    |              |             |
+| Name                                | Type                                                             | Required | Restrictions | Description |
+|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -9222,6 +13459,40 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`schedule`|string|true||Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template schedule.
 The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
 If the schedule is empty, the user will be updated to use the default schedule.|
+
+## codersdk.UpdateUserSecretRequest
+
+```json
+{
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `value`       | string | false    |              |             |
+
+## codersdk.UpdateUserSkillRequest
+
+```json
+{
+  "content": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
+|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
 
 ## codersdk.UpdateWorkspaceACL
 
@@ -9319,6 +13590,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------|--------|----------|--------------|-------------|
 | `name` | string | false    |              |             |
 
+## codersdk.UpdateWorkspaceSharingSettingsRequest
+
+```json
+{
+  "shareable_workspace_owners": "none",
+  "sharing_disabled": true
+}
+```
+
+### Properties
+
+| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
+| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
+
+#### Enumerated Values
+
+| Property                     | Value(s)                               |
+|------------------------------|----------------------------------------|
+| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
+
 ## codersdk.UpdateWorkspaceTTLRequest
 
 ```json
@@ -9333,6 +13626,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------|---------|----------|--------------|-------------|
 | `ttl_ms` | integer | false    |              |             |
 
+## codersdk.UploadChatFileResponse
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description |
+|------|--------|----------|--------------|-------------|
+| `id` | string | false    |              |             |
+
 ## codersdk.UploadResponse
 
 ```json
@@ -9346,6 +13653,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `hash` | string | false    |              |             |
+
+## codersdk.UpsertGroupAIBudgetRequest
+
+```json
+{
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `spend_limit_micros` | integer | false    |              |             |
+
+## codersdk.UpsertUserAIBudgetOverrideRequest
+
+```json
+{
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                       |
+|----------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `group_id`           | string  | true     |              | Group ID is the group the user's spend is attributed to. The user must be a member of this group. |
+| `spend_limit_micros` | integer | false    |              |                                                                                                   |
 
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 
@@ -9427,7 +13764,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -9450,27 +13789,51 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                            | Required | Restrictions | Description                                                                                |
-|--------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `avatar_url`       | string                                          | false    |              |                                                                                            |
-| `created_at`       | string                                          | true     |              |                                                                                            |
-| `email`            | string                                          | true     |              |                                                                                            |
-| `id`               | string                                          | true     |              |                                                                                            |
-| `last_seen_at`     | string                                          | false    |              |                                                                                            |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
-| `name`             | string                                          | false    |              |                                                                                            |
-| `organization_ids` | array of string                                 | false    |              |                                                                                            |
-| `roles`            | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
-| `status`           | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
-| `theme_preference` | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
-| `updated_at`       | string                                          | false    |              |                                                                                            |
-| `username`         | string                                          | true     |              |                                                                                            |
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                      |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                                  |
+| `created_at`         | string                                          | true     |              |                                                                                                  |
+| `email`              | string                                          | true     |              |                                                                                                  |
+| `has_ai_seat`        | boolean                                         | false    |              | Has ai seat intentionally omits omitempty so the API always includes the field, even when false. |
+| `id`                 | string                                          | true     |              |                                                                                                  |
+| `is_service_account` | boolean                                         | false    |              |                                                                                                  |
+| `last_seen_at`       | string                                          | false    |              |                                                                                                  |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                                  |
+| `name`               | string                                          | false    |              |                                                                                                  |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                                  |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                                  |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                                  |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead.       |
+| `updated_at`         | string                                          | false    |              |                                                                                                  |
+| `username`           | string                                          | true     |              |                                                                                                  |
 
 #### Enumerated Values
 
 | Property | Value(s)              |
 |----------|-----------------------|
 | `status` | `active`, `suspended` |
+
+## codersdk.UserAIBudgetOverride
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `created_at`         | string  | false    |              |             |
+| `group_id`           | string  | false    |              |             |
+| `spend_limit_micros` | integer | false    |              |             |
+| `updated_at`         | string  | false    |              |             |
+| `user_id`            | string  | false    |              |             |
 
 ## codersdk.UserActivity
 
@@ -9564,16 +13927,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
-| `theme_preference` | string                                                 | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_dark`       | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserLatency
 
@@ -9705,15 +14074,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "task_notification_alert_dismissed": true
+  "agent_chat_send_shortcut": "enter",
+  "code_diff_display_mode": "auto",
+  "shell_tool_display_mode": "auto",
+  "task_notification_alert_dismissed": true,
+  "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description |
-|-------------------------------------|---------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean | false    |              |             |
+| Name                                | Type                                                             | Required | Restrictions | Description |
+|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
@@ -9754,6 +14131,78 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                                                                          |
 | `user_can_set` | boolean | false    |              | User can set is true if the user is allowed to set their own quiet hours schedule. If false, the user cannot set a custom schedule and the default schedule will always be used. |
 | `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule.                                                           |
+
+## codersdk.UserSecret
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "env_name": "string",
+  "file_path": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `env_name`    | string | false    |              |             |
+| `file_path`   | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
+
+## codersdk.UserSkill
+
+```json
+{
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `content`     | string | false    |              |             |
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
+
+## codersdk.UserSkillMetadata
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
 
 ## codersdk.UserStatus
 
@@ -9945,6 +14394,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -10066,6 +14516,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -10073,6 +14524,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -10212,6 +14664,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -10348,6 +14801,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "cron": "string",
       "display_name": "string",
+      "exit_code": 0,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "log_path": "string",
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -10355,6 +14809,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
+      "status": "ok",
       "timeout": 0
     }
   ],
@@ -10514,6 +14969,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": "running",
+  "subagent_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "workspace_folder": "string"
 }
 ```
@@ -10530,6 +14989,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`               | string                                                                                 | false    |              |                            |
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
+| `subagent_id`      | [uuid.NullUUID](#uuidnulluuid)                                                         | false    |              |                            |
 | `workspace_folder` | string                                                                                 | false    |              |                            |
 
 ## codersdk.WorkspaceAgentDevcontainerAgent
@@ -10563,6 +15023,48 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)                                                          |
 |-------------------------------------------------------------------|
 | `deleting`, `error`, `running`, `starting`, `stopped`, `stopping` |
+
+## codersdk.WorkspaceAgentGitServerMessage
+
+```json
+{
+  "message": "string",
+  "repositories": [
+    {
+      "branch": "string",
+      "remote_origin": "string",
+      "removed": true,
+      "repo_root": "string",
+      "unified_diff": "string"
+    }
+  ],
+  "scanned_at": "2019-08-24T14:15:22Z",
+  "type": "changes"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                       | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `message`      | string                                                                                     | false    |              |             |
+| `repositories` | array of [codersdk.WorkspaceAgentRepoChanges](#codersdkworkspaceagentrepochanges)          | false    |              |             |
+| `scanned_at`   | string                                                                                     | false    |              |             |
+| `type`         | [codersdk.WorkspaceAgentGitServerMessageType](#codersdkworkspaceagentgitservermessagetype) | false    |              |             |
+
+## codersdk.WorkspaceAgentGitServerMessageType
+
+```json
+"changes"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| `changes`, `error` |
 
 ## codersdk.WorkspaceAgentHealth
 
@@ -10661,6 +15163,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
+      "subagent_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "workspace_folder": "string"
     }
   ],
@@ -10839,12 +15345,35 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------|-------------------------------------------------------------------------------|----------|--------------|-------------|
 | `shares` | array of [codersdk.WorkspaceAgentPortShare](#codersdkworkspaceagentportshare) | false    |              |             |
 
+## codersdk.WorkspaceAgentRepoChanges
+
+```json
+{
+  "branch": "string",
+  "remote_origin": "string",
+  "removed": true,
+  "repo_root": "string",
+  "unified_diff": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `branch`        | string  | false    |              |             |
+| `remote_origin` | string  | false    |              |             |
+| `removed`       | boolean | false    |              |             |
+| `repo_root`     | string  | false    |              |             |
+| `unified_diff`  | string  | false    |              |             |
+
 ## codersdk.WorkspaceAgentScript
 
 ```json
 {
   "cron": "string",
   "display_name": "string",
+  "exit_code": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "log_path": "string",
   "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -10852,24 +15381,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "run_on_stop": true,
   "script": "string",
   "start_blocks_login": true,
+  "status": "ok",
   "timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `cron`               | string  | false    |              |             |
-| `display_name`       | string  | false    |              |             |
-| `id`                 | string  | false    |              |             |
-| `log_path`           | string  | false    |              |             |
-| `log_source_id`      | string  | false    |              |             |
-| `run_on_start`       | boolean | false    |              |             |
-| `run_on_stop`        | boolean | false    |              |             |
-| `script`             | string  | false    |              |             |
-| `start_blocks_login` | boolean | false    |              |             |
-| `timeout`            | integer | false    |              |             |
+| Name                 | Type                                                                       | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `cron`               | string                                                                     | false    |              |             |
+| `display_name`       | string                                                                     | false    |              |             |
+| `exit_code`          | integer                                                                    | false    |              |             |
+| `id`                 | string                                                                     | false    |              |             |
+| `log_path`           | string                                                                     | false    |              |             |
+| `log_source_id`      | string                                                                     | false    |              |             |
+| `run_on_start`       | boolean                                                                    | false    |              |             |
+| `run_on_stop`        | boolean                                                                    | false    |              |             |
+| `script`             | string                                                                     | false    |              |             |
+| `start_blocks_login` | boolean                                                                    | false    |              |             |
+| `status`             | [codersdk.WorkspaceAgentScriptStatus](#codersdkworkspaceagentscriptstatus) | false    |              |             |
+| `timeout`            | integer                                                                    | false    |              |             |
+
+## codersdk.WorkspaceAgentScriptStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                             |
+|------------------------------------------------------|
+| `exit_failure`, `ok`, `pipes_left_open`, `timed_out` |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -11093,6 +15639,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -11214,6 +15761,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             {
               "cron": "string",
               "display_name": "string",
+              "exit_code": 0,
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -11221,6 +15769,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
+              "status": "ok",
               "timeout": 0
             }
           ],
@@ -11428,6 +15977,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -11681,6 +16231,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         {
           "cron": "string",
           "display_name": "string",
+          "exit_code": 0,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "log_path": "string",
           "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -11688,6 +16239,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "run_on_stop": true,
           "script": "string",
           "start_blocks_login": true,
+          "status": "ok",
           "timeout": 0
         }
       ],
@@ -11779,15 +16331,25 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "sharing_disabled": true
+  "shareable_workspace_owners": "none",
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `sharing_disabled` | boolean | false    |              |             |
+| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
+| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
+| `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting.      |
+
+#### Enumerated Values
+
+| Property                     | Value(s)                               |
+|------------------------------|----------------------------------------|
+| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.WorkspaceStatus
 
@@ -11914,6 +16476,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
+            "workspace_build_transition": "start",
             "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
             "workspace_name": "string"
           },
@@ -12018,6 +16581,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   {
                     "cron": "string",
                     "display_name": "string",
+                    "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -12025,6 +16589,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "run_on_stop": true,
                     "script": "string",
                     "start_blocks_login": true,
+                    "status": "ok",
                     "timeout": 0
                   }
                 ],
@@ -12160,9 +16725,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                    |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
+| Value(s)                                                                                                                                                                               |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `EACS01`, `EACS02`, `EACS03`, `EACS04`, `EDB01`, `EDB02`, `EDERP01`, `EDERP02`, `EDERP03`, `EPD01`, `EPD02`, `EPD03`, `EUNKNOWN`, `EWP01`, `EWP02`, `EWP04`, `EWS01`, `EWS02`, `EWS03` |
 
 ## health.Message
 
@@ -13407,6 +17972,57 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 None
 
+## legacyscim.SCIMUser
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [
+    null
+  ],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": [
+    "string"
+  ],
+  "userName": "string"
+}
+```
+
+### Properties
+
+| Name             | Type               | Required | Restrictions | Description                                                                 |
+|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
+| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
+| `emails`         | array of object    | false    |              |                                                                             |
+| `» display`      | string             | false    |              |                                                                             |
+| `» primary`      | boolean            | false    |              |                                                                             |
+| `» type`         | string             | false    |              |                                                                             |
+| `» value`        | string             | false    |              |                                                                             |
+| `groups`         | array of undefined | false    |              |                                                                             |
+| `id`             | string             | false    |              |                                                                             |
+| `meta`           | object             | false    |              |                                                                             |
+| `» resourceType` | string             | false    |              |                                                                             |
+| `name`           | object             | false    |              |                                                                             |
+| `» familyName`   | string             | false    |              |                                                                             |
+| `» givenName`    | string             | false    |              |                                                                             |
+| `schemas`        | array of string    | false    |              |                                                                             |
+| `userName`       | string             | false    |              |                                                                             |
+
 ## netcheck.Report
 
 ```json
@@ -13627,7 +18243,7 @@ None
 | Name             | Type                                       | Required | Restrictions | Description                                                                                                                                        |
 |------------------|--------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
 | `annotations`    | [serpent.Annotations](#serpentannotations) | false    |              | Annotations enable extensions to serpent higher up in the stack. It's useful for help formatting and documentation generation.                     |
-| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                                               |
+| `default`        | string                                     | false    |              | Default is parsed into Value if set. Must be `""` if `DefaultFn` != nil                                                                            |
 | `description`    | string                                     | false    |              |                                                                                                                                                    |
 | `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                                      |
 | `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                                           |
@@ -13657,6 +18273,7 @@ None
 {
   "value": [
     {
+      "api_base_url": "string",
       "app_install_url": "string",
       "app_installations_url": "string",
       "auth_url": "string",
@@ -13733,19 +18350,21 @@ None
 
 ### Properties
 
-| Name          | Type                         | Required | Restrictions | Description                                        |
-|---------------|------------------------------|----------|--------------|----------------------------------------------------|
-| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
-| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
-| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
-| `opaque`      | string                       | false    |              | encoded opaque data                                |
-| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
-| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
-| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
-| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
-| `scheme`      | string                       | false    |              |                                                    |
-| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                            |
+|--------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `forceQuery` | boolean | false    |              | Forcequery indicates whether the original URL contained a query ('?') character. When set, the String method will include a trailing '?', even when RawQuery is empty. |
+| `fragment`   | string  | false    |              | fragment for references (without '#')                                                                                                                                  |
+| `host`       | string  | false    |              | "host" or "host:port" (see Hostname and Port methods)                                                                                                                  |
+| `omitHost`   | boolean | false    |              | Omithost indicates the URL has an empty host (authority). When set, the String method will not include the host when it is empty.                                      |
+| `opaque`     | string  | false    |              | encoded opaque data                                                                                                                                                    |
+| `path`       | string  | false    |              | path (relative paths may omit leading slash)                                                                                                                           |
+|`rawFragment`|string|false||Rawfragment is an optional field containing an encoded fragment hint. See the EscapedFragment method for more details.
+In general, code should call EscapedFragment instead of reading RawFragment.|
+|`rawPath`|string|false||Rawpath is an optional field containing an encoded path hint. See the EscapedPath method for more details.
+In general, code should call EscapedPath instead of reading RawPath.|
+|`rawQuery`|string|false||Rawquery contains the encoded query values, without the initial '?'. Use URL.Query to decode the query.|
+|`scheme`|string|false|||
+|`user`|[url.Userinfo](#urluserinfo)|false||username and password information|
 
 ## serpent.ValueSource
 
@@ -14148,6 +18767,101 @@ None
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
 | `hostname_suffix`            | string                             | false    |              |             |
+
+## workspacesdk.AgentUpdate
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lifecycle": "created"
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `id`        | string                                                               | false    |              |             |
+| `lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+
+## workspacesdk.BuildUpdate
+
+```json
+{
+  "job_status": "pending",
+  "transition": "start"
+}
+```
+
+### Properties
+
+| Name         | Type                                                           | Required | Restrictions | Description |
+|--------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `job_status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)   | false    |              |             |
+
+## workspacesdk.ConnectionWatchEvent
+
+```json
+{
+  "agent_update": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "lifecycle": "created"
+  },
+  "build_update": {
+    "job_status": "pending",
+    "transition": "start"
+  },
+  "error": {
+    "code": 0,
+    "details": "string",
+    "message": "string",
+    "retryable": true
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                 | Required | Restrictions | Description |
+|----------------|------------------------------------------------------|----------|--------------|-------------|
+| `agent_update` | [workspacesdk.AgentUpdate](#workspacesdkagentupdate) | false    |              |             |
+| `build_update` | [workspacesdk.BuildUpdate](#workspacesdkbuildupdate) | false    |              |             |
+| `error`        | [workspacesdk.WatchError](#workspacesdkwatcherror)   | false    |              |             |
+
+## workspacesdk.WatchError
+
+```json
+{
+  "code": 0,
+  "details": "string",
+  "message": "string",
+  "retryable": true
+}
+```
+
+### Properties
+
+| Name        | Type                                                       | Required | Restrictions | Description |
+|-------------|------------------------------------------------------------|----------|--------------|-------------|
+| `code`      | [workspacesdk.WatchErrorCode](#workspacesdkwatcherrorcode) | false    |              |             |
+| `details`   | string                                                     | false    |              |             |
+| `message`   | string                                                     | false    |              |             |
+| `retryable` | boolean                                                    | false    |              |             |
+
+## workspacesdk.WatchErrorCode
+
+```json
+0
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 

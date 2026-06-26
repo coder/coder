@@ -59,7 +59,7 @@ use organizations for several use cases.
 
 Since templates and workspaces cannot be moved nor can they belong to multiple
 organizations, we recommend that you deprecate your template
-[through the API](../../reference/api/templates.md#update-template-metadata-by-id)
+[through the API](../../reference/api/templates.md#update-template-settings-by-id)
 or [through the Coder CLI](../../reference/cli/templates_edit.md#--deprecated).
 When a template is deprecated, the admin prevents new workspaces from being
 created and developers are notified with a deprecation message which can link to

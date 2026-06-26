@@ -3,17 +3,24 @@ export default {
 
 	addons: [
 		"@chromatic-com/storybook",
+		"@storybook/addon-a11y",
 		"@storybook/addon-docs",
 		"@storybook/addon-links",
 		"@storybook/addon-themes",
 		"storybook-addon-remix-react-router",
+		"@storybook/addon-vitest",
+		"@storybook/addon-mcp",
 	],
 
-	staticDirs: ["../static"],
+	staticDirs: ["../static", "./static"],
 
 	framework: {
 		name: "@storybook/react-vite",
 		options: {},
+	},
+
+	core: {
+		allowedHosts: [".coder", ".dev.coder.com"],
 	},
 
 	async viteFinal(config) {

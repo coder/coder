@@ -1,34 +1,51 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import { taskLogsKey } from "#/api/queries/tasks";
+import type {
+	Task,
+	TaskLogsResponse,
+	Workspace,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
+import {
+	MockCanceledWorkspace,
+	MockCancelingWorkspace,
 	MockDeletedWorkspace,
+	MockDeletingWorkspace,
 	MockDisplayNameTasks,
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockStoppingWorkspace,
 	MockTask,
 	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
-	MockWorkspaceAgent,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
 	MockWorkspaceAgentStarting,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
+	MockWorkspaceBuildStop,
 	MockWorkspaceResource,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
 	withProxyProvider,
+	withToaster,
 	withWebSocket,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+} from "#/testHelpers/storybook";
 import TaskPage from "./TaskPage";
 
 const MockClaudeCodeApp: WorkspaceApp = {
@@ -61,6 +78,77 @@ const MockVSCodeApp: WorkspaceApp = {
 	display_name: "VS Code Web",
 	icon: "/icon/code.svg",
 	health: "healthy",
+};
+
+const MockTaskLogsResponse: TaskLogsResponse = {
+	logs: [
+		{
+			id: 1,
+			content: "Implement JWT authentication with refresh token rotation.",
+			type: "input",
+			time: "2024-01-01T11:59:55Z",
+		},
+		{
+			id: 2,
+			content:
+				"I'll help you implement the authentication system. Let me start by examining the existing code structure.",
+			type: "output",
+			time: "2024-01-01T12:00:00Z",
+		},
+		{
+			id: 3,
+			content:
+				"Looking at the codebase, I can see the following relevant files:\n- src/auth/login.ts\n- src/auth/middleware.ts\n- src/models/user.ts",
+			type: "output",
+			time: "2024-01-01T12:00:05Z",
+		},
+		{
+			id: 4,
+			content:
+				"I'll now create the JWT token validation middleware. This will intercept all protected routes and verify the bearer token.",
+			type: "output",
+			time: "2024-01-01T12:00:10Z",
+		},
+		{
+			id: 5,
+			content:
+				"Looks good so far. Also add rate limiting to the token endpoint.",
+			type: "input",
+			time: "2024-01-01T12:00:12Z",
+		},
+		{
+			id: 6,
+			content:
+				"Successfully updated src/auth/middleware.ts with the new token validation logic.\nRunning tests to verify the changes...",
+			type: "output",
+			time: "2024-01-01T12:00:15Z",
+		},
+		{
+			id: 7,
+			content:
+				"All 12 tests passed. The authentication middleware is working correctly.\n\nNext, I'll add the refresh token rotation endpoint to prevent token reuse attacks.",
+			type: "output",
+			time: "2024-01-01T12:00:20Z",
+		},
+	],
+	snapshot: true,
+	snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+};
+
+const getFollowUpDialog = async (canvasElement: HTMLElement) => {
+	const body = within(canvasElement.ownerDocument.body);
+	const dialogs = await body.findAllByRole("dialog", {
+		name: /send follow-up message/i,
+	});
+	// Radix dialog content can linger during transitions; use the newest instance.
+	const dialog = dialogs.at(-1);
+	if (!dialog) {
+		throw new Error("Follow-up dialog was not found.");
+	}
+	return {
+		body,
+		dialog: within(dialog),
+	};
 };
 
 const meta: Meta<typeof TaskPage> = {
@@ -149,6 +237,20 @@ export const FailedBuild: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockFailedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const FailedBuildNoSnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockFailedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			logs: [],
+		});
 	},
 };
 
@@ -158,6 +260,7 @@ export const TerminatedBuild: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 };
 
@@ -168,6 +271,7 @@ export const TerminatedBuildWithStatus: Story = {
 			...MockStoppedWorkspace,
 			latest_app_status: MockWorkspaceAppStatus,
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 };
 
@@ -176,6 +280,460 @@ export const DeletedWorkspace: Story = {
 		spyOn(API, "getTask").mockResolvedValue(MockTask);
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockDeletedWorkspace,
+		);
+	},
+};
+
+export const TaskPausing: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "active",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppingWorkspace,
+		);
+	},
+};
+
+export const TaskPaused: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const TaskPausedNoSnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			logs: [],
+		});
+	},
+};
+
+export const TaskPausedEmptySnapshot: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+			logs: [],
+		});
+	},
+};
+
+export const TaskPausedSingleMessage: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue({
+			snapshot: true,
+			snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+			logs: [MockTaskLogsResponse.logs[0]],
+		});
+	},
+};
+
+export const TaskPausedSnapshotTooltip: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const tooltipTrigger = await canvas.findByRole("button", {
+			name: /info/i,
+		});
+		await userEvent.click(tooltipTrigger);
+		await waitFor(() =>
+			expect(screen.getByRole("dialog")).toHaveTextContent(
+				/This log snapshot was taken/,
+			),
+		);
+	},
+};
+
+export const TaskPausedWithFollowUpDialog: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const followUpButton = await canvas.findByRole("button", {
+			name: /follow-up/i,
+		});
+		await userEvent.click(followUpButton);
+
+		const body = within(canvasElement.ownerDocument.body);
+		const dialogTitle = await body.findByText("Send Follow-up Message");
+		expect(dialogTitle).toBeInTheDocument();
+	},
+};
+
+export const TaskFollowUpAutoResumeSuccess: Story = {
+	beforeEach: () => {
+		let isTaskActive = false;
+		spyOn(API, "getTask").mockImplementation(async () => ({
+			...MockTask,
+			status: isTaskActive ? "active" : "paused",
+		}));
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockImplementation(async () => {
+			if (!isTaskActive) {
+				throw {
+					...mockApiError({
+						message: "Task is paused",
+						detail: "Resume required before sending",
+					}),
+					status: 409,
+				};
+			}
+		});
+		spyOn(API, "resumeTask").mockImplementation(async () => {
+			isTaskActive = true;
+			return {
+				workspace_build: MockStartingWorkspace.latest_build,
+			};
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		await userEvent.type(
+			await dialog.findByLabelText(/follow-up message/i),
+			"Continue from where you left off",
+		);
+		await userEvent.click(
+			await dialog.findByRole("button", { name: /send follow-up/i }),
+		);
+
+		await waitFor(() => {
+			expect(API.resumeTask).toHaveBeenCalled();
+			expect(API.sendTaskInput).toHaveBeenCalledTimes(1);
+		});
+	},
+};
+
+export const TaskFollowUpActiveTaskDirectSend: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "active",
+		});
+		// Keep paused UI visible (for Follow-up button) while simulating an already-active task.
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockResolvedValue();
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockWorkspace.latest_build,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		await userEvent.type(
+			await dialog.findByLabelText(/follow-up message/i),
+			"Please continue with the next step",
+		);
+		await userEvent.click(
+			await dialog.findByRole("button", { name: /send follow-up/i }),
+		);
+
+		await waitFor(() => {
+			expect(API.sendTaskInput).toHaveBeenCalledTimes(1);
+			expect(API.resumeTask).not.toHaveBeenCalled();
+		});
+	},
+};
+
+export const TaskFollowUpEmptyMessageDisabled: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const submit = await dialog.findByRole("button", {
+			name: /send follow-up/i,
+		});
+		expect(submit).toBeDisabled();
+	},
+};
+
+export const TaskFollowUpShowsResumingProgress: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		// Keep resuming stage visible for assertions.
+		spyOn(API, "resumeTask").mockImplementation(() => new Promise(() => {}));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { body, dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Continue task");
+		await userEvent.click(
+			await dialog.findByRole("button", { name: /send follow-up/i }),
+		);
+
+		await waitFor(() => {
+			expect(
+				body.queryByRole("heading", { name: /send follow-up message/i }),
+			).not.toBeInTheDocument();
+			expect(canvas.getByText("Resuming task...")).toBeInTheDocument();
+			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
+			expect(
+				canvas.getByText(/clears the pending follow-up message/i),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const TaskFollowUpRetrySendFailure: Story = {
+	beforeEach: () => {
+		let isTaskActive = false;
+		spyOn(API, "getTask").mockImplementation(async () => ({
+			...MockTask,
+			status: isTaskActive ? "active" : "paused",
+		}));
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockRejectedValue(
+			new Error("Failed to send message"),
+		);
+		spyOn(API, "resumeTask").mockImplementation(async () => {
+			isTaskActive = true;
+			return {
+				workspace_build: MockStartingWorkspace.latest_build,
+			};
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Please continue");
+		await userEvent.click(
+			await dialog.findByRole("button", { name: /send follow-up/i }),
+		);
+
+		await waitFor(() => {
+			expect(canvas.getByText("Failed to send message")).toBeInTheDocument();
+			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Please continue");
+			expect(
+				canvas.getByRole("button", { name: /follow-up/i }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const TaskFollowUpResumeBuildFailure: Story = {
+	beforeEach: () => {
+		let hasBuildFailed = false;
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockImplementation(async () => {
+			if (!hasBuildFailed) {
+				return MockStoppedWorkspace;
+			}
+			return {
+				...MockStoppedWorkspace,
+				latest_build: {
+					...MockStoppedWorkspace.latest_build,
+					status: "failed",
+				},
+			};
+		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "resumeTask").mockImplementation(async () => {
+			hasBuildFailed = true;
+			return {
+				workspace_build: MockStartingWorkspace.latest_build,
+			};
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Continue task");
+		await userEvent.click(
+			await dialog.findByRole("button", { name: /send follow-up/i }),
+		);
+
+		await waitFor(() => {
+			expect(API.resumeTask).toHaveBeenCalled();
+		});
+		expect(await canvas.findByText("Task build failed")).toBeInTheDocument();
+		expect(
+			await canvas.findByText("Please check the logs for more details."),
+		).toBeInTheDocument();
+	},
+};
+
+export const TaskFollowUpNon409SendFailure: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "active",
+		});
+		// Keep paused UI visible (for Follow-up button) while simulating active-task send behavior.
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockRejectedValue(
+			new Error("Failed to send message"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Continue task");
+		await userEvent.click(
+			await dialog.findByRole("button", { name: /send follow-up/i }),
+		);
+
+		await waitFor(() => {
+			expect(canvas.getByText("Failed to send message")).toBeInTheDocument();
+			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
+			expect(
+				canvas.getByRole("button", { name: /follow-up/i }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const TaskPausedTimeout: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockStoppedWorkspace,
+			latest_build: {
+				...MockWorkspaceBuildStop,
+				status: "stopped",
+				reason: "task_auto_pause",
+			},
+		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const TaskCanceled: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockCanceledWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+};
+
+export const TaskCanceling: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockCancelingWorkspace,
+		);
+	},
+};
+
+export const TaskDeleting: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockDeletingWorkspace,
 		);
 	},
 };
@@ -245,7 +803,7 @@ export const StartupScriptError: Story = {
 						resources: [
 							{
 								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgent],
+								agents: [MockWorkspaceAgentStarting],
 							},
 						],
 					},
@@ -300,7 +858,7 @@ export const StartupScriptTimeout: Story = {
 						resources: [
 							{
 								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgent],
+								agents: [MockWorkspaceAgentStarting],
 							},
 						],
 					},
@@ -403,7 +961,7 @@ export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
 
-export const OutdatedWorkspace: Story = {
+export const TaskPausedOutdated: Story = {
 	// Given: an 'outdated' workspace (that is, the latest build does not use template's active version)
 	parameters: {
 		queries: [
@@ -434,6 +992,10 @@ export const OutdatedWorkspace: Story = {
 					"parameters",
 				],
 				data: [],
+			},
+			{
+				key: taskLogsKey(MockTask.owner_name, MockTask.id),
+				data: MockTaskLogsResponse,
 			},
 		],
 	},
@@ -487,16 +1049,20 @@ export const ActivePreview: Story = {
 	},
 };
 
-export const WorkspaceStarting: Story = {
-	decorators: [withGlobalSnackbar],
+export const TaskResuming: Story = {
+	decorators: [withToaster],
 	beforeEach: () => {
-		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
-		spyOn(API, "startWorkspace").mockResolvedValue(
-			MockStartingWorkspace.latest_build,
-		);
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockStartingWorkspace.latest_build,
+		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -514,27 +1080,31 @@ export const WorkspaceStarting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const resumeButton = await canvas.findByText("Resume");
+		expect(resumeButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
-			expect(API.startWorkspace).toBeCalled();
+			expect(API.resumeTask).toBeCalled();
 		});
 	},
 };
 
-export const WorkspaceStartFailure: Story = {
-	decorators: [withGlobalSnackbar],
+export const TaskResumeFailure: Story = {
+	decorators: [withToaster],
 	beforeEach: () => {
-		spyOn(API, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
-		spyOn(API, "startWorkspace").mockRejectedValue(
+		spyOn(API, "resumeTask").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -552,10 +1122,10 @@ export const WorkspaceStartFailure: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const resumeButton = await canvas.findByText("Resume");
+		expect(resumeButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
 			const errorMessage = await canvas.findByText("Some unexpected error");
@@ -564,19 +1134,20 @@ export const WorkspaceStartFailure: Story = {
 	},
 };
 
-export const WorkspaceStartFailureWithDialog: Story = {
+export const TaskResumeFailureWithDialog: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue(MockTask);
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
-		spyOn(API, "startWorkspace").mockRejectedValue({
+		spyOn(API, "resumeTask").mockRejectedValue({
 			...mockApiError({
 				message: "Bad Request",
 				detail: "Invalid build parameters provided",
 			}),
 			code: "ERR_BAD_REQUEST",
 		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -594,10 +1165,10 @@ export const WorkspaceStartFailureWithDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const startButton = await canvas.findByText("Start workspace");
-		expect(startButton).toBeInTheDocument();
+		const resumeButton = await canvas.findByText("Resume");
+		expect(resumeButton).toBeInTheDocument();
 
-		await userEvent.click(startButton);
+		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
 			const body = within(canvasElement.ownerDocument.body);
@@ -616,14 +1187,22 @@ export const LongDisplayName: Story = {
 				// Sidebar: uses getTasks() which returns an array
 				key: ["tasks", { owner: MockTask.owner_name }],
 				data: [
-					{ ...MockDisplayNameTasks[0], display_name: longDisplayName },
+					{
+						...MockDisplayNameTasks[0],
+						display_name: longDisplayName,
+						workspace_agent_lifecycle: "starting",
+					},
 					...MockDisplayNameTasks.slice(1),
 				],
 			},
 			{
 				// TaskTopbar: uses getTask() which returns a single task
 				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: { ...MockDisplayNameTasks[0], display_name: longDisplayName },
+				data: {
+					...MockDisplayNameTasks[0],
+					display_name: longDisplayName,
+					workspace_agent_lifecycle: "starting",
+				},
 			},
 			{
 				// Workspace data for the task
@@ -633,7 +1212,13 @@ export const LongDisplayName: Story = {
 					MockTask.workspace_name,
 					"settings",
 				],
-				data: MockWorkspace,
+				data: {
+					...MockStartingWorkspace,
+					latest_build: {
+						...MockStartingWorkspace.latest_build,
+						has_ai_task: true,
+					},
+				},
 			},
 		],
 	},

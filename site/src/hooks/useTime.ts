@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useEffectEvent } from "./hookPolyfills";
+import { useEffect, useEffectEvent, useState } from "react";
 
 interface UseTimeOptions {
 	/**
@@ -31,13 +30,14 @@ export function useTime<T>(func: () => T, options: UseTimeOptions = {}): T {
 		}
 
 		const handle = setInterval(() => {
-			setComputedValue(() => thunk());
+			const next = thunk();
+			setComputedValue(() => next);
 		}, interval);
 
 		return () => {
 			clearInterval(handle);
 		};
-	}, [thunk, disabled, interval]);
+	}, [disabled, interval]);
 
 	return computedValue;
 }

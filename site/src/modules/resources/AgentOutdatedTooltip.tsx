@@ -1,16 +1,15 @@
-import type { WorkspaceAgent } from "api/typesGenerated";
-import {
-	HelpTooltip,
-	HelpTooltipAction,
-	HelpTooltipContent,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import type { WorkspaceAgent } from "#/api/typesGenerated";
+import {
+	HelpPopover,
+	HelpPopoverAction,
+	HelpPopoverContent,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = {
@@ -39,35 +38,35 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 	const text = `${opener} This can happen after you update Coder with running workspaces. To fix this, you can stop and start the workspace.`;
 
 	return (
-		<HelpTooltip open={isOpen} onOpenChange={setIsOpen}>
-			<HelpTooltipTrigger asChild>
+		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
+			<HelpPopoverTrigger asChild>
 				<span role="status" className="cursor-pointer">
 					{status === agentVersionStatus.Outdated ? "Outdated" : "Deprecated"}
 				</span>
-			</HelpTooltipTrigger>
-			<HelpTooltipContent>
-				<Stack spacing={1}>
+			</HelpPopoverTrigger>
+			<HelpPopoverContent>
+				<div className="flex flex-col gap-2">
 					<div>
-						<HelpTooltipTitle>{title}</HelpTooltipTitle>
-						<HelpTooltipText>{text}</HelpTooltipText>
+						<HelpPopoverTitle>{title}</HelpPopoverTitle>
+						<HelpPopoverText>{text}</HelpPopoverText>
 					</div>
 
-					<Stack spacing={0.5}>
+					<div className="flex flex-col gap-1">
 						<span className="font-semibold text-content-primary">
 							Agent version
 						</span>
 						<span>{agent.version}</span>
-					</Stack>
+					</div>
 
-					<Stack spacing={0.5}>
+					<div className="flex flex-col gap-1">
 						<span className="font-semibold text-content-primary">
 							Server version
 						</span>
 						<span>{serverVersion}</span>
-					</Stack>
+					</div>
 
-					<HelpTooltipLinksGroup>
-						<HelpTooltipAction
+					<HelpPopoverLinksGroup>
+						<HelpPopoverAction
 							icon={RotateCcwIcon}
 							onClick={() => {
 								onUpdate();
@@ -76,10 +75,10 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 							ariaLabel="Update workspace"
 						>
 							Update workspace
-						</HelpTooltipAction>
-					</HelpTooltipLinksGroup>
-				</Stack>
-			</HelpTooltipContent>
-		</HelpTooltip>
+						</HelpPopoverAction>
+					</HelpPopoverLinksGroup>
+				</div>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

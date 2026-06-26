@@ -1,48 +1,41 @@
-import { getErrorMessage } from "api/errors";
-import { deploymentConfig } from "api/queries/deployment";
-import { groupsByUserId } from "api/queries/groups";
-import { roles } from "api/queries/roles";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { deploymentConfig } from "#/api/queries/deployment";
+import { groupsByUserId } from "#/api/queries/groups";
+import { roles } from "#/api/queries/roles";
 import {
 	activateUser,
-	authMethods,
 	deleteUser,
 	paginatedUsers,
 	suspendUser,
 	updatePassword,
 	updateRoles,
-} from "api/queries/users";
-import type { User } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { useFilter } from "components/Filter/Filter";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { isNonInitialPage } from "components/PaginationWidget/utils";
-import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
-import { generateRandomString } from "utils/random";
+} from "#/api/queries/users";
+import type { User } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useFilter } from "#/components/Filter/Filter";
+import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
+import { pageTitle } from "#/utils/page";
+import { generateRandomString } from "#/utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
-import { useStatusFilterMenu } from "./UsersFilter";
 import { UsersPageView } from "./UsersPageView";
 
-type UserPageProps = {
-	// Used by Storybook to prevent generating a new password each time the story
-	// loads, avoiding Chromatic snapshot differences.
-	defaultNewPassword?: string;
-};
-
-const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
+const UsersPage: React.FC = () => {
 	const queryClient = useQueryClient();
-	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
-	const authMethodsQuery = useQuery(authMethods());
 
 	const { permissions, user: me } = useAuthenticated();
 	const {
@@ -72,22 +65,29 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			}),
 	});
 
-	const [userToSuspend, setUserToSuspend] = useState<User>();
+	const [userToSuspend, setUserToSuspend] = useState<User | undefined>(
+		undefined,
+	);
 	const suspendUserMutation = useMutation(suspendUser(queryClient));
 
-	const [userToActivate, setUserToActivate] = useState<User>();
+	const [userToActivate, setUserToActivate] = useState<User | undefined>(
+		undefined,
+	);
 	const activateUserMutation = useMutation(activateUser(queryClient));
 
-	const [userToDelete, setUserToDelete] = useState<User>();
+	const [userToDelete, setUserToDelete] = useState<User | undefined>(undefined);
 	const deleteUserMutation = useMutation(deleteUser(queryClient));
+
+	const [userToEditRoles, setUserToEditRoles] = useState<User | undefined>(
+		undefined,
+	);
+	const updateUserRolesMutation = useMutation(updateRoles(queryClient));
 
 	const [confirmResetPassword, setConfirmResetPassword] = useState<{
 		user: User;
 		newPassword: string;
 	}>();
-
 	const updatePasswordMutation = useMutation(updatePassword());
-	const updateRolesMutation = useMutation(updateRoles(queryClient));
 
 	// Indicates if oidc roles are synced from the oidc idp.
 	// Assign 'false' if unknown.
@@ -98,7 +98,6 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const isLoading =
 		usersQuery.isLoading ||
 		rolesQuery.isLoading ||
-		authMethodsQuery.isLoading ||
 		groupsByUserIdQuery.isLoading;
 
 	return (
@@ -106,53 +105,56 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 			<title>{pageTitle("Users")}</title>
 
 			<UsersPageView
-				oidcRoleSyncEnabled={oidcRoleSyncEnabled}
-				roles={rolesQuery.data}
-				users={usersQuery.data?.users}
-				groupsByUserId={groupsByUserIdQuery.data}
-				authMethods={authMethodsQuery.data}
-				onListWorkspaces={(user) => {
-					navigate(
-						`/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`,
-					);
-				}}
-				onViewActivity={(user) => {
-					navigate(
-						`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`,
-					);
-				}}
-				onDeleteUser={setUserToDelete}
-				onSuspendUser={setUserToSuspend}
-				onActivateUser={setUserToActivate}
-				onResetUserPassword={(user) => {
-					setConfirmResetPassword({
-						user,
-						newPassword: defaultNewPassword ?? generateRandomString(12),
-					});
-				}}
-				onUpdateUserRoles={async (userId, roles) => {
-					try {
-						await updateRolesMutation.mutateAsync({ userId, roles });
-						displaySuccess("Successfully updated the user roles.");
-					} catch (e) {
-						displayError(
-							getErrorMessage(e, "Error on updating the user roles."),
-						);
-					}
-				}}
-				isUpdatingUserRoles={updateRolesMutation.isPending}
 				isLoading={isLoading}
-				canEditUsers={canEditUsers}
-				canViewActivity={entitlements.features.audit_log.enabled}
-				isNonInitialPage={isNonInitialPage(searchParams)}
-				actorID={me.id}
 				filterProps={{
 					filter: useFilterResult,
 					error: usersQuery.error,
 					menus: { status: statusMenu },
 				}}
 				usersQuery={usersQuery}
+				groupsByUserId={groupsByUserIdQuery.data}
+				showAISeatColumn={showAISeatColumn}
+				onEditUserRoles={setUserToEditRoles}
+				isUpdatingUserRoles={updateUserRolesMutation.isPending}
+				onResetUserPassword={(user) => {
+					setConfirmResetPassword({
+						user,
+						newPassword:
+							process.env.STORYBOOK === "true"
+								? "hello-storybook"
+								: generateRandomString(12),
+					});
+				}}
+				onSuspendUser={setUserToSuspend}
+				onActivateUser={setUserToActivate}
+				onDeleteUser={setUserToDelete}
+				me={me.id}
 				canCreateUser={canCreateUser}
+				canEditUsers={canEditUsers}
+				canViewActivity={entitlements.features.audit_log.enabled}
+				oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+			/>
+
+			<RoleSelectorDialog
+				key={userToEditRoles?.username}
+				user={userToEditRoles}
+				availableRoles={rolesQuery.data}
+				onCancel={() => setUserToEditRoles(undefined)}
+				onUpdateRoles={async (roles) => {
+					try {
+						await updateUserRolesMutation.mutateAsync({
+							userId: userToEditRoles!.id,
+							roles,
+						});
+						toast.success("User roles updated successfully.");
+						setUserToEditRoles(undefined);
+					} catch (e) {
+						toast.error(getErrorMessage(e, "Error updating user roles."), {
+							description: getErrorDetail(e),
+						});
+					}
+				}}
+				isUpdatingRoles={updateUserRolesMutation.isPending}
 			/>
 
 			<DeleteDialog
@@ -169,9 +171,19 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await deleteUserMutation.mutateAsync(userToDelete.id);
 						setUserToDelete(undefined);
-						displaySuccess("Successfully deleted the user.");
+						toast.success(
+							`User "${userToDelete.username}" deleted successfully.`,
+						);
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error deleting user."));
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error deleting user "${userToDelete.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 			/>
@@ -191,9 +203,19 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await suspendUserMutation.mutateAsync(userToSuspend.id);
 						setUserToSuspend(undefined);
-						displaySuccess("Successfully suspended the user.");
+						toast.success(
+							`User "${userToSuspend.username}" suspended successfully.`,
+						);
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error suspending user."));
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error suspending user "${userToSuspend.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				description={
@@ -219,9 +241,19 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await activateUserMutation.mutateAsync(userToActivate.id);
 						setUserToActivate(undefined);
-						displaySuccess("Successfully activated the user.");
+						toast.success(
+							`User "${userToActivate.username}" activated successfully.`,
+						);
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error activating user."));
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error activating user "${userToActivate.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				description={
@@ -252,10 +284,15 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 							old_password: "",
 						});
 						setConfirmResetPassword(undefined);
-						displaySuccess("Successfully updated the user password.");
+						toast.success(
+							`Password for "${confirmResetPassword.user.username}" updated successfully.`,
+						);
 					} catch (e) {
-						displayError(
-							getErrorMessage(e, "Error on resetting the user password."),
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error resetting password for "${confirmResetPassword.user.username}".`,
+							),
 						);
 					}
 				}}

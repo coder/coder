@@ -40,10 +40,11 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:create": {},
 	"file:*":      {},
 
-	// Users (personal profile only)
+	// Users
+	"user:read":            {},
 	"user:read_personal":   {},
 	"user:update_personal": {},
-	"user.*":               {},
+	"user:*":               {},
 
 	// User secrets
 	"user_secret:read":   {},
@@ -51,6 +52,13 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_secret:update": {},
 	"user_secret:delete": {},
 	"user_secret:*":      {},
+
+	// User skills
+	"user_skill:read":   {},
+	"user_skill:create": {},
+	"user_skill:update": {},
+	"user_skill:delete": {},
+	"user_skill:*":      {},
 
 	// Tasks
 	"task:create": {},

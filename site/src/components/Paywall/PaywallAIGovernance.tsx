@@ -1,5 +1,5 @@
-import { PremiumBadge } from "components/Badges/Badges";
-import { docs } from "utils/docs";
+import { PremiumBadge } from "#/components/Badges/Badges";
+import { docs } from "#/utils/docs";
 import {
 	Paywall,
 	PaywallContent,
@@ -19,13 +19,13 @@ const PaywallAIGovernance = () => {
 		<Paywall>
 			<PaywallContent>
 				<PaywallHeading>
-					<PaywallTitle>AI Bridge</PaywallTitle>
+					<PaywallTitle>AI Gateway</PaywallTitle>
 					<PremiumBadge>AI Governance</PremiumBadge>
 				</PaywallHeading>
 				<PaywallDescription>
-					AI Bridge provides auditable visibility into user prompts and LLM tool
-					calls from developer tools within Coder Workspaces. AI Bridge requires
-					a Premium license with AI Governance add-on.
+					AI Gateway provides auditable visibility into user prompts and LLM
+					tool calls from developer tools within Coder Workspaces. AI Gateway
+					requires a Premium license with AI Governance add-on.
 				</PaywallDescription>
 				<PaywallDocumentationLink href={docs("/ai-coder/ai-governance")}>
 					Learn about AI Governance
@@ -44,17 +44,19 @@ const PaywallAIGovernance = () => {
 						<span>
 							Visit{" "}
 							<a
-								href="https://coder.com/docs/ai-coder/ai-bridge"
+								href={docs("/ai-coder/ai-gateway")}
 								target="_blank"
 								rel="noreferrer"
 								className="text-content-link"
 							>
-								AI Bridge Docs
+								AI Gateway Docs
 							</a>
 						</span>
 					</PaywallFeature>
 				</PaywallFeatures>
-				<PaywallCTA href="https://coder.com/contact">Contact Sales</PaywallCTA>
+				<PaywallCTA href="https://coder.com/contact/sales">
+					Contact Sales
+				</PaywallCTA>
 			</PaywallStack>
 		</Paywall>
 	);

@@ -1,4 +1,4 @@
-# AI Governance Add-On (Premium)
+# AI Governance Add-On
 
 Coder Workspaces already lets teams run AI tools like
 [Cursor](https://registry.coder.com/modules/coder/cursor) and
@@ -7,20 +7,23 @@ development environments. As adoption grows, many enterprises also need
 observability, management, and policy controls to support secure and auditable
 AI rollouts.
 
-Coder’s AI Governance Add-On for Premium licenses includes a set of features
+The AI Governance Add-On is a separate, per-user license for Premium customers.
+It is not included with a Premium subscription and must be purchased separately.
+Each user with the add-on gets access to a set of features
 that help organizations safely roll out AI tooling at scale:
 
-- [AI Bridge](./ai-bridge/index.md): LLM gateway to audit AI sessions, central
+- [AI Gateway](./ai-gateway/index.md): LLM gateway to audit AI sessions, central
   MCP server management, and policy enforcement
-- [Agent Boundaries](./agent-boundaries/index.md): Process-level firewalls for
+- [Agent Firewall](./agent-firewall/index.md): Process-level firewalls for
   agents, restricting which domains can be accessed by AI agents
-- [Additional Tasks Use (via Agent Workspace Builds)](#how-coder-tasks-usage-is-measured):
-  Additional allowance of Agent Workspace Builds for continued use of Coder
-  Tasks.
+
+> [!NOTE]
+> As of Coder v2.32, the AI Governance Add-On is required to use AI Gateway and Agent Firewall.
+> Deployments without the add-on cannot access these features.
 
 ## Who should use the AI Governance Add-On
 
-The AI Governance Add-On is for teams that want to extend that platform to
+The AI Governance Add-On is for teams that want to extend the Coder platform to
 support AI-powered IDEs and coding agents in a controlled, observable way.
 
 It's a good fit if you're:
@@ -30,9 +33,8 @@ It's a good fit if you're:
 - Looking to centrally observe, audit, and govern AI activity in Coder
   Workspaces
 - Managing AI workflows against sensitive or regulated codebases
-- Expanding the use of Coder Tasks for AI-driven background work
 
-If you already use other AI governance tools, such as third-party LLM gateways
+If you already use other AI Governance tools, such as third-party LLM gateways
 or vendor-managed policies, you can continue using them. Coder Workspaces can
 still serve as the backend for development environments and AI workflows, with
 or without the AI Governance Add-On.
@@ -45,55 +47,50 @@ security challenges that traditional developer tooling doesn't address.
 ### Auditing AI activity across teams
 
 Without centralized monitoring, teams have no way to understand how AI tools are
-being used across the organization. AI Bridge provides audit trails of prompts,
+being used across the organization. AI Gateway provides audit trails of prompts,
 token usage, and tool invocations, giving administrators insight into AI
 adoption patterns and potential issues.
 
-### Restricting agent network and command access
+### Restricting agent network access
 
-AI agents can make arbitrary network requests, potentially accessing
-unauthorized services or exfiltrating data. They can also execute destructive
-commands within a workspace. Agent Boundaries enforce process-level policies
-that restrict which domains agents can reach and what actions they can perform,
+AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data.
+Agent Firewall enforces process-level policies that restrict which domains agents can reach and what actions they can perform,
 preventing unintended data exposure and destructive operations like `rm -rf`.
 
 ### Centralizing API key management
 
 Managing individual API keys for AI providers across hundreds of developers
-creates security risks and administrative overhead. AI Bridge centralizes
+creates security risks and administrative overhead. AI Gateway centralizes
 authentication so users authenticate through Coder, eliminating the need to
 distribute and rotate provider API keys.
 
 ### Standardizing MCP tools and servers
 
 Different teams may use different MCP servers and tools with varying security
-postures. AI Bridge enables centralized MCP administration, allowing
+postures. AI Gateway enables centralized MCP administration, allowing
 organizations to define approved tools and servers that all users can access.
 
 ### Measuring AI adoption and spend
 
 Without usage data, it's hard to justify AI tooling investments or identify
-high-leverage use cases. AI Bridge captures metrics on token spend, adoption
+high-leverage use cases. AI Gateway captures metrics on token spend, adoption
 rates, and usage patterns to inform decisions about AI strategy.
 
 ## GA status and availability
 
-Starting with Coder v2.30 (February 2026), AI Bridge and Agent Boundaries are
+Starting with Coder v2.30 (February 2026), AI Gateway and Agent Firewall are
 generally available as part of the AI Governance Add-On.
-
-If you've been experimenting with these features in earlier releases, you'll see
-a notification banner in your deployment in v2.30. This banner is a reminder
-that these features have moved out of beta and are now included with the AI
-Governance Add-On.
-
-In v2.30, this notification is informational only. A future Coder release will
-require the add-on to continue using AI Bridge and Agent Boundaries.
 
 To learn more about enabling the AI Governance Add-On, pricing, or trial
 options, reach out to your
 [Coder account team](https://coder.com/contact/sales).
 
 ## How Coder Tasks usage is measured
+
+> [!NOTE]
+> There is a known issue with how Agent Workspace Builds are tallied in v2.28
+> and v2.29. We recommend updating to v2.28.9, v2.29.4, or v2.30 to resolve
+> this issue.
 
 The usage metric used to measure Coder Tasks consumption is called **Agent
 Workspace Builds** (prev. "managed agents").
@@ -118,7 +115,7 @@ and coding assistants.
 | Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
 | Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
 | Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
-| Developer creates a workspace for use with Coder AI Bridge and Agent Boundaries                   | No                             |
+| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall                    | No                             |
 
 In the future, additional capabilities for managing agents (beyond Coder Tasks)
 may also consume agent workspace builds.
@@ -126,15 +123,47 @@ may also consume agent workspace builds.
 ### Agent Workspace Build Limits
 
 Without proper controls and sandboxing, it is not recommended to open up Coder
-Tasks to a large audience in the enterprise. Coder Premium deployments include
-1,000 Agent Workspace Builds, primarily for proof-of-concept use and basic
-workflows.
+Tasks to a large audience in the enterprise. Both Community and Premium
+deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
+use and basic workflows. Community deployments do not have access to
+[AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
 
 Our [AI Governance Add-On](./ai-governance.md) includes a shared usage pool of
 Agent Workspace Builds for automated workflows, along with limits that scale
 proportionately with user count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). Coder Tasks or other AI
-features do not break when you run over the limit.
+[usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
+features continue to function normally even if the limit is breached. Admins
+will receive a warning to [contact their account team](https://coder.com/contact)
+to remediate.
 
-If you are approaching your deployment-wide limits,
-[contact us](https://coder.com/contact) to discuss your use case with our team.
+### Tracking Agent Workspace Builds
+
+Admins can monitor Agent Workspace Build usage from the Coder dashboard.
+Navigate to **Deployment** > **Licenses** to view current usage against your
+entitlement limits.
+
+![Agent Workspace Build usage](../images/admin/ai-governance-awb-usage.png)
+
+<small>Agent Workspace Build usage showing current consumption against
+entitlement limits in the Licenses page.</small>
+
+## Identifying AI seat consumers
+
+When the AI Governance add-on is licensed, the **Users** table and
+**Organization Members** table display an **AI add-on** column that shows
+whether each user is consuming an AI seat:
+
+- A green check icon indicates the user is actively consuming an AI seat.
+- A gray X icon indicates the user is not consuming an AI seat.
+
+A user consumes an AI seat when they use AI features such as AI Gateway or
+Tasks. The column helps administrators identify which users contribute to
+the organization's AI seat count, making it easier to manage seat
+allocations and stay within license limits.
+
+The **AI add-on** column only appears when the deployment has an active
+`ai_governance_user_limit` entitlement. If the entitlement is not present
+or the license has expired, the column is hidden.
+
+> **Tip:** Hover over the **AI add-on** column header for a tooltip
+> describing what the column represents.

@@ -1,48 +1,47 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import {
-	HelpTooltip,
-	HelpTooltipContent,
-	HelpTooltipIcon,
-	HelpTooltipIconTrigger,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
 import type { FC, ReactNode } from "react";
-import type { ThemeRole } from "theme/roles";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIcon,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
+import type { ThemeRole } from "#/theme/roles";
+import { cn } from "#/utils/cn";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;
-	title: ReactNode;
+	title?: ReactNode;
 	message: ReactNode;
 }
+
+const tooltipColorClasses: Record<ThemeRole, string> = {
+	info: "text-content-secondary",
+	error: "text-content-destructive",
+	warning: "text-content-warning",
+	notice: "text-content-link",
+	success: "text-content-success",
+	danger: "text-content-destructive",
+	active: "text-content-link",
+	inactive: "text-content-secondary",
+	preview: "text-highlight-purple",
+};
 
 export const InfoTooltip: FC<InfoTooltipProps> = ({
 	title,
 	message,
 	type = "info",
 }) => {
-	const theme = useTheme();
-	const iconColor = theme.roles[type].outline;
-
 	return (
-		<HelpTooltip>
-			<HelpTooltipIconTrigger size="small" css={styles.button}>
-				<HelpTooltipIcon css={{ color: iconColor }} />
-			</HelpTooltipIconTrigger>
-			<HelpTooltipContent>
-				<HelpTooltipTitle>{title}</HelpTooltipTitle>
-				<HelpTooltipText>{message}</HelpTooltipText>
-			</HelpTooltipContent>
-		</HelpTooltip>
+		<HelpPopover>
+			<HelpPopoverIconTrigger size="small" hoverEffect={false}>
+				<HelpPopoverIcon className={cn(tooltipColorClasses[type])} />
+			</HelpPopoverIconTrigger>
+			<HelpPopoverContent>
+				{title && <HelpPopoverTitle>{title}</HelpPopoverTitle>}
+				<HelpPopoverText>{message}</HelpPopoverText>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };
-
-const styles = {
-	button: css`
-		opacity: 1;
-
-		&:hover {
-			opacity: 1;
-		}
-	`,
-} satisfies Record<string, Interpolation<Theme>>;

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"net/netip"
 	"os"
 	"strconv"
@@ -176,6 +175,10 @@ func (c *Client) AgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (Ag
 	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
 }
 
+// AgentConnFunc returns a new connection to the specified agent. If release is
+// non-nil, callers must invoke it after they are done with the AgentConn.
+type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (conn AgentConn, release func(), err error)
+
 // @typescript-ignore DialAgentOptions
 type DialAgentOptions struct {
 	Logger slog.Logger
@@ -255,6 +258,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &header,
+		DERPTLSConfig:       c.client.DERPTLSConfig(),
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,
@@ -296,6 +300,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			<-controller.Closed()
 			return conn.Close()
 		},
+		Logger: options.Logger,
 	})
 
 	if !agentConn.AwaitReachable(dialCtx) {
@@ -363,26 +368,23 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	}
 	serverURL.RawQuery = q.Encode()
 
-	// If we're not using a signed token, we need to set the session token as a
-	// cookie.
-	httpClient := c.client.HTTPClient
+	// Shallow-clone the HTTP client so we never inherit a caller-provided
+	// cookie jar. Non-browser websocket auth uses the Coder-Session-Token
+	// header or a signed-token query param — never cookies. A stale jar
+	// cookie would take precedence on the server (cookies are checked
+	// before headers) and cause spurious 401s.
+	wsHTTPClient := *c.client.HTTPClient
+	wsHTTPClient.Jar = nil
+
+	headers := http.Header{}
+	// If we're not using a signed token, set the session token header.
 	if opts.SignedToken == "" {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
-		}
-		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  codersdk.SessionTokenCookie,
-			Value: c.client.SessionToken(),
-		}})
-		httpClient = &http.Client{
-			Jar:       jar,
-			Transport: c.client.HTTPClient.Transport,
-		}
+		headers.Set(codersdk.SessionTokenHeader, c.client.SessionToken())
 	}
 	//nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
+		HTTPClient: &wsHTTPClient,
+		HTTPHeader: headers,
 	})
 	if err != nil {
 		if res == nil {

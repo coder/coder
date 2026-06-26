@@ -31,8 +31,8 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/quartz"
 )
 
@@ -76,11 +76,9 @@ func TestEnterpriseCreate(t *testing.T) {
 
 		createTemplate := func(tplName string, orgID uuid.UUID) {
 			version := coderdtest.CreateTemplateVersion(t, ownerClient, orgID, nil)
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
-				wg.Done()
-			}()
+			})
 
 			coderdtest.CreateTemplate(t, ownerClient, orgID, version.ID, func(request *codersdk.CreateTemplateRequest) {
 				request.Name = tplName
@@ -124,7 +122,6 @@ func TestEnterpriseCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		_ = ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
@@ -155,7 +152,6 @@ func TestEnterpriseCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		_ = ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.Error(t, err, "expected error due to ambiguous template name")
 		require.ErrorContains(t, err, "multiple templates found")
@@ -181,11 +177,44 @@ func TestEnterpriseCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		_ = ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		ws, err := member.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, templateName)
+			assert.Equal(t, ws.OrganizationName, setup.second.Name, "workspace in second organization")
+		}
+	})
+
+	// Site-wide admins (Owners) can create workspaces in organizations they
+	// are not a member of by using the --org flag.
+	t.Run("OwnerCanCreateInNonMemberOrg", func(t *testing.T) {
+		t.Parallel()
+
+		const templateName = "ownertemplate"
+		setup := setupMultipleOrganizations(t, setupArgs{
+			secondTemplates: []string{templateName},
+		})
+
+		// Create a new Owner user who is NOT a member of the second org.
+		// The setup.owner created the second org and is auto-added as member,
+		// so we need a different Owner to test the RBAC-only path.
+		newOwner, _ := coderdtest.CreateAnotherUser(t, setup.owner, setup.firstResponse.OrganizationID, rbac.RoleOwner())
+
+		args := []string{
+			"create",
+			"owner-workspace",
+			"-y",
+			"--template", templateName,
+			"--org", setup.second.Name,
+		}
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, newOwner, root)
+		err := inv.Run()
+		require.NoError(t, err)
+
+		ws, err := newOwner.WorkspaceByOwnerAndName(context.Background(), codersdk.Me, "owner-workspace", codersdk.WorkspaceOptions{})
 		if assert.NoError(t, err, "expected workspace to be created") {
 			assert.Equal(t, ws.TemplateName, templateName)
 			assert.Equal(t, ws.OrganizationName, setup.second.Name, "workspace in second organization")
@@ -212,7 +241,6 @@ func TestEnterpriseCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		_ = ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.Error(t, err)
 		// The error message should indicate the flag to fix the issue.
@@ -370,8 +398,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Given: a template and a template version where the preset defines values for all required parameters,
@@ -413,17 +442,15 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		workspaceName := "my-workspace"
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", preset.Name)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err = inv.Run()
 		require.NoError(t, err)
 
 		// Should: display the selected preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		pty.ExpectMatch(presetName)
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -483,8 +510,9 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Given: a template and a template version where the preset defines values for all required parameters,
@@ -528,12 +556,10 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstParameterValue),
 			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err = inv.Run()
 		require.NoError(t, err)
-		pty.ExpectMatch("No preset applied.")
+		stdout.ExpectMatch(ctx, "No preset applied.")
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

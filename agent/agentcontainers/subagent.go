@@ -24,10 +24,12 @@ type SubAgent struct {
 	DisplayApps     []codersdk.DisplayApp
 }
 
-// CloneConfig makes a copy of SubAgent without ID and AuthToken. The
-// name is inherited from the devcontainer.
+// CloneConfig makes a copy of SubAgent using configuration from the
+// devcontainer. The ID is inherited from dc.SubagentID if present, and
+// the name is inherited from the devcontainer. AuthToken is not copied.
 func (s SubAgent) CloneConfig(dc codersdk.WorkspaceAgentDevcontainer) SubAgent {
 	return SubAgent{
+		ID:              dc.SubagentID.UUID,
 		Name:            dc.Name,
 		Directory:       s.Directory,
 		Architecture:    s.Architecture,
@@ -146,12 +148,12 @@ type SubAgentClient interface {
 // agent API client.
 type subAgentAPIClient struct {
 	logger slog.Logger
-	api    agentproto.DRPCAgentClient27
+	api    agentproto.DRPCAgentClient28
 }
 
 var _ SubAgentClient = (*subAgentAPIClient)(nil)
 
-func NewSubAgentClientFromAPI(logger slog.Logger, agentAPI agentproto.DRPCAgentClient27) SubAgentClient {
+func NewSubAgentClientFromAPI(logger slog.Logger, agentAPI agentproto.DRPCAgentClient28) SubAgentClient {
 	if agentAPI == nil {
 		panic("developer error: agentAPI cannot be nil")
 	}
@@ -189,6 +191,11 @@ func (a *subAgentAPIClient) List(ctx context.Context) ([]SubAgent, error) {
 
 func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (_ SubAgent, err error) {
 	a.logger.Debug(ctx, "creating sub agent", slog.F("name", agent.Name), slog.F("directory", agent.Directory))
+
+	var id []byte
+	if agent.ID != uuid.Nil {
+		id = agent.ID[:]
+	}
 
 	displayApps := make([]agentproto.CreateSubAgentRequest_DisplayApp, 0, len(agent.DisplayApps))
 	for _, displayApp := range agent.DisplayApps {
@@ -228,6 +235,7 @@ func (a *subAgentAPIClient) Create(ctx context.Context, agent SubAgent) (_ SubAg
 		OperatingSystem: agent.OperatingSystem,
 		DisplayApps:     displayApps,
 		Apps:            apps,
+		Id:              id,
 	})
 	if err != nil {
 		return SubAgent{}, err

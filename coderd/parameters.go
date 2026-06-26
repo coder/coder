@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -26,7 +27,7 @@ import (
 // @Produce json
 // @Param request body codersdk.DynamicParametersRequest true "Initial parameter values"
 // @Success 200 {object} codersdk.DynamicParametersResponse
-// @Router /templateversions/{templateversion}/dynamic-parameters/evaluate [post]
+// @Router /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate [post]
 func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req codersdk.DynamicParametersRequest
@@ -43,7 +44,7 @@ func (api *API) templateVersionDynamicParametersEvaluate(rw http.ResponseWriter,
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 101
-// @Router /templateversions/{templateversion}/dynamic-parameters [get]
+// @Router /api/v2/templateversions/{templateversion}/dynamic-parameters [get]
 func (api *API) templateVersionDynamicParametersWebsocket(rw http.ResponseWriter, r *http.Request) {
 	apikey := httpmw.APIKey(r)
 	userID := apikey.UserID
@@ -121,7 +122,7 @@ func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, ini
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 	}
 	if result != nil {
-		response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
+		response.Parameters = slice.List(result.Parameters, db2sdk.PreviewParameter)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -139,7 +140,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	stream := wsjson.NewStream[codersdk.DynamicParametersRequest, codersdk.DynamicParametersResponse](
 		conn,
@@ -155,7 +156,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 		Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 	}
 	if result != nil {
-		response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
+		response.Parameters = slice.List(result.Parameters, db2sdk.PreviewParameter)
 	}
 	err = stream.Send(response)
 	if err != nil {
@@ -192,7 +193,7 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				Diagnostics: db2sdk.HCLDiagnostics(diagnostics),
 			}
 			if result != nil {
-				response.Parameters = db2sdk.List(result.Parameters, db2sdk.PreviewParameter)
+				response.Parameters = slice.List(result.Parameters, db2sdk.PreviewParameter)
 			}
 			err = stream.Send(response)
 			if err != nil {

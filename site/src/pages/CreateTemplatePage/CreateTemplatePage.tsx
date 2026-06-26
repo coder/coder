@@ -1,11 +1,11 @@
-import { createTemplate } from "api/queries/templates";
-import type { TemplateVersion } from "api/typesGenerated";
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useRef, useState } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
+import { createTemplate } from "#/api/queries/templates";
+import type { TemplateVersion } from "#/api/typesGenerated";
+import { FullPageHorizontalForm } from "#/components/FullPageForm/FullPageHorizontalForm";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { pageTitle } from "#/utils/page";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
 import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
@@ -21,10 +21,6 @@ const CreateTemplatePage: FC = () => {
 	const createTemplateMutation = useMutation(createTemplate());
 	const variablesSectionRef = useRef<HTMLDivElement>(null);
 
-	const onCancel = () => {
-		navigate(-1);
-	};
-
 	const pageViewProps: CreateTemplatePageViewProps = {
 		onCreateTemplate: async (options) => {
 			setIsBuildLogsOpen(true);
@@ -33,8 +29,11 @@ const CreateTemplatePage: FC = () => {
 				onCreateVersion: setTemplateVersion,
 				onTemplateVersionChanges: setTemplateVersion,
 			});
+			// Ephemeral router state tells TemplateFilesPage to show a
+			// one-time banner with agent skill and docs links.
 			navigate(
 				`${getLink(linkToTemplate(options.organization, template.name))}/files`,
+				{ state: { justCreated: true } },
 			);
 		},
 		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
@@ -47,7 +46,7 @@ const CreateTemplatePage: FC = () => {
 		<>
 			<title>{pageTitle("Create Template")}</title>
 
-			<FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
+			<FullPageHorizontalForm title="Create Template">
 				{searchParams.has("fromTemplate") ? (
 					<DuplicateTemplateView {...pageViewProps} />
 				) : searchParams.has("exampleId") ? (

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -186,17 +185,29 @@ type WorkspaceAgentLogSource struct {
 	Icon             string    `json:"icon"`
 }
 
+type WorkspaceAgentScriptStatus string
+
+// This is also in database/models.go and should be kept in sync.
+const (
+	WorkspaceAgentScriptStatusOK            WorkspaceAgentScriptStatus = "ok"
+	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
+	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
+	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+)
+
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID     `json:"id" format:"uuid"`
-	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
-	LogPath          string        `json:"log_path"`
-	Script           string        `json:"script"`
-	Cron             string        `json:"cron"`
-	RunOnStart       bool          `json:"run_on_start"`
-	RunOnStop        bool          `json:"run_on_stop"`
-	StartBlocksLogin bool          `json:"start_blocks_login"`
-	Timeout          time.Duration `json:"timeout"`
-	DisplayName      string        `json:"display_name"`
+	ID               uuid.UUID                   `json:"id" format:"uuid"`
+	LogSourceID      uuid.UUID                   `json:"log_source_id" format:"uuid"`
+	LogPath          string                      `json:"log_path"`
+	Script           string                      `json:"script"`
+	Cron             string                      `json:"cron"`
+	RunOnStart       bool                        `json:"run_on_start"`
+	RunOnStop        bool                        `json:"run_on_stop"`
+	StartBlocksLogin bool                        `json:"start_blocks_login"`
+	Timeout          time.Duration               `json:"timeout"`
+	DisplayName      string                      `json:"display_name"`
+	ExitCode         *int32                      `json:"exit_code,omitempty"`
+	Status           *WorkspaceAgentScriptStatus `json:"status,omitempty"`
 }
 
 type WorkspaceAgentHealth struct {
@@ -215,6 +226,26 @@ type WorkspaceAgentLog struct {
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
 	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
+}
+
+// Text formats the log entry as human-readable text.
+func (l WorkspaceAgentLog) Text(agentName, sourceName string) string {
+	var sb strings.Builder
+	_, _ = sb.WriteString(l.CreatedAt.Format(time.RFC3339))
+	_, _ = sb.WriteString(" [")
+	_, _ = sb.WriteString(string(l.Level))
+	_, _ = sb.WriteString("] [agent")
+	if agentName != "" {
+		_, _ = sb.WriteString(".")
+		_, _ = sb.WriteString(agentName)
+	}
+	if sourceName != "" {
+		_, _ = sb.WriteString("|")
+		_, _ = sb.WriteString(sourceName)
+	}
+	_, _ = sb.WriteString("] ")
+	_, _ = sb.WriteString(l.Output)
+	return sb.String()
 }
 
 type AgentSubsystem string
@@ -420,10 +451,11 @@ func (s WorkspaceAgentDevcontainerStatus) Transitioning() bool {
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
-	ID              uuid.UUID `json:"id" format:"uuid"`
-	Name            string    `json:"name"`
-	WorkspaceFolder string    `json:"workspace_folder"`
-	ConfigPath      string    `json:"config_path,omitempty"`
+	ID              uuid.UUID     `json:"id" format:"uuid"`
+	Name            string        `json:"name"`
+	WorkspaceFolder string        `json:"workspace_folder"`
+	ConfigPath      string        `json:"config_path,omitempty"`
+	SubagentID      uuid.NullUUID `json:"subagent_id,omitempty" format:"uuid"`
 
 	// Additional runtime fields.
 	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
@@ -438,6 +470,7 @@ func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) boo
 	return d.ID == other.ID &&
 		d.Name == other.Name &&
 		d.WorkspaceFolder == other.WorkspaceFolder &&
+		d.SubagentID == other.SubagentID &&
 		d.Status == other.Status &&
 		d.Dirty == other.Dirty &&
 		(d.Container == nil && other.Container == nil ||
@@ -445,6 +478,12 @@ func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) boo
 		(d.Agent == nil && other.Agent == nil ||
 			(d.Agent != nil && other.Agent != nil && *d.Agent == *other.Agent)) &&
 		d.Error == other.Error
+}
+
+// IsTerraformDefined returns true if this devcontainer has resources defined
+// in Terraform.
+func (d WorkspaceAgentDevcontainer) IsTerraformDefined() bool {
+	return d.SubagentID.Valid
 }
 
 // WorkspaceAgentDevcontainerAgent represents the sub agent for a
@@ -552,23 +591,15 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 		return nil, nil, err
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-
-	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-
 	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
 		CompressionMode: websocket.CompressionNoContextTakeover,
 		HTTPClient: &http.Client{
-			Jar:       jar,
 			Transport: c.HTTPClient.Transport,
+		},
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
 		},
 	})
 	if err != nil {
@@ -659,20 +690,14 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		return ch, closeFunc(func() error { return nil }), nil
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
-		HTTPClient:      httpClient,
+		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
+		},
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
@@ -683,4 +708,54 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}
 	d := wsjson.NewDecoder[[]WorkspaceAgentLog](conn, websocket.MessageText, c.logger)
 	return d.Chan(), d, nil
+}
+
+// WorkspaceAgentGitClientMessageType represents the type of a client
+// message sent to the git watch WebSocket.
+type WorkspaceAgentGitClientMessageType string
+
+const (
+	// WorkspaceAgentGitClientMessageTypeRefresh requests an immediate
+	// re-scan of all subscribed repositories.
+	WorkspaceAgentGitClientMessageTypeRefresh WorkspaceAgentGitClientMessageType = "refresh"
+)
+
+// WorkspaceAgentGitClientMessage is a message sent from the client to
+// the agent over the git watch WebSocket.
+type WorkspaceAgentGitClientMessage struct {
+	Type WorkspaceAgentGitClientMessageType `json:"type"`
+}
+
+// WorkspaceAgentGitServerMessageType represents the type of a server
+// message sent from the git watch WebSocket.
+type WorkspaceAgentGitServerMessageType string
+
+const (
+	// WorkspaceAgentGitServerMessageTypeChanges contains a delta of
+	// repository changes since the last emitted update.
+	WorkspaceAgentGitServerMessageTypeChanges WorkspaceAgentGitServerMessageType = "changes"
+	// WorkspaceAgentGitServerMessageTypeError signals a server-side
+	// error.
+	WorkspaceAgentGitServerMessageTypeError WorkspaceAgentGitServerMessageType = "error"
+)
+
+// WorkspaceAgentGitServerMessage is a message sent from the agent to
+// the client over the git watch WebSocket.
+type WorkspaceAgentGitServerMessage struct {
+	Type         WorkspaceAgentGitServerMessageType `json:"type"`
+	ScannedAt    *time.Time                         `json:"scanned_at,omitempty" format:"date-time"`
+	Repositories []WorkspaceAgentRepoChanges        `json:"repositories,omitempty"`
+	Message      string                             `json:"message,omitempty"`
+}
+
+// WorkspaceAgentRepoChanges describes the current state of a single
+// git repository's working tree. When Removed is true the repo root
+// directory or its .git subdirectory no longer exists; all other
+// fields (Branch, RemoteOrigin, UnifiedDiff) are empty/zero.
+type WorkspaceAgentRepoChanges struct {
+	RepoRoot     string `json:"repo_root"`
+	Branch       string `json:"branch"`
+	RemoteOrigin string `json:"remote_origin,omitempty"`
+	UnifiedDiff  string `json:"unified_diff,omitempty"`
+	Removed      bool   `json:"removed,omitempty"`
 }

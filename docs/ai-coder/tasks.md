@@ -1,13 +1,28 @@
 # Coder Tasks
 
+> [!WARNING]
+> Starting June 2, 2026, Coder Tasks will move to a 12-month Extended Support Release (ESR) for Premium customers.
+>
+> Tasks will be removed from new Coder releases beginning with v2.37 (September 1, 2026) and will only be available via the ESR during the support period.
+>
+> We recommend transitioning to [Coder Agents](./agents/index.md), the long-term replacement.
+
 Coder Tasks is an interface for running & managing coding agents such as Claude Code and Aider, powered by Coder workspaces.
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)
 
-Coder Tasks is best for cases where the IDE is secondary, such as prototyping or running long-running background jobs. However, tasks run inside full workspaces so developers can [connect via an IDE](../user-guides/workspace-access) to take a task to completion.
+Coder Tasks is best for cases where the IDE is secondary, such as prototyping or running long-running background jobs. However, tasks run inside full workspaces so developers can [connect via an IDE](../user-guides/workspace-access/index.md) to take a task to completion.
+
+You can also interact with Coder Tasks from your IDE. The [Coder extension for VS Code](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) (and compatible forks like Cursor) enables you to create, monitor, and manage Tasks directly from the IDE, eliminating the need to context-switch to a browser. After logging in, you get access to a dedicated Tasks view in the sidebar that lets you select a template, configure parameters, prompt an agent, and track task status or download logs. Your tasks run in Coder workspaces with access to your repos, credentials, and internal network.
+
+![VS Code IDE Extension](../images/guides/ai-agents/vs_code_tasks_extension.png)
+
+The Task details view shows the user's complete chat, workspace status and, build or startup logs so you can understand what the Task is doing and troubleshoot failures. This makes it easier to confirm progress and diagnose issues without leaving the Task workflow.
+
+![VS Code IDE Extension Details View](../images/guides/ai-agents/vs_code_tasks_extension_details.png)
 
 > [!NOTE]
-> Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. To scale beyond this limit, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
+> Both Community and Premium deployments include 1,000 Agent Workspace Builds for proof-of-concept use. Community deployments do not have access to [AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md). To scale beyond the 1,000 build limit or enable AI Governance features, the [AI Governance Add-On](./ai-governance.md) provides expanded usage pools that grow with your user count. [Contact us](https://coder.com/contact) to discuss pricing.
 
 ## Supported Agents (and Models)
 
@@ -39,7 +54,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](https://github.com/coder/coder/tree/main/examples/templates/tasks-docker) template.
+To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](../../examples/templates/tasks-docker) template.
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
@@ -140,6 +155,17 @@ Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API
 ## Opting out of Tasks
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
+
+## Pausing and resuming tasks
+
+Tasks automatically pause when the workspace reaches its idle timeout,
+freeing compute resources. While paused, you can view a snapshot of the
+last conversation messages. When you resume or send a new message, the
+workspace restarts and the agent picks up where it left off if the agent
+and template support session persistence.
+
+For details on how pause and resume works and what your template needs,
+see [Task lifecycle](./tasks-lifecycle.md).
 
 ## Command Line Interface
 

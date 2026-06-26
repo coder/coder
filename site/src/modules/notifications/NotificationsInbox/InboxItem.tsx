@@ -1,11 +1,11 @@
-import type { InboxNotification } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Link } from "components/Link/Link";
-import { SquareCheckBig } from "lucide-react";
+import { SquareCheckBigIcon } from "lucide-react";
 import type { FC } from "react";
 import Markdown from "react-markdown";
 import { Link as RouterLink } from "react-router";
-import { relativeTime } from "utils/time";
+import type { InboxNotification } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import { relativeTime } from "#/utils/time";
 import { InboxAvatar } from "./InboxAvatar";
 
 type InboxItemProps = {
@@ -69,7 +69,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 							variant="outline"
 							size="sm"
 						>
-							<SquareCheckBig />
+							<SquareCheckBigIcon />
 							mark as read
 						</Button>
 					</>

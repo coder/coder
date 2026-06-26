@@ -1,23 +1,22 @@
-import type { SerpentOption } from "api/typesGenerated";
+import type { FC } from "react";
+import type { SerpentOption } from "#/api/typesGenerated";
 import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
 	PremiumBadge,
-} from "components/Badges/Badges";
+} from "#/components/Badges/Badges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
-} from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type SecuritySettingsPageViewProps = {
@@ -34,7 +33,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 	);
 
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
@@ -90,6 +89,6 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					<OptionsTable options={tlsOptions} />
 				</div>
 			)}
-		</Stack>
+		</div>
 	);
 };

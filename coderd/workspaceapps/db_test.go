@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -217,17 +218,8 @@ func Test_ResolveRequest(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentAuthToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID, agentName)
-
-	agentID := uuid.Nil
-	for _, resource := range resources {
-		for _, agnt := range resource.Agents {
-			if agnt.Name == agentName {
-				agentID = agnt.ID
-				break
-			}
-		}
-	}
-	require.NotEqual(t, uuid.Nil, agentID)
+	agent := coderdtest.RequireWorkspaceAgentByName(t, resources, agentName)
+	agentID := agent.ID
 
 	// Reset audit logs so cleanup check can pass.
 	connLogger.Reset()
@@ -310,7 +302,7 @@ func Test_ResolveRequest(t *testing.T) {
 						CORSBehavior: codersdk.CORSBehaviorSimple,
 					}, token)
 					require.NotZero(t, token.Expiry)
-					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
+					require.WithinDuration(t, dbtime.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
 
 					// Check that the token was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)
@@ -916,6 +908,50 @@ func Test_ResolveRequest(t *testing.T) {
 		require.Len(t, connLogger.ConnectionLogs(), 0)
 	})
 
+	// Security (PLAT-260): a UUID workspace lookup must reject when
+	// the URL's username segment names a different owner. Otherwise a
+	// same-owner origin can be spoofed for credentialed cross-origin
+	// reads.
+	t.Run("WorkspaceUUIDOwnerMismatch", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      secondUser.Username,
+			WorkspaceNameOrID: workspace.ID.String(),
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     appNamePublic,
+		}).Normalize()
+
+		connLogger := connectionlog.NewFake()
+		auditableIP := testutil.RandomIPv6(t)
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+		r.RemoteAddr = auditableIP
+
+		token, ok := workspaceappsResolveRequest(t, connLogger, rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.False(t, ok)
+		require.Nil(t, token)
+
+		w := rw.Result()
+		defer w.Body.Close()
+		b, err := io.ReadAll(w.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "404 - Application Not Found")
+		require.Equal(t, http.StatusNotFound, w.StatusCode)
+		require.Len(t, connLogger.ConnectionLogs(), 0)
+	})
+
 	t.Run("RedirectSubdomainAuth", func(t *testing.T) {
 		t.Parallel()
 
@@ -1015,7 +1051,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 		w := rw.Result()
 		defer w.Body.Close()
-		require.Equal(t, http.StatusBadGateway, w.StatusCode)
+		require.Equal(t, http.StatusNotFound, w.StatusCode)
 		assertConnLogContains(t, rw, r, connLogger, workspace, agentNameUnhealthy, appNameAgentUnhealthy, database.ConnectionTypeWorkspaceApp, me.ID)
 		require.Len(t, connLogger.ConnectionLogs(), 1)
 
@@ -1280,7 +1316,7 @@ func assertConnLogContains(t *testing.T, rr *httptest.ResponseRecorder, r *http.
 		WorkspaceName:    workspace.Name,
 		AgentName:        agentName,
 		Type:             typ,
-		Ip:               database.ParseIP(r.RemoteAddr),
+		IP:               database.ParseIP(r.RemoteAddr),
 		UserAgent:        sql.NullString{Valid: r.UserAgent() != "", String: r.UserAgent()},
 		Code: sql.NullInt32{
 			Int32: int32(resp.StatusCode), // nolint:gosec

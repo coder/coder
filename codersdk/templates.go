@@ -32,9 +32,14 @@ type Template struct {
 	Description        string                 `json:"description"`
 	Deprecated         bool                   `json:"deprecated"`
 	DeprecationMessage string                 `json:"deprecation_message"`
+	Deleted            bool                   `json:"deleted"`
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
+	// TimeTilAutostopNotifyMillis is the duration before the workspace's
+	// autostop deadline at which a reminder notification is sent. 0 disables
+	// the notification.
+	TimeTilAutostopNotifyMillis int64 `json:"time_til_autostop_notify_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
 	// value is only used if your license is entitled to use the advanced template
 	// scheduling feature.
@@ -64,6 +69,10 @@ type Template struct {
 	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
 	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+
+	// DisableModuleCache disables the use of cached Terraform modules during
+	// provisioning.
+	DisableModuleCache bool `json:"disable_module_cache"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -210,40 +219,48 @@ type ACLAvailable struct {
 	Groups []Group       `json:"groups"`
 }
 
+// UpdateTemplateMeta is the request body for the PATCH /templates/{template}
+// endpoint. All fields are optional. Fields that are nil are not modified.
 type UpdateTemplateMeta struct {
-	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	Name             *string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
 	Description      *string `json:"description,omitempty"`
 	Icon             *string `json:"icon,omitempty"`
-	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
+	DefaultTTLMillis *int64  `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
-	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
+	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
+	// TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	// before the autostop deadline at which a reminder notification is sent for
+	// workspaces created from this template. Defaults to 0 (disabled). Omitting
+	// the field keeps the existing value.
+	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
 	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
-	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop              bool                          `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs   bool                          `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis               int64                         `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis           int64                         `json:"time_til_dormant_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis int64                         `json:"time_til_dormant_autodelete_ms,omitempty"`
+	AllowUserAutostart             *bool                         `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              *bool                         `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   *bool                         `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               *int64                        `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           *int64                        `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis *int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
 	// value.
-	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
-	// UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
-	// from the template. This is useful for preventing dormant workspaces being immediately
-	// deleted when updating the dormant_ttl field to a new, shorter value.
-	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	UpdateWorkspaceLastUsedAt *bool `json:"update_workspace_last_used_at,omitempty"`
+	// UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned
+	// from the template. This is useful for preventing dormant workspaces being
+	// immediately deleted when updating the dormant_ttl field to a new, shorter
+	// value.
+	UpdateWorkspaceDormantAt *bool `json:"update_workspace_dormant_at,omitempty"`
 	// RequireActiveVersion mandates workspaces built using this template
 	// use the active version of the template. This option has no
 	// effect on template admins.
-	RequireActiveVersion bool `json:"require_active_version,omitempty"`
+	RequireActiveVersion *bool `json:"require_active_version,omitempty"`
 	// DeprecationMessage if set, will mark the template as deprecated and block
 	// any new workspaces from using this template.
 	// If passed an empty string, will remove the deprecated message, making
@@ -254,7 +271,7 @@ type UpdateTemplateMeta struct {
 	// If this is set to true, the template will not be available to all users,
 	// and must be explicitly granted to users or groups in the permissions settings
 	// of the template.
-	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
+	DisableEveryoneGroupAccess *bool                         `json:"disable_everyone_group_access,omitempty"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
 	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
 	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
@@ -263,6 +280,9 @@ type UpdateTemplateMeta struct {
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
+	// DisableModuleCache disables the using of cached Terraform modules during
+	// provisioning. It is recommended not to disable this.
+	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
 }
 
 type TemplateExample struct {
@@ -345,9 +365,6 @@ func (c *Client) UpdateTemplateMeta(ctx context.Context, templateID uuid.UUID, r
 		return Template{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusNotModified {
-		return Template{}, xerrors.New("template metadata not modified")
-	}
 	if res.StatusCode != http.StatusOK {
 		return Template{}, ReadBodyAsError(res)
 	}
@@ -367,9 +384,19 @@ func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, re
 	return nil
 }
 
-// TemplateACLAvailable returns available users + groups that can be assigned template perms
-func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID) (ACLAvailable, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID), nil)
+// TemplateACLAvailable returns available users + groups that can be assigned
+// template perms. The optional req controls the q/limit/offset query
+// parameters applied server-side; pass codersdk.UsersRequest{} when no
+// filtering is desired.
+func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
 	if err != nil {
 		return ACLAvailable{}, err
 	}

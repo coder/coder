@@ -5,6 +5,8 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
@@ -85,16 +87,16 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		},
 		// We don't want these to be configurable via YAML because they are secrets.
 		// However, we do want to allow them to be shown in documentation.
-		"AI Bridge OpenAI Key": {
+		"AI Gateway OpenAI Key": {
 			yaml: true,
 		},
-		"AI Bridge Anthropic Key": {
+		"AI Gateway Anthropic Key": {
 			yaml: true,
 		},
-		"AI Bridge Bedrock Access Key": {
+		"AI Gateway Bedrock Access Key": {
 			yaml: true,
 		},
-		"AI Bridge Bedrock Access Key Secret": {
+		"AI Gateway Bedrock Access Key Secret": {
 			yaml: true,
 		},
 	}
@@ -144,6 +146,270 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 
 	for opt := range excludes {
 		t.Errorf("Excluded option %q is not in the deployment config. Remove it?", opt)
+	}
+}
+
+func TestParseSSHConfigOption(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		option    string
+		wantKey   string
+		wantValue string
+		wantErr   bool
+	}{
+		{
+			name:      "ProxyCommandWithSpaces",
+			option:    "ProxyCommand=ssh -W %h:%p bastion",
+			wantKey:   "ProxyCommand",
+			wantValue: "ssh -W %h:%p bastion",
+		},
+		{
+			name:      "SetEnvWithEquals",
+			option:    "SetEnv=FOO=bar BAZ=qux",
+			wantKey:   "SetEnv",
+			wantValue: "FOO=bar BAZ=qux",
+		},
+		{
+			name:      "SetEnvWithSpaceSeparator",
+			option:    "SetEnv FOO=bar BAZ=qux",
+			wantKey:   "SetEnv",
+			wantValue: "FOO=bar BAZ=qux",
+		},
+		{
+			name:      "HostName",
+			option:    "HostName example.com",
+			wantKey:   "HostName",
+			wantValue: "example.com",
+		},
+		{
+			name:    "NewlineInValue",
+			option:  "ProxyCommand=echo hi\nHost *",
+			wantErr: true,
+		},
+		{
+			name:    "CarriageReturnInValue",
+			option:  "ProxyCommand=echo hi\rHost *",
+			wantErr: true,
+		},
+		{
+			name:    "NULInValue",
+			option:  "ProxyCommand=echo hi\x00Host *",
+			wantErr: true,
+		},
+		{
+			name:    "NewlineInKey",
+			option:  "Proxy\nCommand=value",
+			wantErr: true,
+		},
+		{
+			name:    "CarriageReturnInKey",
+			option:  "Proxy\rCommand=value",
+			wantErr: true,
+		},
+		{
+			name:    "NULInKey",
+			option:  "Proxy\x00Command=value",
+			wantErr: true,
+		},
+		{
+			name:    "MissingSeparator",
+			option:  "JustAKeyNoValue",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			key, value, err := codersdk.ParseSSHConfigOption(tt.option)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, key)
+			require.Equal(t, tt.wantValue, value)
+		})
+	}
+}
+
+func TestValidateWorkspaceHostnameSuffix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		suffix  string
+		wantErr bool
+	}{
+		{name: "Coder", suffix: "coder"},
+		{name: "Example", suffix: "example"},
+		{name: "Dotted", suffix: "coder.example.com"},
+		{name: "Empty", suffix: ""},
+		{name: "LeadingDot", suffix: ".coder", wantErr: true},
+		{name: "Newline", suffix: "coder\nHost *\n\tProxyCommand evil", wantErr: true},
+		{name: "CarriageReturn", suffix: "coder\r\nHost *", wantErr: true},
+		{name: "Space", suffix: "coder Host *", wantErr: true},
+		{name: "Tab", suffix: "coder\t*", wantErr: true},
+		{name: "NUL", suffix: "coder\x00", wantErr: true},
+		{name: "NonBreakingSpace", suffix: "coder\u00A0suffix", wantErr: true},
+		{name: "Glob", suffix: "*", wantErr: true},
+		{name: "GlobPrefix", suffix: "*.*", wantErr: true},
+		{name: "QuestionMark", suffix: "code?", wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateWorkspaceHostnameSuffix(tt.suffix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateWorkspaceHostnamePrefix(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		prefix  string
+		wantErr bool
+	}{
+		{name: "Default", prefix: "coder."},
+		{name: "NoDot", prefix: "coder"},
+		{name: "Empty", prefix: ""},
+		{name: "LeadingDot", prefix: ".coder"},
+		{name: "Newline", prefix: "coder.\nHost *\n\tProxyCommand evil", wantErr: true},
+		{name: "CarriageReturn", prefix: "coder.\r\nHost *", wantErr: true},
+		{name: "Space", prefix: "coder. Host *", wantErr: true},
+		{name: "Tab", prefix: "coder.\t*", wantErr: true},
+		{name: "NUL", prefix: "coder.\x00", wantErr: true},
+		{name: "NonBreakingSpace", prefix: "coder.\u00A0x", wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateWorkspaceHostnamePrefix(tt.prefix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateSSHConfigOptions(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		options map[string]string
+		wantErr bool
+	}{
+		{name: "HostName", options: map[string]string{"HostName": "example.com"}},
+		{name: "User", options: map[string]string{"User": "coder"}},
+		{name: "Port", options: map[string]string{"Port": "22"}},
+		{name: "SetEnv", options: map[string]string{"SetEnv": "FOO=bar BAZ=qux"}},
+		{name: "UserKnownHostsFile", options: map[string]string{"UserKnownHostsFile": "/tmp/coder_known_hosts"}},
+		{name: "EmptyKey", options: map[string]string{"": "value"}, wantErr: true},
+		{name: "NewlineInKey", options: map[string]string{"User\nProxyCommand": "evil"}, wantErr: true},
+		{name: "CarriageReturnInKey", options: map[string]string{"User\rProxyCommand": "evil"}, wantErr: true},
+		{name: "NULInKey", options: map[string]string{"User\x00ProxyCommand": "evil"}, wantErr: true},
+		{name: "SpaceInKey", options: map[string]string{"User ProxyCommand": "evil"}, wantErr: true},
+		{name: "EqualsInKey", options: map[string]string{"User=ProxyCommand": "evil"}, wantErr: true},
+		{name: "Host", options: map[string]string{"Host": "*"}, wantErr: true},
+		{name: "HostCaseInsensitive", options: map[string]string{"hOsT": "*"}, wantErr: true},
+		{name: "Match", options: map[string]string{"Match": "all"}, wantErr: true},
+		{name: "Include", options: map[string]string{"Include": "~/.ssh/config.d/*"}, wantErr: true},
+		{name: "ProxyCommand", options: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"}, wantErr: true},
+		{name: "ProxyCommandCaseInsensitive", options: map[string]string{"proxycommand": "ssh -W %h:%p bastion"}, wantErr: true},
+		{name: "LocalCommand", options: map[string]string{"LocalCommand": "echo pwned"}, wantErr: true},
+		{name: "PermitLocalCommand", options: map[string]string{"PermitLocalCommand": "yes"}, wantErr: true},
+		{name: "RemoteCommand", options: map[string]string{"RemoteCommand": "some-command"}, wantErr: true},
+		{name: "KnownHostsCommand", options: map[string]string{"KnownHostsCommand": "echo key"}, wantErr: true},
+		{name: "PKCS11Provider", options: map[string]string{"PKCS11Provider": "/tmp/evil.so"}, wantErr: true},
+		{name: "PKCS11ProviderCaseInsensitive", options: map[string]string{"pkcs11provider": "/tmp/evil.so"}, wantErr: true},
+		{name: "SecurityKeyProvider", options: map[string]string{"SecurityKeyProvider": "/tmp/evil.so"}, wantErr: true},
+		{name: "NewlineInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *\nProxyCommand evil"}, wantErr: true},
+		{name: "CarriageReturnInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\r\nHost *"}, wantErr: true},
+		{name: "NULInValue", options: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\x00suffix"}, wantErr: true},
+		{name: "SmartcardDevice", options: map[string]string{"SmartcardDevice": "/path/to/lib"}, wantErr: true},
+		{name: "XAuthLocation", options: map[string]string{"XAuthLocation": "/usr/bin/xauth"}, wantErr: true},
+		{name: "ProxyJump", options: map[string]string{"ProxyJump": "bastion.example.com"}, wantErr: true},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := codersdk.ValidateSSHConfigOptions(tt.options)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSSHConfigResponse_Validate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		response codersdk.SSHConfigResponse
+		wantErr  string
+	}{
+		{
+			name: "Valid",
+			response: codersdk.SSHConfigResponse{
+				HostnamePrefix:   "coder.",
+				HostnameSuffix:   "coder",
+				SSHConfigOptions: map[string]string{"HostName": "example.com"},
+			},
+		},
+		{
+			name:     "Empty",
+			response: codersdk.SSHConfigResponse{},
+		},
+		{
+			name:     "PrefixUnsafe",
+			response: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
+			wantErr:  "workspace hostname prefix",
+		},
+		{
+			name:     "SuffixUnsafe",
+			response: codersdk.SSHConfigResponse{HostnameSuffix: "coder\nHost *"},
+			wantErr:  "workspace hostname suffix",
+		},
+		{
+			name:     "OptionUnsafe",
+			response: codersdk.SSHConfigResponse{SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"}},
+			wantErr:  `ssh config option "ProxyCommand" is not allowed`,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.response.Validate()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
 	}
 }
 
@@ -303,6 +569,154 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
+}
+
+func TestAIGatewayCompatibilityAliases(t *testing.T) {
+	t.Parallel()
+
+	options := (&codersdk.DeploymentValues{}).Options()
+	byFlag := map[string]serpent.Option{}
+	for _, opt := range options {
+		if opt.Flag != "" {
+			byFlag[opt.Flag] = opt
+		}
+	}
+
+	type alias struct {
+		old serpent.Option
+		new serpent.Option
+	}
+	var aliases []alias
+	for _, opt := range options {
+		if !strings.HasPrefix(opt.Flag, "aibridge-") {
+			continue
+		}
+		require.True(t, strings.HasPrefix(opt.Description, "Deprecated:"), "aibridge option %s should have a 'Deprecated:' description", opt.Flag)
+		require.Len(t, opt.UseInstead, 1, "aibridge option %s should point to a single replacement", opt.Flag)
+
+		newOpt, ok := byFlag[opt.UseInstead[0].Flag]
+		require.True(t, ok, "aibridge option %s points to unknown flag %s", opt.Flag, opt.UseInstead[0].Flag)
+		require.NotEqual(t, opt.Flag, newOpt.Flag, "flag %s shares its flag with the new alias option", opt.Flag)
+		require.NotEqual(t, opt.Env, newOpt.Env, "flag %s shares its env with the new alias option", opt.Flag)
+		if oldYAML := opt.YAMLPath(); oldYAML != "" {
+			require.NotEqual(t, oldYAML, newOpt.YAMLPath(), "flag %s shares its YAML path with the new alias option", opt.Flag)
+		} else {
+			require.Empty(t, newOpt.YAMLPath(), "flag %s has no YAML path but the new alias option %s does", opt.Flag, newOpt.Flag)
+		}
+		aliases = append(aliases, alias{old: opt, new: newOpt})
+	}
+	// Update this count when adding or removing aibridge alias options.
+	require.Len(t, aliases, 34, "unexpected number of aibridge alias options")
+
+	sampleVal := func(opt serpent.Option) any {
+		switch opt.Value.Type() {
+		case "bool":
+			return opt.Default != "true"
+		case "int":
+			return 7
+		case "duration":
+			return "2h"
+		case "string-array":
+			return []string{"10.0.0.0/8", "172.16.0.0/12"}
+		default:
+			return "alias-value"
+		}
+	}
+	sampleArg := func(opt serpent.Option) string {
+		v := sampleVal(opt)
+		if arr, ok := v.([]string); ok {
+			return strings.Join(arr, ",")
+		}
+		return fmt.Sprint(v)
+	}
+
+	aiConfFromOpts := func(t *testing.T, apply func(opts serpent.OptionSet) error) codersdk.AIConfig {
+		t.Helper()
+		dv := &codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, apply(opts))
+		return dv.AI
+	}
+
+	t.Run("FlagParity", func(t *testing.T) {
+		t.Parallel()
+
+		var oldArgs, newArgs []string
+		for _, a := range aliases {
+			value := sampleArg(a.old)
+			oldArgs = append(oldArgs, "--"+a.old.Flag, value)
+			newArgs = append(newArgs, "--"+a.new.Flag, value)
+		}
+		oldAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.FlagSet().Parse(oldArgs)
+		})
+		newAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.FlagSet().Parse(newArgs)
+		})
+		require.Equal(t, newAI, oldAI)
+	})
+
+	t.Run("EnvParity", func(t *testing.T) {
+		t.Parallel()
+
+		var oldEnv, newEnv []serpent.EnvVar
+		for _, a := range aliases {
+			value := sampleArg(a.old)
+			oldEnv = append(oldEnv, serpent.EnvVar{Name: a.old.Env, Value: value})
+			newEnv = append(newEnv, serpent.EnvVar{Name: a.new.Env, Value: value})
+		}
+		oldAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.ParseEnv(oldEnv)
+		})
+		newAI := aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+			return opts.ParseEnv(newEnv)
+		})
+		require.Equal(t, newAI, oldAI)
+	})
+
+	t.Run("YAMLParity", func(t *testing.T) {
+		t.Parallel()
+
+		setPath := func(doc map[string]any, path string, value any) {
+			parts := strings.Split(path, ".")
+			for _, field := range parts[:len(parts)-1] {
+				next, ok := doc[field].(map[string]any)
+				if !ok {
+					next = map[string]any{}
+					doc[field] = next
+				}
+				doc = next
+			}
+			doc[parts[len(parts)-1]] = value
+		}
+
+		oldYAML := map[string]any{}
+		newYAML := map[string]any{}
+		for _, a := range aliases {
+			oldPath := a.old.YAMLPath()
+			newPath := a.new.YAMLPath()
+			if oldPath == "" {
+				require.Empty(t, newPath)
+				continue
+			}
+			require.NotEmpty(t, newPath, "new flag %s has no YAML path", a.old.Flag)
+
+			value := sampleVal(a.old)
+			setPath(oldYAML, oldPath, value)
+			setPath(newYAML, newPath, value)
+		}
+
+		parse := func(doc map[string]any) codersdk.AIConfig {
+			var node yaml.Node
+			require.NoError(t, node.Encode(doc))
+			return aiConfFromOpts(t, func(opts serpent.OptionSet) error {
+				return opts.UnmarshalYAML(&node)
+			})
+		}
+
+		require.Equal(t, parse(newYAML), parse(oldYAML))
+	})
 }
 
 func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
@@ -747,7 +1161,6 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -763,6 +1176,96 @@ func TestRetentionConfigParsing(t *testing.T) {
 			assert.Equal(t, tt.expectedAuditLogs, dv.Retention.AuditLogs.Value(), "audit logs retention mismatch")
 			assert.Equal(t, tt.expectedConnectionLogs, dv.Retention.ConnectionLogs.Value(), "connection logs retention mismatch")
 			assert.Equal(t, tt.expectedAPIKeys, dv.Retention.APIKeys.Value(), "api keys retention mismatch")
+		})
+	}
+}
+
+func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.True(t, dv.AI.Chat.AIGatewayRoutingEnabled.Value())
+}
+
+func TestAIBudgetConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Defaults", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+
+		assert.Equal(t, string(codersdk.AIBudgetPolicyHighest), dv.AI.BridgeConfig.BudgetPolicy)
+		assert.Equal(t, string(codersdk.AIBudgetPeriodMonth), dv.AI.BridgeConfig.BudgetPeriod)
+	})
+
+	t.Run("AcceptsSupportedValues", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_POLICY", Value: string(codersdk.AIBudgetPolicyHighest)},
+			{Name: "CODER_AI_BUDGET_PERIOD", Value: string(codersdk.AIBudgetPeriodMonth)},
+		}))
+
+		assert.Equal(t, string(codersdk.AIBudgetPolicyHighest), dv.AI.BridgeConfig.BudgetPolicy)
+		assert.Equal(t, string(codersdk.AIBudgetPeriodMonth), dv.AI.BridgeConfig.BudgetPeriod)
+	})
+
+	t.Run("RejectsUnsupportedPolicy", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		err := opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_POLICY", Value: "invalid"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid choice")
+	})
+
+	t.Run("RejectsUnsupportedPeriod", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		err := opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_PERIOD", Value: "invalid"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid choice")
+	})
+}
+
+func TestNewAIBudgetPolicyFromString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want codersdk.AIBudgetPolicy
+	}{
+		{name: "supported", in: "highest", want: codersdk.AIBudgetPolicyHighest},
+		{name: "empty falls back to highest", in: "", want: codersdk.AIBudgetPolicyHighest},
+		{name: "unknown falls back to highest", in: "unsupported", want: codersdk.AIBudgetPolicyHighest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, codersdk.NewAIBudgetPolicyFromString(tt.in))
 		})
 	}
 }
@@ -879,6 +1382,228 @@ func TestComputeMaxIdleConns(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedIdle, result)
+			}
+		})
+	}
+}
+
+func TestHTTPCookieConfigMiddleware(t *testing.T) {
+	t.Parallel()
+
+	// Realistic cookies that are always present in production.
+	// These cookies are added to every test.
+	baseCookies := []*http.Cookie{
+		{Name: "_ga", Value: "GA1.1.661026807.1770083336"},
+		{Name: "_ga_G0Q1B9GRC0", Value: "GS2.1.s1771343727$o49$g1$t1771343993$j48$l0$h0"},
+		{Name: "csrf_token", Value: "gDiKk8GjTM2iCUHAPfN9GlC+DGjzAprlLi2vJ+5TBU0="},
+	}
+
+	cases := []struct {
+		name            string
+		cfg             codersdk.HTTPCookieConfig
+		extraCookies    []*http.Cookie
+		expectedCookies map[string]string // cookie name -> value that handler should see
+		expectedDeleted []string          // if any cookies are supposed to be deleted via Set-Cookie
+	}{
+		{
+			name: "Disabled_PassesThrough",
+			cfg:  codersdk.HTTPCookieConfig{},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "token123"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "token123",
+			},
+		},
+		{
+			name: "Enabled_StripsPrefixFromCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "token123"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "token123",
+			},
+		},
+		{
+			name: "Enabled_DeletesUnprefixedCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				// Unprefixed cookie that should be in the "to prefix" list.
+				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
+			},
+			expectedCookies: map[string]string{
+				// Session token should NOT be present - it was deleted.
+			},
+			expectedDeleted: []string{codersdk.SessionTokenCookie},
+		},
+		{
+			name: "Enabled_BothPrefixedAndUnprefixed",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				// Browser might send both during migration.
+				{Name: codersdk.SessionTokenCookie, Value: "unprefixed-token"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "prefixed-token"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "prefixed-token", // Prefixed wins.
+			},
+			expectedDeleted: []string{codersdk.SessionTokenCookie},
+		},
+		{
+			name: "Enabled_MultiplePrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__Host-SomeOtherCookie", Value: "other-cookie"},
+				{Name: "__Host-Santa", Value: "santa"},
+			},
+			expectedCookies: map[string]string{
+				codersdk.SessionTokenCookie: "session",
+				"__Host-SomeOtherCookie":    "other-cookie",
+				"__Host-Santa":              "santa",
+			},
+		},
+		{
+			name: "Enabled_UnrelatedCookiesUnchanged",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "custom_cookie", Value: "custom-value"},
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "session"},
+				{Name: "__Host-foobar", Value: "do-not-change-me"},
+			},
+			expectedCookies: map[string]string{
+				"custom_cookie":             "custom-value",
+				codersdk.SessionTokenCookie: "session",
+				"__Host-foobar":             "do-not-change-me",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var handlerCookies []*http.Cookie
+			handler := tc.cfg.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				handlerCookies = r.Cookies()
+			}))
+
+			req := httptest.NewRequest("GET", "/", nil)
+			for _, c := range baseCookies {
+				req.AddCookie(c)
+			}
+			for _, c := range tc.extraCookies {
+				req.AddCookie(c)
+			}
+
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, req)
+
+			// Verify cookies seen by handler.
+			gotCookies := make(map[string]string)
+			for _, c := range handlerCookies {
+				gotCookies[c.Name] = c.Value
+			}
+
+			for _, v := range baseCookies {
+				tc.expectedCookies[v.Name] = v.Value
+			}
+			assert.Equal(t, tc.expectedCookies, gotCookies)
+
+			// Verify Set-Cookie header for deletion.
+			setCookies := rw.Result().Cookies()
+			if len(tc.expectedDeleted) > 0 {
+				assert.NotEmpty(t, setCookies, "expected Set-Cookie header for cookie deletion")
+				expDel := make(map[string]struct{})
+				for _, name := range tc.expectedDeleted {
+					expDel[name] = struct{}{}
+				}
+				// Verify it's a deletion (MaxAge < 0).
+				for _, c := range setCookies {
+					assert.Less(t, c.MaxAge, 0, "Set-Cookie should have MaxAge < 0 for deletion")
+					delete(expDel, c.Name)
+				}
+				require.Empty(t, expDel, "expected Set-Cookie header for deletion")
+			} else {
+				assert.Empty(t, setCookies, "did not expect Set-Cookie header")
+			}
+		})
+	}
+}
+
+func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
+	noop := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+
+	// Realistic cookies that are always present in production.
+	baseCookies := []*http.Cookie{
+		{Name: "_ga", Value: "GA1.1.661026807.1770083336"},
+		{Name: "_ga_G0Q1B9GRC0", Value: "GS2.1.s1771343727$o49$g1$t1771343993$j48$l0$h0"},
+		{Name: "csrf_token", Value: "gDiKk8GjTM2iCUHAPfN9GlC+DGjzAprlLi2vJ+5TBU0="},
+	}
+
+	cases := []struct {
+		name         string
+		cfg          codersdk.HTTPCookieConfig
+		extraCookies []*http.Cookie
+	}{
+		{
+			name: "Disabled",
+			cfg:  codersdk.HTTPCookieConfig{},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_NoPrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_WithPrefixedCookie",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+		{
+			name: "Enabled_MultiplePrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+				{Name: "__Host-" + codersdk.PathAppSessionTokenCookie, Value: "xyz123"},
+				{Name: "__Host-" + codersdk.SubdomainAppSessionTokenCookie, Value: "abc456"},
+				{Name: "__Host-" + "foobar", Value: "do-not-change-me"},
+			},
+		},
+		{
+			name: "Enabled_NonSessionPrefixedCookies",
+			cfg:  codersdk.HTTPCookieConfig{EnableHostPrefix: true},
+			extraCookies: []*http.Cookie{
+				{Name: "__Host-" + codersdk.SessionTokenCookie, Value: "KybJV9fNul-u11vlll9wiF6eLQDxBVucD"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			handler := tc.cfg.Middleware(noop)
+			rw := httptest.NewRecorder()
+
+			allCookies := make([]*http.Cookie, 1, len(baseCookies))
+			copy(allCookies, baseCookies)
+			// Combine base cookies with test-specific cookies.
+			allCookies = append(allCookies, tc.extraCookies...)
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				req := httptest.NewRequest("GET", "/", nil)
+				for _, c := range allCookies {
+					req.AddCookie(c)
+				}
+				handler.ServeHTTP(rw, req)
 			}
 		})
 	}

@@ -1,7 +1,7 @@
-import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
-import { useAuthenticated } from "hooks";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
+import { Sidebar as BaseSidebar } from "#/components/Sidebar/Sidebar";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { OrganizationSidebarView } from "./OrganizationSidebarView";
 
 /**
@@ -13,7 +13,7 @@ export const OrganizationSidebar: FC = () => {
 		useOrganizationSettings();
 
 	return (
-		<BaseSidebar className="pt-10">
+		<BaseSidebar>
 			<OrganizationSidebarView
 				activeOrganization={organization}
 				orgPermissions={organizationPermissions}

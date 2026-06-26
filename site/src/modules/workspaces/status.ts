@@ -1,4 +1,4 @@
-import type { WorkspaceStatus } from "api/typesGenerated";
+import type { WorkspaceStatus } from "#/api/typesGenerated";
 
 /**
  * The set of all workspace statuses that indicate that the state for a

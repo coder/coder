@@ -1,29 +1,30 @@
-import { useTheme } from "@emotion/react";
-import { API } from "api/api";
-import { Button } from "components/Button/Button";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
 import { useMutation } from "react-query";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 
-export const Troubleshooting: FC = () => {
+type TroubleshootingProps = {
+	canEdit?: boolean;
+};
+
+export const Troubleshooting: FC<TroubleshootingProps> = ({
+	canEdit = true,
+}) => {
 	const { mutate: sendTestNotificationApi, isPending } = useMutation({
 		mutationFn: API.postTestNotification,
-		onSuccess: () => displaySuccess("Test notification sent"),
-		onError: () => displayError("Failed to send test notification"),
+		onSuccess: () => toast.success("Test notification sent."),
+		onError: (error) =>
+			toast.error("Failed to send test notification.", {
+				description: getErrorDetail(error),
+			}),
 	});
 
-	const theme = useTheme();
 	return (
 		<>
-			<div
-				css={{
-					fontSize: 14,
-					color: theme.palette.text.secondary,
-					lineHeight: "160%",
-					marginBottom: 16,
-				}}
-			>
+			<div className="text-sm text-content-secondary leading-relaxed mb-4">
 				Send a test notification to troubleshoot your notification settings.
 			</div>
 			<div>
@@ -31,7 +32,7 @@ export const Troubleshooting: FC = () => {
 					<Button
 						variant="outline"
 						size="sm"
-						disabled={isPending}
+						disabled={isPending || !canEdit}
 						onClick={() => {
 							sendTestNotificationApi();
 						}}

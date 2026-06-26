@@ -1,3 +1,8 @@
+> [!NOTE]
+> Features mentioned on this page, such as AI Gateway and Agent Firewall,
+> require the [AI Governance Add-On](./ai-governance.md). As of Coder v2.32,
+> deployments without the add-on will not be able to access these features.
+
 As the AI landscape is evolving, we are working to ensure Coder remains a secure
 platform for running AI agents just as it is for other cloud development
 environments.
@@ -24,8 +29,8 @@ scopes or tokens from the standard one.
 
 Additional guidance and tooling is coming in future releases of Coder.
 
-## Set Up Agent Boundaries
+## Set Up Agent Firewall
 
-Agent Boundaries are process-level "agent firewalls" that lets you restrict and
+Agent Firewall is a process-level firewall that lets you restrict and
 audit what AI agents can access within Coder workspaces. To learn more about
-this feature, see [Agent Boundaries](./agent-boundaries/index.md).
+this feature, see [Agent Firewall](./agent-firewall/index.md).

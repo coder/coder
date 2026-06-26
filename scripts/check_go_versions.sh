@@ -3,9 +3,8 @@
 # This script ensures that the same version of Go is referenced in all of the
 # following files:
 # - go.mod
-# - dogfood/coder/Dockerfile
+# - mise.toml (the dogfood image installs from this manifest)
 # - flake.nix
-# - .github/actions/setup-go/action.yml
 # The version of Go in go.mod is considered the source of truth.
 
 set -euo pipefail
@@ -18,22 +17,16 @@ cdroot
 IGNORE_NIX=${IGNORE_NIX:-false}
 
 GO_VERSION_GO_MOD=$(grep -Eo 'go [0-9]+\.[0-9]+\.[0-9]+' ./go.mod | cut -d' ' -f2)
-GO_VERSION_DOCKERFILE=$(grep -Eo 'ARG GO_VERSION=[0-9]+\.[0-9]+\.[0-9]+' ./dogfood/coder/Dockerfile | cut -d'=' -f2)
-GO_VERSION_SETUP_GO=$(yq '.inputs.version.default' .github/actions/setup-go/action.yaml)
+GO_VERSION_MISE_TOML=$(grep -Eo '^go = "[0-9]+\.[0-9]+\.[0-9]+"' ./mise.toml | sed -E 's/.*"([^"]+)"/\1/')
 GO_VERSION_FLAKE_NIX=$(grep -Eo '\bgo_[0-9]+_[0-9]+\b' ./flake.nix)
 # Convert to major.minor format.
 GO_VERSION_FLAKE_NIX_MAJOR_MINOR=$(echo "$GO_VERSION_FLAKE_NIX" | cut -d '_' -f 2-3 | tr '_' '.')
 log "INFO : go.mod                   : $GO_VERSION_GO_MOD"
-log "INFO : dogfood/coder/Dockerfile : $GO_VERSION_DOCKERFILE"
-log "INFO : setup-go/action.yaml     : $GO_VERSION_SETUP_GO"
+log "INFO : mise.toml                : $GO_VERSION_MISE_TOML"
 log "INFO : flake.nix                : $GO_VERSION_FLAKE_NIX_MAJOR_MINOR"
 
-if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_DOCKERFILE" ]; then
-	error "Go version mismatch between go.mod and dogfood/coder/Dockerfile:"
-fi
-
-if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_SETUP_GO" ]; then
-	error "Go version mismatch between go.mod and .github/actions/setup-go/action.yaml"
+if [ "$GO_VERSION_GO_MOD" != "$GO_VERSION_MISE_TOML" ]; then
+	error "Go version mismatch between go.mod and mise.toml"
 fi
 
 # At the time of writing, Nix only constrains the major.minor version.

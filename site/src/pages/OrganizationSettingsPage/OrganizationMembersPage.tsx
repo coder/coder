@@ -1,25 +1,32 @@
-import { getErrorMessage } from "api/errors";
-import { groupsByUserIdInOrganization } from "api/queries/groups";
+import { type FC, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
 	addOrganizationMember,
 	paginatedOrganizationMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
-} from "api/queries/organizations";
-import { organizationRoles } from "api/queries/roles";
-import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
-import { useAuthenticated } from "hooks";
-import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/api/queries/organizations";
+import { organizationRoles } from "#/api/queries/roles";
+import type {
+	AssignableRoles,
+	OrganizationMemberWithUserData,
+	User,
+} from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useFilter } from "#/components/Filter/Filter";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
+import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
+import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
@@ -29,7 +36,10 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { entitlements, experiments } = useDashboard();
 	const searchParamsResult = useSearchParams();
+	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
+	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -39,6 +49,11 @@ const OrganizationMembersPage: FC = () => {
 	const membersQuery = usePaginatedQuery(
 		paginatedOrganizationMembers(organizationName, searchParamsResult[0]),
 	);
+	const filterProps = useFilter({
+		searchParams: searchParamsResult[0],
+		onSearchParamsChange: searchParamsResult[1],
+		onUpdate: membersQuery.goToFirstPage,
+	});
 
 	const members = membersQuery.data?.members.map(
 		(member: OrganizationMemberWithUserData) => {
@@ -50,15 +65,37 @@ const OrganizationMembersPage: FC = () => {
 	const addMemberMutation = useMutation(
 		addOrganizationMember(queryClient, organizationName),
 	);
-	const removeMemberMutation = useMutation(
-		removeOrganizationMember(queryClient, organizationName),
-	);
+
+	const [memberToEditRoles, setMemberToEditRoles] =
+		useState<OrganizationMemberWithUserData>();
 	const updateMemberRolesMutation = useMutation(
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const [memberToDelete, setMemberToDelete] =
+	const [memberToRemove, setMemberToRemove] =
 		useState<OrganizationMemberWithUserData>();
+	const removeMemberMutation = useMutation(
+		removeOrganizationMember(queryClient, organizationName),
+	);
+
+	// Resolve the org's default member role names against the assignable
+	// roles list so the dialog can show full display names + descriptions.
+	const defaultMemberImpliedRoles = useMemo<AssignableRoles[]>(() => {
+		if (!defaultRolesEnabled) {
+			return [];
+		}
+		const available = organizationRolesQuery.data;
+		if (!available) {
+			return [];
+		}
+		return (organization?.default_org_member_roles ?? [])
+			.map((name) => available.find((r) => r.name === name))
+			.filter((r): r is AssignableRoles => r !== undefined);
+	}, [
+		defaultRolesEnabled,
+		organization?.default_org_member_roles,
+		organizationRolesQuery.data,
+	]);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -83,63 +120,91 @@ const OrganizationMembersPage: FC = () => {
 		<>
 			{title}
 			<OrganizationMembersPageView
-				allAvailableRoles={organizationRolesQuery.data}
-				canEditMembers={organizationPermissions.editMembers}
-				canViewMembers={organizationPermissions.viewMembers}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
-					groupsByUserIdQuery.error ??
 					addMemberMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
-				isAddingMember={addMemberMutation.isPending}
-				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
-				me={me}
-				members={members}
+				filterProps={{ filter: filterProps }}
+				organizationName={organizationName}
 				membersQuery={membersQuery}
-				addMember={async (user: User) => {
-					await addMemberMutation.mutateAsync(user.id);
+				members={members}
+				showAISeatColumn={showAISeatColumn}
+				addMembers={async (users: User[]) => {
+					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
+					// to add all users in a single request instead of N individual calls.
+					// See branch jakehwll/devex-112-organizations-batch-endpoint.
+					await Promise.all(
+						users.map((user) => addMemberMutation.mutateAsync(user.id)),
+					);
 					void membersQuery.refetch();
 				}}
-				removeMember={setMemberToDelete}
-				updateMemberRoles={async (
-					member: OrganizationMemberWithUserData,
-					newRoles: string[],
-				) => {
-					await updateMemberRolesMutation.mutateAsync({
-						userId: member.user_id,
-						roles: newRoles,
-					});
+				onEditMemberRoles={setMemberToEditRoles}
+				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
+				removeMember={setMemberToRemove}
+				me={me.id}
+				canEditMembers={organizationPermissions.editMembers}
+				canViewMembers={organizationPermissions.viewMembers}
+				canViewActivity={entitlements.features.audit_log.enabled}
+			/>
+
+			<RoleSelectorDialog
+				key={memberToEditRoles?.username}
+				user={memberToEditRoles}
+				availableRoles={organizationRolesQuery.data}
+				additionalImpliedRoles={defaultMemberImpliedRoles}
+				onCancel={() => setMemberToEditRoles(undefined)}
+				onUpdateRoles={async (roles) => {
+					try {
+						await updateMemberRolesMutation.mutateAsync({
+							userId: memberToEditRoles!.user_id,
+							roles,
+						});
+						toast.success(
+							`${memberToEditRoles!.username}'s roles have been updated.`,
+						);
+						setMemberToEditRoles(undefined);
+					} catch (e) {
+						toast.error(getErrorMessage(e, "Error updating member roles."), {
+							description: getErrorDetail(e),
+						});
+					}
 				}}
+				isUpdatingRoles={updateMemberRolesMutation.isPending}
 			/>
 
 			<ConfirmDialog
 				type="delete"
-				open={memberToDelete !== undefined}
-				onClose={() => setMemberToDelete(undefined)}
+				open={memberToRemove !== undefined}
+				onClose={() => setMemberToRemove(undefined)}
 				title="Remove member"
 				confirmText="Remove"
-				onConfirm={async () => {
-					try {
-						if (memberToDelete) {
-							await removeMemberMutation.mutateAsync(memberToDelete?.user_id);
-						}
-						setMemberToDelete(undefined);
-						await membersQuery.refetch();
-						displaySuccess("User removed from organization successfully!");
-					} catch (error) {
-						setMemberToDelete(undefined);
-						displayError(
-							getErrorMessage(error, "Failed to remove user from organization"),
+				onConfirm={() => {
+					if (memberToRemove) {
+						const mutation = removeMemberMutation.mutateAsync(
+							memberToRemove.user_id,
+							{
+								onSuccess: () => {
+									membersQuery.refetch();
+								},
+							},
 						);
-					} finally {
-						setMemberToDelete(undefined);
+						toast.promise(mutation, {
+							loading: `Removing "${memberToRemove.username}" from "${organization.display_name}"...`,
+							success: `"${memberToRemove.username}" has been removed from "${organization.display_name}".`,
+							error: (error) =>
+								getErrorMessage(
+									error,
+									`Failed to remove "${memberToRemove.username}" from "${organization.display_name}".`,
+								),
+						});
+						setMemberToRemove(undefined);
 					}
 				}}
 				description={
-					<Stack>
+					<div className="flex flex-col gap-4">
 						<p>
 							Removing this member will:
 							<ul>
@@ -153,7 +218,7 @@ const OrganizationMembersPage: FC = () => {
 						</p>
 
 						<p className="pb-5">Are you sure you want to remove this member?</p>
-					</Stack>
+					</div>
 				}
 			/>
 		</>

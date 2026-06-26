@@ -1,10 +1,13 @@
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { mockApiError } from "#/testHelpers/entities";
 import { CreateOAuth2AppPageView } from "./CreateOAuth2AppPageView";
 
 const meta: Meta = {
 	title: "pages/DeploymentSettingsPage/CreateOAuth2AppPageView",
 	component: CreateOAuth2AppPageView,
+	args: {
+		canCreateApp: true,
+	},
 };
 export default meta;
 
@@ -35,6 +38,12 @@ export const WithError: Story = {
 				},
 			],
 		}),
+	},
+};
+
+export const NoPermissions: Story = {
+	args: {
+		canCreateApp: false,
 	},
 };
 

@@ -1,0 +1,32 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/merge_requests?order_by=updated_at&per_page=1&sort=desc&source_branch=johnstcn-main-patch-98822&state=opened
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '[{"id":486249709,"iid":3,"project_id":82310987,"title":"Open mergeable","description":"","state":"opened","created_at":"2026-05-18T14:53:54.688Z","updated_at":"2026-05-18T14:53:55.972Z","merged_by":null,"merge_user":null,"merged_at":null,"closed_by":null,"closed_at":null,"target_branch":"main","source_branch":"johnstcn-main-patch-98822","user_notes_count":0,"upvotes":0,"downvotes":0,"author":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"assignees":[{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"}],"assignee":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"reviewers":[],"source_project_id":82310987,"target_project_id":82310987,"labels":[],"draft":false,"imported":false,"imported_from":"none","work_in_progress":false,"milestone":null,"merge_when_pipeline_succeeds":false,"merge_status":"can_be_merged","detailed_merge_status":"mergeable","merge_after":null,"sha":"da57fca657e02c1fbe131402f927d134a34b257b","merge_commit_sha":null,"squash_commit_sha":null,"discussion_locked":null,"should_remove_source_branch":null,"force_remove_source_branch":true,"prepared_at":"2026-05-18T14:53:55.966Z","reference":"!3","references":{"short":"!3","relative":"!3","full":"johnstcn/test-project!3"},"web_url":"https://gitlab.com/test-group9945421/test-project/-/merge_requests/3","time_stats":{"time_estimate":0,"total_time_spent":0,"human_time_estimate":null,"human_total_time_spent":null},"squash":false,"squash_on_merge":false,"task_completion_status":{"count":0,"completed_count":0},"has_conflicts":false,"blocking_discussions_resolved":true,"approvals_before_merge":null}]'
+        headers:
+            Content-Type:
+                - application/json
+        status: 200 OK
+        code: 200
+        duration: 100.000000ms

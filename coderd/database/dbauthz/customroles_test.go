@@ -10,11 +10,11 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -227,10 +227,10 @@ func TestInsertCustomRoles(t *testing.T) {
 				Name:              "test-role",
 				DisplayName:       "",
 				OrganizationID:    uuid.NullUUID{UUID: tc.organizationID, Valid: true},
-				SitePermissions:   db2sdk.List(tc.site, convertSDKPerm),
-				OrgPermissions:    db2sdk.List(tc.org, convertSDKPerm),
-				UserPermissions:   db2sdk.List(tc.user, convertSDKPerm),
-				MemberPermissions: db2sdk.List(tc.member, convertSDKPerm),
+				SitePermissions:   slice.List(tc.site, convertSDKPerm),
+				OrgPermissions:    slice.List(tc.org, convertSDKPerm),
+				UserPermissions:   slice.List(tc.user, convertSDKPerm),
+				MemberPermissions: slice.List(tc.member, convertSDKPerm),
 			})
 			if tc.errorContains != "" {
 				require.ErrorContains(t, err, tc.errorContains)

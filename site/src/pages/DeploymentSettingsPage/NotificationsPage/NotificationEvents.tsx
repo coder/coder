@@ -6,36 +6,36 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import { getErrorMessage } from "api/errors";
+import { type FC, Fragment } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	type selectTemplatesByGroup,
 	updateNotificationTemplateMethod,
-} from "api/queries/notifications";
-import type { DeploymentValues } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
+} from "#/api/queries/notifications";
+import type { DeploymentValues } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
+} from "#/components/Tooltip/Tooltip";
 import {
 	castNotificationMethod,
 	methodIcons,
 	methodLabels,
 	type NotificationMethod,
-} from "modules/notifications/utils";
-import { type FC, Fragment } from "react";
-import { useMutation, useQueryClient } from "react-query";
-import { docs } from "utils/docs";
+} from "#/modules/notifications/utils";
+import { docs } from "#/utils/docs";
 
 type NotificationEventsProps = {
 	defaultMethod: NotificationMethod;
 	availableMethods: NotificationMethod[];
 	templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
 	deploymentConfig: DeploymentValues;
+	canEdit?: boolean;
 };
 
 export const NotificationEvents: FC<NotificationEventsProps> = ({
@@ -43,6 +43,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	availableMethods,
 	templatesByGroup,
 	deploymentConfig,
+	canEdit = true,
 }) => {
 	// Webhook
 	const hasWebhookNotifications = Object.values(templatesByGroup)
@@ -65,13 +66,13 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	]);
 
 	return (
-		<Stack spacing={4}>
+		<div className="flex flex-col gap-8">
 			{hasWebhookNotifications && !isWebhookConfigured && (
 				<Alert
 					severity="warning"
 					prominent
 					actions={
-						<Button variant="subtle" size="sm" asChild>
+						<Button size="sm" asChild>
 							<a
 								target="_blank"
 								rel="noreferrer"
@@ -91,7 +92,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					severity="warning"
 					prominent
 					actions={
-						<Button variant="subtle" size="sm" asChild>
+						<Button size="sm" asChild>
 							<a
 								target="_blank"
 								rel="noreferrer"
@@ -107,11 +108,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 			)}
 
 			{Object.entries(templatesByGroup).map(([group, templates]) => (
-				<Card
-					key={group}
-					variant="outlined"
-					css={{ background: "transparent", width: "100%" }}
-				>
+				<Card key={group} variant="outlined" className="bg-transparent w-full">
 					<List>
 						<ListItem css={styles.listHeader}>
 							<ListItemText css={styles.listItemText} primary={group} />
@@ -132,6 +129,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 											templateId={tpl.id}
 											options={availableMethods}
 											value={value}
+											canEdit={canEdit}
 										/>
 									</ListItem>
 									{!isLastItem && <Divider />}
@@ -141,7 +139,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					</List>
 				</Card>
 			))}
-		</Stack>
+		</div>
 	);
 };
 
@@ -156,12 +154,14 @@ type MethodToggleGroupProps = {
 	templateId: string;
 	options: NotificationMethod[];
 	value: NotificationMethod;
+	canEdit: boolean;
 };
 
 const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 	value,
 	options,
 	templateId,
+	canEdit,
 }) => {
 	const queryClient = useQueryClient();
 	const updateMethodMutation = useMutation(
@@ -173,17 +173,24 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 			exclusive
 			value={value}
 			size="small"
+			disabled={!canEdit}
 			aria-label="Notification method"
 			css={styles.toggleGroup}
 			onChange={async (_, method) => {
+				if (!method) {
+					return;
+				}
 				try {
 					await updateMethodMutation.mutateAsync({
 						method,
 					});
-					displaySuccess("Notification method updated");
+					toast.success("Notification method updated.");
 				} catch (error) {
-					displayError(
-						getErrorMessage(error, "Failed to update notification method"),
+					toast.error(
+						getErrorMessage(error, "Failed to update notification method."),
+						{
+							description: getErrorDetail(error),
+						},
 					);
 				}
 			}}
@@ -197,6 +204,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 							<ToggleButton
 								value={method}
 								css={styles.toggleButton}
+								disabled={!canEdit}
 								onClick={(e) => {
 									// Retain the value if the user clicks the same button, ensuring
 									// at least one value remains selected.

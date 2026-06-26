@@ -381,6 +381,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 		"CODER_TASK_ID="+metadata.GetTaskId(),
 		"CODER_TASK_PROMPT="+metadata.GetTaskPrompt(),
+		awsSDKUserAgentEnv(safeEnvironValue(env, awsSDKUserAgentEnvKey)),
 	)
 	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")

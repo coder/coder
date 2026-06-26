@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -20,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -35,7 +35,10 @@ func TestProvisioners_Golden(t *testing.T) {
 		provisioners, err := coderdAPI.Database.GetProvisionerDaemons(systemCtx)
 		require.NoError(t, err)
 		slices.SortFunc(provisioners, func(a, b database.ProvisionerDaemon) int {
-			return a.CreatedAt.Compare(b.CreatedAt)
+			return cmp.Or(
+				a.CreatedAt.Compare(b.CreatedAt),
+				bytes.Compare(a.ID[:], b.ID[:]),
+			)
 		})
 		pIdx := 0
 		for _, p := range provisioners {
@@ -47,7 +50,10 @@ func TestProvisioners_Golden(t *testing.T) {
 		jobs, err := coderdAPI.Database.GetProvisionerJobsCreatedAfter(systemCtx, time.Time{})
 		require.NoError(t, err)
 		slices.SortFunc(jobs, func(a, b database.ProvisionerJob) int {
-			return a.CreatedAt.Compare(b.CreatedAt)
+			return cmp.Or(
+				a.CreatedAt.Compare(b.CreatedAt),
+				bytes.Compare(a.ID[:], b.ID[:]),
+			)
 		})
 		jIdx := 0
 		for _, j := range jobs {
@@ -76,11 +82,15 @@ func TestProvisioners_Golden(t *testing.T) {
 	firstProvisioner := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, "default-provisioner", map[string]string{"owner": "", "scope": "organization"})
 	t.Cleanup(func() { _ = firstProvisioner.Close() })
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status,
+		"template version import should succeed, got error: %s", version.Job.Error)
 	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	wb := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, wb.Job.Status,
+		"workspace build job should succeed, got error: %s", wb.Job.Error)
 
 	// Stop the provisioner so it doesn't grab any more jobs.
 	firstProvisioner.Close()
@@ -89,7 +99,17 @@ func TestProvisioners_Golden(t *testing.T) {
 	replace[version.ID.String()] = "00000000-0000-0000-cccc-000000000000"
 	replace[workspace.LatestBuild.ID.String()] = "00000000-0000-0000-dddd-000000000000"
 
-	now := dbtime.Now()
+	// Base synthetic times off the latest real job's CreatedAt, not the
+	// wall clock. Using dbtime.Now() here is racy because NTP clock
+	// steps can make it return a time before the real jobs' CreatedAt.
+	systemCtx := dbauthz.AsSystemRestricted(context.Background())
+	existingJobs, err := coderdAPI.Database.GetProvisionerJobsCreatedAfter(systemCtx, time.Time{})
+	require.NoError(t, err)
+	require.NotEmpty(t, existingJobs, "expected at least one provisioner job")
+	latestJob := slices.MaxFunc(existingJobs, func(a, b database.ProvisionerJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	now := latestJob.CreatedAt.Add(time.Second)
 
 	// Create a provisioner that's working on a job.
 	pd1 := dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{

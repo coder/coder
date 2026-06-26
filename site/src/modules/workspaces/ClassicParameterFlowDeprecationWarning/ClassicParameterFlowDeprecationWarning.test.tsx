@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { ClassicParameterFlowDeprecationWarning } from "./ClassicParameterFlowDeprecationWarning";
 
-vi.mock("modules/navigation", () => ({
+vi.mock("#/modules/navigation", () => ({
 	useLinks: () => () => "/mock-link",
 	linkToTemplate: () => "/mock-template-link",
 }));
@@ -17,7 +17,7 @@ describe("ClassicParameterFlowDeprecationWarning", () => {
 			<ClassicParameterFlowDeprecationWarning
 				templateSettingsLink={`/templates/${defaultProps.organizationName}/${defaultProps.templateName}/settings`}
 				{...defaultProps}
-				isEnabled={true}
+				isEnabled
 			/>,
 		);
 

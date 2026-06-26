@@ -6,6 +6,10 @@ func resourceIDMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "id"})
 }
 
+func chatResourceIDMatcher() sqltypes.VariableMatcher {
+	return sqltypes.StringVarMatcher("chats_expanded.id :: text", []string{"input", "object", "id"})
+}
+
 func organizationOwnerMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("organization_id :: text", []string{"input", "object", "org_owner"})
 }
@@ -50,10 +54,38 @@ func WorkspaceConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func ChatConverter() *sqltypes.VariableConverter {
+	matcher := chatBaseConverter()
+	matcher.RegisterMatcher(
+		ACLMappingMatcher(matcher, "chats_expanded.group_acl", []string{"input", "object", "acl_group_list"}).UsingSubfield("permissions"),
+		ACLMappingMatcher(matcher, "chats_expanded.user_acl", []string{"input", "object", "acl_user_list"}).UsingSubfield("permissions"),
+	)
+
+	return matcher
+}
+
+func ChatNoACLConverter() *sqltypes.VariableConverter {
+	matcher := chatBaseConverter()
+	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+
+	return matcher
+}
+
+func chatBaseConverter() *sqltypes.VariableConverter {
+	return sqltypes.NewVariableConverter().RegisterMatcher(
+		chatResourceIDMatcher(),
+		sqltypes.StringVarMatcher("chats_expanded.organization_id :: text", []string{"input", "object", "org_owner"}),
+		userOwnerMatcher(),
+	)
+}
+
 func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("COALESCE(audit_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
+		sqltypes.UUIDVarMatcher("audit_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Audit logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
@@ -67,7 +99,7 @@ func AuditLogConverter() *sqltypes.VariableConverter {
 func ConnectionLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		sqltypes.StringVarMatcher("COALESCE(connection_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
+		sqltypes.UUIDVarMatcher("connection_logs.organization_id", []string{"input", "object", "org_owner"}),
 		// Connection logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)

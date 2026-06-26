@@ -19,9 +19,180 @@ SHELL := bash
 .SHELLFLAGS := -ceu
 .ONESHELL:
 
+# When MAKE_TIMED=1, replace SHELL with a wrapper that prints
+# elapsed wall-clock time for each recipe. pre-commit and pre-push
+# set this on their sub-makes so every parallel job reports its
+# duration. Ad-hoc usage: make MAKE_TIMED=1 test
+ifdef MAKE_TIMED
+SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
+.SHELLFLAGS = $@ -ceu
+export MAKE_TIMED
+export MAKE_LOGDIR
+endif
+
 # This doesn't work on directories.
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
+
+# Protect git-tracked generated files from deletion on interrupt.
+# .DELETE_ON_ERROR is desirable for most targets but for files that
+# are committed to git and serve as inputs to other rules, deletion
+# is worse than a stale file — `git restore` is the recovery path.
+.PRECIOUS: \
+	coderd/database/dump.sql \
+	coderd/database/querier.go \
+	coderd/database/unique_constraint.go \
+	coderd/database/dbmetrics/querymetrics.go \
+	coderd/database/dbauthz/dbauthz.go \
+	coderd/database/dbmock/dbmock.go \
+	coderd/database/pubsub/psmock/psmock.go \
+	agent/agentcontainers/acmock/acmock.go \
+	coderd/httpmw/loggermw/loggermock/loggermock.go \
+	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
+	tailnet/tailnettest/coordinatormock.go \
+	tailnet/tailnettest/coordinateemock.go \
+	tailnet/tailnettest/workspaceupdatesprovidermock.go \
+	tailnet/tailnettest/subscriptionmock.go \
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go \
+	tailnet/proto/tailnet.pb.go \
+	agent/proto/agent.pb.go \
+	agent/agentsocket/proto/agentsocket.pb.go \
+	agent/boundarylogproxy/codec/boundary.pb.go \
+	provisionersdk/proto/provisioner.pb.go \
+	provisionerd/proto/provisionerd.pb.go \
+	vpn/vpn.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
+	site/src/api/typesGenerated.ts \
+	site/e2e/provisionerGenerated.ts \
+	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/rbacresourcesGenerated.ts \
+	site/src/api/countriesGenerated.ts \
+	site/src/theme/icons.json \
+	examples/examples.gen.json \
+	docs/manifest.json \
+	docs/admin/integrations/prometheus.md \
+	docs/admin/security/audit-logs.md \
+	docs/reference/cli/index.md \
+	coderd/apidoc/swagger.json \
+	coderd/rbac/object_gen.go \
+	coderd/rbac/scopes_constants_gen.go \
+	codersdk/rbacresources_gen.go \
+	codersdk/apikey_scopes_gen.go
+
+# atomic_write runs a command, captures stdout into a temp file, and
+# atomically replaces $@. An optional second argument is a formatting
+# command that receives the temp file path as its argument.
+# Usage: $(call atomic_write,GENERATE_CMD[,FORMAT_CMD])
+define atomic_write
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		$(1) > "$$tmpfile" && \
+		$(if $(2),$(2) "$$tmpfile" &&) \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+endef
+
+# CLI doc generation reflects over the assembled CLI tree. Track command
+# definitions plus the top-level SDK types they expose in help text and flag
+# values, without pulling in unrelated generated sources.
+CLIDOC_SRC_FILES := \
+	$(shell find ./cli ./enterprise/cli -type f -name '*.go' -not -name '*_test.go') \
+	$(wildcard codersdk/*.go) \
+	$(wildcard buildinfo/*.go)
+
+CLIDOCGEN_INPUTS := \
+	$(wildcard scripts/clidocgen/*.go) \
+	scripts/clidocgen/command.tpl \
+	$(CLIDOC_SRC_FILES)
+
+# Helper binaries that import repo packages need their compile-time inputs on
+# the binary target. Most generated outputs keep these binaries as order-only
+# prereqs, so stale binaries otherwise survive source changes.
+RBAC_GO_FILES := \
+	$(wildcard coderd/rbac/*.go) \
+	$(wildcard coderd/rbac/policy/*.go)
+
+DBDUMP_INPUTS := \
+	$(wildcard coderd/database/migrations/*.go) \
+	$(wildcard coderd/database/migrations/*.sql)
+
+# Exclude generated RBAC files to avoid cycles with typegen outputs. The
+# output rules still order generated RBAC prerequisites where needed.
+TYPEGEN_RBAC_GO_FILES := \
+	$(filter-out coderd/rbac/%_gen.go,$(wildcard coderd/rbac/*.go)) \
+	$(wildcard coderd/rbac/policy/*.go)
+
+TYPEGEN_INPUTS := \
+	$(wildcard scripts/typegen/*.go) \
+	$(wildcard scripts/typegen/*.gotmpl) \
+	$(wildcard scripts/typegen/*.tstmpl) \
+	$(TYPEGEN_RBAC_GO_FILES) \
+	$(wildcard coderd/util/strings/*.go) \
+	codersdk/countries.go
+
+# Helper binary targets. Built with go build -o to avoid caching
+# link-stage executables in GOCACHE. Each binary is a real Make
+# target so parallel -j builds serialize correctly instead of
+# racing on the same output path.
+
+_gen/bin/apitypings: $(wildcard scripts/apitypings/*.go) $(wildcard codersdk/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/apitypings
+
+_gen/bin/auditdocgen: $(wildcard scripts/auditdocgen/*.go) $(wildcard enterprise/audit/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/auditdocgen
+
+_gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) $(RBAC_GO_FILES) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/check-scopes
+
+# clidocgen reflects over the full CLI tree, so it must rebuild when its
+# command definitions, flag types, or embedded template change.
+_gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/clidocgen
+
+_gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) $(DBDUMP_INPUTS) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./coderd/database/gen/dump
+
+_gen/bin/examplegen: $(wildcard scripts/examplegen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/examplegen
+
+_gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/gensite
+
+_gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/apikeyscopesgen
+
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/aibridgepricesgen
+
+_gen/bin/metricsdocgen: $(wildcard scripts/metricsdocgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/metricsdocgen
+
+_gen/bin/metricsdocgen-scanner: $(wildcard scripts/metricsdocgen/scanner/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/metricsdocgen/scanner
+
+_gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard codersdk/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/modeloptionsgen
+
+_gen/bin/typegen: $(TYPEGEN_INPUTS) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/typegen
+
+# Shared temp directory for atomic writes. Lives at the project root
+# so all targets share the same filesystem, and is gitignored.
+# Order-only prerequisite: recipes that need it depend on | _gen
+_gen:
+	mkdir -p _gen
 
 # Don't print the commands in the file unless you specify VERBOSE. This is
 # essentially the same as putting "@" at the start of each line.
@@ -40,11 +211,19 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
-# Use the highest ZSTD compression level in CI.
-ifdef CI
+# Limit parallel Make jobs in pre-commit/pre-push. Defaults to
+# nproc/4 (min 2) since test, lint, and build targets have internal
+# parallelism. Override: make pre-push PARALLEL_JOBS=8
+PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
+
+# Use the highest ZSTD compression level in release builds to
+# minimize artifact size. For non-release CI builds (e.g. main
+# branch preview), use multithreaded level 6 which is ~99% faster
+# at the cost of ~30% larger archives.
+ifeq ($(CODER_RELEASE),true)
 ZSTDFLAGS := -22 --ultra
 else
-ZSTDFLAGS := -6
+ZSTDFLAGS := -6 -T0
 endif
 
 # Common paths to exclude from find commands, this rule is written so
@@ -53,19 +232,11 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
-# Same as GO_SRC_FILES but excluding certain files that have problematic
-# Makefile dependencies (e.g. pnpm).
-MOST_GO_SRC_FILES := $(shell \
-	find . \
-		$(FIND_EXCLUSIONS) \
-		-type f \
-		-name '*.go' \
-		-not -name '*_test.go' \
-		-not -wholename './agent/agentcontainers/dcspec/dcspec_gen.go' \
-)
+
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
@@ -94,12 +265,8 @@ PACKAGE_OS_ARCHES := linux_amd64 linux_armv7 linux_arm64
 # All architectures we build Docker images for (Linux only).
 DOCKER_ARCHES := amd64 arm64 armv7
 
-# All ${OS}_${ARCH} combos we build the desktop dylib for.
-DYLIB_ARCHES := darwin_amd64 darwin_arm64
-
 # Computed variables based on the above.
 CODER_SLIM_BINARIES      := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
-CODER_DYLIBS             := $(foreach os_arch, $(DYLIB_ARCHES), build/coder-vpn_$(VERSION)_$(os_arch).dylib)
 CODER_FAT_BINARIES       := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
 CODER_ALL_BINARIES       := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
 CODER_TAR_GZ_ARCHIVES    := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
@@ -131,6 +298,7 @@ endif
 
 clean:
 	rm -rf build/ site/build/ site/out/
+	rm -rf _gen/bin
 	mkdir -p build/
 	git restore site/out/
 .PHONY: clean
@@ -260,26 +428,6 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 			cp "$@.asc" "./site/out/bin/coder-$$os-$$arch$$dot_ext.asc"
 		fi
 	fi
-
-# This task builds Coder Desktop dylibs
-$(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
-	@if [ "$(shell uname)" = "Darwin" ]; then
-		$(get-mode-os-arch-ext)
-		./scripts/build_go.sh \
-			--os "$$os" \
-			--arch "$$arch" \
-			--version "$(VERSION)" \
-			--output "$@" \
-			--dylib
-
-	else
-		echo "ERROR: Can't build dylib on non-Darwin OS" 1>&2
-		exit 1
-	fi
-
-# This task builds both dylibs
-build/coder-dylib: $(CODER_DYLIBS)
-.PHONY: build/coder-dylib
 
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
@@ -427,6 +575,7 @@ SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
+	site/src/api/chatModelOptionsGenerated.json \
 	site/src/theme/icons.json
 
 site/out/index.html: \
@@ -455,12 +604,25 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
+# Only wildcard the go files in the develop directory to avoid rebuilds
+# when project files are changd. Technically changes to some imports may
+# not be detected, but it's unlikely to cause any issues.
+build/.bin/develop: go.mod go.sum $(wildcard scripts/develop/*.go)
+	CGO_ENABLED=0 go build -o $@ ./scripts/develop
+
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
+RED := $(shell tput setaf 1 2>/dev/null)
+YELLOW := $(shell tput setaf 3 2>/dev/null)
+DIM := $(shell tput dim 2>/dev/null || tput setaf 8 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
 .PHONY: fmt
+
+# Subset of fmt that does not require Go or Node toolchains.
+fmt-light: fmt/shfmt fmt/terraform fmt/markdown
+.PHONY: fmt-light
 
 fmt/go:
 ifdef FILE
@@ -566,8 +728,12 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
+
+# Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
+.PHONY: lint-light
 
 lint/site-icons:
 	./scripts/check_site_icons.sh
@@ -579,15 +745,13 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	./scripts/check_enterprise_imports.sh
-	./scripts/check_codersdk_imports.sh
-	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	golangci-lint run
+	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
+	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
-lint/examples:
-	go run ./scripts/examplegen/main.go -lint
+lint/examples: | _gen/bin/examplegen
+	_gen/bin/examplegen -lint
 .PHONY: lint/examples
 
 # Use shfmt to determine the shell files, takes editorconfig into consideration.
@@ -595,6 +759,22 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 	echo "--- shellcheck"
 	shellcheck --external-sources $(SHELL_SRC_FILES)
 .PHONY: lint/shellcheck
+
+lint/bootstrap:
+	bash scripts/check_bootstrap_quotes.sh
+.PHONY: lint/bootstrap
+
+lint/emdash:
+	bash scripts/check_emdash.sh
+.PHONY: lint/emdash
+
+lint/architecture:
+	./scripts/check_architecture.sh
+.PHONY: lint/architecture
+
+lint/agents:
+	./scripts/check_agents_structure.sh
+.PHONY: lint/agents
 
 lint/helm:
 	cd helm/
@@ -609,19 +789,30 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	go tool github.com/rhysd/actionlint/cmd/actionlint
+	mise exec actionlint -- actionlint
 .PHONY: lint/actions/actionlint
 
+# zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
+# external action references are skipped silently.
 lint/actions/zizmor:
-	./scripts/zizmor.sh \
+	@set -euo pipefail; \
+	if [ -z "$${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then \
+		GH_TOKEN="$$(gh auth token 2>/dev/null || true)"; \
+		export GH_TOKEN; \
+	fi; \
+	mise exec zizmor -- zizmor \
 		--strict-collection \
 		--persona=regular \
 		.
 .PHONY: lint/actions/zizmor
 
+lint/mise-versions:
+	./scripts/check_mise_versions.sh
+.PHONY: lint/mise-versions
+
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
-lint/check-scopes: coderd/database/dump.sql
-	go run ./scripts/check-scopes
+lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
+	_gen/bin/check-scopes
 .PHONY: lint/check-scopes
 
 # Verify migrations do not hardcode the public schema.
@@ -630,13 +821,150 @@ lint/migrations:
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
 .PHONY: lint/migrations
 
+lint/typos:
+	typos --config .github/workflows/typos.toml
+.PHONY: lint/typos
+
+# Vale (prose linter).
+#
+# Invoked through `mise exec` like actionlint and zizmor above, so the
+# version pinned in mise.toml ("aqua:errata-ai/vale") is the single source
+# of truth and mise downloads the right OS/arch build. Always pass the full
+# aqua key: the bare `vale` short name ignores the pin and resolves to the
+# latest release.
+
+# `vale sync` pulls the packages listed in .vale.ini's Packages directive
+# into StylesPath (docs/.style/styles/). The .vale-synced sentinel makes
+# sync idempotent across `make lint/prose` calls and lets warm checkouts
+# skip the re-sync entirely. Make rebuilds this target when `.vale.ini`
+# changes.
+docs/.style/.vale-synced: .vale.ini
+	@echo "$(GREEN)==>$(RESET) $(BOLD)vale sync$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale sync
+	@touch $@
+
+# Vale exits non-zero only on error-level alerts. `--no-exit` keeps the
+# target green while the un-overridden Google error-level rules still
+# produce a baseline error count; real failures (bad config, missing
+# files) still propagate. Once the baseline error count reaches zero, drop
+# `--no-exit` and surface error-level violations as real failures. See
+# DOCS-40.
+lint/prose: docs/.style/.vale-synced
+	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale --no-exit docs/
+.PHONY: lint/prose
+
+# pre-commit and pre-push mirror CI checks locally.
+#
+# pre-commit runs checks that don't need external services (Docker,
+# Playwright). This is the git pre-commit hook default since Docker
+# and browser issues in the local environment would otherwise block
+# all commits.
+#
+# pre-push adds heavier checks: Go tests, JS tests, and site build.
+# The pre-push hook is allowlisted, see scripts/githooks/pre-push.
+#
+# pre-commit uses two phases: gen+fmt first, then lint+build. This
+# avoids races where gen creates temporary .go files that lint's
+# find-based checks pick up. Within each phase, targets run in
+# parallel via -j. It fails if any tracked files have unstaged
+# changes afterward.
+
+define check-unstaged
+	unstaged="$$(git diff --name-only)"
+	if [[ -n $$unstaged ]]; then
+		echo "$(RED)✗ check unstaged changes$(RESET)"
+		echo "$$unstaged" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Verify generated changes are correct before staging:$(RESET)"
+		echo "$(DIM)    git diff$(RESET)"
+		echo "$(DIM)    git add -u && git commit$(RESET)"
+		exit 1
+	fi
+endef
+define check-untracked
+	untracked=$$(git ls-files --other --exclude-standard)
+	if [[ -n $$untracked ]]; then
+		echo "$(YELLOW)? check untracked files$(RESET)"
+		echo "$$untracked" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Review if these should be committed or added to .gitignore.$(RESET)"
+	fi
+endef
+
+pre-commit:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit.XXXXXX")
+	echo "$(BOLD)pre-commit$(RESET) ($$logdir)"
+	echo "gen + fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir gen fmt
+	$(check-unstaged)
+	echo "lint + build:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		lint \
+		lint/typos \
+		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
+	$(check-unstaged)
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-commit
+
+# Lightweight pre-commit for changes that don't touch Go or
+# TypeScript. Skips gen, lint/go, lint/ts, fmt/go, fmt/ts, and
+# the binary build. Used by the pre-commit hook when only docs,
+# shell, terraform, helm, or other fast-to-check files changed.
+pre-commit-light:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit-light.XXXXXX")
+	echo "$(BOLD)pre-commit-light$(RESET) ($$logdir)"
+	echo "fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir fmt-light
+	$(check-unstaged)
+	echo "lint:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir lint-light
+	$(check-unstaged)
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit-light passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-commit-light
+
+pre-push:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
+	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
+	test -d site/node_modules/.cache/storybook || (cd site/ && pnpm exec node scripts/warmup-storybook-cache.mjs)
+	echo "test + build site:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test \
+		test-js \
+		site/out/index.html
+	# Storybook tests run after Go tests and the site build to avoid
+	# CPU starvation. Rolldown's tokio workers in Vite's transform
+	# pipeline stall when competing with Go compilation and the
+	# production build, causing browser import() calls to hang
+	# indefinitely (vitest has no import-phase timeout).
+	echo "test storybook:"
+	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test-storybook
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-push
+
+offlinedocs/check: offlinedocs/node_modules/.installed
+	cd offlinedocs/
+	pnpm format:check
+	pnpm lint
+	pnpm export
+.PHONY: offlinedocs/check
+
 # All files generated by the database should be added here, and this can be used
 # as a target for jobs that need to run after the database is generated.
 DB_GEN_FILES := \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbmetrics/dbmetrics.go \
+	coderd/database/dbmetrics/querymetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
@@ -647,17 +975,18 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/subscriptionmock.go
 
 AIBRIDGED_MOCKS := \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go
 
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
+	agent/boundarylogproxy/codec/boundary.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -667,9 +996,11 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
+	docs/install/releases/feature-stages.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
+	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
@@ -681,11 +1012,24 @@ GEN_FILES := \
 	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
-gen: gen/db gen/golden-files $(GEN_FILES)
+# Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
+# start PostgreSQL via testcontainers).
+GEN_SKIP_GOLDEN ?=
+gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 .PHONY: gen
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
+# `make gen`. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+	@mkdir -p $(dir $@)
+	$(call atomic_write,_gen/bin/aibridgepricesgen)
+.PHONY: coderd/aibridge/prices/data/prices.json
+
+gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+.PHONY: gen/aibridge-prices
 
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
@@ -709,26 +1053,35 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		agent/agentsocket/proto/agentsocket.pb.go \
+		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
-		enterprise/aibridged/proto/aibridged.pb.go \
+		coderd/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
-		$(DB_GEN_FILES) \
+		coderd/database/querier.go \
+		coderd/database/unique_constraint.go \
+		coderd/database/dbmetrics/querymetrics.go \
+		coderd/database/dbauthz/dbauthz.go \
+		coderd/database/dbmock/dbmock.go \
+		coderd/database/pubsub/psmock/psmock.go \
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
+		codersdk/apikey_scopes_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
+		site/src/api/chatModelOptionsGenerated.json \
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
+		docs/install/releases/feature-stages.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
+		scripts/metricsdocgen/generated_metrics \
 		$(TAILNETTEST_MOCKS) \
-		coderd/database/pubsub/psmock/psmock.go \
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
 		coderd/httpmw/loggermw/loggermock/loggermock.go \
@@ -750,16 +1103,26 @@ gen/mark-fresh:
 
 # Runs migrations to output a dump of the database schema after migrations are
 # applied.
-coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql)
-	go run ./coderd/database/gen/dump/main.go
+coderd/database/dump.sql: coderd/database/gen/dump/main.go $(DBDUMP_INPUTS) | _gen/bin/dbdump
+	_gen/bin/dbdump
 	touch "$@"
 
 # Generates Go code for querying the database.
 # coderd/database/queries.sql.go
 # coderd/database/models.go
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
-	./coderd/database/generate.sh
-	touch "$@"
+#
+# NOTE: grouped target (&:) ensures generate.sh runs only once even
+# with -j and all outputs are considered produced together. These
+# files are all written by generate.sh (via sqlc and scripts/dbgen).
+coderd/database/querier.go \
+coderd/database/unique_constraint.go \
+coderd/database/dbmetrics/querymetrics.go \
+coderd/database/dbauthz/dbauthz.go &: \
+	coderd/database/sqlc.yaml \
+	coderd/database/dump.sql \
+	$(wildcard coderd/database/queries/*.sql)
+	SKIP_DUMP_SQL=1 ./coderd/database/generate.sh
+	touch coderd/database/querier.go coderd/database/unique_constraint.go coderd/database/dbmetrics/querymetrics.go coderd/database/dbauthz/dbauthz.go
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
@@ -779,10 +1142,11 @@ coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.g
 
 codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
 	go generate ./codersdk/workspacesdk/agentconnmock/
+	./scripts/format_go_file.sh "$@"
 	touch "$@"
 
-$(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
-	go generate ./enterprise/aibridged/aibridgedmock/
+$(AIBRIDGED_MOCKS): coderd/aibridged/client.go coderd/aibridged/pool.go
+	go generate ./coderd/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -798,7 +1162,7 @@ $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	touch "$@"
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
-	protoc \
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
@@ -806,15 +1170,15 @@ tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
 		./tailnet/proto/tailnet.proto
 
 agent/proto/agent.pb.go: agent/proto/agent.proto
-	protoc \
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
 
-agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
-	protoc \
+agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto agent/proto/agent.proto
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
@@ -822,7 +1186,7 @@ agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.p
 		./agent/agentsocket/proto/agentsocket.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
-	protoc \
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
@@ -830,7 +1194,7 @@ provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 		./provisionersdk/proto/provisioner.proto
 
 provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
-	protoc \
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
@@ -838,94 +1202,124 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 		./provisionerd/proto/provisionerd.proto
 
 vpn/vpn.pb.go: vpn/vpn.proto
-	protoc \
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
 
-enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
-	protoc \
+agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/boundary.proto agent/proto/agent.proto
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./agent/boundarylogproxy/codec/boundary.proto
+
+coderd/aibridged/proto/aibridged.pb.go: coderd/aibridged/proto/aibridged.proto
+	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./enterprise/aibridged/proto/aibridged.proto
+		./coderd/aibridged/proto/aibridged.proto
 
-site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	# -C sets the directory for the go run command
-	go run -C ./scripts/apitypings main.go > $@
-	(cd site/ && pnpm exec biome format --write src/api/typesGenerated.ts)
-	touch "$@"
+site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) \
+		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
+		$(wildcard coderd/healthcheck/health/*.go) \
+		$(wildcard codersdk/healthsdk/*.go) | _gen _gen/bin/apitypings
+	$(call atomic_write,_gen/bin/apitypings,./scripts/biome_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
 	touch "$@"
 
-site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
-	go run ./scripts/gensite/ -icons "$@"
-	(cd site/ && pnpm exec biome format --write src/theme/icons.json)
+site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | _gen _gen/bin/gensite
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/gensite -icons "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates) | _gen _gen/bin/examplegen
+	$(call atomic_write,_gen/bin/examplegen)
+
+coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen rbac object)
 	touch "$@"
 
-examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
-	go run ./scripts/examplegen/main.go > examples/examples.gen.json
+# NOTE: depends on object_gen.go because the generator build
+# compiles coderd/rbac which includes it.
+coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go \
+	coderd/rbac/object_gen.go | _gen _gen/bin/typegen
+	# Write to a temp file first to avoid truncating the package
+	# during build since the generator imports the rbac package.
+	$(call atomic_write,_gen/bin/typegen rbac scopenames)
 	touch "$@"
 
-coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	tempdir=$(shell mktemp -d /tmp/typegen_rbac_object.XXXXXX)
-	go run ./scripts/typegen/main.go rbac object > "$$tempdir/object_gen.go"
-	mv -v "$$tempdir/object_gen.go" coderd/rbac/object_gen.go
-	rmdir -v "$$tempdir"
+# NOTE: depends on object_gen.go and scopes_constants_gen.go because
+# the generator build compiles coderd/rbac which includes both.
+codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen _gen/bin/typegen
+	# Write to a temp file to avoid truncating the target, which
+	# would break the codersdk package and any parallel build targets.
+	$(call atomic_write,_gen/bin/typegen rbac codersdk)
 	touch "$@"
 
-coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go
-	# Generate typed low-level ScopeName constants from RBACPermissions
-	# Write to a temp file first to avoid truncating the package during build
-	# since the generator imports the rbac package.
-	tempfile=$(shell mktemp /tmp/scopes_constants_gen.XXXXXX)
-	go run ./scripts/typegen/main.go rbac scopenames > "$$tempfile"
-	mv -v "$$tempfile" coderd/rbac/scopes_constants_gen.go
-	touch "$@"
-
-codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	# Do no overwrite codersdk/rbacresources_gen.go directly, as it would make the file empty, breaking
- 	# the `codersdk` package and any parallel build targets.
-	go run scripts/typegen/main.go rbac codersdk > /tmp/rbacresources_gen.go
-	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
-	touch "$@"
-
-codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go
+# NOTE: depends on object_gen.go and scopes_constants_gen.go because
+# the generator build compiles coderd/rbac which includes both.
+codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen _gen/bin/apikeyscopesgen
 	# Generate SDK constants for external API key scopes.
-	go run ./scripts/apikeyscopesgen > /tmp/apikey_scopes_gen.go
-	mv /tmp/apikey_scopes_gen.go codersdk/apikey_scopes_gen.go
+	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
 
-site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	go run scripts/typegen/main.go rbac typescript > "$@"
-	(cd site/ && pnpm exec biome format --write src/api/rbacresourcesGenerated.ts)
-	touch "$@"
+# NOTE: depends on object_gen.go and scopes_constants_gen.go because
+# the generator build compiles coderd/rbac which includes both.
+site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen rbac typescript,./scripts/biome_format.sh)
 
-site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
-	go run scripts/typegen/main.go countries > "$@"
-	(cd site/ && pnpm exec biome format --write src/api/countriesGenerated.ts)
-	touch "$@"
+site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
 
-docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
-	go run scripts/metricsdocgen/main.go
-	pnpm exec markdownlint-cli2 --fix ./docs/admin/integrations/prometheus.md
-	pnpm exec markdown-table-formatter ./docs/admin/integrations/prometheus.md
-	touch "$@"
+site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
+	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
 
-docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
-	CI=true BASE_PATH="." go run ./scripts/clidocgen
-	pnpm exec markdownlint-cli2 --fix ./docs/reference/cli/*.md
-	pnpm exec markdown-table-formatter ./docs/reference/cli/*.md
-	touch "$@"
+scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metricsdocgen-scanner
+	$(call atomic_write,_gen/bin/metricsdocgen-scanner)
 
-docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
-	go run scripts/auditdocgen/main.go
-	pnpm exec markdownlint-cli2 --fix ./docs/admin/security/audit-logs.md
-	pnpm exec markdown-table-formatter ./docs/admin/security/audit-logs.md
-	touch "$@"
+docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics | _gen _gen/bin/metricsdocgen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		_gen/bin/metricsdocgen --prometheus-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json _gen/bin/clidocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && \
+		tmpdir=$$(realpath "$$tmpdir") && \
+		mkdir -p "$$tmpdir/docs/reference/cli" && \
+		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
+		CI=true DOCS_DIR="$$tmpdir/docs" _gen/bin/clidocgen && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/*.md" && \
+		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/*.md" && \
+		for f in "$$tmpdir/docs/reference/cli/"*.md; do mv "$$f" "docs/reference/cli/$$(basename "$$f")"; done && \
+		rm -rf "$$tmpdir"
+
+docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		_gen/bin/auditdocgen --audit-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/install/releases/feature-stages.md: \
+	node_modules/.installed \
+	scripts/release/docs_update_feature_stages.sh \
+	codersdk/deployment.go \
+	docs/manifest.json | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 coderd/apidoc/.gen: \
 	node_modules/.installed \
@@ -934,23 +1328,36 @@ coderd/apidoc/.gen: \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
 	$(wildcard enterprise/wsproxy/wsproxysdk/*.go) \
+	$(wildcard coderd/workspaceconnwatcher/*.go) \
 	$(DB_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	.swaggo \
 	scripts/apidocgen/generate.sh \
+	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
-	$(wildcard scripts/apidocgen/markdown-template/*)
-	./scripts/apidocgen/generate.sh
-	pnpm exec markdownlint-cli2 --fix ./docs/reference/api/*.md
-	pnpm exec markdown-table-formatter ./docs/reference/api/*.md
+	$(wildcard scripts/apidocgen/markdown-template/*) | _gen
+	tmpdir=$$(mktemp -d -p _gen) && swagtmp=$$(mktemp -d -p _gen) && \
+		tmpdir=$$(realpath "$$tmpdir") && swagtmp=$$(realpath "$$swagtmp") && \
+		mkdir -p "$$tmpdir/reference/api" && \
+		cp docs/manifest.json "$$tmpdir/manifest.json" && \
+		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
+		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
+		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
+		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
+		mv "$$tmpdir/manifest.json" _gen/manifest-staging.json && \
+		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
+		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
+		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
-docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md
-	(cd site/ && pnpm exec biome format --write ../docs/manifest.json)
-	touch "$@"
+docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		cp _gen/manifest-staging.json "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
-	(cd site/ && pnpm exec biome format --write ../coderd/apidoc/swagger.json)
 	touch "$@"
 
 update-golden-files:
@@ -995,11 +1402,19 @@ enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)
-	TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	if command -v helm >/dev/null 2>&1; then
+		TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	else
+		echo "WARNING: helm not found; skipping helm/coder golden generation" >&2
+	fi
 	touch "$@"
 
 helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/testdata/*.yaml) $(wildcard helm/provisioner/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/provisioner/tests/*_test.go)
-	TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	if command -v helm >/dev/null 2>&1; then
+		TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	else
+		echo "WARNING: helm not found; skipping helm/provisioner golden generation" >&2
+	fi
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
@@ -1010,15 +1425,25 @@ coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.g
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
-provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
+provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(wildcard provisioner/terraform/testdata/*/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
 provisioner/terraform/testdata/version:
-	if [[ "$(shell cat provisioner/terraform/testdata/version.txt)" != "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
-		./provisioner/terraform/testdata/generate.sh
+	@tf_match=true; \
+	if [[ "$$(cat provisioner/terraform/testdata/version.txt)" != \
+	       "$$(terraform version -json | jq -r '.terraform_version')" ]]; then \
+		tf_match=false; \
+	fi; \
+	if ! $$tf_match || \
+	   ! ./provisioner/terraform/testdata/generate.sh --check; then \
+		./provisioner/terraform/testdata/generate.sh; \
 	fi
 .PHONY: provisioner/terraform/testdata/version
+
+update-terraform-testdata:
+	./provisioner/terraform/testdata/generate.sh --upgrade
+.PHONY: update-terraform-testdata
 
 # Set the retry flags if TEST_RETRIES is set
 ifdef TEST_RETRIES
@@ -1027,10 +1452,22 @@ else
 GOTESTSUM_RETRY_FLAGS :=
 endif
 
-# default to 8x8 parallelism to avoid overwhelming our workspaces. Hopefully we can remove these defaults
-# when we get our test suite's resource utilization under control.
-# Use testsmallbatch tag to reduce wireguard memory allocation in tests (from ~18GB to negligible).
-GOTEST_FLAGS := -tags=testsmallbatch -v -p $(or $(TEST_NUM_PARALLEL_PACKAGES),"8") -parallel=$(or $(TEST_NUM_PARALLEL_TESTS),"8")
+# Default to 8x8 parallelism to avoid overwhelming our workspaces.
+# Race detection defaults to 4x4 because the detector adds significant
+# CPU overhead. Override via TEST_NUM_PARALLEL_PACKAGES /
+# TEST_NUM_PARALLEL_TESTS.
+TEST_PARALLEL_PACKAGES := $(or $(TEST_NUM_PARALLEL_PACKAGES),8)
+TEST_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),8)
+RACE_PARALLEL_PACKAGES := $(or $(TEST_NUM_PARALLEL_PACKAGES),4)
+RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
+
+# Use testsmallbatch tag to reduce wireguard memory allocation in tests
+# (from ~18GB to negligible). Recursively expanded so target-specific
+# overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
+# parallelism). CI job timeout is 25m (see test-go-pg in ci.yaml),
+# keep the Go timeout 5m shorter so tests produce goroutine dumps
+# instead of the CI runner killing the process with no output.
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 20m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
@@ -1041,8 +1478,16 @@ ifdef TEST_SHORT
 GOTEST_FLAGS += -short
 endif
 
+# RUN is single-quoted for the shell so regex metacharacters survive make.
+# Embedded single quotes are not supported; whichtests only emits RUN values
+# built from ASCII test names so generated regexes stay within this contract.
 ifdef RUN
-GOTEST_FLAGS += -run $(RUN)
+GOTEST_FLAGS += -run '$(RUN)'
+endif
+
+# TEST_SHUFFLE values must be off, on, or an integer seed.
+ifdef TEST_SHUFFLE
+GOTEST_FLAGS += -shuffle=$(TEST_SHUFFLE)
 endif
 
 ifdef TEST_CPUPROFILE
@@ -1056,12 +1501,39 @@ endif
 TEST_PACKAGES ?= ./...
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(TEST_PACKAGES)" -- $(GOTEST_FLAGS)
+	$(GIT_FLAGS) gotestsum --format standard-quiet \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		$(GOTEST_FLAGS)
 .PHONY: test
+
+test-race: TEST_PARALLEL_PACKAGES := $(RACE_PARALLEL_PACKAGES)
+test-race: TEST_PARALLEL_TESTS := $(RACE_PARALLEL_TESTS)
+test-race:
+	$(GIT_FLAGS) gotestsum --format standard-quiet \
+		--junitfile="gotests.xml" \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		-race \
+		$(GOTEST_FLAGS)
+.PHONY: test-race
 
 test-cli:
 	$(MAKE) test TEST_PACKAGES="./cli..."
 .PHONY: test-cli
+
+test-js: site/node_modules/.installed
+	cd site/
+	pnpm test:ci
+.PHONY: test-js
+
+test-storybook: site/node_modules/.installed
+	cd site/
+	pnpm playwright:install
+	pnpm exec vitest run --project=storybook
+.PHONY: test-storybook
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
 # dependency for any sqlc-cloud related targets.
@@ -1074,37 +1546,22 @@ sqlc-cloud-is-setup:
 
 sqlc-push: sqlc-cloud-is-setup test-postgres-docker
 	echo "--- sqlc push"
-	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
 	sqlc push -f coderd/database/sqlc.yaml && echo "Passed sqlc push"
 .PHONY: sqlc-push
 
 sqlc-verify: sqlc-cloud-is-setup test-postgres-docker
 	echo "--- sqlc verify"
-	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
 	sqlc verify -f coderd/database/sqlc.yaml && echo "Passed sqlc verify"
 .PHONY: sqlc-verify
 
 sqlc-vet: test-postgres-docker
 	echo "--- sqlc vet"
-	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
 	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
 .PHONY: sqlc-vet
 
-# When updating -timeout for this test, keep in sync with
-# test-go-postgres (.github/workflows/coder.yaml).
-# Do add coverage flags so that test caching works.
-test-postgres: test-postgres-docker
-	# The postgres test is prone to failure, so we limit parallelism for
-	# more consistent execution.
-	$(GIT_FLAGS)  gotestsum \
-		--junitfile="gotests.xml" \
-		--jsonfile="gotests.json" \
-		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="./..." -- \
-		-tags=testsmallbatch \
-		-timeout=20m \
-		-count=1
-.PHONY: test-postgres
 
 test-migrations: test-postgres-docker
 	echo "--- test migrations"
@@ -1120,13 +1577,24 @@ test-migrations: test-postgres-docker
 
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
+	# If our container is already running, nothing to do.
+	if docker ps --filter "name=test-postgres-docker-${POSTGRES_VERSION}" --format '{{.Names}}' | grep -q .; then \
+		echo "test-postgres-docker-${POSTGRES_VERSION} is already running."; \
+		exit 0; \
+	fi
+	# If something else is on 5432, warn but don't fail.
+	if pg_isready -h 127.0.0.1 -q 2>/dev/null; then \
+		echo "WARNING: PostgreSQL is already running on 127.0.0.1:5432 (not our container)."; \
+		echo "Tests will use this instance. To use the Makefile's container, stop it first."; \
+		exit 0; \
+	fi
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
 
 	# Try pulling up to three times to avoid CI flakes.
 	docker pull ${POSTGRES_IMAGE} || {
 		retries=2
-		for try in $(seq 1 ${retries}); do
-			echo "Failed to pull image, retrying (${try}/${retries})..."
+		for try in $$(seq 1 $${retries}); do
+			echo "Failed to pull image, retrying ($${try}/$${retries})..."
 			sleep 1
 			if docker pull ${POSTGRES_IMAGE}; then
 				break
@@ -1167,15 +1635,19 @@ test-postgres-docker:
 		-c log_statement=all
 	while ! pg_isready -h 127.0.0.1
 	do
-		echo "$(date) - waiting for database to start"
+		echo "$$(date) - waiting for database to start"
 		sleep 0.5
 	done
 .PHONY: test-postgres-docker
 
-# Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
-test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -tags=testsmallbatch -race -count=1 -parallel 4 -p 4 ./...
-.PHONY: test-race
+# test-postgres-docker-logs prints the PostgreSQL container's logs. The
+# postgres image logs to stderr (no logging_collector), which Docker captures,
+# so combined with log_statement=all in test-postgres-docker these logs include
+# every executed statement. Redirect to a file to save them, e.g.
+# `make test-postgres-docker-logs > postgres.log`.
+test-postgres-docker-logs:
+	docker logs test-postgres-docker-${POSTGRES_VERSION}
+.PHONY: test-postgres-docker-logs
 
 test-tailnet-integration:
 	env \
@@ -1205,6 +1677,7 @@ site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
 	cd site/
+	pnpm playwright:install
 ifdef CI
 	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
 else
@@ -1212,10 +1685,9 @@ else
 endif
 .PHONY: test-e2e
 
-dogfood/coder/nix.hash: flake.nix flake.lock
-	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
-
 # Count the number of test databases created per test package.
 count-test-databases:
 	PGPASSWORD=postgres psql -h localhost -U postgres -d coder_testing -P pager=off -c 'SELECT test_package, count(*) as count from test_databases GROUP BY test_package ORDER BY count DESC'
+.PHONY: count-test-databases
+
 .PHONY: count-test-databases

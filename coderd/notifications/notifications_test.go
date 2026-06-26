@@ -18,7 +18,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -262,8 +261,6 @@ func TestWebhookDispatch(t *testing.T) {
 	// This is not strictly necessary for this test, but it's testing some side logic which is too small for its own test.
 	require.Equal(t, payload.Payload.UserName, name)
 	require.Equal(t, payload.Payload.UserUsername, username)
-	// Right now we don't have a way to query notification templates by ID in dbmem, and it's not necessary to add this
-	// just to satisfy this test. We can safely assume that as long as this value is not empty that the given value was delivered.
 	require.NotEmpty(t, payload.Payload.NotificationName)
 }
 
@@ -551,8 +548,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 		leasedIDs = append(leasedIDs, msg.ID.String())
 	}
 
-	sort.Strings(msgs)
-	sort.Strings(leasedIDs)
+	slices.Sort(msgs)
+	slices.Sort(leasedIDs)
 	require.EqualValues(t, msgs, leasedIDs)
 
 	// Wait out the lease period; all messages should be eligible to be re-acquired.
@@ -791,11 +788,29 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"name":           "bobby-workspace",
-					"reason":         "breached the template's threshold for inactivity",
-					"initiator":      "autobuild",
-					"dormancyHours":  "24",
-					"timeTilDormant": "24 hours",
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
+					"timeTilDelete": "24 hours",
+				},
+			},
+		},
+		{
+			// TemplateWorkspaceDormant body should not promise auto-deletion
+			// when the template has no `time_til_dormant_autodelete` set, in
+			// which case the enqueue sites leave `timeTilDelete` unset.
+			name: "TemplateWorkspaceDormant_NoAutoDelete",
+			id:   notifications.TemplateWorkspaceDormant,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
 				},
 			},
 		},
@@ -825,6 +840,19 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"reason":         "template updated to new dormancy policy",
 					"dormancyHours":  "24",
 					"timeTilDormant": "24 hours",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceAutostopReminder",
+			id:   notifications.TemplateWorkspaceAutostopReminder,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"deadline":  "2024-03-15 14:00 UTC",
 				},
 			},
 		},
@@ -1304,6 +1332,120 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateTaskPaused",
+			id:   notifications.TemplateTaskPaused,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":         "my-task",
+					"task_id":      "00000000-0000-0000-0000-000000000000",
+					"workspace":    "my-workspace",
+					"pause_reason": "idle timeout",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateTaskResumed",
+			id:   notifications.TemplateTaskResumed,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":      "my-task",
+					"task_id":   "00000000-0000-0000-0000-000000000001",
+					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			// Default branch: multiple visible chats, retention enabled,
+			// no overflow. Body phrasing is number-neutral so this also
+			// covers the n>1 grammar shape without a dedicated branch in
+			// the template.
+			name: "TemplateChatAutoArchiveDigest",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Pins the n=1 rendering so future edits to the body cannot
+			// reintroduce a count-conditional that breaks the singular
+			// case. The list-introduction sentence and retention sentence
+			// both use plural-form pronouns ("them", "they") that read
+			// naturally for a single item.
+			name: "TemplateChatAutoArchiveDigestSingular",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Covers the retention_days="0" indefinite-retention branch.
+			name: "TemplateChatAutoArchiveDigestRetentionZero",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "0",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+				},
+			},
+		},
+		{
+			// Covers the additional_archived_count overflow sentence.
+			name: "TemplateChatAutoArchiveDigestOverflow",
+			id:   notifications.TemplateChatAutoArchiveDigest,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels:       map[string]string{},
+				Data: map[string]any{
+					"auto_archive_days": "90",
+					"retention_days":    "30",
+					"archived_chats": []map[string]any{
+						{"title": "Onboarding kickoff", "last_activity_humanized": "3 months ago"},
+						{"title": "Quarterly planning draft", "last_activity_humanized": "4 months ago"},
+					},
+					"additional_archived_count": "6",
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1399,11 +1541,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					assert.NoError(t, srv.Serve(listen))
-				}()
+				})
 
 				// Wait for the server to become pingable.
 				require.Eventually(t, func() bool {
@@ -1443,12 +1583,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// as appearance changes are enterprise features and we do not want to mix those
 				// can't use the api
 				if tc.appName != "" {
-					err = (*db).UpsertApplicationName(dbauthz.AsSystemRestricted(ctx), "Custom Application")
+					err = (*db).UpsertApplicationName(ctx, "Custom Application")
 					require.NoError(t, err)
 				}
 
 				if tc.logoURL != "" {
-					err = (*db).UpsertLogoURL(dbauthz.AsSystemRestricted(ctx), "https://custom.application/logo.png")
+					err = (*db).UpsertLogoURL(ctx, "https://custom.application/logo.png")
 					require.NoError(t, err)
 				}
 

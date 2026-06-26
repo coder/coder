@@ -1,25 +1,29 @@
-import { AuditActions, ResourceTypes } from "api/typesGenerated";
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
+import capitalize from "lodash/capitalize";
+import type { FC } from "react";
+import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
+import {
+	Filter,
+	MenuSkeleton,
+	type useFilter,
+} from "#/components/Filter/Filter";
 import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
-} from "components/Filter/menu";
+} from "#/components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
+} from "#/components/Filter/SelectFilter";
 import {
 	DEFAULT_USER_FILTER_WIDTH,
 	type UserFilterMenu,
 	UserMenu,
-} from "components/Filter/UserFilter";
-import capitalize from "lodash/capitalize";
+} from "#/components/Filter/UserFilter";
 import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
-} from "modules/tableFiltering/options";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/modules/tableFiltering/options";
+import { docs } from "#/utils/docs";
 
 const PRESET_FILTERS = [
 	{
@@ -54,7 +58,9 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
-			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
+			learnMoreLink={docs(
+				"/admin/security/audit-logs#how-to-filter-audit-logs",
+			)}
 			presets={PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}

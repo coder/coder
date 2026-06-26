@@ -14,6 +14,9 @@ Coder templates are complete Terraform configurations that define entire workspa
 
 Templates appear on the Coder Registry and can be deployed directly by users.
 
+> [!TIP]
+> If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill from the Coder Registry can guide you through creating and updating templates with best practices built-in.
+
 ## Prerequisites
 
 Before contributing templates, ensure you have:
@@ -123,11 +126,11 @@ resource "coder_agent" "main" {
   startup_script_timeout = 180
   startup_script = <<-EOT
     set -e
-    
+
     # Install development tools
     sudo apt-get update
     sudo apt-get install -y curl wget git
-    
+
     # Additional setup here
   EOT
 }
@@ -155,10 +158,10 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = docker_image.main.name
   name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
-  
+
   command = ["sh", "-c", coder_agent.main.init_script]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-  
+
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
@@ -169,12 +172,12 @@ resource "docker_container" "workspace" {
 resource "coder_metadata" "workspace_info" {
   count       = data.coder_workspace.me.start_count
   resource_id = docker_container.workspace[0].id
-  
+
   item {
     key   = "memory"
     value = "4 GB"
   }
-  
+
   item {
     key   = "cpu"
     value = "2 cores"
@@ -407,7 +410,7 @@ Before submitting your template, verify:
    # Test with Coder
    coder templates push test-python-template -d .
    coder create test-workspace --template test-python-template
-   
+
    # Format code
    bun fmt
    ```
@@ -435,7 +438,7 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "ubuntu:24.04"
   name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
-  
+
   command = ["sh", "-c", coder_agent.main.init_script]
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
 }
@@ -449,9 +452,9 @@ resource "aws_instance" "workspace" {
   count         = data.coder_workspace.me.start_count
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
-  
+
   user_data = coder_agent.main.init_script
-  
+
   tags = {
     Name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   }
@@ -464,16 +467,16 @@ resource "aws_instance" "workspace" {
 # Kubernetes template
 resource "kubernetes_pod" "workspace" {
   count = data.coder_workspace.me.start_count
-  
+
   metadata {
     name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   }
-  
+
   spec {
     container {
       name  = "workspace"
       image = "ubuntu:24.04"
-      
+
       command = ["sh", "-c", coder_agent.main.init_script]
       env {
         name  = "CODER_AGENT_TOKEN"

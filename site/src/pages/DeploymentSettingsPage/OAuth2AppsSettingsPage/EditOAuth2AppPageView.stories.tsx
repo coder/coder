@@ -1,14 +1,19 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockOAuth2ProviderAppSecrets,
 	MockOAuth2ProviderApps,
 	mockApiError,
-} from "testHelpers/entities";
-import type { Meta, StoryObj } from "@storybook/react-vite";
+} from "#/testHelpers/entities";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 
 const meta: Meta = {
 	title: "pages/DeploymentSettingsPage/EditOAuth2AppPageView",
 	component: EditOAuth2AppPageView,
+	args: {
+		canEditApp: true,
+		canDeleteApp: true,
+		canViewAppSecrets: true,
+	},
 };
 export default meta;
 

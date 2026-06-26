@@ -37,14 +37,11 @@ resource "docker_container" "workspace" {
 resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
-  startup_script = <<EOF
+  startup_script = <<-EOF
     #!/bin/sh
-
-    # Start Docker
-    sudo dockerd &
-
-    # ...
-    EOF
+    set -e
+    sudo service docker start
+  EOF
 }
 ```
 
@@ -78,13 +75,10 @@ resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
-  startup_script = <<EOF
+  startup_script = <<-EOF
     #!/bin/sh
-
-    # Start Docker
-    sudo dockerd &
-
-    # ...
+    set -e
+    sudo service docker start
   EOF
 }
 
@@ -148,7 +142,7 @@ nodes. Refer to sysbox's
 to ensure your nodes are compliant.
 
 To get started with `envbox` check out the
-[starter template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-envbox)
+[starter template](../../../../examples/templates/kubernetes-envbox)
 or visit the [repo](https://github.com/coder/envbox).
 
 ### Authenticating with a Private Registry

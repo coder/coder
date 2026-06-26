@@ -1,30 +1,34 @@
+import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
+import type { FC, ReactNode } from "react";
+import { useQuery } from "react-query";
+import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
 	Group,
 	WorkspaceACL,
 	WorkspaceGroup,
 	WorkspaceRole,
 	WorkspaceUser,
-} from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
-import { Spinner } from "components/Spinner/Spinner";
+} from "#/components/Select/Select";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -32,11 +36,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import type { FC, ReactNode } from "react";
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 
 interface RoleSelectProps {
 	value: WorkspaceRole;
@@ -68,7 +70,7 @@ const RoleSelect: FC<RoleSelectProps> = ({
 				<SelectItem value="use" className="flex-col items-start py-2 w-64">
 					<div className="font-medium text-content-primary">Use</div>
 					<div className="text-xs text-content-secondary leading-snug mt-0.5">
-						Can read and access this workspace.
+						Can read, access, start, and stop this workspace.
 					</div>
 				</SelectItem>
 				<SelectItem value="admin" className="flex-col items-start py-2 w-64">
@@ -139,6 +141,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 };
 
 interface WorkspaceSharingFormProps {
+	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
 	error: unknown;
@@ -154,6 +157,7 @@ interface WorkspaceSharingFormProps {
 }
 
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
+	organizationId,
 	workspaceACL,
 	canUpdatePermissions,
 	error,
@@ -167,6 +171,46 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	isCompact,
 	showRestartWarning,
 }) => {
+	const sharingSettingsQuery = useQuery(
+		workspaceSharingSettings(organizationId),
+	);
+
+	if (sharingSettingsQuery.isLoading) {
+		return (
+			<TableBody>
+				<TableLoader />
+			</TableBody>
+		);
+	}
+
+	if (!sharingSettingsQuery.data) {
+		return (
+			<TableBody>
+				<TableRow>
+					<TableCell colSpan={999}>
+						<ErrorAlert error={sharingSettingsQuery.error} />
+					</TableCell>
+				</TableRow>
+			</TableBody>
+		);
+	}
+
+	if (sharingSettingsQuery.data.sharing_disabled) {
+		return (
+			<TableBody>
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="This workspace cannot be shared"
+							description="Workspace sharing has been disabled for this organization."
+							isCompact={isCompact}
+						/>
+					</TableCell>
+				</TableRow>
+			</TableBody>
+		);
+	}
+
 	const isEmpty = Boolean(
 		workspaceACL &&
 			workspaceACL.users.length === 0 &&
@@ -192,7 +236,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 					<TableCell colSpan={999}>
 						<EmptyState
 							message="No shared members or groups yet"
-							description="Add a member or group using the controls above"
+							description="Add a member or group using the controls above."
 							isCompact={isCompact}
 						/>
 					</TableCell>
@@ -235,7 +279,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 												variant="subtle"
 												aria-label="Open menu"
 											>
-												<EllipsisVertical aria-hidden="true" />
+												<EllipsisVerticalIcon aria-hidden="true" />
 												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
@@ -283,7 +327,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 												variant="subtle"
 												aria-label="Open menu"
 											>
-												<EllipsisVertical aria-hidden="true" />
+												<EllipsisVerticalIcon aria-hidden="true" />
 												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>

@@ -12,10 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentapisdk "github.com/coder/agentapi-sdk-go"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
+	"github.com/coder/quartz"
 )
 
 func Test_TaskSend(t *testing.T) {
@@ -23,49 +29,49 @@ func Test_TaskSend(t *testing.T) {
 
 	t.Run("ByTaskName_WithArgument", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
-		userClient := client
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "task", "send", task.Name, "carry on with the task")
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "carry on with the task")
 		inv.Stdout = &stdout
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
 
 	t.Run("ByTaskID_WithArgument", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
-		userClient := client
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "task", "send", task.ID.String(), "carry on with the task")
+		inv, root := clitest.New(t, "task", "send", setup.task.ID.String(), "carry on with the task")
 		inv.Stdout = &stdout
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
 
 	t.Run("ByTaskName_WithStdin", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
-		userClient := client
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "task", "send", task.Name, "--stdin")
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "--stdin")
 		inv.Stdout = &stdout
 		inv.Stdin = strings.NewReader("carry on with the task")
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
@@ -108,17 +114,284 @@ func Test_TaskSend(t *testing.T) {
 
 	t.Run("SendError", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		userClient, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendErr(assert.AnError))
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "task", "send", task.Name, "some task input")
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
 		inv.Stdout = &stdout
-		clitest.SetupConfig(t, userClient, root)
+		clitest.SetupConfig(t, setup.userClient, root)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, assert.AnError.Error())
+	})
+
+	t.Run("WaitsForInitializingTask", func(t *testing.T) {
+		t.Parallel()
+
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
+
+		// Close the first agent, pause, then resume the task so the
+		// workspace is started but no agent is connected.
+		// This puts the task in "initializing" state.
+		require.NoError(t, setup.agent.Close())
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
+		resumeTask(setupCtx, t, setup.userClient, setup.task)
+
+		// When: We attempt to send input to the initializing task.
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
+		clitest.SetupConfig(t, setup.userClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv = inv.WithContext(ctx)
+
+		// Use a pty so we can wait for the command to produce build
+		// output, confirming it has entered the initializing code
+		// path before we connect the agent.
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		// Wait for the command to observe the initializing state and
+		// start watching the workspace build. This ensures the command
+		// has entered the waiting code path.
+		stdout.ExpectMatch(ctx, "Queued")
+
+		// Connect a new agent so the task can transition to active.
+		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
+		setup.agent = agenttest.New(t, setup.userClient.URL, setup.agentToken, func(o *agent.Options) {
+			o.Client = agentClient
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, setup.userClient, setup.task.WorkspaceID.UUID).
+			WaitFor(coderdtest.AgentsReady)
+
+		// Report the task app as idle so waitForTaskIdle can proceed.
+		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateIdle,
+			Message: "ready",
+		}))
+
+		// Then: The command should complete successfully.
+		require.NoError(t, w.Wait())
+
+		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TaskStatusActive, updated.Status)
+	})
+
+	t.Run("ResumesPausedTask", func(t *testing.T) {
+		t.Parallel()
+
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
+
+		// Close the first agent before pausing so it does not conflict
+		// with the agent we reconnect after the workspace is resumed.
+		require.NoError(t, setup.agent.Close())
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
+
+		// When: We attempt to send input to the paused task.
+		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
+		clitest.SetupConfig(t, setup.userClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv = inv.WithContext(ctx)
+
+		// Use a pty so we can wait for the command to produce build
+		// output, confirming it has entered the paused code path and
+		// triggered a resume before we connect the agent.
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		// Wait for the command to observe the paused state, trigger
+		// a resume, and start watching the workspace build.
+		stdout.ExpectMatch(ctx, "Queued")
+
+		// Connect a new agent so the task can transition to active.
+		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
+		setup.agent = agenttest.New(t, setup.userClient.URL, setup.agentToken, func(o *agent.Options) {
+			o.Client = agentClient
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, setup.userClient, setup.task.WorkspaceID.UUID).
+			WaitFor(coderdtest.AgentsReady)
+
+		// Report the task app as idle so waitForTaskIdle can proceed.
+		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateIdle,
+			Message: "ready",
+		}))
+
+		// Then: The command should complete successfully.
+		require.NoError(t, w.Wait())
+
+		updated, err := setup.userClient.TaskByIdentifier(ctx, setup.task.Name)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.TaskStatusActive, updated.Status)
+	})
+
+	t.Run("PausedDuringWaitForReady", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: An initializing task (workspace running, no agent
+		// connected). Close the agent, pause, then resume so the
+		// workspace is started but no agent is connected. The
+		// command enters waitForTaskIdle directly (initializing
+		// path), where we verify it handles an external pause.
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, nil)
+
+		require.NoError(t, setup.agent.Close())
+		pauseTask(setupCtx, t, setup.userClient, setup.task)
+		resumeTask(setupCtx, t, setup.userClient, setup.task)
+
+		// Set up mock clock and traps before starting the command.
+		mClock := quartz.NewMock(t)
+		tickTrap := mClock.Trap().NewTicker("task_send", "poll")
+		resetTrap := mClock.Trap().TickerReset("task_send", "poll")
+
+		// When: We attempt to send input to the initializing task.
+		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
+		clitest.SetupConfig(t, setup.userClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv = inv.WithContext(ctx)
+
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		// Wait for the command to enter the build-watching phase
+		// of waitForTaskIdle.
+		stdout.ExpectMatch(ctx, "Waiting for task to become idle")
+
+		// Wait for ticker creation and release it.
+		tickCall := tickTrap.MustWait(ctx)
+		tickCall.MustRelease(ctx)
+		tickTrap.Close()
+
+		// Fire the first poll. The goroutine calls ticker.Reset
+		// which the trap catches, freezing the goroutine BEFORE
+		// client.TaskByID runs. Release it so the first poll
+		// sees 'initializing' and continues.
+		mClock.Advance(time.Nanosecond).MustWait(ctx)
+		resetCall := resetTrap.MustWait(ctx)
+		resetCall.MustRelease(ctx)
+
+		// Fire the second poll. The goroutine is again frozen at
+		// ticker.Reset by the trap.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		resetCall = resetTrap.MustWait(ctx)
+
+		// While the goroutine is frozen (before client.TaskByID),
+		// pause the task. The stop build completes, so the DB has
+		// (stop, succeeded) = 'paused'.
+		pauseTask(ctx, t, setup.userClient, setup.task)
+
+		// Release the trap. The goroutine unfreezes and
+		// client.TaskByID deterministically sees 'paused'.
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
+
+		// Then: The command should fail because the task was paused.
+		err := w.Wait()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "was paused while waiting for it to become idle")
+	})
+
+	t.Run("WaitsForWorkingAppState", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: An active task whose app is in "working" state.
+		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
+
+		// Move the app into "working" state before running the command.
+		agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
+		require.NoError(t, agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateWorking,
+			Message: "busy",
+		}))
+
+		// Set up mock clock and traps before starting the command.
+		mClock := quartz.NewMock(t)
+		tickTrap := mClock.Trap().NewTicker("task_send", "poll")
+		resetTrap := mClock.Trap().TickerReset("task_send", "poll")
+
+		// When: We send input while the app is working.
+		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
+		clitest.SetupConfig(t, setup.userClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		// Wait for ticker creation and release it.
+		tickCall := tickTrap.MustWait(ctx)
+		tickCall.MustRelease(ctx)
+		tickTrap.Close()
+
+		// Fire the first poll. The goroutine calls ticker.Reset
+		// which the trap catches, freezing the goroutine BEFORE
+		// client.TaskByID runs. Release it so the first poll
+		// sees "working" and continues.
+		mClock.Advance(time.Nanosecond).MustWait(ctx)
+		resetCall := resetTrap.MustWait(ctx)
+		resetCall.MustRelease(ctx)
+
+		// Fire the second poll. The goroutine is again frozen
+		// at ticker.Reset by the trap.
+		mClock.Advance(5 * time.Second).MustWait(ctx)
+		resetCall = resetTrap.MustWait(ctx)
+
+		// While the goroutine is frozen (before client.TaskByID),
+		// transition the app to idle.
+		require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			AppSlug: "task-sidebar",
+			State:   codersdk.WorkspaceAppStatusStateIdle,
+			Message: "ready",
+		}))
+
+		// Release the trap. The goroutine unfreezes and
+		// client.TaskByID deterministically sees "idle".
+		resetCall.MustRelease(ctx)
+		resetTrap.Close()
+
+		// Then: The command should complete successfully.
+		require.NoError(t, w.Wait())
+	})
+
+	t.Run("SendToNonIdleAppState", func(t *testing.T) {
+		t.Parallel()
+
+		for _, appState := range []codersdk.WorkspaceAppStatusState{
+			codersdk.WorkspaceAppStatusStateComplete,
+			codersdk.WorkspaceAppStatusStateFailure,
+		} {
+			t.Run(string(appState), func(t *testing.T) {
+				t.Parallel()
+
+				setupCtx := testutil.Context(t, testutil.WaitLong)
+				setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some input", "some response"))
+
+				agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
+				require.NoError(t, agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+					AppSlug: "task-sidebar",
+					State:   appState,
+					Message: "done",
+				}))
+
+				inv, root := clitest.New(t, "task", "send", setup.task.Name, "some input")
+				clitest.SetupConfig(t, setup.userClient, root)
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				err := inv.WithContext(ctx).Run()
+				require.NoError(t, err)
+			})
+		}
 	})
 }
 
@@ -150,7 +423,7 @@ func fakeAgentAPITaskSendOK(t *testing.T, expectMessage, returnMessage string) m
 	}
 }
 
-func fakeAgentAPITaskSendErr(t *testing.T, returnErr error) map[string]http.HandlerFunc {
+func fakeAgentAPITaskSendErr(returnErr error) map[string]http.HandlerFunc {
 	return map[string]http.HandlerFunc{
 		"/status": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -30,7 +31,7 @@ import (
 // @Param organization path string true "Organization ID or name"
 // @Param request body codersdk.UpdateOrganizationRequest true "Patch organization request"
 // @Success 200 {object} codersdk.Organization
-// @Router /organizations/{organization} [patch]
+// @Router /api/v2/organizations/{organization} [patch]
 func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -61,6 +62,39 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deviations from rbac.DefaultOrgMemberRoles require the
+	// minimum-implicit-member experiment.
+	if req.DefaultOrgMemberRoles != nil &&
+		!slices.Equal(*req.DefaultOrgMemberRoles, rbac.DefaultOrgMemberRoles()) &&
+		!api.AGPL.Experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Changing default organization roles is not enabled on this deployment.",
+			Detail:  fmt.Sprintf("Setting default_org_member_roles to anything other than %v requires the %q experiment.", rbac.DefaultOrgMemberRoles(), codersdk.ExperimentMinimumImplicitMember),
+		})
+		return
+	}
+
+	// default_org_member_roles currently accepts built-in role names only.
+	// Custom (DB-stored) roles are intentionally rejected here so the
+	// caller cannot land a malformed name that would break role expansion
+	// for every member of the org. A future change can extend this to
+	// custom org roles by routing through canAssignRoles in dbauthz.
+	if req.DefaultOrgMemberRoles != nil {
+		for _, name := range *req.DefaultOrgMemberRoles {
+			if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: name, OrganizationID: organization.ID}); err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid default_org_member_roles entry.",
+					Detail:  fmt.Sprintf("%q is not a built-in role; default_org_member_roles currently accepts built-in role names only.", name),
+					Validations: []codersdk.ValidationError{{
+						Field:  "default_org_member_roles",
+						Detail: fmt.Sprintf("%q is not a built-in role.", name),
+					}},
+				})
+				return
+			}
+		}
+	}
+
 	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		var err error
 		organization, err = tx.GetOrganizationByID(ctx, organization.ID)
@@ -69,12 +103,13 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		updateOrgParams := database.UpdateOrganizationParams{
-			UpdatedAt:   dbtime.Now(),
-			ID:          organization.ID,
-			Name:        organization.Name,
-			DisplayName: organization.DisplayName,
-			Description: organization.Description,
-			Icon:        organization.Icon,
+			UpdatedAt:             dbtime.Now(),
+			ID:                    organization.ID,
+			Name:                  organization.Name,
+			DisplayName:           organization.DisplayName,
+			Description:           organization.Description,
+			Icon:                  organization.Icon,
+			DefaultOrgMemberRoles: organization.DefaultOrgMemberRoles,
 		}
 
 		if req.Name != "" {
@@ -88,6 +123,9 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 		}
 		if req.Icon != nil {
 			updateOrgParams.Icon = *req.Icon
+		}
+		if req.DefaultOrgMemberRoles != nil {
+			updateOrgParams.DefaultOrgMemberRoles = *req.DefaultOrgMemberRoles
 		}
 
 		organization, err = tx.UpdateOrganization(ctx, updateOrgParams)
@@ -130,7 +168,7 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param organization path string true "Organization ID or name"
 // @Success 200 {object} codersdk.Response
-// @Router /organizations/{organization} [delete]
+// @Router /api/v2/organizations/{organization} [delete]
 func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -217,7 +255,7 @@ func (api *API) deleteOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Tags Organizations
 // @Param request body codersdk.CreateOrganizationRequest true "Create organization request"
 // @Success 201 {object} codersdk.Organization
-// @Router /organizations [post]
+// @Router /api/v2/organizations [post]
 func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// organizationID is required before the audit log entry is created.
@@ -281,13 +319,14 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:          organizationID,
-			Name:        req.Name,
-			DisplayName: req.DisplayName,
-			Description: req.Description,
-			Icon:        req.Icon,
-			CreatedAt:   dbtime.Now(),
-			UpdatedAt:   dbtime.Now(),
+			ID:                    organizationID,
+			Name:                  req.Name,
+			DisplayName:           req.DisplayName,
+			Description:           req.Description,
+			Icon:                  req.Icon,
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
@@ -298,16 +337,15 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
 		// permission that user doesn't have.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
-			Name: rbac.RoleOrgMember(),
-			OrganizationID: uuid.NullUUID{
-				UUID:  organizationID,
-				Valid: true,
-			},
-		}, organization.WorkspaceSharingDisabled)
-		if err != nil {
-			return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
-				organizationID, err)
+		for roleName := range rolestore.SystemRoleNames {
+			_, _, err = rolestore.ReconcileSystemRole(sysCtx, tx, database.CustomRole{
+				Name:           roleName,
+				OrganizationID: uuid.NullUUID{UUID: organizationID, Valid: true},
+			}, organization)
+			if err != nil {
+				return xerrors.Errorf("reconcile %s role for organization %s: %w",
+					roleName, organizationID, err)
+			}
 		}
 
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{

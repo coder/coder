@@ -85,7 +85,8 @@ You can customize the terminal font through your user settings:
 1. Click your avatar in the top-right corner
 2. Select **Settings** → **Appearance**
 3. Choose from available fonts:
-   - **IBM Plex Mono** (default)
+   - **Geist Mono** (default)
+   - **IBM Plex Mono**
    - **Fira Code** (with ligatures)
    - **JetBrains Mono**
    - **Source Code Pro**
@@ -158,7 +159,15 @@ You can open a terminal with a specific command by adding a query parameter:
 https://coder.example.com/@user/workspace/terminal?command=htop
 ```
 
-This will execute `htop` immediately when the terminal opens.
+When a `?command=` parameter is present, a confirmation dialog is shown before
+the command executes. The user must click **Run command** to proceed or
+**Cancel** to close the terminal window. This prevents external links from
+silently executing arbitrary commands in a workspace.
+
+Template-configured apps that use the `command` attribute in
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+are trusted and bypass the confirmation dialog. These apps use the `?app=`
+parameter internally, which resolves the command from the agent's app list.
 
 ### Container Selection
 

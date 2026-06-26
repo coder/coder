@@ -1,3 +1,15 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, waitFor, within } from "storybook/test";
+import {
+	reactRouterOutlet,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
+import type { Workspace, WorkspaceAgentLifecycle } from "#/api/typesGenerated";
+import { AuthProvider } from "#/contexts/auth/AuthProvider";
+import { RequireAuth } from "#/contexts/auth/RequireAuth";
+import { permissionChecks } from "#/modules/permissions";
 import {
 	MockAppearanceConfig,
 	MockAuthMethodsAll,
@@ -10,19 +22,9 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
-} from "testHelpers/entities";
-import { withWebSocket } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getAuthorizationKey } from "api/queries/authCheck";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
-import type { Workspace, WorkspaceAgentLifecycle } from "api/typesGenerated";
-import { AuthProvider } from "contexts/auth/AuthProvider";
-import { RequireAuth } from "contexts/auth/RequireAuth";
-import { permissionChecks } from "modules/permissions";
-import {
-	reactRouterOutlet,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
+} from "#/testHelpers/entities";
+import { withWebSocket } from "#/testHelpers/storybook";
+import { isMac } from "#/utils/platform";
 import TerminalPage from "./TerminalPage";
 
 const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
@@ -170,6 +172,51 @@ export const Ready: Story = {
 	},
 };
 
+export const RightClickMenu: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				data: "$ echo hello",
+			},
+		],
+		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+	play: async ({ canvasElement }) => {
+		if (isMac()) {
+			return;
+		}
+
+		const terminal = await waitFor(() => {
+			const element = canvasElement.querySelector<HTMLElement>(".xterm");
+			if (!element) {
+				throw new Error("terminal has not rendered yet");
+			}
+			return element;
+		});
+
+		const rect = terminal.getBoundingClientRect();
+		terminal.dispatchEvent(
+			new MouseEvent("contextmenu", {
+				bubbles: true,
+				cancelable: true,
+				clientX: rect.left + rect.width / 2,
+				clientY: rect.top + rect.height / 2,
+			}),
+		);
+
+		const body = within(document.body);
+		await expect(
+			await body.findByRole("menuitem", { name: "Copy" }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("menuitem", { name: "Paste" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const StartError: Story = {
 	decorators: [withWebSocket],
 	parameters: {
@@ -199,12 +246,10 @@ export const ConnectionError: Story = {
 // together with the error message
 export const BottomMessage: Story = {
 	decorators: [withWebSocket],
+
 	parameters: {
 		...meta.parameters,
-		// Forcing smaller viewport to make it easier to identify the issue
-		viewport: {
-			defaultViewport: "terminal",
-		},
+
 		webSocket: [
 			{
 				event: "message",
@@ -213,6 +258,45 @@ export const BottomMessage: Story = {
 			},
 			{
 				event: "close",
+			},
+		],
+
+		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+
+	globals: {
+		viewport: {
+			value: "terminal",
+			isRotated: false,
+		},
+	},
+};
+
+export const CommandConfirmation: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: `@${MockWorkspace.owner_name}`,
+					workspace: MockWorkspace.name,
+				},
+				searchParams: {
+					command: "curl https://example.com/install.sh | bash",
+				},
+			},
+			routing: reactRouterOutlet(
+				{
+					path: "/:username/:workspace/terminal",
+				},
+				<TerminalPage />,
+			),
+		}),
+		webSocket: [
+			{
+				event: "message",
+				data: "\x1b[H\x1b[2J\x1b[1m\x1b[32m\u27a4  \x1b[36mcoder\x1b[C\x1b[34mgit:(\x1b[31mbq/refactor-web-term-notifications\x1b[34m) \x1b[33m\u2717",
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],

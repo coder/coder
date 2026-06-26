@@ -3,6 +3,18 @@
 You are an experienced, pragmatic software engineer. You don't over-engineer a solution when a simple one is possible.
 Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permission first. BREAKING THE LETTER OR SPIRIT OF THE RULES IS FAILURE.
 
+## Agent navigation
+
+- Day-to-day: Start with [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md) for dev servers, git workflow, hooks, and routine checks.
+- Observability and isolation: Use [Observability Guide for Agents](.claude/docs/OBSERVABILITY.md) for logs, tracing, and metrics, and [Development Isolation Guide for Agents](.claude/docs/DEV_ISOLATION.md) for ports, state, readiness, and cleanup.
+- Failures: Use [Agent Failure Catalog](.claude/docs/AGENT_FAILURES.md) for repeatable failure formats and seeded diagnostics.
+- Language and area docs: Use [Modern Go](.claude/docs/GO.md), [Testing Patterns and Best Practices](.claude/docs/TESTING.md), [Database Development Patterns](.claude/docs/DATABASE.md), [OAuth2 Development Guide](.claude/docs/OAUTH2.md), [Coder Architecture](.claude/docs/ARCHITECTURE.md), [Troubleshooting Guide](.claude/docs/TROUBLESHOOTING.md), [Documentation Style Guide](.claude/docs/DOCS_STYLE_GUIDE.md), and [Pull Request Description Style Guide](.claude/docs/PR_STYLE_GUIDE.md) when that area is in scope.
+- Docs content scope: Use [Coder Docs Content Guidelines](docs/.style/content-guidelines.md) to decide whether a piece of content belongs in `docs/` at all. The Documentation Style Guide above covers prose and formatting; the content guidelines govern scope and routing and supersede the style guide on conflicts.
+- Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
+- Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
+- Docs prose: When editing anything under `docs/`, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
+  For supporting agent-specific guidance, refer to [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md), which covers structure, research, and content patterns.
+
 ## Foundational rules
 
 - Doing it right is better than doing it fast. You are not in a rush. NEVER skip steps or take shortcuts.
@@ -37,19 +49,20 @@ Only pause to ask for confirmation when:
 
 ## Essential Commands
 
-| Task              | Command                  | Notes                            |
-|-------------------|--------------------------|----------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build        |
-| **Build**         | `make build`             | Fat binaries (includes server)   |
-| **Build Slim**    | `make build-slim`        | Slim binaries                    |
-| **Test**          | `make test`              | Full test suite                  |
-| **Test Single**   | `make test RUN=TestName` | Faster than full suite           |
-| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database |
-| **Test Race**     | `make test-race`         | Run tests with Go race detector  |
-| **Lint**          | `make lint`              | Always run after changes         |
-| **Generate**      | `make gen`               | After database changes           |
-| **Format**        | `make fmt`               | Auto-format code                 |
-| **Clean**         | `make clean`             | Clean build artifacts            |
+| Task            | Command                  | Notes                               |
+|-----------------|--------------------------|-------------------------------------|
+| **Development** | `./scripts/develop.sh`   | ⚠️ Don't use manual build           |
+| **Build**       | `make build`             | Fat binaries (includes server)      |
+| **Build Slim**  | `make build-slim`        | Slim binaries                       |
+| **Test**        | `make test`              | Full test suite                     |
+| **Test Single** | `make test RUN=TestName` | Faster than full suite              |
+| **Test Race**   | `make test-race`         | Run tests with Go race detector     |
+| **Lint**        | `make lint`              | Always run after changes            |
+| **Generate**    | `make gen`               | After database changes              |
+| **Format**      | `make fmt`               | Auto-format code                    |
+| **Clean**       | `make clean`             | Clean build artifacts               |
+| **Pre-commit**  | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
+| **Pre-push**    | `make pre-push`          | Heavier CI checks (allowlisted)     |
 
 ### Documentation Commands
 
@@ -59,67 +72,64 @@ Only pause to ask for confirmation when:
 
 ## Critical Patterns
 
-### Database Changes (ALWAYS FOLLOW)
+Detailed workflow and topic guidance lives in the imported docs. Keep root
+instructions focused on guardrails that agents should see immediately.
 
-1. Modify `coderd/database/queries/*.sql` files
-2. Run `make gen`
-3. If audit errors: update `enterprise/audit/table.go`
-4. Run `make gen` again
-
-### LSP Navigation (USE FIRST)
-
-#### Go LSP (for backend code)
-
-- **Find definitions**: `mcp__go-language-server__definition symbolName`
-- **Find references**: `mcp__go-language-server__references symbolName`
-- **Get type info**: `mcp__go-language-server__hover filePath line column`
-- **Rename symbol**: `mcp__go-language-server__rename_symbol filePath line column newName`
-
-#### TypeScript LSP (for frontend code in site/)
-
-- **Find definitions**: `mcp__typescript-language-server__definition symbolName`
-- **Find references**: `mcp__typescript-language-server__references symbolName`
-- **Get type info**: `mcp__typescript-language-server__hover filePath line column`
-- **Rename symbol**: `mcp__typescript-language-server__rename_symbol filePath line column newName`
-
-### OAuth2 Error Handling
-
-```go
-// OAuth2-compliant error responses
-writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "description")
-```
-
-### Authorization Context
-
-```go
-// Public endpoints needing system access
-app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
-
-// Authenticated endpoints with user context
-app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
-```
+- **Database changes**: Follow
+  [Database Development Patterns](.claude/docs/DATABASE.md). Modify
+  `coderd/database/queries/*.sql`, run `make gen`, update
+  `enterprise/audit/table.go` for audit errors, then run `make gen` again.
+- **LSP navigation**: Use LSP tools first. See
+  [Modern Go](.claude/docs/GO.md) for Go LSP and
+  [Frontend Development Guidelines](site/AGENTS.md) for TypeScript LSP.
+- **OAuth2 and authorization**: Follow
+  [OAuth2 Development Guide](.claude/docs/OAUTH2.md). OAuth2 endpoints must
+  use RFC-compliant errors such as `writeOAuth2Error(...)`, and public
+  endpoints that need system access should use `dbauthz.AsSystemRestricted`.
+- **Chatd**: consult [Chatd Architecture](coderd/x/chatd/ARCHITECTURE.md) to
+  understand the architecture of the chatd subsystem. If you update the
+  chatd subsystem in ways that affect the architecture, you must update the
+  architecture document.
+- **API design**: Follow the API guardrails in
+  [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md),
+  including swagger annotations for new public HTTP endpoints.
+- **Transactions and conversions**: Keep `InTx` work on the transaction
+  handle, and prefer explicit db-to-SDK converters. See
+  [Database Development Patterns](.claude/docs/DATABASE.md).
+- **Testing**: Follow
+  [Testing Patterns and Best Practices](.claude/docs/TESTING.md). Use unique
+  identifiers in concurrent tests and do not use `time.Sleep` to mitigate
+  timing issues.
+- **Frontend**: Read [Frontend Development Guidelines](site/AGENTS.md)
+  before changing anything under `site/`. Reuse shared UI primitives when
+  possible and prefer Storybook stories for component and page testing.
 
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md
 
+### Git Hooks (MANDATORY - DO NOT SKIP)
+
+You MUST install and use the git hooks. NEVER bypass them with
+`--no-verify`. Skipping hooks wastes CI cycles and is unacceptable.
+
+The first run can be slow while caches warm up. Wait for hooks to complete,
+even when `git commit` or `git push` appears to hang.
+
+See [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md) for
+hook setup, pre-commit behavior, pre-push behavior, and failure handling.
+
 ### Git Workflow
 
-When working on existing PRs, check out the branch first:
-
-```sh
-git fetch origin
-git checkout branch-name
-git pull origin branch-name
-```
-
-Don't use `git push --force` unless explicitly requested.
+When working on existing PRs, check out the branch first. See
+[Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md) for the
+full workflow. Don't use `git push --force` unless explicitly requested.
 
 ### New Feature Checklist
 
-- [ ] Run `git pull` to ensure latest code
-- [ ] Check if feature touches database - you'll need migrations
-- [ ] Check if feature touches audit logs - update `enterprise/audit/table.go`
+See [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md) for
+the new feature checklist, including `git pull`, database migration checks,
+and audit table checks.
 
 ## Architecture
 
@@ -128,89 +138,92 @@ Don't use `git push --force` unless explicitly requested.
 - **Agents**: Workspace services (SSH, port forwarding)
 - **Database**: PostgreSQL with `dbauthz` authorization
 
-## Testing
-
-### Race Condition Prevention
-
-- Use unique identifiers: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())`
-- Never use hardcoded names in concurrent tests
-
-### OAuth2 Testing
-
-- Full suite: `./scripts/oauth2/test-mcp-oauth2.sh`
-- Manual testing: `./scripts/oauth2/test-manual-flow.sh`
-
-### Timing Issues
-
-NEVER use `time.Sleep` to mitigate timing issues. If an issue
-seems like it should use `time.Sleep`, read through https://github.com/coder/quartz and specifically the [README](https://github.com/coder/quartz/blob/main/README.md) to better understand how to handle timing issues.
-
 ## Code Style
 
 ### Detailed guidelines in imported WORKFLOWS.md
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
+- PR titles follow the same `type(scope): message` format.
+- When you use a scope, it must be a real filesystem path containing every
+  changed file.
+- Use a broader path scope, or omit the scope, for cross-cutting changes.
+- Example: `fix(coderd/chatd): ...` for changes only in `coderd/chatd/`.
 
-### Writing Comments
+### Frontend Patterns
 
-Code comments should be clear, well-formatted, and add meaningful context.
+- Prefer existing shared UI components and utilities over custom
+  implementations. Reuse common primitives such as loading, table, and error
+  handling components when they fit the use case.
+- Use Storybook stories for all component and page testing, including
+  visual presentation, user interactions, keyboard navigation, focus
+  management, and accessibility behavior. Do not create standalone
+  vitest/RTL test files for components or pages. Stories double as living
+  documentation, visual regression coverage, and interaction test suites
+  via `play` functions. Reserve plain vitest files for pure logic only:
+  utility functions, data transformations, hooks tested via
+  `renderHook()` that do not require DOM assertions, and query/cache
+  operations with no rendered output.
 
-**Proper sentence structure**: Comments are sentences and should end with
-periods or other appropriate punctuation. This improves readability and
-maintains professional code standards.
+### Writing Comments and Avoiding Unnecessary Changes
 
-**Explain why, not what**: Good comments explain the reasoning behind code
-rather than describing what the code does. The code itself should be
-self-documenting through clear naming and structure. Focus your comments on
-non-obvious decisions, edge cases, or business logic that isn't immediately
-apparent from reading the implementation.
+See [Modern Go](.claude/docs/GO.md) for comment formatting and the rule to
+avoid unrelated edits. Preserve existing comments that explain non-obvious
+behavior unless the task directly requires changing them.
 
-**Line length and wrapping**: Keep comment lines to 80 characters wide
-(including the comment prefix like `//` or `#`). When a comment spans multiple
-lines, wrap it naturally at word boundaries rather than writing one sentence
-per line. This creates more readable, paragraph-like blocks of documentation.
+Comments MUST be **substantive** and **concise**. Describe the **behaviour**
+of the code, not the reasoning the agent used to produce the change. Do not
+leave comments like `// Added per PR feedback` or `// Refactored for
+clarity`. Instead, explain what the code does and why the behaviour matters.
+
+### No Emdash or Endash
+
+Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+in code, comments, string literals, or documentation. Use commas,
+semicolons, or periods instead. Restructure the sentence if needed.
+Do not replace an emdash with ` -- `. Unicode emdash and endash are
+caught by `make lint/emdash`.
 
 ```go
-// Good: Explains the rationale with proper sentence structure.
-// We need a custom timeout here because workspace builds can take several
-// minutes on slow networks, and the default 30s timeout causes false
-// failures during initial template imports.
-ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+// Good: uses a period to separate the clauses.
+// This is slow. We should cache it.
 
-// Bad: Describes what the code does without punctuation or wrapping
-// Set a custom timeout
-// Workspace builds can take a long time
-// Default timeout is too short
-ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+// Good: uses a comma to join related clauses.
+// This is slow, so we should cache it.
 ```
-
-### Avoid Unnecessary Changes
-
-When fixing a bug or adding a feature, don't modify code unrelated to your
-task. Unnecessary changes make PRs harder to review and can introduce
-regressions.
-
-**Don't reword existing comments or code** unless the change is directly
-motivated by your task. Rewording comments to be shorter or "cleaner" wastes
-reviewer time and clutters the diff.
-
-**Don't delete existing comments** that explain non-obvious behavior. These
-comments preserve important context about why code works a certain way.
-
-**When adding tests for new behavior**, add new test cases instead of modifying
-existing ones. This preserves coverage for the original behavior and makes it
-clear what the new test covers.
 
 ## Detailed Development Guides
 
 @.claude/docs/ARCHITECTURE.md
+@.claude/docs/GO.md
 @.claude/docs/OAUTH2.md
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md
 @.claude/docs/DATABASE.md
 @.claude/docs/PR_STYLE_GUIDE.md
 @.claude/docs/DOCS_STYLE_GUIDE.md
+
+If your agent tool does not auto-load `@`-referenced files, read these
+manually before starting work:
+
+**Always read:**
+
+- `.claude/docs/WORKFLOWS.md` - dev server, git workflow, hooks
+
+**Read when relevant to your task:**
+
+- `.claude/docs/GO.md` - Go patterns and modern Go usage (any Go changes)
+- `.claude/docs/TESTING.md` - testing patterns, race conditions (any test changes)
+- `.claude/docs/DATABASE.md` - migrations, SQLC, audit table (any DB changes)
+- `.claude/docs/ARCHITECTURE.md` - system overview (orientation or architecture work)
+- `.claude/docs/PR_STYLE_GUIDE.md` - PR description format (when writing PRs)
+- `.claude/docs/OAUTH2.md` - OAuth2 and RFC compliance (when touching auth)
+- `.claude/docs/TROUBLESHOOTING.md` - common failures and fixes (when stuck)
+- `.claude/docs/DOCS_STYLE_GUIDE.md` - docs prose and formatting (when writing `docs/`)
+- `docs/.style/content-guidelines.md` - canonical content scope and routing rules (when writing `docs/`; governs on conflicts with the style guide)
+
+**For frontend work**, also read `site/AGENTS.md` before making any changes
+in `site/`.
 
 ## Local Configuration
 

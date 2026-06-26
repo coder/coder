@@ -1,16 +1,15 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
-import Skeleton from "@mui/material/Skeleton";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
+import { type FC, useState } from "react";
 import type {
 	AgentConnectionTiming,
 	AgentScriptTiming,
 	ProvisionerTiming,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
-import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
 	calcDuration,
 	formatTime,
@@ -100,35 +99,33 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	};
 
 	return (
-		<div css={styles.collapse}>
-			<Button
-				disabled={isLoading}
-				variant="subtle"
-				css={styles.collapseTrigger}
-				onClick={() => setIsOpen((o) => !o)}
-			>
-				{isOpen ? (
-					<ChevronUpIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				) : (
-					<ChevronDownIcon css={{ width: 16, height: 16, marginRight: 16 }} />
-				)}
-				<span>Build timeline</span>
-				<span
-					css={(theme) => ({
-						marginLeft: "auto",
-						color: theme.palette.text.secondary,
-					})}
+		<div className="rounded-lg border border-solid bg-surface-primary">
+			<div className="flex items-center justify-between px-4 py-1.5 relative">
+				<Button
+					disabled={isLoading}
+					variant="subtle"
+					onClick={() => setIsOpen((o) => !o)}
+					className="after:content-[''] after:absolute after:inset-0"
 				>
+					<ChevronDownIcon open={isOpen} />
+					<span>Build timeline</span>
+				</Button>
+				<span className="ml-auto text-sm text-content-secondary pr-2">
 					{isLoading ? (
 						<Skeleton variant="text" width={40} height={16} />
 					) : (
 						displayProvisioningTime()
 					)}
 				</span>
-			</Button>
+			</div>
 			{!isLoading && (
 				<Collapse in={isOpen}>
-					<div css={styles.collapseBody}>
+					<div
+						className="border-solid border-0 border-t flex flex-col"
+						style={{
+							height: "var(--collapse-body-height, 420px)",
+						}}
+					>
 						{view.name === "default" && (
 							<StagesChart
 								timings={stages.map((s) => {
@@ -179,7 +176,6 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 								}}
 							/>
 						)}
-
 						{view.name === "detailed" && (
 							<>
 								{view.stage.section === "provisioning" && (
@@ -239,46 +235,3 @@ const toTimeRange = (timing: {
 		endedAt: new Date(timing.ended_at),
 	};
 };
-
-const _humanizeDuration = (durationMs: number): string => {
-	const seconds = Math.floor(durationMs / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-
-	if (hours > 0) {
-		return `${hours.toLocaleString()}h ${(minutes % 60).toLocaleString()}m`;
-	}
-
-	if (minutes > 0) {
-		return `${minutes.toLocaleString()}m ${(seconds % 60).toLocaleString()}s`;
-	}
-
-	return `${seconds.toLocaleString()}s`;
-};
-
-const styles = {
-	collapse: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		backgroundColor: theme.palette.background.default,
-	}),
-	collapseTrigger: {
-		background: "none",
-		border: 0,
-		padding: 16,
-		color: "inherit",
-		width: "100%",
-		display: "flex",
-		alignItems: "center",
-		height: 57,
-		fontSize: 14,
-		fontWeight: 500,
-		cursor: "pointer",
-	},
-	collapseBody: (theme) => ({
-		borderTop: `1px solid ${theme.palette.divider}`,
-		display: "flex",
-		flexDirection: "column",
-		height: "var(--collapse-body-height, 420px)",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

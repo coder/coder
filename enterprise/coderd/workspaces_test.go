@@ -653,6 +653,72 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
 	})
 
+	// FailureTTLStopOK verifies that a workspace whose latest build is a failed
+	// stop is retried by issuing another stop after the failure TTL elapses.
+	t.Run("FailureTTLStopOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Minute
+		)
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// The start build succeeds, but the stop build fails. This leaves the
+		// workspace's latest build as a failed stop.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: echo.ApplyComplete,
+				proto.WorkspaceTransition_STOP:  echo.ApplyFailed,
+			},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
+		tickTime := build.Job.CompletedAt.Add(failureTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
+		stats := <-statCh
+		// Expect the workspace to be stopped again for breaching failure TTL.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+	})
+
 	t.Run("FailureTTLTooEarly", func(t *testing.T) {
 		t.Parallel()
 
@@ -784,7 +850,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}).Do().Template
 
 		template := coderdtest.UpdateTemplateMeta(t, client, tpl.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: ptr.Ref(inactiveTTL.Milliseconds()),
 		})
 
 		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1260,7 +1326,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Len(t, stats.Transitions, 0)
 
 		_, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1315,7 +1381,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
-		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := coderdtest.NextAutostartTick(t, ws)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
@@ -1334,7 +1400,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Now that we've validated that the workspace is eligible for autostart
 		// lets cause it to become dormant.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: ptr.Ref(inactiveTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1433,7 +1499,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Enable auto-deletion for the template.
 		_, err = templateAdmin.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: transitionTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(transitionTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1518,7 +1584,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Kick of an autostart build.
-		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := coderdtest.NextAutostartTick(t, ws)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
@@ -1538,19 +1604,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Update the template to require the promoted version.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
-			AllowUserAutostart:   true,
+			RequireActiveVersion: ptr.Ref(true),
+			AllowUserAutostart:   ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
 		// Reset the workspace to the stopped state so we can try
 		// to autostart again.
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
 			req.TemplateVersionID = ws.LatestBuild.TemplateVersionID
 		})
 
 		// Force an autostart transition again.
-		tickTime2 := sched.Next(firstBuild.CreatedAt)
+		tickTime2 := coderdtest.NextAutostartTick(t, ws)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh
@@ -1832,7 +1898,7 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 		templateTTL = 72 * time.Hour.Milliseconds()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		template = coderdtest.UpdateTemplateMeta(t, client, template.ID, codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: templateTTL,
+			DefaultTTLMillis: ptr.Ref(templateTTL),
 		})
 		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
@@ -1991,8 +2057,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2115,8 +2182,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2239,8 +2307,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2385,8 +2454,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2532,8 +2602,9 @@ func TestPrebuildsAutobuild(t *testing.T) {
 			api.AGPL.BuildUsageChecker,
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
-		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+		var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 		api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 		// Setup user, template and template version with a preset with 1 prebuild instance
@@ -2745,7 +2816,6 @@ func TestPrebuildUpdateLifecycleParams(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2904,7 +2974,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
 
 	// When: activity bump is applied to an unclaimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
 
 	// Then: prebuild Deadline/MaxDeadline remain unchanged
 	prebuild = coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
@@ -2937,7 +3007,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
 
 	// When: activity bump is applied to a claimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
 
 	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
@@ -2979,8 +3049,9 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 		api.AGPL.BuildUsageChecker,
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
-	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer(db)
+	var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 	api.AGPL.PrebuildsClaimer.Store(&claimer)
 
 	organizationName, err := client.Organization(ctx, owner.OrganizationID)
@@ -3017,14 +3088,19 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	runningPrebuilds := coderdenttest.GetRunningPrebuilds(ctx, t, db, 1)
 	require.Len(t, runningPrebuilds, 1)
 
-	// Then: the histogram value for prebuilt workspace creation should be updated
-	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for prebuilt workspace creation should be updated.
+	// The metric is updated asynchronously after the DB transaction commits,
+	// so we need to poll for it.
+	prebuildCreationLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
 		"type":              "prebuild",
-	})
-	require.NotNil(t, prebuildCreationHistogram)
+	}
+	require.Eventually(t, func() bool {
+		return promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels)
 	require.Equal(t, uint64(1), prebuildCreationHistogram.GetSampleCount())
 
 	// Given: a running prebuilt workspace, ready to be claimed
@@ -3045,13 +3121,18 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	workspace := coderdenttest.MustClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
 	require.Equal(t, prebuild.ID, workspace.ID)
 
-	// Then: the histogram value for prebuilt workspace claim should be updated
-	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for prebuilt workspace claim should be updated.
+	// The metric is updated asynchronously after the DB transaction commits,
+	// so we need to poll for it.
+	prebuildClaimLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
-	})
-	require.NotNil(t, prebuildClaimHistogram)
+	}
+	require.Eventually(t, func() bool {
+		return promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels)
 	require.Equal(t, uint64(1), prebuildClaimHistogram.GetSampleCount())
 
 	// Given: no histogram value for regular workspaces creation
@@ -3072,14 +3153,19 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, regularWorkspace.LatestBuild.ID)
 
-	// Then: the histogram value for regular workspace creation should be updated
-	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for regular workspace creation should be updated.
+	// The metric is updated asynchronously after the DB transaction commits,
+	// so we need to poll for it.
+	regularWorkspaceLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templateNoPrebuild.Name,
 		"preset_name":       presetsNoPrebuild[0].Name,
 		"type":              "regular",
-	})
-	require.NotNil(t, regularWorkspaceHistogram)
+	}
+	require.Eventually(t, func() bool {
+		return promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels)
 	require.Equal(t, uint64(1), regularWorkspaceHistogram.GetSampleCount())
 }
 
@@ -3646,7 +3732,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -3698,7 +3783,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -3752,7 +3836,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -3801,7 +3884,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -3849,7 +3931,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			ownerClient, db, owner = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -4008,7 +4089,7 @@ func TestWorkspaceLock(t *testing.T) {
 		require.NotNil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
 		require.Equal(t, workspace.DormantAt.Add(dormantTTL), *workspace.DeletingAt)
-		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second), time.Now())
+		require.WithinRange(t, *workspace.DormantAt, dbtime.Now().Add(-time.Second), dbtime.Now())
 		// Locking a workspace shouldn't update the last_used_at.
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
@@ -4053,7 +4134,7 @@ func TestResolveAutostart(t *testing.T) {
 	defer cancel()
 
 	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.Template.ID, codersdk.UpdateTemplateMeta{
-		RequireActiveVersion: true,
+		RequireActiveVersion: ptr.Ref(true),
 	})
 	require.NoError(t, err)
 
@@ -4351,7 +4432,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -4396,11 +4477,74 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Equal(t, workspaceACL.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
+	// A user who has merely been shared a workspace must not be able to
+	// enumerate the full roster and PII of groups on that workspace's ACL.
+	// The endpoint returns the group identity and total member count only.
+	t.Run("GroupMembersNotReturned", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, member := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		group := coderdtest.CreateGroup(t, adminClient, orgID, "bloob", member)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		// The low-privilege shared user can read the ACL, but must not see
+		// the group's member roster (which would expose member emails and
+		// other PII). Only the total member count is returned.
+		workspaceACL, err := sharedClient.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, group.ID, workspaceACL.Groups[0].ID)
+		require.Equal(t, codersdk.WorkspaceRoleUse, workspaceACL.Groups[0].Role)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
+
+		// The workspace owner sees the same count-only shape; the roster is
+		// omitted for all callers.
+		workspaceACL, err = client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
+	})
+
 	t.Run("UnknownIDs", func(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -4444,7 +4588,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4488,7 +4631,6 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 			client, db, admin = coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-						dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 					}),
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
@@ -4538,7 +4680,6 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -4565,6 +4706,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Update a shared with user to have a name and avatar
 		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 			ID:        sharedWithUser.ID,
+			Email:     sharedWithUser.Email,
 			Username:  sharedWithUser.Username,
 			Name:      "Shared User Name",
 			AvatarURL: "/emojis/1fae1.png",
@@ -4626,7 +4768,6 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -4653,6 +4794,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Update a shared with user to have a name and avatar
 		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 			ID:        sharedWithUser.ID,
+			Email:     sharedWithUser.Email,
 			Username:  sharedWithUser.Username,
 			Name:      "Shared User Name",
 			AvatarURL: "/emojis/1fae1.png",
@@ -4723,7 +4865,7 @@ func TestWorkspaceAITask(t *testing.T) {
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		}).ManagedAgentLimit(10, 20),
+		}).ManagedAgentLimit(10),
 	})
 
 	client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID,
@@ -4775,7 +4917,7 @@ func TestWorkspaceAITask(t *testing.T) {
 		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-		require.Len(t, usage.GetEvents(), 0)
+		require.Len(t, usage.GetDiscreteEvents(), 0)
 	})
 
 	t.Run("CreateTaskWorkspace", func(t *testing.T) {
@@ -4802,7 +4944,7 @@ func TestWorkspaceAITask(t *testing.T) {
 
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-		require.Len(t, usage.GetEvents(), 1)
+		require.Len(t, usage.GetDiscreteEvents(), 1)
 
 		usage.Reset() // Clean slate for easy checks
 		// Stopping the workspace should not create additional usage.
@@ -4812,7 +4954,7 @@ func TestWorkspaceAITask(t *testing.T) {
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-		require.Len(t, usage.GetEvents(), 0)
+		require.Len(t, usage.GetDiscreteEvents(), 0)
 
 		usage.Reset() // Clean slate for easy checks
 		// Starting the workspace manually **WILL** create usage, as it's
@@ -4823,6 +4965,6 @@ func TestWorkspaceAITask(t *testing.T) {
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-		require.Len(t, usage.GetEvents(), 1)
+		require.Len(t, usage.GetDiscreteEvents(), 1)
 	})
 }

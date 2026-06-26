@@ -313,8 +313,11 @@ func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWork
 // Start starts the proxy registration loop. The provided context is only used
 // for the initial registration. Use Close() to stop.
 func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	// Workspace proxy re-registrations should be on the same interval as the rest of the replicasync.
+	// If they differ significantly it can cause problems with meshing.
 	if l.opts.Interval == 0 {
-		l.opts.Interval = 15 * time.Second
+		// Default to the same interval as the rest of the replicasync.
+		l.opts.Interval = 5 * time.Second
 	}
 	if l.opts.MaxFailureCount == 0 {
 		l.opts.MaxFailureCount = 10
@@ -453,6 +456,7 @@ func (l *RegisterWorkspaceProxyLoop) failureFn(err error) {
 	if deregisterErr != nil {
 		l.opts.Logger.Error(context.Background(),
 			"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
+			slog.F("root_error", err.Error()),
 			slog.Error(deregisterErr),
 		)
 	}

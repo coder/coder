@@ -3,11 +3,12 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/site"
 )
 
 type MergedClaimsSource string
@@ -85,7 +87,7 @@ func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 // @Param request body codersdk.ConvertLoginRequest true "Convert request"
 // @Param user path string true "User ID, name, or me"
 // @Success 201 {object} codersdk.OAuthConversionResponse
-// @Router /users/{user}/convert-login [post]
+// @Router /api/v2/users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user              = httpmw.UserParam(r)
@@ -224,7 +226,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 // @Tags Authorization
 // @Param request body codersdk.RequestOneTimePasscodeRequest true "One-time passcode request"
 // @Success 204
-// @Router /users/otp/request [post]
+// @Router /api/v2/users/otp/request [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -330,7 +332,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // @Tags Authorization
 // @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
 // @Success 204
-// @Router /users/otp/change-password [post]
+// @Router /api/v2/users/otp/change-password [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		err               error
@@ -464,7 +466,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // @Tags Authorization
 // @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
 // @Success 200 {object} codersdk.ValidateUserPasswordResponse
-// @Router /users/validate-password [post]
+// @Router /api/v2/users/validate-password [post]
 func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()
@@ -498,7 +500,7 @@ func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 // @Tags Authorization
 // @Param request body codersdk.LoginWithPasswordRequest true "Login request"
 // @Success 201 {object} codersdk.LoginWithPasswordResponse
-// @Router /users/login [post]
+// @Router /api/v2/users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -683,7 +685,7 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.Response
-// @Router /users/logout [post]
+// @Router /api/v2/users/logout [post]
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -704,7 +706,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenCookie,
 		Path:   "/",
 	}
-	http.SetCookie(rw, cookie)
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(cookie))
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)
@@ -795,7 +797,7 @@ func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOp
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.AuthMethods
-// @Router /users/authmethods [get]
+// @Router /api/v2/users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	var signInText string
 	var iconURL string
@@ -830,7 +832,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.ExternalAuthDevice
-// @Router /users/oauth2/github/device [get]
+// @Router /api/v2/users/oauth2/github/device [get]
 func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -876,7 +878,7 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 // @Security CoderSessionToken
 // @Tags Users
 // @Success 307
-// @Router /users/oauth2/github/callback [get]
+// @Router /api/v2/users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// userOAuth2Github is a system function.
@@ -1035,7 +1037,16 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), database.LoginTypeGithub, verifiedEmail.GetEmail())
+	if errors.Is(err, errLinkedIDAlreadyBound) {
+		logger.Warn(ctx, "oauth2: blocked login, account already linked to different identity",
+			slog.F("email", verifiedEmail.GetEmail()),
+		)
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "This account is already linked to a different identity provider subject.",
+		})
+		return
+	}
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1191,7 +1202,7 @@ func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
 // @Security CoderSessionToken
 // @Tags Users
 // @Success 307
-// @Router /users/oidc/callback [get]
+// @Router /api/v2/users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// userOIDC is a system function.
@@ -1338,18 +1349,39 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifiedRaw, ok := mergedClaims["email_verified"]
-	if ok {
-		verified, ok := verifiedRaw.(bool)
-		if ok && !verified {
-			if !api.OIDCConfig.IgnoreEmailVerified {
-				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-					Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
-				})
-				return
-			}
-			logger.Warn(ctx, "allowing unverified oidc email %q")
+	// Determine whether the email is verified. Default to unverified
+	// so that a missing claim or an unrecognized type is fail-closed.
+	emailVerified := false
+	verifiedRaw, hasVerifiedClaim := mergedClaims["email_verified"]
+	if hasVerifiedClaim {
+		v, coerceOK := coerceEmailVerified(verifiedRaw)
+		if coerceOK {
+			emailVerified = v
+		} else {
+			logger.Warn(ctx, "unrecognized email_verified claim type, treating as unverified",
+				slog.F("type", fmt.Sprintf("%T", verifiedRaw)),
+				slog.F("value", verifiedRaw),
+			)
 		}
+	}
+
+	if !emailVerified {
+		if !api.OIDCConfig.IgnoreEmailVerified {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:     http.StatusForbidden,
+				HideStatus: true,
+				Title:      "Email not verified",
+				Description: fmt.Sprintf(
+					"Verify the %q email address on your OIDC provider to authenticate!",
+					email,
+				),
+				Actions: []site.Action{
+					{URL: "/login", Text: "Back to login"},
+				},
+			})
+			return
+		}
+		logger.Warn(ctx, "allowing unverified oidc email", slog.F("email", email))
 	}
 
 	// The username is a required property in Coder. We make a best-effort
@@ -1370,8 +1402,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		ok = false
 		emailSp := strings.Split(email, "@")
 		if len(emailSp) == 1 {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:     http.StatusForbidden,
+				HideStatus: true,
+				Title:      "Unauthorized email",
+				Description: fmt.Sprintf(
+					"Your email %q is not from an authorized domain! Please contact your administrator.",
+					email,
+				),
+				Actions: []site.Action{
+					{URL: "/login", Text: "Back to login"},
+				},
 			})
 			return
 		}
@@ -1385,8 +1426,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !ok {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:     http.StatusForbidden,
+				HideStatus: true,
+				Title:      "Unauthorized email",
+				Description: fmt.Sprintf(
+					"Your email %q is not from an authorized domain! Please contact your administrator.",
+					email,
+				),
+				Actions: []site.Action{
+					{URL: "/login", Text: "Back to login"},
+				},
 			})
 			return
 		}
@@ -1406,10 +1456,24 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		picture, _ = pictureRaw.(string)
 	}
-
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 
-	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), database.LoginTypeOIDC, email)
+	if errors.Is(err, errLinkedIDAlreadyBound) {
+		logger.Warn(ctx, "oauth2: blocked login, account already linked to different identity",
+			slog.F("email", email),
+		)
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusForbidden,
+			HideStatus:  true,
+			Title:       "Account already linked",
+			Description: "This account is already linked to a different identity provider subject. Contact your administrator.",
+			Actions: []site.Action{
+				{URL: "/login", Text: "Back to login"},
+			},
+		})
+		return
+	}
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1562,7 +1626,7 @@ func claimFields(claims map[string]interface{}) []string {
 	for field := range claims {
 		fields = append(fields, field)
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 
@@ -1575,7 +1639,7 @@ func blankFields(claims map[string]interface{}) []string {
 			fields = append(fields, field)
 		}
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 
@@ -1789,6 +1853,24 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 		}
 
+		// Reject the login if the linked user is suspended. Suspending only
+		// applies to existing users, so this check is intentionally placed
+		// after the new-user creation branch above. Returning an HTTPError
+		// rolls back the transaction so no link/sync side effects are
+		// persisted, and the caller renders a static error page describing
+		// what happened.
+		if user.Status == database.UserStatusSuspended {
+			return &idpsync.HTTPError{
+				Code: http.StatusForbidden,
+				Msg:  "Account suspended",
+				Detail: fmt.Sprintf(
+					"Your account %q has been suspended. Contact your Coder administrator to reactivate your account.",
+					user.Username,
+				),
+				RenderStaticPage: true,
+			}
+		}
+
 		// Activate dormant user on sign-in
 		if user.Status == database.UserStatusDormant {
 			// This is necessary because transactions can be retried, and we
@@ -1842,6 +1924,31 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			})
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
+			}
+
+			// Defense-in-depth: if a concurrent transaction backfilled
+			// linked_id between findLinkedUser and this point, reject the
+			// login with a 403 instead of letting it bubble up as a 500.
+			if link.LinkedID != "" && link.LinkedID != params.LinkedID {
+				return &idpsync.HTTPError{
+					Code:             http.StatusForbidden,
+					Msg:              "Account already linked",
+					Detail:           "This account is already linked to a different identity provider subject. Contact your administrator.",
+					RenderStaticPage: true,
+				}
+			}
+
+			// Backfill linked_id for legacy links.
+			if link.LinkedID == "" && params.LinkedID != "" {
+				//nolint:gocritic // System needs to update the user link.
+				link, err = tx.UpdateUserLinkedID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkedIDParams{
+					LinkedID:  params.LinkedID,
+					UserID:    user.ID,
+					LoginType: params.LoginType,
+				})
+				if err != nil {
+					return xerrors.Errorf("backfill user linked id: %w", err)
+				}
 			}
 		}
 
@@ -2063,9 +2170,17 @@ func oidcLinkedID(tok *oidc.IDToken) string {
 	return strings.Join([]string{tok.Issuer, tok.Subject}, "||")
 }
 
+// errLinkedIDAlreadyBound is returned by findLinkedUser when the user
+// found by email already has a user_link with a different linked_id.
+var errLinkedIDAlreadyBound = xerrors.New("user account is already linked to a different identity provider subject")
+
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
-// If it doesn't not find it, it returns the user by their email.
-func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
+// If it does not find a match, it falls back to email-based lookup.
+// The email fallback is restricted to first-time account linking and
+// legacy links (empty linked_id) only. If the user found by email
+// already has a link with a different linked_id, errLinkedIDAlreadyBound
+// is returned to prevent account takeover via IdP email reuse.
+func findLinkedUser(ctx context.Context, db database.Store, linkedID string, loginType database.LoginType, emails ...string) (database.User, database.UserLink, error) {
 	var (
 		user database.User
 		link database.UserLink
@@ -2110,10 +2225,17 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	// possible that a user_link exists without a populated 'linked_id'.
 	link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    user.ID,
-		LoginType: user.LoginType,
+		LoginType: loginType,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)
+	}
+
+	// Block email fallback when an existing link has a different linked_id.
+	// Prevents account takeover via IdP email reuse; first-time and legacy
+	// (empty linked_id) links pass through.
+	if err == nil && link.LinkedID != "" && link.LinkedID != linkedID {
+		return database.User{}, database.UserLink{}, errLinkedIDAlreadyBound
 	}
 
 	return user, link, nil
@@ -2142,5 +2264,41 @@ func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType)
 		Msg:              "Incorrect login type",
 		Detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
 			params, user, addedMsg),
+	}
+}
+
+// coerceEmailVerified attempts to convert an OIDC email_verified claim to a
+// boolean. Some IdPs (e.g. SAML-to-OIDC bridges, certain Azure AD B2C
+// configurations) return email_verified as a string ("true"/"false") or a
+// number (1/0) rather than a native JSON boolean. This function handles
+// those variants so that non-bool representations cannot silently bypass
+// the verification check.
+//
+// Returns (value, true) on successful coercion, or (false, false) if the
+// value is nil or an unrecognized type.
+func coerceEmailVerified(v interface{}) (verified bool, ok bool) {
+	switch val := v.(type) {
+	case bool:
+		return val, true
+	case string:
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return false, false
+		}
+		return b, true
+	case json.Number:
+		n, err := val.Int64()
+		if err != nil {
+			return false, false
+		}
+		return n != 0, true
+	case float64:
+		return val != 0, true
+	case int64:
+		return val != 0, true
+	case int:
+		return val != 0, true
+	default:
+		return false, false
 	}
 }

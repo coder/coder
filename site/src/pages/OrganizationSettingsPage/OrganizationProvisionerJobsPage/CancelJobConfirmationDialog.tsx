@@ -1,13 +1,14 @@
-import { API } from "api/api";
+import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { API } from "#/api/api";
+import { getErrorDetail } from "#/api/errors";
 import {
 	getProvisionerDaemonsKey,
 	provisionerJobsQueryKey,
-} from "api/queries/organizations";
-import type { ProvisionerJob } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import type { FC } from "react";
-import { useMutation, useQueryClient } from "react-query";
+} from "#/api/queries/organizations";
+import type { ProvisionerJob } from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 type CancelJobConfirmationDialogProps = {
 	open: boolean;
@@ -43,16 +44,22 @@ export const CancelJobConfirmationDialog: FC<
 			title="Cancel provisioner job"
 			description={`Are you sure you want to cancel the provisioner job "${job.id}"? This operation will result in the associated workspaces not getting created.`}
 			confirmText="Confirm"
-			cancelText="Discard"
+			cancelText="Cancel"
 			confirmLoading={cancelMutation.isPending}
 			onConfirm={async () => {
-				try {
-					await cancelMutation.mutateAsync(job);
-					displaySuccess("Provisioner job canceled successfully");
-					dialogProps.onClose();
-				} catch {
-					displayError("Failed to cancel provisioner job");
-				}
+				const mutation = cancelMutation.mutateAsync(job, {
+					onSuccess: () => {
+						dialogProps.onClose();
+					},
+				});
+				toast.promise(mutation, {
+					loading: `Canceling provisioner job "${job.id}"...`,
+					success: `Provisioner job "${job.id}" canceled successfully.`,
+					error: (error) => ({
+						message: `Failed to cancel provisioner job "${job.id}".`,
+						description: getErrorDetail(error),
+					}),
+				});
 			}}
 		/>
 	);

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -21,20 +22,100 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type staticAppearanceFetcher struct {
+	cfg codersdk.AppearanceConfig
+}
+
+func (f staticAppearanceFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
+	return f.cfg, nil
+}
+
+func TestInjectionAppearanceEscapesMetaAttributes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		applicationName = `Coder"><script>alert(1)</script>`
+		logoURL         = `https://example.com/logo.png"><img src=x onerror=alert(1)>`
+	)
+
+	tests := []struct {
+		name          string
+		authenticated bool
+	}{
+		{
+			name: "unauthenticated",
+		},
+		{
+			name:          "authenticated",
+			authenticated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte(`<meta name="application-name" content="{{ .ApplicationName }}" /><meta property="logo-url" content="{{ .LogoURL }}" />`),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			var appearanceFetcher atomic.Pointer[appearance.Fetcher]
+			fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{
+				ApplicationName: applicationName,
+				LogoURL:         logoURL,
+			}})
+			appearanceFetcher.Store(&fetcher)
+			handler, err := site.New(&site.Options{
+				Telemetry:         telemetry.NewNoop(),
+				Database:          db,
+				SiteFS:            siteFS,
+				AppearanceFetcher: &appearanceFetcher,
+			})
+			require.NoError(t, err)
+
+			r := httptest.NewRequest("GET", "/", nil)
+			if tt.authenticated {
+				user := dbgen.User(t, db, database.User{})
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: time.Now().Add(time.Hour),
+				})
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+			}
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, http.StatusOK, rw.Code)
+			body := rw.Body.String()
+
+			require.True(t, strings.Contains(body, html.EscapeString(applicationName)), "application name must be HTML escaped")
+			require.True(t, strings.Contains(body, html.EscapeString(logoURL)), "logo URL must be HTML escaped")
+			require.False(t, strings.Contains(body, applicationName), "raw application name must not be rendered")
+			require.False(t, strings.Contains(body, logoURL), "raw logo URL must not be rendered")
+		})
+	}
+}
 
 func TestInjection(t *testing.T) {
 	t.Parallel()
@@ -44,14 +125,13 @@ func TestInjection(t *testing.T) {
 			Data: []byte("{{ .User }}"),
 		},
 	}
-	binFs := http.FS(fstest.MapFS{})
 	db, _ := dbtestutil.NewDB(t)
-	handler := site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFs,
 		Database:  db,
 		SiteFS:    siteFS,
 	})
+	require.NoError(t, err)
 
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
@@ -66,7 +146,7 @@ func TestInjection(t *testing.T) {
 	handler.ServeHTTP(rw, r)
 	require.Equal(t, http.StatusOK, rw.Code)
 	var got codersdk.User
-	err := json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
 	require.NoError(t, err)
 
 	// This will update as part of the request!
@@ -77,6 +157,143 @@ func TestInjection(t *testing.T) {
 	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
 
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
+}
+
+func TestInjectionUserAppearance(t *testing.T) {
+	t.Parallel()
+
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .UserAppearance }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	user := dbgen.User(t, db, database.User{})
+	ctx := context.Background()
+	_, err = db.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+		UserID:          user.ID,
+		ThemePreference: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+		UserID:    user.ID,
+		ThemeMode: string(codersdk.ThemeModeSync),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+		UserID:     user.ID,
+		ThemeLight: "light-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+		UserID:    user.ID,
+		ThemeDark: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+		UserID:       user.ID,
+		TerminalFont: string(codersdk.TerminalFontFiraCode),
+	})
+	require.NoError(t, err)
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got codersdk.UserAppearanceSettings
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.UserAppearanceSettings{
+		ThemePreference: "dark-tritan",
+		ThemeMode:       codersdk.ThemeModeSync,
+		ThemeLight:      "light-tritan",
+		ThemeDark:       "dark-tritan",
+		TerminalFont:    codersdk.TerminalFontFiraCode,
+	}, got)
+}
+
+func TestRenderPermissionsResolvesMe(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler wired to a real RBAC authorizer and a
+	// template that renders only the SSR permissions JSON.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Permissions }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	handler, err := site.New(&site.Options{
+		Telemetry:  telemetry.NewNoop(),
+		Database:   db,
+		SiteFS:     siteFS,
+		Authorizer: authorizer,
+	})
+	require.NoError(t, err)
+
+	// GIVEN: a user with the agents-access role at the org level.
+	org := dbgen.Organization(t, db, database.Organization{})
+	userWithRole := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         userWithRole.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithRole.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithRole)
+	rw := httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: the SSR-rendered permissions include createChat = true
+	// because the agents-access role grants org-scoped chat create
+	// permission, and the any_org check picks it up.
+	var permsWithRole codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
+	require.NoError(t, err)
+	assert.True(t, permsWithRole["createChat"], "user with agents-access role should have createChat = true")
+
+	// GIVEN: a user without the agents-access role.
+	userWithoutRole := dbgen.User(t, db, database.User{})
+	_, tokenWithoutRole := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    userWithoutRole.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// WHEN: the user loads the page.
+	r = httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, tokenWithoutRole)
+	rw = httptest.NewRecorder()
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// THEN: createChat = false because the member role does not
+	// grant chat permissions.
+	var permsWithoutRole codersdk.AuthorizationResponse
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithoutRole)
+	require.NoError(t, err)
+	assert.False(t, permsWithoutRole["createChat"], "user without agents-access role should have createChat = false")
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
@@ -101,15 +318,13 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		OAuthExpiry:       dbtime.Now().Add(-time.Second),
 	})
 
-	binFs := http.FS(fstest.MapFS{})
 	siteFS := fstest.MapFS{
 		"index.html": &fstest.MapFile{
 			Data: []byte("<html>{{ .User }}</html>"),
 		},
 	}
-	handler := site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFs,
 		Database:  db,
 		SiteFS:    siteFS,
 
@@ -119,6 +334,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 			OIDC:   nil,
 		},
 	})
+	require.NoError(t, err)
 
 	r := httptest.NewRequest("GET", "/", nil)
 	r.Header.Set(codersdk.SessionTokenHeader, token)
@@ -153,15 +369,15 @@ func TestCaching(t *testing.T) {
 			Data: []byte("folderFile"),
 		},
 	}
-	binFS := http.FS(fstest.MapFS{})
 
 	db, _ := dbtestutil.NewDB(t)
-	srv := httptest.NewServer(site.New(&site.Options{
+	s, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFS,
 		SiteFS:    rootFS,
 		Database:  db,
-	}))
+	})
+	require.NoError(t, err)
+	srv := httptest.NewServer(s)
 	defer srv.Close()
 
 	// Create a context
@@ -222,15 +438,15 @@ func TestServingFiles(t *testing.T) {
 			Data: []byte("install-sh-bytes"),
 		},
 	}
-	binFS := http.FS(fstest.MapFS{})
 
 	db, _ := dbtestutil.NewDB(t)
-	srv := httptest.NewServer(site.New(&site.Options{
+	handler, err := site.New(&site.Options{
 		Telemetry: telemetry.NewNoop(),
-		BinFS:     binFS,
 		SiteFS:    rootFS,
 		Database:  db,
-	}))
+	})
+	require.NoError(t, err)
+	srv := httptest.NewServer(handler)
 	defer srv.Close()
 	client := &http.Client{}
 
@@ -506,21 +722,20 @@ func TestServingBin(t *testing.T) {
 			t.Parallel()
 
 			dest := t.TempDir()
-			binFS, binHashes, err := site.ExtractOrReadBinFS(dest, tt.fs)
+			testFS := maps.Clone(rootFS)
+			maps.Copy(testFS, tt.fs)
+			handler, err := site.New(&site.Options{
+				Telemetry: telemetry.NewNoop(),
+				SiteFS:    testFS,
+				CacheDir:  dest,
+			})
 			if !tt.wantErr && err != nil {
 				require.NoError(t, err, "extract or read failed")
 			} else if tt.wantErr {
 				require.Error(t, err, "extraction or read did not fail")
 			}
-
-			site := site.New(&site.Options{
-				Telemetry: telemetry.NewNoop(),
-				BinFS:     binFS,
-				BinHashes: binHashes,
-				SiteFS:    rootFS,
-			})
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
-			srv := httptest.NewServer(compressor.Handler(site))
+			srv := httptest.NewServer(compressor.Handler(handler))
 			defer srv.Close()
 			client := &http.Client{}
 
@@ -564,7 +779,7 @@ func TestServingBin(t *testing.T) {
 					}
 
 					if tr.wantEtag != "" {
-						assert.NotEmpty(t, resp.Header.Get("ETag"), "etag header is empty")
+						assert.Equal(t, []string{tr.wantEtag}, resp.Header.Values("ETag"), "etag header values did not match")
 						assert.Equal(t, tr.wantEtag, resp.Header.Get("ETag"), "etag did not match")
 					}
 
@@ -572,6 +787,8 @@ func TestServingBin(t *testing.T) {
 						// This is a custom header that we set to help the
 						// client know the size of the decompressed data. See
 						// the comment in site.go.
+						headerValues := resp.Header.Values("X-Original-Content-Length")
+						assert.Len(t, headerValues, 1, "X-Original-Content-Length should have exactly one value")
 						headerStr := resp.Header.Get("X-Original-Content-Length")
 						assert.NotEmpty(t, headerStr, "X-Original-Content-Length header is empty")
 						originalSize, err := strconv.Atoi(headerStr)

@@ -1,10 +1,10 @@
 import isChromatic from "chromatic/isChromatic";
 import type { FC } from "react";
-import { pageTitle } from "utils/page";
+import { pageTitle } from "#/utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";
 
 const CliInstallPage: FC = () => {
-	const origin = isChromatic() ? "https://example.com" : window.location.origin;
+	const origin = isChromatic() ? "https://example.com" : location.origin;
 
 	return (
 		<>

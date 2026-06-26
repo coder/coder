@@ -242,73 +242,35 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			t.Log("newMaxDeadline", c.newMaxDeadline)
 			t.Log("ttl", c.ttl)
 
-			var (
-				template = dbgen.Template(t, db, database.Template{
-					OrganizationID:  organizationID,
-					ActiveVersionID: templateVersion.ID,
-					CreatedBy:       user.ID,
-				})
-				ws = dbgen.Workspace(t, db, database.WorkspaceTable{
-					OrganizationID: organizationID,
-					OwnerID:        user.ID,
-					TemplateID:     template.ID,
-				})
-				job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-					OrganizationID: organizationID,
-					FileID:         file.ID,
-					InitiatorID:    user.ID,
-					Provisioner:    database.ProvisionerTypeEcho,
-					Tags: database.StringMap{
-						c.name: "yeah",
-					},
-				})
-				wsBuild = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       ws.ID,
-					BuildNumber:       1,
-					JobID:             job.ID,
-					InitiatorID:       user.ID,
-					TemplateVersionID: templateVersion.ID,
-					ProvisionerState:  []byte(must(cryptorand.String(64))),
-				})
-			)
+			template := dbgen.Template(t, db, database.Template{
+				OrganizationID:  organizationID,
+				ActiveVersionID: templateVersion.ID,
+				CreatedBy:       user.ID,
+			})
+			buildResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: organizationID,
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+			}).Seed(database.WorkspaceBuild{
+				TemplateVersionID: templateVersion.ID,
+			}).ProvisionerState([]byte(must(cryptorand.String(64)))).Succeeded(dbfake.WithJobCompletedAt(buildTime)).Do()
 
 			// Assert test invariant: workspace build state must not be empty
-			require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
-
-			acquiredJob, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-				OrganizationID: job.OrganizationID,
-				StartedAt: sql.NullTime{
-					Time:  buildTime,
-					Valid: true,
-				},
-				WorkerID: uuid.NullUUID{
-					UUID:  uuid.New(),
-					Valid: true,
-				},
-				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-				ProvisionerTags: json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, c.name)),
-			})
+			var buildProvisionerState []byte
+			buildProvisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, buildResp.Build.ID)
 			require.NoError(t, err)
-			require.Equal(t, job.ID, acquiredJob.ID)
-			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-				ID: job.ID,
-				CompletedAt: sql.NullTime{
-					Time:  buildTime,
-					Valid: true,
-				},
-				UpdatedAt: buildTime,
-			})
-			require.NoError(t, err)
+			buildProvisionerState = buildProvisionerStateRow.ProvisionerState
+			require.NotEmpty(t, buildProvisionerState, "provisioner state must not be empty")
 
 			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          wsBuild.ID,
+				ID:          buildResp.Build.ID,
 				UpdatedAt:   buildTime,
 				Deadline:    c.deadline,
 				MaxDeadline: c.maxDeadline,
 			})
 			require.NoError(t, err)
 
-			wsBuild, err = db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
+			wsBuild, err := db.GetWorkspaceBuildByID(ctx, buildResp.Build.ID)
 			require.NoError(t, err)
 
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -351,7 +313,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second, "max_deadline")
 
 			// Check that the new build has the same state as before.
-			require.Equal(t, wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
+			newBuildProvisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, newBuild.ID)
+			require.NoError(t, err)
+			require.Equal(t, buildProvisionerState, newBuildProvisionerStateRow.ProvisionerState, "provisioner state mismatch")
 		})
 	}
 }
@@ -429,7 +393,8 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		shouldBeUpdated bool
 
 		// Set below:
-		wsBuild database.WorkspaceBuild
+		wsBuild                 database.WorkspaceBuild
+		wsBuildProvisionerState []byte
 	}{
 		{
 			name:            "DifferentTemplate",
@@ -524,19 +489,25 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			},
 			OrganizationID: templateJob.OrganizationID,
 		})
+		wsBuildProvisionerState := []byte(must(cryptorand.String(64)))
 		wsBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:       wsID,
 			BuildNumber:       b.buildNumber,
 			JobID:             job.ID,
 			InitiatorID:       user.ID,
 			TemplateVersionID: templateVersion.ID,
-			ProvisionerState:  []byte(must(cryptorand.String(64))),
 		})
+		err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               wsBuild.ID,
+			UpdatedAt:        wsBuild.UpdatedAt,
+			ProvisionerState: wsBuildProvisionerState,
+		})
+		require.NoError(t, err)
 
 		// Assert test invariant: workspace build state must not be empty
-		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+		require.NotEmpty(t, wsBuildProvisionerState, "provisioner state must not be empty")
 
-		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          wsBuild.ID,
 			UpdatedAt:   buildTime,
 			Deadline:    originalMaxDeadline,
@@ -548,8 +519,9 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert test invariant: workspace build state must not be empty
-		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+		require.NotEmpty(t, wsBuildProvisionerState, "provisioner state must not be empty")
 
+		builds[i].wsBuildProvisionerState = wsBuildProvisionerState
 		builds[i].wsBuild = wsBuild
 
 		if !b.buildStarted {
@@ -636,7 +608,9 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			assert.WithinDuration(t, originalMaxDeadline, newBuild.MaxDeadline, time.Second, msg)
 		}
 
-		assert.Equal(t, builds[i].wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
+		newBuildProvisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, newBuild.ID)
+		require.NoError(t, err)
+		assert.Equal(t, builds[i].wsBuildProvisionerState, newBuildProvisionerStateRow.ProvisionerState, "provisioner state mismatch")
 	}
 }
 
@@ -1309,7 +1283,6 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1361,8 +1334,7 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 			}).Do()
 
 			// Mark the prebuilt workspace's agent as ready so the prebuild can be claimed
-			// nolint:gocritic
-			agentCtx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong))
+			agentCtx := testutil.Context(t, testutil.WaitLong)
 			agent, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(agentCtx, uuid.MustParse(workspaceBuild.AgentToken))
 			require.NoError(t, err)
 			err = db.UpdateWorkspaceAgentLifecycleStateByID(agentCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
@@ -1411,6 +1383,77 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 			tc.assertWorkspace(t, ctx, db, clock.Now(), false, workspace)
 		})
 	}
+}
+
+// TestTemplateScheduleTimeTilAutostopNotify verifies that the enterprise
+// template schedule store round-trips the TimeTilAutostopNotify field through
+// Set/Get, and that the field participates in the no-op short-circuit
+// comparison in Set. If the short-circuit compared the wrong field, an update
+// that changes only TimeTilAutostopNotify would be silently swallowed.
+func TestTemplateScheduleTimeTilAutostopNotify(t *testing.T) {
+	t.Parallel()
+
+	var (
+		logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		db, _  = dbtestutil.NewDB(t)
+		ctx    = testutil.Context(t, testutil.WaitLong)
+		user   = dbgen.User(t, db, database.User{})
+		file   = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+
+		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Tags:        database.StringMap{"foo": "bar"},
+		})
+		templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			JobID:          templateJob.ID,
+			OrganizationID: templateJob.OrganizationID,
+		})
+		template = dbgen.Template(t, db, database.Template{
+			ActiveVersionID: templateVersion.ID,
+			CreatedBy:       user.ID,
+			OrganizationID:  templateJob.OrganizationID,
+		})
+	)
+
+	// Setup the template schedule store.
+	notifyEnq := notifications.NewNoopEnqueuer()
+	const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+	userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+	require.NoError(t, err)
+	userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+	userQuietHoursStorePtr.Store(&userQuietHoursStore)
+	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger, nil)
+
+	// baseOpts is reused across Set calls so that only TimeTilAutostopNotify
+	// differs between the first and second update. This is what exercises the
+	// no-op short-circuit guard: every other compared field stays identical.
+	baseOpts := agplschedule.TemplateScheduleOptions{
+		DefaultTTL: 24 * time.Hour,
+	}
+
+	// Set then Get round-trip: TimeTilAutostopNotify should persist.
+	firstOpts := baseOpts
+	firstOpts.TimeTilAutostopNotify = time.Hour
+	template, err = templateScheduleStore.Set(ctx, db, template, firstOpts)
+	require.NoError(t, err)
+
+	gotOpts, err := templateScheduleStore.Get(ctx, db, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, time.Hour, gotOpts.TimeTilAutostopNotify)
+
+	// No-op short-circuit guard: change ONLY TimeTilAutostopNotify and keep all
+	// other options identical. If the short-circuit compared the wrong field,
+	// this update would be treated as a no-op and the value would remain 1h.
+	secondOpts := baseOpts
+	secondOpts.TimeTilAutostopNotify = 2 * time.Hour
+	template, err = templateScheduleStore.Set(ctx, db, template, secondOpts)
+	require.NoError(t, err)
+
+	gotOpts, err = templateScheduleStore.Get(ctx, db, template.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2*time.Hour, gotOpts.TimeTilAutostopNotify)
 }
 
 func must[V any](v V, err error) V {

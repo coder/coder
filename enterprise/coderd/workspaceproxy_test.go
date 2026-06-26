@@ -278,10 +278,11 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 func TestProxyRegisterDeregister(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
+	setupWithDeploymentValues := func(t *testing.T, dv *codersdk.DeploymentValues) (*codersdk.Client, database.Store) {
 		db, pubsub := dbtestutil.NewDB(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
+				DeploymentValues:         dv,
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
@@ -295,6 +296,11 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 
 		return client, db
+	}
+
+	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
+		dv := coderdtest.DeploymentValues(t)
+		return setupWithDeploymentValues(t, dv)
 	}
 
 	t.Run("OK", func(t *testing.T) {
@@ -363,7 +369,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		req = wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://cool.proxy.coder.test",
 			WildcardHostname:    "*.cool.proxy.coder.test",
-			DerpEnabled:         false,
+			DerpEnabled:         true,
 			ReplicaID:           req.ReplicaID,
 			ReplicaHostname:     "venus",
 			ReplicaError:        "error",
@@ -575,9 +581,13 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		for i := 0; i < 100; i++ {
-			ok := false
-			for j := 0; j < 2; j++ {
-				registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			// Sibling replica count may not be immediately consistent.
+			// In production, proxies re-register every 30s and
+			// Kubernetes rolls out gradually, so this is benign.
+			var registerRes wsproxysdk.RegisterWorkspaceProxyResponse
+			require.Eventually(t, func() bool {
+				var err error
+				registerRes, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 					AccessURL:           "https://proxy.coder.test",
 					WildcardHostname:    "*.proxy.coder.test",
 					DerpEnabled:         true,
@@ -587,26 +597,72 @@ func TestProxyRegisterDeregister(t *testing.T) {
 					ReplicaRelayAddress: fmt.Sprintf("http://127.0.0.1:%d", 8080+i),
 					Version:             buildinfo.Version(),
 				})
-				require.NoErrorf(t, err, "register proxy %d", i)
-
-				// If the sibling replica count is wrong, try again. The impact
-				// of this not being immediate is that proxies may not function
-				// as DERP relays until they register again in 30 seconds.
-				//
-				// In the real world, replicas will not be registering this
-				// quickly. Kubernetes rolls out gradually in practice.
-				if len(registerRes.SiblingReplicas) != i {
-					t.Logf("%d: expected %d siblings, got %d", i, i, len(registerRes.SiblingReplicas))
-					time.Sleep(100 * time.Millisecond)
-					continue
+				if err != nil {
+					return false
 				}
-
-				ok = true
-				break
-			}
-
-			require.True(t, ok, "expected to register replica %d", i)
+				return len(registerRes.SiblingReplicas) == i
+			}, testutil.WaitShort, testutil.IntervalMedium, "expected to register replica %d with %d siblings", i, i)
 		}
+	})
+
+	t.Run("RegisterWithDisabledBuiltInDERP/DerpEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.DERP.Server.Enable = false // disable built-in DERP server
+		client, _ := setupWithDeploymentValues(t, dv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "proxy",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
+		registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "venus",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             buildinfo.Version(),
+		})
+		require.NoError(t, err)
+		// Should still be able to retrieve the DERP mesh key from the database,
+		// even though the built-in DERP server is disabled.
+		require.Equal(t, registerRes.DERPMeshKey, coderdtest.DefaultDERPMeshKey)
+	})
+
+	t.Run("RegisterWithDisabledBuiltInDERP/DerpDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.DERP.Server.Enable = false // disable built-in DERP server
+		client, _ := setupWithDeploymentValues(t, dv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "proxy",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
+		registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         false,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "venus",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             buildinfo.Version(),
+		})
+		require.NoError(t, err)
+		// The server shouldn't bother querying or returning the DERP mesh key
+		// if the proxy's DERP server is disabled.
+		require.Empty(t, registerRes.DERPMeshKey)
 	})
 }
 
@@ -690,7 +746,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		require.NoError(t, err)
 
 		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
-			Ip: parsedFakeClientIP,
+			IP: parsedFakeClientIP,
 		}))
 	})
 
@@ -718,7 +774,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		}
 
 		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
-			Ip: parsedFakeClientIP,
+			IP: parsedFakeClientIP,
 		}))
 	})
 }
@@ -926,7 +982,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		// validate it here.
 
 		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
-			Ip: pqtype.Inet{
+			IP: pqtype.Inet{
 				Valid: true, IPNet: net.IPNet{
 					IP:   net.ParseIP("127.0.0.1"),
 					Mask: net.CIDRMask(32, 32),

@@ -1,15 +1,17 @@
 import { useTheme } from "@emotion/react";
-import type * as TypesGen from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link, useNavigate } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
@@ -17,31 +19,26 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link, useNavigate } from "react-router";
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];
 	isLoading: boolean;
 	error: unknown;
+	canCreateApp: boolean;
 };
 
 const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 	apps,
 	isLoading,
 	error,
+	canCreateApp,
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<div>
 					<SettingsHeader>
 						<SettingsHeaderTitle>OAuth2 Applications</SettingsHeaderTitle>
@@ -51,13 +48,15 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					</SettingsHeader>
 				</div>
 
-				<Button variant="outline" asChild>
-					<Link to="/deployment/oauth2-provider/apps/add">
-						<PlusIcon />
-						Add application
-					</Link>
-				</Button>
-			</Stack>
+				{canCreateApp && (
+					<Button variant="outline" asChild>
+						<Link to="/deployment/oauth2-provider/apps/add">
+							<PlusIcon />
+							Add application
+						</Link>
+					</Button>
+				)}
+			</div>
 
 			{error && <ErrorAlert error={error} />}
 
@@ -76,7 +75,7 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					{apps?.length === 0 && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No OAuth2 applications have been configured.
 								</div>
 							</TableCell>
@@ -109,7 +108,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 			</TableCell>
 
 			<TableCell>
-				<div css={{ display: "flex", paddingLeft: 16 }}>
+				<div className="flex pl-4">
 					<ChevronRightIcon className="size-icon-sm" />
 				</div>
 			</TableCell>

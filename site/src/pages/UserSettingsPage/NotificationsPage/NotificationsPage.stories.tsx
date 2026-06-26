@@ -1,25 +1,25 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import {
+	customNotificationTemplatesKey,
+	notificationDispatchMethodsKey,
+	systemNotificationTemplatesKey,
+	userNotificationPreferencesKey,
+} from "#/api/queries/notifications";
 import {
 	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
 	MockSystemNotificationTemplates,
 	MockUserOwner,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import {
-	customNotificationTemplatesKey,
-	notificationDispatchMethodsKey,
-	systemNotificationTemplatesKey,
-	userNotificationPreferencesKey,
-} from "api/queries/notifications";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+	withToaster,
+} from "#/testHelpers/storybook";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -48,7 +48,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: { createTemplates: true, createUser: true },
 	},
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
 
 export default meta;
@@ -60,13 +60,14 @@ export const Default: Story = {
 
 		await Promise.all([
 			// System notification templates
-			canvas.findByRole("checkbox", { name: "Task Events" }),
-			canvas.findByRole("checkbox", { name: "Template Events" }),
-			canvas.findByRole("checkbox", { name: "User Events" }),
-			canvas.findByRole("checkbox", { name: "Workspace Events" }),
+			canvas.findByRole("switch", { name: "Chat Events" }),
+			canvas.findByRole("switch", { name: "Task Events" }),
+			canvas.findByRole("switch", { name: "Template Events" }),
+			canvas.findByRole("switch", { name: "User Events" }),
+			canvas.findByRole("switch", { name: "Workspace Events" }),
 
 			// Custom notification template
-			canvas.findByRole("checkbox", { name: "Custom Events" }),
+			canvas.findByRole("switch", { name: "Custom Events" }),
 		]);
 	},
 };
@@ -156,7 +157,7 @@ export const DisableValidTemplate: Story = {
 		},
 	],
 	play: async ({ canvasElement }) => {
-		await within(document.body).findByText("Notification has been disabled");
+		await within(document.body).findByText("Notification has been disabled.");
 		const switchEl = await within(canvasElement).findByLabelText(
 			templateToDisable.name,
 		);
@@ -182,7 +183,7 @@ export const DisableInvalidTemplate: Story = {
 		},
 	],
 	play: async () => {
-		await within(document.body).findByText("Error disabling notification");
+		await within(document.body).findByText("Error disabling notification.");
 	},
 };
 
@@ -211,7 +212,13 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 			{
 				// User preferences: alert was previously dismissed
 				key: ["me", "preferences"],
-				data: { task_notification_alert_dismissed: true },
+				data: {
+					task_notification_alert_dismissed: true,
+					thinking_display_mode: "auto" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
 			},
 		],
 	},
@@ -233,6 +240,10 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 			"updateUserPreferenceSettings",
 		).mockResolvedValue({
 			task_notification_alert_dismissed: false,
+			thinking_display_mode: "auto",
+			shell_tool_display_mode: "auto",
+			code_diff_display_mode: "auto",
+			agent_chat_send_shortcut: "enter" as const,
 		});
 
 		await step("Enable Task Idle notification", async () => {
@@ -244,9 +255,11 @@ export const EnablingTaskNotificationClearsAlertDismissal: Story = {
 
 			// Verify the preferences API was called to clear the alert dismissal
 			await waitFor(() => {
-				expect(updatePreferencesSpy).toHaveBeenCalledWith({
-					task_notification_alert_dismissed: false,
-				});
+				expect(updatePreferencesSpy).toHaveBeenCalledWith(
+					expect.objectContaining({
+						task_notification_alert_dismissed: false,
+					}),
+				);
 			});
 		});
 	},

@@ -1,20 +1,19 @@
-import { getErrorMessage } from "api/errors";
-import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
+import { type FC, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { deploymentIdpSyncFieldValues } from "#/api/queries/deployment";
 import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
-} from "api/queries/idpsync";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
+} from "#/api/queries/idpsync";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { docs } from "#/utils/docs";
+import { pageTitle } from "#/utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
@@ -36,7 +35,7 @@ const IdpOrgSyncPage: FC = () => {
 
 	const fieldValuesQuery = useQuery({
 		...deploymentIdpSyncFieldValues(field),
-		enabled: !!field,
+		enabled: Boolean(field),
 	});
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
@@ -45,10 +44,10 @@ const IdpOrgSyncPage: FC = () => {
 
 	useEffect(() => {
 		if (patchOrganizationSyncSettingsMutation.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(
 					patchOrganizationSyncSettingsMutation.error,
-					"Error updating organization idp sync settings.",
+					"Error updating organization IdP sync settings.",
 				),
 			);
 		}
@@ -76,37 +75,37 @@ const IdpOrgSyncPage: FC = () => {
 					</div>
 					<ExportPolicyButton syncSettings={settingsQuery.data} />
 				</header>
-				<ChooseOne>
-					<Cond condition={!isIdpSyncEnabled}>
-						<PaywallPremium
-							message="IdP Organization Sync"
-							description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
-							documentationLink={docs("/admin/users/idp-sync")}
-						/>
-					</Cond>
-					<Cond>
-						<IdpOrgSyncPageView
-							organizationSyncSettings={settingsQuery.data}
-							claimFieldValues={fieldValuesQuery.data}
-							organizations={organizations}
-							onSyncFieldChange={setField}
-							onSubmit={async (data) => {
-								try {
-									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
-									displaySuccess("Organization sync settings updated.");
-								} catch (error) {
-									displayError(
-										getErrorMessage(
-											error,
-											"Failed to update organization IdP sync settings",
-										),
-									);
-								}
-							}}
-							error={settingsQuery.error || fieldValuesQuery.error}
-						/>
-					</Cond>
-				</ChooseOne>
+				{!isIdpSyncEnabled ? (
+					<PaywallPremium
+						message="IdP Organization Sync"
+						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder. You need a Premium license to use this feature."
+						documentationLink={docs("/admin/users/idp-sync")}
+					/>
+				) : (
+					<IdpOrgSyncPageView
+						organizationSyncSettings={settingsQuery.data}
+						claimFieldValues={fieldValuesQuery.data}
+						organizations={organizations}
+						onSyncFieldChange={setField}
+						onSubmit={async (data) => {
+							try {
+								await patchOrganizationSyncSettingsMutation.mutateAsync(data);
+								toast.success("Organization sync settings updated.");
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										"Failed to update organization IdP sync settings.",
+									),
+									{
+										description: getErrorDetail(error),
+									},
+								);
+							}
+						}}
+						error={settingsQuery.error || fieldValuesQuery.error}
+					/>
+				)}
 			</div>
 		</>
 	);

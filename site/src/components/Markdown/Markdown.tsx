@@ -1,14 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
 import isEqual from "lodash/isEqual";
 import {
+	createElement,
 	type FC,
 	type HTMLProps,
 	isValidElement,
@@ -20,8 +14,15 @@ import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import gfm from "remark-gfm";
-import colors from "theme/tailwindColors";
-import { cn } from "utils/cn";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import colors from "#/theme/tailwindColors";
+import { cn } from "#/utils/cn";
 
 interface MarkdownProps {
 	/**
@@ -57,7 +58,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 				},
 
 				pre: ({ node, children }) => {
-					if (!node || !node.children) {
+					if (!node?.children) {
 						return <pre>{children}</pre>;
 					}
 					const firstChild = node.children[0];
@@ -84,14 +85,8 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 						</SyntaxHighlighter>
 					) : (
 						<code
-							css={(theme) => ({
-								padding: "1px 4px",
-								background: theme.palette.divider,
-								borderRadius: 4,
-								color: theme.palette.text.primary,
-								fontSize: 14,
-							})}
-							{...props}
+							className="rounded-sm bg-border px-1 py-px text-sm text-content-primary"
+							{...restProps}
 						>
 							{children}
 						</code>
@@ -154,80 +149,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 	);
 };
 
-interface InlineMarkdownProps {
-	/**
-	 * The Markdown text to parse and render
-	 */
-	children: string;
-
-	/**
-	 * Additional element types to allow.
-	 * Allows italic, bold, links, and inline code snippets by default.
-	 * eg. `["ol", "ul", "li"]` to support lists.
-	 */
-	allowedElements?: readonly string[];
-
-	className?: string;
-
-	/**
-	 * Can override the behavior of the generated elements
-	 */
-	components?: Options["components"];
-}
-
-/**
- * Supports a strict subset of Markdown that behaves well as inline/confined content.
- */
-export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
-	const { children, allowedElements = [], className, components = {} } = props;
-
-	return (
-		<ReactMarkdown
-			className={className}
-			allowedElements={[
-				"p",
-				"em",
-				"strong",
-				"a",
-				"pre",
-				"code",
-				...allowedElements,
-			]}
-			unwrapDisallowed
-			components={{
-				p: ({ children }) => <>{children}</>,
-
-				a: ({ href, target, children }) => (
-					<Link href={href} target={target}>
-						{children}
-					</Link>
-				),
-
-				code: ({ node, className, children, style, ...props }) => (
-					<code
-						css={(theme) => ({
-							padding: "1px 4px",
-							background: theme.palette.divider,
-							borderRadius: 4,
-							color: theme.palette.text.primary,
-							fontSize: 14,
-						})}
-						{...props}
-					>
-						{children}
-					</code>
-				),
-
-				...components,
-			}}
-		>
-			{children}
-		</ReactMarkdown>
-	);
-};
-
 export const MemoizedMarkdown = memo(Markdown, isEqual);
-export const MemoizedInlineMarkdown = memo(InlineMarkdown, isEqual);
 
 const githubFlavoredMarkdownAlertTypes = [
 	"tip",
@@ -256,8 +178,9 @@ function parseChildrenAsAlertContent(
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
 		// content that can be turned into HTML. If there aren't any, you
-		// just get one big string
-		parentChildren = parentChildren.split("\n");
+		// just get one big string. Wrap it rather than splitting so that
+		// embedded newlines are preserved for line-break conversion later.
+		parentChildren = [parentChildren];
 	}
 	if (!Array.isArray(parentChildren)) {
 		return null;
@@ -304,7 +227,17 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const alertType = firstEl
+	// The alert marker (e.g., "[!IMPORTANT]") may share a string node
+	// with subsequent content when inline formatting follows on the
+	// next blockquote line. Split on the first newline so we only
+	// test the marker portion.
+	const firstNewline = firstEl.indexOf("\n");
+	const alertCandidate =
+		firstNewline === -1 ? firstEl : firstEl.substring(0, firstNewline);
+	const trailingContent =
+		firstNewline === -1 ? null : firstEl.substring(firstNewline + 1);
+
+	const alertType = alertCandidate
 		.trim()
 		.toLowerCase()
 		.replace("!", "")
@@ -314,15 +247,40 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
+	if (trailingContent) {
+		remainingChildren.unshift(trailingContent);
+	}
+
 	const hasLeadingLinebreak =
 		isValidElement(remainingChildren[0]) && remainingChildren[0].type === "br";
 	if (hasLeadingLinebreak) {
 		remainingChildren.shift();
 	}
 
+	// GitHub's GFM alerts preserve line breaks within alert content,
+	// but the markdown parser treats them as soft wraps (spaces).
+	// Convert embedded newlines in text nodes to <br/> elements to
+	// match GitHub's rendering behavior.
+	const withLineBreaks: ReactNode[] = remainingChildren.flatMap((child, i) => {
+		if (typeof child !== "string" || !child.includes("\n")) {
+			return [child];
+		}
+		const parts = child.split("\n");
+		const result: ReactNode[] = [];
+		for (let j = 0; j < parts.length; j++) {
+			if (j > 0) {
+				result.push(createElement("br", { key: `alert-br-${i}-${j}` }));
+			}
+			if (parts[j]) {
+				result.push(parts[j]);
+			}
+		}
+		return result;
+	});
+
 	return {
 		type: alertType,
-		children: remainingChildren,
+		children: withLineBreaks,
 	};
 }
 
@@ -342,7 +300,7 @@ const MarkdownGfmAlert: FC<MarkdownGfmAlertProps> = ({
 			<aside
 				{...delegatedProps}
 				className={cn(
-					"border-0 border-l-4 border-solid border-border p-4 text-white",
+					"border-0 border-l-4 border-solid border-border p-4 text-content-primary",
 					"[&_p]:m-0 [&_p]:mb-2",
 
 					alertType === "important" &&
@@ -406,7 +364,10 @@ const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
 	},
 
 	"& .prismjs": {
-		background: theme.palette.background.paper,
+		background:
+			theme.palette.mode === "dark"
+				? colors.zinc[950]
+				: theme.palette.background.paper,
 		borderRadius: 8,
 		padding: "16px 24px",
 		overflowX: "auto",

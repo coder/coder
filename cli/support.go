@@ -71,9 +71,9 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var templateName string
 	var pprof bool
 	cmd := &serpent.Command{
-		Use:   "bundle <workspace> [<agent>]",
+		Use:   "bundle [<workspace>] [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
-		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You must specify a single workspace (and optionally an agent name).`,
+		Long:  `This command generates a file containing detailed troubleshooting information about the Coder deployment and workspace connections. You may specify a single workspace (and optionally an agent name). When run inside a workspace, the workspace and agent are inferred from the environment if not provided.`,
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 2),
 		),
@@ -113,6 +113,20 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			)
 			cliLog.Debug(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
 
+			// Bypass rate limiting for support bundle collection since it makes many API calls.
+			// Note: this can only be done by the owner user.
+			if ok, err := support.CanGenerateFull(inv.Context(), client); err == nil && ok {
+				cliLog.Debug(inv.Context(), "running as owner")
+				client.HTTPClient.Transport = &codersdk.HeaderTransport{
+					Transport: client.HTTPClient.Transport,
+					Header:    http.Header{codersdk.BypassRatelimitHeader: {"true"}},
+				}
+			} else if !ok {
+				cliLog.Warn(inv.Context(), "not running as owner, not all information available")
+			} else {
+				cliLog.Error(inv.Context(), "failed to look up current user", slog.Error(err))
+			}
+
 			// Check if we're running inside a workspace
 			if val, found := os.LookupEnv("CODER"); found && val == "true" {
 				cliui.Warn(inv.Stderr, "Running inside Coder workspace; this can affect results!")
@@ -136,10 +150,42 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			)
 
 			if len(inv.Args) == 0 {
+				// When running inside a workspace, infer the workspace
+				// and agent from environment variables set by the agent.
+				// Prefer CODER_WORKSPACE_ID for a direct UUID lookup;
+				// fall back to owner/name for older agents that do not
+				// set the ID variable.
+				if inv.Environ.Get("CODER") == "true" {
+					var wsArg string
+					if v := inv.Environ.Get("CODER_WORKSPACE_ID"); v != "" {
+						wsArg = v
+					} else {
+						wsOwner := inv.Environ.Get("CODER_WORKSPACE_OWNER_NAME")
+						wsName := inv.Environ.Get("CODER_WORKSPACE_NAME")
+						if wsOwner != "" && wsName != "" {
+							wsArg = wsOwner + "/" + wsName
+						}
+					}
+					agtName := inv.Environ.Get("CODER_WORKSPACE_AGENT_NAME")
+					if wsArg != "" {
+						cliLog.Info(inv.Context(), "detected workspace from environment",
+							slog.F("workspace_arg", wsArg),
+							slog.F("agent_name", agtName),
+						)
+						cliui.Info(inv.Stderr, "Detected workspace from environment: "+wsArg)
+						inv.Args = append(inv.Args, wsArg)
+						if agtName != "" {
+							inv.Args = append(inv.Args, agtName)
+						}
+					}
+				}
+			}
+
+			if len(inv.Args) == 0 {
 				cliLog.Warn(inv.Context(), "no workspace specified")
 				cliui.Warn(inv.Stderr, "No workspace specified. This will result in incomplete information.")
 			} else {
-				ws, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+				ws, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("invalid workspace: %w", err)
 				}
@@ -198,12 +244,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			}
 			if pprof {
 				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
-			}
-
-			// Bypass rate limiting for support bundle collection since it makes many API calls.
-			client.HTTPClient.Transport = &codersdk.HeaderTransport{
-				Transport: client.HTTPClient.Transport,
-				Header:    http.Header{codersdk.BypassRatelimitHeader: {"true"}},
 			}
 
 			deps := support.Deps{
@@ -354,19 +394,20 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 		return
 	}
 
-	if bun.Deployment.Config == nil {
-		cliui.Error(inv.Stdout, "No deployment configuration available!")
-		return
+	var docsURL string
+	if bun.Deployment.Config != nil {
+		docsURL = bun.Deployment.Config.Values.DocsURL.String()
+	} else {
+		cliui.Warn(inv.Stdout, "No deployment configuration available. This may require the Owner role.")
 	}
 
-	docsURL := bun.Deployment.Config.Values.DocsURL.String()
-	if bun.Deployment.HealthReport == nil {
-		cliui.Error(inv.Stdout, "No deployment health report available!")
-		return
-	}
-	deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
-	if len(deployHealthSummary) > 0 {
-		cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
+	if bun.Deployment.HealthReport != nil {
+		deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
+		if len(deployHealthSummary) > 0 {
+			cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
+		}
+	} else {
+		cliui.Warn(inv.Stdout, "No deployment health report available.")
 	}
 
 	if bun.Network.Netcheck == nil {

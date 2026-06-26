@@ -40,7 +40,7 @@ CODER_EXPERIMENTS=oauth2
 2. Click **Create Application**
 3. Fill in the application details:
    - **Name**: Your application name
-   - **Callback URL**: `https://yourapp.example.com/callback`
+   - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
    - **Icon**: Optional icon URL
 
 ### Method 2: Management API
@@ -128,9 +128,16 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
      "$CODER_URL/api/v2/users/me"
    ```
 
-### PKCE Flow (Recommended)
+> [!NOTE]
+> The PKCE flow below is the **required** integration path. The example
+> above is shown for reference but omits the mandatory `code_challenge`
+> parameter. See [PKCE Flow](#pkce-flow-required) for the complete flow.
 
-Use PKCE for enhanced security (recommended for both public and confidential clients):
+### PKCE Flow (Required)
+
+PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
+PKCE in compliance with the OAuth 2.1 specification. Both public and
+confidential clients must include PKCE parameters:
 
 1. Generate a code verifier and challenge:
 
@@ -244,15 +251,31 @@ Add `oauth2` to your experiment flags: `coder server --experiments oauth2`
 
 Ensure the redirect URI in your request exactly matches the one registered for your application.
 
+### "Invalid Callback URL" on the consent page
+
+If you see this error when authorizing, the registered callback URL uses a
+blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
+application's callback URL to a valid scheme (see
+[Callback URL schemes](#callback-url-schemes)).
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
+## Callback URL schemes
+
+Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
+
+The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
+
 ## Security Considerations
 
 - **Use HTTPS**: Always use HTTPS in production to protect tokens in transit
-- **Implement PKCE**: Use PKCE for all public clients (mobile apps, SPAs)
-- **Validate redirect URLs**: Only register trusted redirect URIs for your applications
+- **Implement PKCE**: PKCE is mandatory for all authorization code clients
+  (public and confidential)
+- **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
+  schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
+  but custom URI schemes for native apps (`myapp://`) are permitted
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
 ## Limitations
@@ -261,11 +284,20 @@ As an experimental feature, the current implementation has limitations:
 
 - No scope system - all tokens have full API access
 - No client credentials grant support
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
+  deprecated this flow due to token leakage risks, and requests return
+  `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
 ## Standards Compliance
 
-This implementation follows established OAuth2 standards including [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core), [RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and related specifications for discovery and client registration.
+This implementation follows established OAuth2 standards including
+[RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749) (OAuth2 core),
+[RFC 7636](https://datatracker.ietf.org/doc/html/rfc7636) (PKCE), and the
+[OAuth 2.1 draft](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-12).
+Coder enforces OAuth 2.1 requirements including mandatory PKCE for all
+authorization code grants, exact redirect URI string matching, rejection
+of the implicit grant, and CSRF protections on consent pages.
 
 ## Next Steps
 

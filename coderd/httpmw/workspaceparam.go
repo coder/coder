@@ -54,3 +54,7 @@ func ExtractWorkspaceParam(db database.Store) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+func WithWorkspaceParam(ctx context.Context, workspace database.Workspace) context.Context {
+	return context.WithValue(ctx, workspaceParamContextKey{}, workspace)
+}

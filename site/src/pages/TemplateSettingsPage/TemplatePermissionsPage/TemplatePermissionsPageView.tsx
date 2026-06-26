@@ -1,6 +1,5 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import MenuItem from "@mui/material/MenuItem";
-import Select, { type SelectProps } from "@mui/material/Select";
+import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import type {
 	Group,
 	ReducedUser,
@@ -8,21 +7,29 @@ import type {
 	TemplateGroup,
 	TemplateRole,
 	TemplateUser,
-} from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+} from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -30,11 +37,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import { type FC, useState } from "react";
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { getGroupSubtitle } from "#/modules/groups";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
@@ -90,7 +95,7 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 				}
 			}}
 		>
-			<Stack direction="row" alignItems="center" spacing={1}>
+			<div className="flex flex-row items-center gap-1">
 				<UserOrGroupAutocomplete
 					exclude={excludeFromAutocomplete}
 					templateID={templateID}
@@ -101,20 +106,19 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 				/>
 
 				<Select
-					defaultValue="use"
-					size="small"
-					css={styles.select}
+					value={selectedRole}
 					disabled={isLoading}
-					onChange={(event) => {
-						setSelectedRole(event.target.value as TemplateRole);
+					onValueChange={(value) => {
+						setSelectedRole(value as TemplateRole);
 					}}
 				>
-					<MenuItem key="use" value="use">
-						Use
-					</MenuItem>
-					<MenuItem key="admin" value="admin">
-						Admin
-					</MenuItem>
+					<SelectTrigger className="w-[100px]">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="use">Use</SelectItem>
+						<SelectItem value="admin">Admin</SelectItem>
+					</SelectContent>
 				</Select>
 
 				<Button
@@ -124,37 +128,53 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 					<Spinner loading={isLoading}>
 						<UserPlusIcon className="size-icon-sm" />
 					</Spinner>
-					Add member
+					Add
 				</Button>
-			</Stack>
+			</div>
 		</form>
 	);
 };
 
-const RoleSelect: FC<SelectProps> = (props) => {
+interface RoleSelectProps {
+	value: TemplateRole;
+	disabled?: boolean;
+	onValueChange: (value: TemplateRole) => void;
+}
+
+const RoleSelect: FC<RoleSelectProps> = ({
+	value,
+	disabled,
+	onValueChange,
+}) => {
 	return (
 		<Select
-			renderValue={(value) => <div css={styles.role}>{`${value}`}</div>}
-			css={styles.updateSelect}
-			{...props}
+			value={value}
+			disabled={disabled}
+			onValueChange={(nextValue) => onValueChange(nextValue as TemplateRole)}
 		>
-			<MenuItem key="use" value="use" css={styles.menuItem}>
-				<div>
-					<div>Use</div>
-					<div css={styles.menuItemSecondary}>
+			<SelectTrigger className="h-auto w-[200px]">
+				<SelectValue>
+					<span className="capitalize">{value}</span>
+				</SelectValue>
+			</SelectTrigger>
+			<SelectContent>
+				<SelectItem value="use" className="w-[250px] flex-col items-start py-2">
+					<div className="text-content-primary">Use</div>
+					<div className="text-xs leading-[140%] text-content-secondary">
 						Can read and use this template to create workspaces.
 					</div>
-				</div>
-			</MenuItem>
-			<MenuItem key="admin" value="admin" css={styles.menuItem}>
-				<div>
-					<div>Admin</div>
-					<div css={styles.menuItemSecondary}>
+				</SelectItem>
+				<SelectItem
+					value="admin"
+					className="w-[250px] flex-col items-start py-2"
+				>
+					<div className="text-content-primary">Admin</div>
+					<div className="text-xs leading-[140%] text-content-secondary">
 						Can modify all aspects of this template including permissions,
 						metadata, and template versions.
 					</div>
-				</div>
-			</MenuItem>
+				</SelectItem>
+			</SelectContent>
 		</Select>
 	);
 };
@@ -204,19 +224,13 @@ export const TemplatePermissionsPageView: FC<
 	onUpdateGroup,
 	onRemoveGroup,
 }) => {
-	const isEmpty = Boolean(
-		templateACL &&
-			templateACL.users.length === 0 &&
-			templateACL.group.length === 0,
-	);
-
 	return (
 		<>
 			<PageHeader className="pt-0">
 				<PageHeaderTitle>Permissions</PageHeaderTitle>
 			</PageHeader>
 
-			<Stack spacing={2.5}>
+			<div className="flex flex-col gap-2.5">
 				{canUpdatePermissions && (
 					<AddTemplateUserOrGroup
 						templateACL={templateACL}
@@ -238,185 +252,170 @@ export const TemplatePermissionsPageView: FC<
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						<ChooseOne>
-							<Cond condition={!templateACL}>
-								<TableLoader />
-							</Cond>
-							<Cond condition={isEmpty}>
-								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState
-											message="No members yet"
-											description="Add a member using the controls above"
-										/>
-									</TableCell>
-								</TableRow>
-							</Cond>
-							<Cond>
-								{templateACL?.group.map((group) => (
-									<TableRow key={group.id}>
-										<TableCell>
-											<AvatarData
-												avatar={
-													<Avatar
-														size="lg"
-														fallback={group.display_name || group.name}
-														src={group.avatar_url}
-													/>
-												}
-												title={group.display_name || group.name}
-												subtitle={getGroupSubtitle(group)}
-											/>
-										</TableCell>
-										<TableCell>
-											<ChooseOne>
-												<Cond condition={canUpdatePermissions}>
-													<RoleSelect
-														value={group.role}
-														disabled={updatingGroupId === group.id}
-														onChange={(event) => {
-															onUpdateGroup(
-																group,
-																event.target.value as TemplateRole,
-															);
-														}}
-													/>
-												</Cond>
-												<Cond>
-													<div css={styles.role}>{group.role}</div>
-												</Cond>
-											</ChooseOne>
-										</TableCell>
-
-										<TableCell>
-											{canUpdatePermissions && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => onRemoveGroup(group)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-
-								{templateACL?.users.map((user) => (
-									<TableRow key={user.id}>
-										<TableCell>
-											<AvatarData
-												title={user.username}
-												subtitle={user.email}
-												src={user.avatar_url}
-											/>
-										</TableCell>
-										<TableCell>
-											<ChooseOne>
-												<Cond condition={canUpdatePermissions}>
-													<RoleSelect
-														value={user.role}
-														disabled={updatingUserId === user.id}
-														onChange={(event) => {
-															onUpdateUser(
-																user,
-																event.target.value as TemplateRole,
-															);
-														}}
-													/>
-												</Cond>
-												<Cond>
-													<div css={styles.role}>{user.role}</div>
-												</Cond>
-											</ChooseOne>
-										</TableCell>
-
-										<TableCell>
-											{canUpdatePermissions && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => onRemoveUser(user)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
-										</TableCell>
-									</TableRow>
-								))}
-							</Cond>
-						</ChooseOne>
+						<MembersTableBody
+							templateACL={templateACL}
+							canUpdatePermissions={canUpdatePermissions}
+							updatingUserId={updatingUserId}
+							updatingGroupId={updatingGroupId}
+							onUpdateUser={onUpdateUser}
+							onRemoveUser={onRemoveUser}
+							onUpdateGroup={onUpdateGroup}
+							onRemoveGroup={onRemoveGroup}
+						/>
 					</TableBody>
 				</Table>
-			</Stack>
+			</div>
 		</>
 	);
 };
 
-const styles = {
-	select: {
-		// Match button small height
-		fontSize: 14,
-		width: 100,
-	},
+interface MembersTableBodyProps {
+	templateACL: TemplateACL | undefined;
+	canUpdatePermissions: boolean;
+	updatingUserId: TemplateUser["id"] | undefined;
+	updatingGroupId: TemplateGroup["id"] | undefined;
+	onUpdateUser: (user: TemplateUser, role: TemplateRole) => void;
+	onRemoveUser: (user: TemplateUser) => void;
+	onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
+	onRemoveGroup: (group: Group) => void;
+}
 
-	updateSelect: {
-		margin: 0,
-		// Set a fixed width for the select. It avoids selects having different sizes
-		// depending on how many roles they have selected.
-		width: 200,
+const MembersTableBody: FC<MembersTableBodyProps> = ({
+	templateACL,
+	canUpdatePermissions,
+	updatingUserId,
+	updatingGroupId,
+	onUpdateUser,
+	onRemoveUser,
+	onUpdateGroup,
+	onRemoveGroup,
+}) => {
+	if (!templateACL) {
+		return <TableLoader />;
+	}
 
-		"& .MuiSelect-root": {
-			// Adjusting padding because it does not have label
-			paddingTop: 12,
-			paddingBottom: 12,
+	const isEmpty =
+		templateACL.users.length === 0 && templateACL.group.length === 0;
+	if (isEmpty) {
+		return (
+			<TableRow>
+				<TableCell colSpan={999}>
+					<EmptyState
+						message="No members yet"
+						description="Add a member using the controls above"
+					/>
+				</TableCell>
+			</TableRow>
+		);
+	}
 
-			".secondary": {
-				display: "none",
-			},
-		},
-	},
+	return (
+		<>
+			{templateACL.group.map((group) => (
+				<TableRow key={group.id}>
+					<TableCell>
+						<AvatarData
+							avatar={
+								<Avatar
+									size="lg"
+									fallback={group.display_name || group.name}
+									src={group.avatar_url}
+								/>
+							}
+							title={group.display_name || group.name}
+							subtitle={getGroupSubtitle(group)}
+						/>
+					</TableCell>
+					<TableCell>
+						{canUpdatePermissions ? (
+							<RoleSelect
+								value={group.role}
+								disabled={updatingGroupId === group.id}
+								onValueChange={(role) => {
+									onUpdateGroup(group, role);
+								}}
+							/>
+						) : (
+							<div className="capitalize">{group.role}</div>
+						)}
+					</TableCell>
 
-	role: {
-		textTransform: "capitalize",
-	},
+					<TableCell>
+						{canUpdatePermissions && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon-lg"
+										variant="subtle"
+										aria-label="Open menu"
+									>
+										<EllipsisVerticalIcon aria-hidden="true" />
+										<span className="sr-only">Open menu</span>
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={() => onRemoveGroup(group)}
+									>
+										Remove
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
+					</TableCell>
+				</TableRow>
+			))}
 
-	menuItem: {
-		lineHeight: "140%",
-		paddingTop: 12,
-		paddingBottom: 12,
-		whiteSpace: "normal",
-		inlineSize: "250px",
-	},
+			{templateACL.users.map((user) => (
+				<TableRow key={user.id}>
+					<TableCell>
+						<AvatarData
+							title={user.username}
+							subtitle={user.email}
+							src={user.avatar_url}
+						/>
+					</TableCell>
+					<TableCell>
+						{canUpdatePermissions ? (
+							<RoleSelect
+								value={user.role}
+								disabled={updatingUserId === user.id}
+								onValueChange={(role) => {
+									onUpdateUser(user, role);
+								}}
+							/>
+						) : (
+							<div className="capitalize">{user.role}</div>
+						)}
+					</TableCell>
 
-	menuItemSecondary: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+					<TableCell>
+						{canUpdatePermissions && (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon-lg"
+										variant="subtle"
+										aria-label="Open menu"
+									>
+										<EllipsisVerticalIcon aria-hidden="true" />
+										<span className="sr-only">Open menu</span>
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={() => onRemoveUser(user)}
+									>
+										Remove
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						)}
+					</TableCell>
+				</TableRow>
+			))}
+		</>
+	);
+};

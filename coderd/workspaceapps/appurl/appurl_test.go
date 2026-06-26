@@ -194,6 +194,16 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			},
 		},
 		{
+			Name:      "Port(5)--Agent--Workspace--User",
+			Subdomain: "12412--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "12412",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
 			Name:      "Port--Agent--Workspace--User",
 			Subdomain: "8080s--agent--workspace--user",
 			Expected: appurl.ApplicationURL{
@@ -225,11 +235,11 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			},
 		},
 		{
-			Name:      "5DigitAppSlug--Workspace--User",
-			Subdomain: "30000--workspace--user",
+			Name:      "5DigitPort--agent--Workspace--User",
+			Subdomain: "30000--agent--workspace--user",
 			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "30000",
-				AgentName:     "",
+				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
@@ -598,6 +608,14 @@ func TestURLGenerationVsParsing(t *testing.T) {
 		{
 			Name:           "5DigitAppSlug_AgentOmittedInParsing",
 			AppSlugOrPort:  "30000",
+			AgentName:      "agent",
+			ExpectedParsed: "agent",
+		},
+		{
+			// 6 digits is not a valid port, so it is treated as an app slug.
+			// App slugs do not require the agent name, so it is dropped
+			Name:           "6DigitAppSlug_AgentOmittedInParsing",
+			AppSlugOrPort:  "300000",
 			AgentName:      "agent",
 			ExpectedParsed: "",
 		},

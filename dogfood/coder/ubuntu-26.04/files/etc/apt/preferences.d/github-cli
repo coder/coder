@@ -1,0 +1,8 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin cli.github.com
+Pin-Priority: 1
+
+Package: gh
+Pin: origin cli.github.com
+Pin-Priority: 500

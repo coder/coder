@@ -1,15 +1,14 @@
-import type * as TypesGen from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
+import { ChevronLeftIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import { ChevronLeftIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link as RouterLink } from "react-router";
+} from "#/components/SettingsHeader/SettingsHeader";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {
@@ -21,6 +20,7 @@ type CreateOAuth2AppProps = {
 		callback_url: string;
 		icon: string;
 	};
+	canCreateApp: boolean;
 };
 
 export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
@@ -28,14 +28,11 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 	createApp,
 	error,
 	defaultValues,
+	canCreateApp,
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add an OAuth2 application</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -49,17 +46,18 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 						All OAuth2 Applications
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{error ? <ErrorAlert error={error} /> : undefined}
 				<OAuth2AppForm
 					onSubmit={createApp}
 					isUpdating={isUpdating}
 					error={error}
 					defaultValues={defaultValues}
+					disabled={!canCreateApp}
 				/>
-			</Stack>
+			</div>
 		</>
 	);
 };

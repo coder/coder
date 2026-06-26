@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -194,7 +193,7 @@ func joinScopes(scopes []codersdk.APIKeyScope) string {
 		return ""
 	}
 	vals := slice.ToStrings(scopes)
-	sort.Strings(vals)
+	slices.Sort(vals)
 	return strings.Join(vals, ", ")
 }
 
@@ -206,7 +205,7 @@ func joinAllowList(entries []codersdk.APIAllowListTarget) string {
 	for i, entry := range entries {
 		vals[i] = entry.String()
 	}
-	sort.Strings(vals)
+	slices.Sort(vals)
 	return strings.Join(vals, ", ")
 }
 
@@ -218,9 +217,10 @@ func (r *RootCmd) listTokens() *serpent.Command {
 	}
 
 	var (
-		all           bool
-		displayTokens []tokenListRow
-		formatter     = cliui.NewOutputFormatter(
+		all            bool
+		includeExpired bool
+		displayTokens  []tokenListRow
+		formatter      = cliui.NewOutputFormatter(
 			cliui.TableFormat([]tokenListRow{}, defaultCols),
 			cliui.JSONFormat(),
 		)
@@ -240,7 +240,8 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			}
 
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
-				IncludeAll: all,
+				IncludeAll:     all,
+				IncludeExpired: includeExpired,
 			})
 			if err != nil {
 				return xerrors.Errorf("list tokens: %w", err)
@@ -273,6 +274,12 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
 			Value:         serpent.BoolOf(&all),
+		},
+		{
+			Name:        "include-expired",
+			Flag:        "include-expired",
+			Description: "Include expired tokens in the output. By default, expired tokens are hidden.",
+			Value:       serpent.BoolOf(&includeExpired),
 		},
 	}
 
@@ -323,10 +330,13 @@ func (r *RootCmd) viewToken() *serpent.Command {
 }
 
 func (r *RootCmd) removeToken() *serpent.Command {
+	var deleteToken bool
 	cmd := &serpent.Command{
 		Use:     "remove <name|id|token>",
 		Aliases: []string{"delete"},
-		Short:   "Delete a token",
+		Short:   "Expire or delete a token",
+		Long: "Remove a token by expiring it. Use --delete to permanently hard-" +
+			"delete the token instead.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
@@ -338,7 +348,7 @@ func (r *RootCmd) removeToken() *serpent.Command {
 
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
-				// If it's a token, we need to extract the ID
+				// If it's a token, we need to extract the ID.
 				maybeID := strings.Split(inv.Args[0], "-")[0]
 				token, err = client.APIKeyByID(inv.Context(), codersdk.Me, maybeID)
 				if err != nil {
@@ -346,17 +356,29 @@ func (r *RootCmd) removeToken() *serpent.Command {
 				}
 			}
 
-			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
-			if err != nil {
-				return xerrors.Errorf("delete api key: %w", err)
+			if deleteToken {
+				err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)
+				if err != nil {
+					return xerrors.Errorf("delete api key: %w", err)
+				}
+				cliui.Infof(inv.Stdout, "Token has been deleted.")
+				return nil
 			}
 
-			cliui.Infof(
-				inv.Stdout,
-				"Token has been deleted.",
-			)
-
+			err = client.ExpireAPIKey(inv.Context(), codersdk.Me, token.ID)
+			if err != nil {
+				return xerrors.Errorf("expire api key: %w", err)
+			}
+			cliui.Infof(inv.Stdout, "Token has been expired.")
 			return nil
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:        "delete",
+			Description: "Permanently delete the token instead of expiring it. This removes the audit trail.",
+			Value:       serpent.BoolOf(&deleteToken),
 		},
 	}
 

@@ -15,11 +15,22 @@ type requestIDContextKey struct{}
 
 // RequestID returns the ID of the request.
 func RequestID(r *http.Request) uuid.UUID {
-	rid, ok := r.Context().Value(requestIDContextKey{}).(uuid.UUID)
+	rid, ok := RequestIDOptional(r)
 	if !ok {
 		panic("developer error: request id middleware not provided")
 	}
 	return rid
+}
+
+// RequestIDOptional returns the request ID when present.
+func RequestIDOptional(r *http.Request) (uuid.UUID, bool) {
+	rid, ok := r.Context().Value(requestIDContextKey{}).(uuid.UUID)
+	return rid, ok
+}
+
+// WithRequestID stores a request ID in the context.
+func WithRequestID(ctx context.Context, rid uuid.UUID) context.Context {
+	return context.WithValue(ctx, requestIDContextKey{}, rid)
 }
 
 // AttachRequestID adds a request ID to each HTTP request.

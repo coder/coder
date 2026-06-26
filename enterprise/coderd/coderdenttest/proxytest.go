@@ -146,8 +146,12 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 
 	logger := testutil.Logger(t).With(slog.F("server_url", serverURL.String()))
 
+	// nolint: forcetypeassert // This is a stdlib transport it's unnecessary to type assert especially in tests.
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
-		Logger:            logger,
+		Logger: logger,
+		// It's important to ensure each test has its own isolated transport to avoid interfering with other tests
+		// especially in shutdown.
+		HTTPClient:        &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()},
 		Experiments:       options.Experiments,
 		DashboardURL:      coderdAPI.AccessURL,
 		AccessURL:         accessURL,

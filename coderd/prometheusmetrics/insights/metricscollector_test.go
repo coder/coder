@@ -21,7 +21,6 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
@@ -127,7 +126,7 @@ func TestCollectInsights(t *testing.T) {
 		AppStatBatchSize: workspaceapps.DefaultStatsDBReporterBatchSize,
 	})
 	refTime := time.Now().Add(-3 * time.Minute).Truncate(time.Minute)
-	err = reporter.ReportAppStats(dbauthz.AsSystemRestricted(context.Background()), []workspaceapps.StatsReport{
+	err = reporter.ReportAppStats(context.Background(), []workspaceapps.StatsReport{
 		{
 			UserID:           user.ID,
 			WorkspaceID:      workspace1.ID,

@@ -141,6 +141,19 @@ SET
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
 
+-- name: UpdateWorkspaceBuildNotifiedAutostopDeadline :exec
+-- Stamps the deadline value that an autostop reminder was last sent for. Once
+-- this equals the build's deadline the reminder is considered handled and the
+-- lifecycle executor will not send another for this deadline, which makes the
+-- reminder idempotent and HA-safe. It re-arms automatically when the deadline
+-- changes (e.g. an activity bump).
+UPDATE
+	workspace_builds
+SET
+	notified_autostop_deadline = @notified_autostop_deadline::timestamptz,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
+
 -- name: GetActiveWorkspaceBuildsByTemplateID :many
 SELECT wb.*
 FROM (
@@ -243,3 +256,69 @@ SET
 	has_external_agent = @has_external_agent,
 	updated_at = @updated_at::timestamptz
 WHERE id = @id::uuid;
+
+-- name: GetWorkspaceBuildMetricsByResourceID :one
+-- Returns build metadata for e2e workspace build duration metrics.
+-- Also checks if all agents are ready and returns the worst status.
+SELECT
+    wb.created_at,
+    wb.transition,
+    t.name AS template_name,
+    o.name AS organization_name,
+    (w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0') AS is_prebuild,
+    -- All agents must have ready_at set (terminal startup state)
+    COUNT(*) FILTER (WHERE wa.ready_at IS NULL) = 0 AS all_agents_ready,
+    -- Latest ready_at across all agents (for duration calculation)
+	MAX(wa.ready_at)::timestamptz AS last_agent_ready_at,
+    -- Worst status: error > timeout > ready
+    CASE
+        WHEN bool_or(wa.lifecycle_state = 'start_error') THEN 'error'
+        WHEN bool_or(wa.lifecycle_state = 'start_timeout') THEN 'timeout'
+        ELSE 'success'
+    END AS worst_status
+FROM workspace_builds wb
+JOIN workspaces w ON wb.workspace_id = w.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON t.organization_id = o.id
+JOIN workspace_resources wr ON wr.job_id = wb.job_id
+JOIN workspace_agents wa ON wa.resource_id = wr.id AND wa.parent_id IS NULL
+WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
+GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
+
+-- name: GetWorkspaceBuildProvisionerStateByID :one
+-- Fetches the provisioner state of a workspace build, joined through to the
+-- template so that dbauthz can enforce policy.ActionUpdate on the template.
+-- Provisioner state contains sensitive Terraform state and should only be
+-- accessible to template administrators.
+SELECT
+	workspace_builds.provisioner_state,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.user_acl,
+	templates.group_acl
+FROM
+	workspace_builds
+INNER JOIN
+	workspaces ON workspaces.id = workspace_builds.workspace_id
+INNER JOIN
+	templates ON templates.id = workspaces.template_id
+WHERE
+	workspace_builds.id = @workspace_build_id;
+
+-- name: GetLatestWorkspaceBuildWithStatusByWorkspaceID :one
+SELECT
+	workspace_builds.transition, workspace_builds.build_number, provisioner_jobs.job_status,
+	sqlc.embed(workspaces) -- Used for dbauthz fetch() checks
+FROM
+	workspace_builds
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	workspaces ON workspace_builds.workspace_id = workspaces.id
+WHERE
+	workspace_builds.workspace_id = $1 AND
+	workspaces.deleted = false
+ORDER BY
+	workspace_builds.build_number desc
+	LIMIT
+	1;

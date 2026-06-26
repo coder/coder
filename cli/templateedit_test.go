@@ -44,6 +44,7 @@ func TestTemplateEdit(t *testing.T) {
 		desc := "lorem ipsum dolor sit amet et cetera"
 		icon := "/icon/new-icon.png"
 		defaultTTL := 12 * time.Hour
+		timeTilAutostopNotify := 5 * time.Minute
 		allowUserCancelWorkspaceJobs := false
 
 		cmdArgs := []string{
@@ -55,6 +56,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--description", desc,
 			"--icon", icon,
 			"--default-ttl", defaultTTL.String(),
+			"--autostop-reminder", timeTilAutostopNotify.String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(allowUserCancelWorkspaceJobs),
 		}
 		inv, root := clitest.New(t, cmdArgs...)
@@ -73,6 +75,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, desc, updated.Description)
 		assert.Equal(t, icon, updated.Icon)
 		assert.Equal(t, defaultTTL.Milliseconds(), updated.DefaultTTLMillis)
+		assert.Equal(t, timeTilAutostopNotify.Milliseconds(), updated.TimeTilAutostopNotifyMillis)
 		assert.Equal(t, allowUserCancelWorkspaceJobs, updated.AllowUserCancelWorkspaceJobs)
 	})
 	t.Run("FirstEmptyThenNotModified", func(t *testing.T) {
@@ -101,8 +104,7 @@ func TestTemplateEdit(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
-
-		require.ErrorContains(t, err, "not modified")
+		require.NoError(t, err)
 
 		// Assert that the template metadata did not change.
 		updated, err := client.Template(context.Background(), template.ID)
@@ -384,7 +386,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -464,7 +466,7 @@ func TestTemplateEdit(t *testing.T) {
 
 			// Make a proxy server that will return a valid entitlements
 			// response, including a valid advanced scheduling entitlement.
-			var updateTemplateCalled int64
+			var updateTemplateCalled atomic.Int64
 			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
@@ -499,7 +501,7 @@ func TestTemplateEdit(t *testing.T) {
 					assert.EqualValues(t, req.AutostopRequirement.Weeks, 3)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
-					atomic.AddInt64(&updateTemplateCalled, 1)
+					updateTemplateCalled.Add(1)
 					// We still want to call the real route.
 				}
 
@@ -515,7 +517,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -534,7 +536,7 @@ func TestTemplateEdit(t *testing.T) {
 			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))
+			require.EqualValues(t, 1, updateTemplateCalled.Load())
 
 			// Assert that the template metadata did not change. We verify the
 			// correct request gets sent to the server already.
@@ -659,7 +661,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -720,7 +722,7 @@ func TestTemplateEdit(t *testing.T) {
 
 			// Make a proxy server that will return a valid entitlements
 			// response, including a valid advanced scheduling entitlement.
-			var updateTemplateCalled int64
+			var updateTemplateCalled atomic.Int64
 			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.URL.Path == "/api/v2/entitlements" {
 					res := codersdk.Entitlements{
@@ -751,11 +753,13 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.False(t, req.AllowUserAutostart)
-					assert.False(t, req.AllowUserAutostop)
+					require.NotNil(t, req.AllowUserAutostart)
+					assert.False(t, *req.AllowUserAutostart)
+					require.NotNil(t, req.AllowUserAutostop)
+					assert.False(t, *req.AllowUserAutostop)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
-					atomic.AddInt64(&updateTemplateCalled, 1)
+					updateTemplateCalled.Add(1)
 					// We still want to call the real route.
 				}
 
@@ -771,7 +775,7 @@ func TestTemplateEdit(t *testing.T) {
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
+			proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -790,7 +794,7 @@ func TestTemplateEdit(t *testing.T) {
 			err = inv.WithContext(ctx).Run()
 			require.NoError(t, err)
 
-			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))
+			require.EqualValues(t, 1, updateTemplateCalled.Load())
 
 			// Assert that the template metadata did not change. We verify the
 			// correct request gets sent to the server already.
@@ -828,7 +832,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--require-active-version",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		//nolint
+		//nolint:gocritic // Using owner client is required for template editing.
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -858,7 +862,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--name", "something-new",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		//nolint
+		//nolint:gocritic // Using owner client is required for template editing.
 		clitest.SetupConfig(t, client, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)

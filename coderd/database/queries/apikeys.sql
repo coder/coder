@@ -25,10 +25,12 @@ LIMIT
 SELECT * FROM api_keys WHERE last_used > $1;
 
 -- name: GetAPIKeysByLoginType :many
-SELECT * FROM api_keys WHERE login_type = $1;
+SELECT * FROM api_keys WHERE login_type = $1
+AND (@include_expired::bool OR expires_at > now());
 
 -- name: GetAPIKeysByUserID :many
-SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2;
+SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2
+AND (@include_expired::bool OR expires_at > now());
 
 -- name: InsertAPIKey :one
 INSERT INTO

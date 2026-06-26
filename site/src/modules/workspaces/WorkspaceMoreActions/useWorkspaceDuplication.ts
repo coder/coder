@@ -1,10 +1,10 @@
-import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
-import { linkToTemplate, useLinks } from "modules/navigation";
-import type { CreateWorkspaceMode } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { useCallback } from "react";
 import { useQuery } from "react-query";
 import { useNavigate } from "react-router";
+import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
+import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
+import type { CreateWorkspaceMode } from "#/pages/CreateWorkspacePage/CreateWorkspacePage";
 
 function getDuplicationUrlParams(
 	workspaceParams: readonly WorkspaceBuildParameter[],
@@ -36,7 +36,7 @@ export function useWorkspaceDuplication(workspace?: Workspace) {
 	const getLink = useLinks();
 	const buildParametersQuery = useQuery({
 		...workspaceBuildParameters(workspace?.latest_build.id ?? ""),
-		enabled: !!workspace,
+		enabled: Boolean(workspace),
 	});
 
 	// Not using useEffectEvent for this, because useEffect isn't really an

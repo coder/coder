@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { createContext, type FC, useContext } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { createContext, type FC, forwardRef, useContext } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 
 const statusIndicatorVariants = cva(
 	"font-medium inline-flex items-center gap-2",
@@ -14,7 +14,7 @@ const statusIndicatorVariants = cva(
 			variant: {
 				success: "text-content-success",
 				failed: "text-content-destructive",
-				inactive: "text-highlight-grey",
+				inactive: "text-content-secondary",
 				warning: "text-content-warning",
 				pending: "text-highlight-sky",
 			},
@@ -34,30 +34,31 @@ type StatusIndicatorContextValue = VariantProps<typeof statusIndicatorVariants>;
 
 const StatusIndicatorContext = createContext<StatusIndicatorContextValue>({});
 
-export interface StatusIndicatorProps
-	extends React.HTMLAttributes<HTMLDivElement>,
-		StatusIndicatorContextValue {}
+export type StatusIndicatorProps = React.ComponentPropsWithRef<"div"> &
+	StatusIndicatorContextValue;
 
-export const StatusIndicator = forwardRef<HTMLDivElement, StatusIndicatorProps>(
-	({ size, variant, className, ...props }, ref) => {
-		return (
-			<StatusIndicatorContext.Provider value={{ size, variant }}>
-				<div
-					ref={ref}
-					className={cn(statusIndicatorVariants({ variant, size }), className)}
-					{...props}
-				/>
-			</StatusIndicatorContext.Provider>
-		);
-	},
-);
+export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
+	size,
+	variant,
+	className,
+	...props
+}) => {
+	return (
+		<StatusIndicatorContext.Provider value={{ size, variant }}>
+			<div
+				className={cn(statusIndicatorVariants({ variant, size }), className)}
+				{...props}
+			/>
+		</StatusIndicatorContext.Provider>
+	);
+};
 
 const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 	variants: {
 		variant: {
 			success: "bg-content-success border-surface-green",
 			failed: "bg-content-destructive border-surface-destructive",
-			inactive: "bg-highlight-grey border-surface-grey",
+			inactive: "bg-content-secondary border-surface-grey",
 			warning: "bg-content-warning border-surface-orange",
 			pending: "bg-highlight-sky border-surface-sky",
 		},

@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -36,7 +37,7 @@ import (
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
-// @Router /workspaceagents/me/rpc [get]
+// @Router /api/v2/workspaceagents/me/rpc [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -58,6 +59,17 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// The role parameter distinguishes the real workspace agent from
+	// other clients using the same agent token (e.g. coder-logstream-kube).
+	// Only connections with the "agent" role trigger connection monitoring
+	// that updates first_connected_at/last_connected_at/disconnected_at.
+	// For backward compatibility, we default to monitoring when the role
+	// is omitted, since older agents don't send this parameter. In a
+	// future release, once all agents include role=agent, we can change
+	// this default to skip monitoring for unspecified roles.
+	role := r.URL.Query().Get("role")
+	monitorConnection := role == "" || role == "agent"
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
@@ -121,10 +133,15 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		slog.F("agent_api_version", workspaceAgent.APIVersion),
 		slog.F("agent_resource_id", workspaceAgent.ResourceID))
 
-	closeCtx, closeCtxCancel := context.WithCancel(ctx)
-	defer closeCtxCancel()
-	monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
-	defer monitor.close()
+	if monitorConnection {
+		closeCtx, closeCtxCancel := context.WithCancel(ctx)
+		defer closeCtxCancel()
+		monitor := api.startAgentYamuxMonitor(closeCtx, workspace, workspaceAgent, build, mux)
+		defer monitor.close()
+	} else {
+		logger.Debug(ctx, "skipping agent connection monitoring",
+			slog.F("role", role))
+	}
 
 	agentAPI := agentapi.New(agentapi.Options{
 		AgentID:           workspaceAgent.ID,
@@ -149,6 +166,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 		BoundaryUsageTracker:              api.BoundaryUsageTracker,
+		PortSharer:                        &api.PortSharer,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,
@@ -158,10 +176,14 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,
+		LifecycleMetrics:          api.lifecycleMetrics,
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
-	}, workspace)
+		// chatDaemon is always constructed (only its worker is gated), so
+		// this is non-nil; agentapi treats a nil marker as "chatd absent".
+		ContextDirtyMarker: api.chatDaemon,
+	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", workspace.OwnerUsername, workspace.Name, workspaceAgent.Name),
@@ -241,6 +263,7 @@ func (api *API) startAgentYamuxMonitor(ctx context.Context,
 		replicaID:         api.ID,
 		updater:           api,
 		disconnectTimeout: api.AgentInactiveDisconnectTimeout,
+		metrics:           api.workspaceAgentRPCMetrics,
 		logger: api.Logger.With(
 			slog.F("workspace_id", workspaceBuild.WorkspaceID),
 			slog.F("agent_id", workspaceAgent.ID),
@@ -274,6 +297,7 @@ type agentConnectionMonitor struct {
 	updater        workspaceUpdater
 	logger         slog.Logger
 	pingPeriod     time.Duration
+	metrics        *WorkspaceAgentRPCMetrics
 
 	// state manipulated by both sendPings() and monitor() goroutines: needs to be threadsafe
 	lastPing atomic.Pointer[time.Time]
@@ -338,6 +362,14 @@ func (m *agentConnectionMonitor) init() {
 		m.firstConnectedAt = sql.NullTime{
 			Time:  now,
 			Valid: true,
+		}
+		if m.metrics != nil {
+			duration := now.Sub(m.workspaceAgent.CreatedAt)
+			m.metrics.ObserveAgentFirstConnection(
+				duration,
+				m.workspace.TemplateName,
+				m.workspaceAgent.Name,
+			)
 		}
 	}
 	m.lastConnectedAt = sql.NullTime{
@@ -478,4 +510,51 @@ func checkBuildIsLatest(ctx context.Context, db database.Store, build database.W
 		return xerrors.New("build is outdated")
 	}
 	return nil
+}
+
+// WorkspaceAgentRPCMetrics holds Prometheus metrics for the agent
+// connection monitor. It is nil when Prometheus is not enabled.
+type WorkspaceAgentRPCMetrics struct {
+	logger                  slog.Logger
+	FirstConnectionDuration *prometheus.HistogramVec
+}
+
+// NewWorkspaceAgentRPCMetrics creates and registers agent connection
+// metrics.
+func NewWorkspaceAgentRPCMetrics(reg prometheus.Registerer, logger slog.Logger) *WorkspaceAgentRPCMetrics {
+	m := &WorkspaceAgentRPCMetrics{
+		logger: logger,
+		FirstConnectionDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Subsystem: "agents",
+			Name:      "first_connection_seconds",
+			Help:      "Duration from agent creation to first connection in seconds.",
+			Buckets:   []float64{1, 10, 30, 60, 120, 300, 600, 1800, 3600},
+		}, []string{"template_name", "agent_name"}),
+	}
+	reg.MustRegister(m.FirstConnectionDuration)
+	return m
+}
+
+// ObserveAgentFirstConnection records the duration from agent creation
+// to first connection. Negative durations are logged as warnings and
+// not recorded, since they indicate clock skew.
+func (m *WorkspaceAgentRPCMetrics) ObserveAgentFirstConnection(
+	duration time.Duration,
+	templateName string,
+	agentName string,
+) {
+	if duration < 0 {
+		m.logger.Warn(context.Background(),
+			"negative agent first connection duration, possible clock skew",
+			slog.F("template_name", templateName),
+			slog.F("agent_name", agentName),
+			slog.F("duration", duration),
+		)
+		return
+	}
+	m.FirstConnectionDuration.WithLabelValues(
+		templateName,
+		agentName,
+	).Observe(duration.Seconds())
 }

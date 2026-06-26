@@ -1,0 +1,63 @@
+import type * as TypesGen from "#/api/typesGenerated";
+
+const PROVIDER_STATUS_URLS: Record<string, string> = {
+	anthropic: "https://status.anthropic.com",
+};
+
+const normalizeProvider = (provider?: string): string | undefined => {
+	const normalized = provider?.trim().toLowerCase();
+	if (!normalized) {
+		return undefined;
+	}
+
+	switch (normalized) {
+		case "azure openai":
+		case "azure-openai":
+			return "azure";
+		case "openai compat":
+		case "openai compatible":
+		case "openai_compat":
+			return "openai-compat";
+		default:
+			return normalized;
+	}
+};
+
+export const getErrorTitle = (
+	kind: TypesGen.ChatErrorKind,
+	mode: "retry" | "error",
+): string => {
+	switch (kind) {
+		case "overloaded":
+			return "Service overloaded";
+		case "rate_limit":
+			return "Rate limited";
+		case "timeout":
+			return "Request timed out";
+		case "stream_silence_timeout":
+			return "Response stalled";
+		case "auth":
+			return "Authentication failed";
+		case "config":
+			return "Configuration error";
+		case "usage_limit":
+			return "Usage limit reached";
+		case "missing_key":
+			return "Chat interrupted";
+		case "provider_disabled":
+			return "Provider disabled";
+		default:
+			return mode === "retry" ? "Retrying request" : "Request failed";
+	}
+};
+
+export const getProviderStatusURL = (
+	kind: TypesGen.ChatErrorKind,
+	provider?: string,
+): string | undefined => {
+	if (kind !== "overloaded") {
+		return undefined;
+	}
+	const normalized = normalizeProvider(provider);
+	return normalized ? PROVIDER_STATUS_URLS[normalized] : undefined;
+};

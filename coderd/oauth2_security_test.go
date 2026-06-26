@@ -104,11 +104,14 @@ func TestOAuth2ClientIsolation(t *testing.T) {
 func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	t.Parallel()
 
+	// Single instance shared across all sub-tests. Each registers
+	// independent OAuth2 apps with unique client names.
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
 	t.Run("InvalidTokenFormats", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := t.Context()
 
 		// Register a client to use for testing
@@ -145,8 +148,6 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	t.Run("TokenNotReusableAcrossClients", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := t.Context()
 
 		// Register first client
@@ -179,8 +180,6 @@ func TestOAuth2RegistrationTokenSecurity(t *testing.T) {
 	t.Run("TokenNotExposedInGETResponse", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := t.Context()
 
 		// Register a client
@@ -422,13 +421,10 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 
 		// Launch concurrent attempts to access the client configuration
 		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(index int) {
-				defer wg.Done()
-
+			wg.Go(func() {
 				_, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, regResp.RegistrationAccessToken)
-				errors[index] = err
-			}(i)
+				errors[i] = err
+			})
 		}
 
 		wg.Wait()
@@ -449,23 +445,20 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 
 		// Launch concurrent attempts with invalid tokens
 		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(index int) {
-				defer wg.Done()
-
-				_, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, fmt.Sprintf("invalid-token-%d", index))
+			wg.Go(func() {
+				_, err := client.GetOAuth2ClientConfiguration(ctx, regResp.ClientID, fmt.Sprintf("invalid-token-%d", i))
 				if err == nil {
-					t.Errorf("Expected error for goroutine %d", index)
+					t.Errorf("Expected error for goroutine %d", i)
 					return
 				}
 
 				var httpErr *codersdk.Error
 				if !errors.As(err, &httpErr) {
-					t.Errorf("Expected codersdk.Error for goroutine %d", index)
+					t.Errorf("Expected codersdk.Error for goroutine %d", i)
 					return
 				}
-				statusCodes[index] = httpErr.StatusCode()
-			}(i)
+				statusCodes[i] = httpErr.StatusCode()
+			})
 		}
 
 		wg.Wait()
@@ -495,13 +488,10 @@ func TestOAuth2ConcurrentSecurityOperations(t *testing.T) {
 
 		// Launch concurrent deletion attempts
 		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(index int) {
-				defer wg.Done()
-
+			wg.Go(func() {
 				err := client.DeleteOAuth2ClientConfiguration(ctx, deleteRegResp.ClientID, deleteRegResp.RegistrationAccessToken)
-				deleteResults[index] = err
-			}(i)
+				deleteResults[i] = err
+			})
 		}
 
 		wg.Wait()

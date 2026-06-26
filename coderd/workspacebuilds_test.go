@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -1092,6 +1094,96 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	require.Fail(t, "example message never happened")
 }
 
+func TestWorkspaceBuildLogsFormat(t *testing.T) {
+	t.Parallel()
+
+	// Setup: Create workspace build with logs using dbfake.
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).Do()
+
+	// Insert test log directly into database.
+	jl := dbgen.ProvisionerJobLog(t, db, database.ProvisionerJobLog{
+		JobID:  r.Build.JobID,
+		Stage:  "Planning",
+		Source: database.LogSourceProvisioner,
+		Level:  database.LogLevelInfo,
+		Output: "test log output",
+	})
+
+	tests := []struct {
+		name                string
+		queryParams         string
+		expectedStatus      int
+		expectedContentType string
+		checkBody           func(t *testing.T, body string)
+	}{
+		{
+			name:                "JSON",
+			queryParams:         "",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "application/json",
+			checkBody: func(t *testing.T, body string) {
+				require.NotEmpty(t, body)
+			},
+		},
+		{
+			name:                "Text",
+			queryParams:         "?format=text",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/plain",
+			checkBody: func(t *testing.T, body string) {
+				expected := db2sdk.ProvisionerJobLog(jl).Text()
+				require.Contains(t, body, expected)
+			},
+		},
+		{
+			name:           "InvalidFormat",
+			queryParams:    "?format=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				require.Contains(t, body, "Invalid format")
+			},
+		},
+		{
+			name:           "TextWithFollowFails",
+			queryParams:    "?format=text&follow",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				require.Contains(t, body, "not supported with follow mode")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			urlPath := fmt.Sprintf("/api/v2/workspacebuilds/%s/logs%s", r.Build.ID, tt.queryParams)
+
+			res, err := client.Request(ctx, http.MethodGet, urlPath, nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, res.StatusCode)
+			if tt.expectedContentType != "" {
+				require.Contains(t, res.Header.Get("Content-Type"), tt.expectedContentType)
+			}
+
+			if assert.NotNil(t, tt.checkBody) {
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				tt.checkBody(t, string(body))
+			}
+		})
+	}
+}
+
 func TestWorkspaceBuildState(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1166,8 +1258,15 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 
 	// assert an audit log has been created for workspace stopping
 	numLogs++ // add an audit log for workspace_build stop
-	require.Len(t, auditor.AuditLogs(), numLogs)
-	require.Equal(t, database.AuditActionStop, auditor.AuditLogs()[numLogs-1].Action)
+	// Audit logs are written asynchronously to build completion, so poll
+	// until the expected log appears.
+	require.Eventually(t, func() bool {
+		return len(auditor.AuditLogs()) == numLogs &&
+			auditor.Contains(t, database.AuditLog{
+				Action:       database.AuditActionStop,
+				ResourceType: database.ResourceTypeWorkspaceBuild,
+			})
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	_ = closeDaemon.Close()
 	// after successful cancel is "canceled"
@@ -1242,7 +1341,10 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	require.Equal(t, 1, validateCalls) // Ensure the external link is working
+	// Ensure the external link is working. Workspace creation validates the
+	// owner's required external auth, and the build's token injection
+	// validates it again.
+	require.Equal(t, 2, validateCalls)
 
 	// Suspend the user
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1256,7 +1358,7 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, build.ID)
-	require.Equal(t, 2, validateCalls)
+	require.Equal(t, 3, validateCalls)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 }
 

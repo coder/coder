@@ -4,6 +4,13 @@ Coder supports custom configuration in your `devcontainer.json` file through the
 `customizations.coder` block. These options let you control how Coder interacts
 with your dev container without requiring template changes.
 
+> [!TIP]
+>
+> Alternatively, template administrators can also define apps, scripts, and
+> environment variables for dev containers directly in Terraform. See
+> [Attach resources to dev containers](../../admin/integrations/devcontainers/integration.md#attach-resources-to-dev-containers)
+> for details.
+
 ## Ignore a dev container
 
 Use the `ignore` option to hide a dev container from Coder completely:
@@ -239,27 +246,6 @@ Standard dev container variables are also available:
 |-------------------------------|--------------------------------------------|
 | `${containerWorkspaceFolder}` | Workspace folder path inside the container |
 | `${localWorkspaceFolder}`     | Workspace folder path on the host          |
-
-### Session token
-
-Use `$SESSION_TOKEN` in external app URLs to include the user's session token:
-
-```json
-{
-  "customizations": {
-    "coder": {
-      "apps": [
-        {
-          "slug": "custom-ide",
-          "displayName": "Custom IDE",
-          "url": "custom-ide://open?token=$SESSION_TOKEN&folder=${containerWorkspaceFolder}",
-          "external": true
-        }
-      ]
-    }
-  }
-}
-```
 
 ## Feature options as environment variables
 

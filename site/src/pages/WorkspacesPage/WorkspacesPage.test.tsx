@@ -1,6 +1,17 @@
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { API } from "#/api/api";
+import type {
+	Workspace,
+	WorkspaceApp,
+	WorkspaceAppHealth,
+	WorkspacesResponse,
+} from "#/api/typesGenerated";
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
+	MockOutdatedStoppedWorkspaceAlwaysUpdate,
 	MockOutdatedWorkspace,
 	MockRunningOutdatedWorkspace,
 	MockStoppedWorkspace,
@@ -8,23 +19,13 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspacesResponse,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
-import { server } from "testHelpers/server";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "api/api";
-import type {
-	Workspace,
-	WorkspaceApp,
-	WorkspaceAppHealth,
-	WorkspacesResponse,
-} from "api/typesGenerated";
-import { HttpResponse, http } from "msw";
-import * as CreateDayString from "utils/createDayString";
+} from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
+import * as CreateDayString from "#/utils/createDayString";
 import WorkspacesPage from "./WorkspacesPage";
 
 describe("WorkspacesPage", () => {
@@ -296,67 +297,6 @@ describe("WorkspacesPage", () => {
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
 	});
-
-	it("correctly handles pagination by including pagination parameters in query key", async () => {
-		const totalWorkspaces = 50;
-		const workspacesPage1 = Array.from({ length: 25 }, (_, i) => ({
-			...MockWorkspace,
-			id: `page1-workspace-${i}`,
-			name: `page1-workspace-${i}`,
-		}));
-		const workspacesPage2 = Array.from({ length: 25 }, (_, i) => ({
-			...MockWorkspace,
-			id: `page2-workspace-${i}`,
-			name: `page2-workspace-${i}`,
-		}));
-
-		const getWorkspacesSpy = vi.spyOn(API, "getWorkspaces");
-
-		getWorkspacesSpy.mockImplementation(({ offset }) => {
-			switch (offset) {
-				case 0:
-					return Promise.resolve({
-						workspaces: workspacesPage1,
-						count: totalWorkspaces,
-					});
-				case 25:
-					return Promise.resolve({
-						workspaces: workspacesPage2,
-						count: totalWorkspaces,
-					});
-				default:
-					return Promise.reject(new Error("Unexpected offset"));
-			}
-		});
-
-		const user = userEvent.setup();
-		renderWithAuth(<WorkspacesPage />);
-
-		await waitFor(() => {
-			expect(screen.getByText("page1-workspace-0")).toBeInTheDocument();
-		});
-
-		expect(getWorkspacesSpy).toHaveBeenLastCalledWith({
-			q: "owner:me",
-			offset: 0,
-			limit: 25,
-		});
-
-		const nextPageButton = screen.getByRole("button", { name: /next page/i });
-		await user.click(nextPageButton);
-
-		await waitFor(() => {
-			expect(screen.getByText("page2-workspace-0")).toBeInTheDocument();
-		});
-
-		expect(getWorkspacesSpy).toHaveBeenLastCalledWith({
-			q: "owner:me",
-			offset: 25,
-			limit: 25,
-		});
-
-		expect(screen.queryByText("page1-workspace-0")).not.toBeInTheDocument();
-	});
 });
 
 const getWorkspaceCheckbox = (workspace: Workspace) => {
@@ -369,53 +309,50 @@ describe("WorkspaceApps filtering", () => {
 		["disabled", true],
 		["unhealthy", false],
 		["initializing", false],
-	])(
-		"apps with '%s' health status should be shown: %s",
-		async (health, shouldBeVisible) => {
-			const app: WorkspaceApp = {
-				...MockWorkspaceApp,
-				id: `${health}-app`,
-				display_name: `${health} App`,
-				health,
-				hidden: false,
-			};
-			const workspace: Workspace = {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					status: "running",
-					resources: [
-						{
-							...MockWorkspace.latest_build.resources[0],
-							agents: [
-								{
-									...MockWorkspaceAgent,
-									apps: [app],
-								},
-							],
-						},
-					],
-				},
-			};
-			vi.spyOn(API, "getWorkspaces").mockResolvedValue({
-				workspaces: [workspace],
-				count: 1,
-			});
+	])("apps with '%s' health status should be shown: %s", async (health, shouldBeVisible) => {
+		const app: WorkspaceApp = {
+			...MockWorkspaceApp,
+			id: `${health}-app`,
+			display_name: `${health} App`,
+			health,
+			hidden: false,
+		};
+		const workspace: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				status: "running",
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceAgent,
+								apps: [app],
+							},
+						],
+					},
+				],
+			},
+		};
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [workspace],
+			count: 1,
+		});
 
-			renderWithAuth(<WorkspacesPage />);
-			await waitForLoaderToBeRemoved();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
 
-			const appLink = screen.queryByRole("link", {
-				name: (name) =>
-					name.toLowerCase().includes(app.display_name!.toLowerCase()),
-			});
-			if (shouldBeVisible) {
-				expect(appLink).toBeInTheDocument();
-			} else {
-				expect(appLink).not.toBeInTheDocument();
-			}
-		},
-	);
+		const appLink = screen.queryByRole("link", {
+			name: (name) =>
+				name.toLowerCase().includes(app.display_name!.toLowerCase()),
+		});
+		if (shouldBeVisible) {
+			expect(appLink).toBeInTheDocument();
+		} else {
+			expect(appLink).not.toBeInTheDocument();
+		}
+	});
 
 	it("does not show hidden apps regardless of health status", async () => {
 		const hiddenApp: WorkspaceApp = {
@@ -457,5 +394,22 @@ describe("WorkspaceApps filtering", () => {
 					name.toLowerCase().includes(hiddenApp.display_name!.toLowerCase()),
 			}),
 		).not.toBeInTheDocument();
+	});
+
+	it("does not show start button for stopped outdated workspace with automatic_updates always", async () => {
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [MockOutdatedStoppedWorkspaceAlwaysUpdate],
+			count: 1,
+		});
+
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		expect(
+			screen.queryByRole("button", { name: "Start workspace" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Update and start workspace" }),
+		).toBeInTheDocument();
 	});
 });

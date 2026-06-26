@@ -4,22 +4,13 @@ This guide documents the PR description style used in the Coder repository, base
 
 ## PR Title Format
 
-Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) format:
+Format: `type(scope): description`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
-```text
-type(scope): brief description
-```
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+- Scopes must be a real path (directory or file stem) containing all changed files
+- Omit scope if changes span multiple top-level directories
 
-**Common types:**
-
-- `feat`: New features
-- `fix`: Bug fixes
-- `refactor`: Code refactoring without behavior change
-- `perf`: Performance improvements
-- `docs`: Documentation changes
-- `chore`: Dependency updates, tooling changes
-
-**Examples:**
+Examples:
 
 - `feat: add tracing to aibridge`
 - `fix: move contexts to appropriate locations`
@@ -28,6 +19,12 @@ type(scope): brief description
 - `refactor(site): remove redundant client-side sorting of app statuses`
 
 ## PR Description Structure
+
+### Format GitHub PR Body Prose
+
+When writing the actual GitHub PR body, let GitHub soft-wrap paragraphs. Do not manually hard-wrap prose at a fixed width such as 80 columns. Manual line breaks should appear only where Markdown needs structure: headings, lists, tables, code blocks, blockquotes, and intentional paragraph breaks.
+
+Committed Markdown and code comments may have their own formatting rules. Do not apply those wrapping rules to PR descriptions.
 
 ### Default Pattern: Keep It Concise
 
@@ -42,11 +39,9 @@ Most PRs use a simple 1-2 paragraph format:
 **Example (bugfix):**
 
 ```markdown
-Previously, when a devcontainer config file was modified, the dirty
-status was updated internally but not broadcast to websocket listeners.
+Previously, when a devcontainer config file was modified, the dirty status was updated internally but not broadcast to websocket listeners.
 
-Add `broadcastUpdatesLocked()` call in `markDevcontainerDirty` to notify
-websocket listeners immediately when a config file changes.
+Add `broadcastUpdatesLocked()` call in `markDevcontainerDirty` to notify websocket listeners immediately when a config file changes.
 ```
 
 **Example (dependency update):**
@@ -126,8 +121,7 @@ Refs #[issue-number]
 2. **Performance Context** (when relevant)
 
    ```markdown
-   Each query took ~30ms on average with 80 requests/second to the cluster,
-   resulting in ~5.2 query-seconds every second.
+   Each query took ~30ms on average with 80 requests/second to the cluster, resulting in ~5.2 query-seconds every second.
    ```
 
 3. **Migration Warnings** (when relevant)
@@ -186,16 +180,6 @@ Dependabot PRs are auto-generated - don't try to match their verbose style for m
 Changes from https://github.com/upstream/repo/pull/XXX/
 ```
 
-## Attribution Footer
-
-For AI-generated PRs, end with:
-
-```markdown
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-```
-
 ## Creating PRs as Draft
 
 **IMPORTANT**: Unless explicitly told otherwise, always create PRs as drafts using the `--draft` flag:
@@ -206,11 +190,12 @@ gh pr create --draft --title "..." --body "..."
 
 After creating the PR, encourage the user to review it before marking as ready:
 
-```
+```text
 I've created draft PR #XXXX. Please review the changes and mark it as ready for review when you're satisfied.
 ```
 
 This allows the user to:
+
 - Review the code changes before requesting reviews from maintainers
 - Make additional adjustments if needed
 - Ensure CI passes before notifying reviewers
@@ -225,8 +210,9 @@ Only create non-draft PRs when the user explicitly requests it or when following
 3. **Be technical** - Explain what and why, not detailed how
 4. **Link everything** - Issues, PRs, upstream changes, Notion docs
 5. **Show impact** - Metrics for performance, screenshots for UI, warnings for migrations
-6. **No test plans** - Code review and CI handle testing
-7. **No benefits sections** - Benefits should be obvious from the technical description
+6. **Use soft wrapping** - Let GitHub wrap PR body prose naturally
+7. **No test plans** - Code review and CI handle testing
+8. **No benefits sections** - Benefits should be obvious from the technical description
 
 ## Examples by Category
 

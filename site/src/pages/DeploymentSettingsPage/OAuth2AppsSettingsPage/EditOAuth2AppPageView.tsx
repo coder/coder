@@ -1,21 +1,23 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
-import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { Loader } from "components/Loader/Loader";
+import { ChevronLeftIcon, CopyIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Link as RouterLink, useSearchParams } from "react-router";
+import type * as TypesGen from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -23,12 +25,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { ChevronLeftIcon, CopyIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { Link as RouterLink, useSearchParams } from "react-router";
-import { createDayString } from "utils/createDayString";
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { createDayString } from "#/utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type MutatingResource = {
@@ -49,6 +48,9 @@ type EditOAuth2AppProps = {
 	deleteApp: (name: string) => void;
 	generateAppSecret: () => void;
 	deleteAppSecret: (id: string) => void;
+	canEditApp: boolean;
+	canDeleteApp: boolean;
+	canViewAppSecrets: boolean;
 	secrets?: readonly TypesGen.OAuth2ProviderAppSecret[];
 	fullNewSecret?: TypesGen.OAuth2ProviderAppSecretFull;
 	ackFullNewSecret: () => void;
@@ -64,6 +66,9 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 	deleteApp,
 	generateAppSecret,
 	deleteAppSecret,
+	canEditApp,
+	canDeleteApp,
+	canViewAppSecrets,
 	secrets,
 	fullNewSecret,
 	ackFullNewSecret,
@@ -75,11 +80,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Edit OAuth2 application</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -93,7 +94,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 						All OAuth2 Applications
 					</RouterLink>
 				</Button>
-			</Stack>
+			</div>
 
 			{fullNewSecret && (
 				<ConfirmDialog
@@ -111,19 +112,14 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							</p>
 							<CodeExample
 								code={fullNewSecret.client_secret_full}
-								css={{
-									minHeight: "auto",
-									userSelect: "all",
-									width: "100%",
-									marginTop: 24,
-								}}
+								className="min-h-auto select-all w-full mt-6"
 							/>
 						</>
 					}
 				/>
 			)}
 
-			<Stack>
+			<div className="flex flex-col gap-4">
 				{searchParams.has("created") && (
 					<Alert severity="info" dismissible>
 						Your OAuth2 application has been created. Generate a client secret
@@ -147,7 +143,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							onCancel={() => setShowDelete(false)}
 						/>
 
-						<dl css={styles.dataList}>
+						<dl className="grid [grid-template-columns:max-content_auto] [&>dd]:ml-2.5 [&>dt]:font-bold">
 							<dt>Client ID</dt>
 							<dd>
 								<CopyableValue value={app.id} side="right">
@@ -180,24 +176,30 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 								<Button
 									variant="destructive"
 									onClick={() => setShowDelete(true)}
+									disabled={!canDeleteApp}
 								>
 									Delete&hellip;
 								</Button>
 							}
+							disabled={!canEditApp}
 						/>
 
-						<Divider css={{ borderColor: theme.palette.divider }} />
+						{canViewAppSecrets && (
+							<>
+								<Divider css={{ borderColor: theme.palette.divider }} />
 
-						<OAuth2AppSecretsTable
-							secrets={secrets}
-							generateAppSecret={generateAppSecret}
-							deleteAppSecret={deleteAppSecret}
-							isLoadingSecrets={isLoadingSecrets}
-							mutatingResource={mutatingResource}
-						/>
+								<OAuth2AppSecretsTable
+									secrets={secrets}
+									generateAppSecret={generateAppSecret}
+									deleteAppSecret={deleteAppSecret}
+									isLoadingSecrets={isLoadingSecrets}
+									mutatingResource={mutatingResource}
+								/>
+							</>
+						)}
 					</>
 				)}
-			</Stack>
+			</div>
 		</>
 	);
 };
@@ -219,11 +221,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 }) => {
 	return (
 		<>
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex flex-row gap-4 items-baseline justify-between">
 				<h2>Client secrets</h2>
 				<Button
 					disabled={mutatingResource.createSecret}
@@ -233,7 +231,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 					<Spinner loading={mutatingResource.createSecret} />
 					Generate secret
 				</Button>
-			</Stack>
+			</div>
 
 			<Table>
 				<TableHeader>
@@ -248,7 +246,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No client secrets have been generated.
 								</div>
 							</TableCell>
@@ -313,16 +311,3 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 		</TableRow>
 	);
 };
-
-const styles = {
-	dataList: {
-		display: "grid",
-		gridTemplateColumns: "max-content auto",
-		"& > dt": {
-			fontWeight: "bold",
-		},
-		"& > dd": {
-			marginLeft: 10,
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

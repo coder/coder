@@ -1,6 +1,6 @@
-import { chromatic } from "testHelpers/chromatic";
-import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { chromatic } from "#/testHelpers/chromatic";
+import { mockApiError } from "#/testHelpers/entities";
 import { TemplateInsightsPageView } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
@@ -181,6 +181,29 @@ export const Loaded: Story = {
 								{
 									value: "some other any string here",
 									count: 1,
+								},
+							],
+						},
+						{
+							template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+							display_name: "",
+							name: "GitHub Dotfiles",
+							type: "string",
+							description: "This string is optional",
+							values: [
+								{
+									value:
+										"https://github.com/jakehwll/my-comprehensive-dotfiles-with-neovim-tmux-zsh-and-alacritty-configurations",
+									count: 1,
+								},
+								{
+									value: "https://github.com/aslilac/dotfiles",
+									count: 1000000000,
+								},
+								{
+									value:
+										"https://github.com/jaaydenh/dotfiles-and-shell-scripts",
+									count: 3,
 								},
 							],
 						},

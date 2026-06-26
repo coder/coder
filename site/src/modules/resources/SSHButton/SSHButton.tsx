@@ -1,21 +1,20 @@
-import { deploymentSSHConfig } from "api/queries/deployment";
-import { Button } from "components/Button/Button";
-import { CodeExample } from "components/CodeExample/CodeExample";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
 import {
-	HelpTooltipLink,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip";
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
-import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
-import { useQuery } from "react-query";
-import { docs } from "utils/docs";
+} from "#/components/Popover/Popover";
+import { docs } from "#/utils/docs";
 
 interface AgentSSHButtonProps {
 	workspaceName: string;
@@ -33,7 +32,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild={true}>
+			<PopoverTrigger asChild>
 				<Button size="sm" variant="subtle">
 					Connect via SSH
 					<ChevronDownIcon />
@@ -44,12 +43,12 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 				align="end"
 				className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary"
 			>
-				<HelpTooltipText>
+				<HelpPopoverText>
 					Run the following commands to connect with SSH:
-				</HelpTooltipText>
+				</HelpPopoverText>
 
 				<ol style={{ margin: 0, padding: 0 }}>
-					<Stack spacing={0.5} className="mt-3">
+					<div className="flex flex-col gap-1 mt-3">
 						<SSHStep
 							helpText="Configure SSH hosts on machine:"
 							codeExample="coder config-ssh"
@@ -58,28 +57,26 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 							helpText="Connect to the agent:"
 							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
 						/>
-					</Stack>
+					</div>
 				</ol>
 
-				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/install")}>
-						Install Coder CLI
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access/vscode")}>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink href="/install">Install Coder CLI</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/workspace-access/vscode")}>
 						Connect via VS Code Remote SSH
-					</HelpTooltipLink>
-					<HelpTooltipLink
+					</HelpPopoverLink>
+					<HelpPopoverLink
 						href={docs("/user-guides/workspace-access/jetbrains")}
 					>
 						Connect via JetBrains IDEs
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/desktop")}>
+					</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/desktop")}>
 						Connect via Coder Desktop
-					</HelpTooltipLink>
-					<HelpTooltipLink href={docs("/user-guides/workspace-access#ssh")}>
+					</HelpPopoverLink>
+					<HelpPopoverLink href={docs("/user-guides/workspace-access#ssh")}>
 						SSH configuration
-					</HelpTooltipLink>
-				</HelpTooltipLinksGroup>
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
 			</PopoverContent>
 		</Popover>
 	);
@@ -92,9 +89,9 @@ interface SSHStepProps {
 
 const SSHStep: FC<SSHStepProps> = ({ helpText, codeExample }) => (
 	<li style={{ listStylePosition: "inside" }}>
-		<HelpTooltipText style={{ display: "inline" }}>
+		<HelpPopoverText style={{ display: "inline" }}>
 			<strong className="text-xs">{helpText}</strong>
-		</HelpTooltipText>
+		</HelpPopoverText>
 		<CodeExample secret={false} code={codeExample} />
 	</li>
 );

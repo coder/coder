@@ -1,11 +1,11 @@
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { API } from "api/api";
-import type { DisplayApp } from "api/typesGenerated";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
+import { API } from "#/api/api";
+import type { DisplayApp } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
@@ -67,7 +67,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					}}
 					size="icon-lg"
 				>
-					<ChevronDownIcon />
+					<ChevronDownIcon open={isVariantMenuOpen} />
 				</AgentButton>
 			</div>
 
@@ -82,21 +82,21 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 				}}
 			>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={() => {
 						selectVariant("vscode");
 					}}
 				>
-					<VSCodeIcon css={{ width: 12, height: 12 }} />
+					<VSCodeIcon className="w-3 h-3" />
 					{DisplayAppNameMap.vscode}
 				</MenuItem>
 				<MenuItem
-					css={{ fontSize: 14 }}
+					className="text-sm"
 					onClick={() => {
 						selectVariant("vscode-insiders");
 					}}
 				>
-					<VSCodeInsidersIcon css={{ width: 12, height: 12 }} />
+					<VSCodeInsidersIcon className="w-3 h-3" />
 					{DisplayAppNameMap.vscode_insiders}
 				</MenuItem>
 			</Menu>

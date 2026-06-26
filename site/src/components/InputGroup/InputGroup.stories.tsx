@@ -1,7 +1,6 @@
-import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "components/Button/Button";
-import { InputGroup } from "./InputGroup";
+import { SearchIcon } from "lucide-react";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "./InputGroup";
 
 const meta: Meta<typeof InputGroup> = {
 	title: "components/InputGroup",
@@ -11,70 +10,87 @@ const meta: Meta<typeof InputGroup> = {
 export default meta;
 type Story = StoryObj<typeof InputGroup>;
 
-export const Default: Story = {
+export const WithIconStart: Story = {
 	args: {
 		children: (
 			<>
-				<Button variant="outline" className="h-9">
-					Menu
-				</Button>
-				<TextField size="small" placeholder="Search..." />
+				<InputGroupAddon>
+					<SearchIcon />
+				</InputGroupAddon>
+				<InputGroupInput placeholder="Search..." />
 			</>
 		),
 	},
 };
 
-export const FocusedTextField: Story = {
+export const WithIconEnd: Story = {
 	args: {
 		children: (
 			<>
-				<Button>Menu</Button>
-				<TextField autoFocus size="small" placeholder="Search..." />
+				<InputGroupInput placeholder="Search..." />
+				<InputGroupAddon align="inline-end">
+					<SearchIcon />
+				</InputGroupAddon>
 			</>
 		),
 	},
 };
 
-export const ErroredTextField: Story = {
+export const WithTextStart: Story = {
 	args: {
 		children: (
 			<>
-				<Button>Menu</Button>
-				<TextField
-					error
-					size="small"
-					placeholder="Search..."
-					helperText="Some error message..."
-				/>
+				<InputGroupAddon>https://</InputGroupAddon>
+				<InputGroupInput placeholder="example.com" />
 			</>
 		),
 	},
 };
 
-export const FocusedErroredTextField: Story = {
+export const WithTextEnd: Story = {
 	args: {
 		children: (
 			<>
-				<Button>Menu</Button>
-				<TextField
-					autoFocus
-					error
-					size="small"
-					placeholder="Search..."
-					helperText="Some error message..."
-				/>
+				<InputGroupInput placeholder="username" />
+				<InputGroupAddon align="inline-end">@coder.com</InputGroupAddon>
 			</>
 		),
 	},
 };
 
-export const WithThreeElements: Story = {
+export const WithBothAddons: Story = {
 	args: {
 		children: (
 			<>
-				<Button>Menu</Button>
-				<TextField size="small" placeholder="Search..." />
-				<Button>Submit</Button>
+				<InputGroupAddon>$</InputGroupAddon>
+				<InputGroupInput placeholder="0.00" type="number" />
+				<InputGroupAddon align="inline-end">USD</InputGroupAddon>
+			</>
+		),
+	},
+};
+
+export const Disabled: Story = {
+	args: {
+		children: (
+			<>
+				<InputGroupAddon>
+					<SearchIcon />
+				</InputGroupAddon>
+				<InputGroupInput placeholder="Disabled..." disabled />
+			</>
+		),
+	},
+};
+
+export const Invalid: Story = {
+	args: {
+		children: (
+			<>
+				<InputGroupAddon>
+					<SearchIcon />
+				</InputGroupAddon>
+				<InputGroupInput placeholder="Invalid..." aria-invalid="true" />
 			</>
 		),
 	},

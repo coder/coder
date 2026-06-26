@@ -1,23 +1,21 @@
-import type { Region } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import type { FC } from "react";
+import type { Region } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import type { ProxyLatencyReport } from "contexts/useProxyLatency";
-import type { FC } from "react";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import { ProxyRow } from "./WorkspaceProxyRow";
 
 interface WorkspaceProxyViewProps {
@@ -39,7 +37,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	selectProxyError,
 }) => {
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -56,31 +54,52 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[70%]">Proxy</TableHead>
-						<TableHead className="w-[10%] text-right">Status</TableHead>
-						<TableHead className="w-[20%] text-right">Latency</TableHead>
+						<TableHead className="w-[60%]">Proxy</TableHead>
+						<TableHead className="w-[20%]">Status</TableHead>
+						<TableHead className="w-[20%]">Latency</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
-						<Cond condition={hasLoaded && proxies?.length === 0}>
-							<TableEmpty message="No workspace proxies found" />
-						</Cond>
-						<Cond>
-							{proxies?.map((proxy) => (
-								<ProxyRow
-									latency={proxyLatencies?.[proxy.id]}
-									key={proxy.id}
-									proxy={proxy}
-								/>
-							))}
-						</Cond>
-					</ChooseOne>
+					<ProxiesTableBody
+						proxies={proxies}
+						proxyLatencies={proxyLatencies}
+						isLoading={isLoading}
+						hasLoaded={hasLoaded}
+					/>
 				</TableBody>
 			</Table>
-		</Stack>
+		</div>
+	);
+};
+
+interface ProxiesTableBodyProps {
+	proxies?: readonly Region[];
+	proxyLatencies?: Record<string, ProxyLatencyReport>;
+	isLoading: boolean;
+	hasLoaded: boolean;
+}
+
+const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
+	proxies,
+	proxyLatencies,
+	isLoading,
+	hasLoaded,
+}) => {
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (hasLoaded && proxies?.length === 0) {
+		return <TableEmpty message="No workspace proxies found" />;
+	}
+	return (
+		<>
+			{proxies?.map((proxy) => (
+				<ProxyRow
+					latency={proxyLatencies?.[proxy.id]}
+					key={proxy.id}
+					proxy={proxy}
+				/>
+			))}
+		</>
 	);
 };

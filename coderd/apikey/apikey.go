@@ -113,7 +113,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	return database.InsertAPIKeyParams{
 		ID:              keyID,
 		UserID:          params.UserID,
-		LastUsed:        time.Time{},
+		LastUsed:        time.Unix(0, 0).UTC(),
 		LifetimeSeconds: params.LifetimeSeconds,
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{

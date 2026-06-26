@@ -1,6 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { Spinner } from "components/Spinner/Spinner";
 import type { FC, HTMLAttributes } from "react";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
 	fullscreen?: boolean;
@@ -14,37 +14,25 @@ interface LoaderProps extends HTMLAttributes<HTMLDivElement> {
 export const Loader: FC<LoaderProps> = ({
 	fullscreen,
 	size = "lg",
-	label = "Loading...",
+	label,
+	className,
 	...attrs
 }) => {
+	const resolvedLabel = label ?? "Loading";
+
 	return (
 		<div
-			css={fullscreen ? styles.fullscreen : styles.inline}
-			data-testid="loader"
 			{...attrs}
+			role="status"
+			aria-live="polite"
+			data-testid="loader"
+			className={cn(
+				"flex items-center justify-center",
+				fullscreen ? "absolute inset-0 bg-surface-primary" : "w-full p-8",
+				className,
+			)}
 		>
-			<Spinner aria-label={label} size={size} loading={true} />
+			<Spinner aria-label={resolvedLabel} size={size} loading />
 		</div>
 	);
 };
-
-const styles = {
-	inline: {
-		padding: 32,
-		width: "100%",
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	fullscreen: (theme) => ({
-		position: "absolute",
-		top: "0",
-		left: "0",
-		right: "0",
-		bottom: "0",
-		display: "flex",
-		justifyContent: "center",
-		alignItems: "center",
-		background: theme.palette.background.default,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

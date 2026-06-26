@@ -1,15 +1,19 @@
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import {
 	updateUserQuietHoursSchedule,
 	userQuietHoursSchedule,
-} from "api/queries/settings";
-import type { UserQuietHoursScheduleResponse } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "hooks";
-import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Section } from "../Section";
+} from "#/api/queries/settings";
+import type { UserQuietHoursScheduleResponse } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { ScheduleForm } from "./ScheduleForm";
 
 const SchedulePage: FC = () => {
@@ -38,11 +42,14 @@ const SchedulePage: FC = () => {
 	}
 
 	return (
-		<Section
-			title="Quiet hours"
-			layout="fluid"
-			description="Workspaces may be automatically updated during your quiet hours, as configured by your administrators."
-		>
+		<>
+			<SettingsHeader>
+				<SettingsHeaderTitle>Quiet hours</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Workspaces may be automatically updated during your quiet hours, as
+					configured by your administrators.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 			<ScheduleForm
 				isLoading={mutationLoading}
 				initialValues={quietHoursSchedule as UserQuietHoursScheduleResponse}
@@ -50,12 +57,12 @@ const SchedulePage: FC = () => {
 				onSubmit={(values) => {
 					onSubmit(values, {
 						onSuccess: () => {
-							displaySuccess("Schedule updated successfully");
+							toast.success("Schedule updated successfully.");
 						},
 					});
 				}}
 			/>
-		</Section>
+		</>
 	);
 };
 

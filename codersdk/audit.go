@@ -43,8 +43,17 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
-	ResourceTypeTask         ResourceType = "task"
+	ResourceTypeWorkspaceApp         ResourceType = "workspace_app"
+	ResourceTypeTask                 ResourceType = "task"
+	ResourceTypeAISeat               ResourceType = "ai_seat"
+	ResourceTypeAIProvider           ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey        ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey         ResourceType = "ai_gateway_key"
+	ResourceTypeGroupAIBudget        ResourceType = "group_ai_budget"
+	ResourceTypeUserAIBudgetOverride ResourceType = "user_ai_budget_override"
+	ResourceTypeChat                 ResourceType = "chat"
+	ResourceTypeUserSecret           ResourceType = "user_secret"
+	ResourceTypeUserSkill            ResourceType = "user_skill"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -103,6 +112,24 @@ func (r ResourceType) FriendlyString() string {
 		return "workspace app"
 	case ResourceTypeTask:
 		return "task"
+	case ResourceTypeAISeat:
+		return "ai seat"
+	case ResourceTypeAIProvider:
+		return "ai provider"
+	case ResourceTypeAIProviderKey:
+		return "ai provider key"
+	case ResourceTypeAIGatewayKey:
+		return "ai gateway key"
+	case ResourceTypeGroupAIBudget:
+		return "group ai budget"
+	case ResourceTypeUserAIBudgetOverride:
+		return "user ai budget override"
+	case ResourceTypeChat:
+		return "chat"
+	case ResourceTypeUserSecret:
+		return "user secret"
+	case ResourceTypeUserSkill:
+		return "user skill"
 	default:
 		return "unknown"
 	}
@@ -209,6 +236,7 @@ type AuditLogsRequest struct {
 type AuditLogResponse struct {
 	AuditLogs []AuditLog `json:"audit_logs"`
 	Count     int64      `json:"count"`
+	CountCap  int64      `json:"count_cap"`
 }
 
 type CreateTestAuditLogRequest struct {

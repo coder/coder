@@ -115,11 +115,6 @@ INSERT INTO oauth2_provider_app_secrets (
     $6
 ) RETURNING *;
 
--- name: UpdateOAuth2ProviderAppSecretByID :one
-UPDATE oauth2_provider_app_secrets SET
-    last_used_at = $2
-WHERE id = $1 RETURNING *;
-
 -- name: DeleteOAuth2ProviderAppSecretByID :exec
 DELETE FROM oauth2_provider_app_secrets WHERE id = $1;
 
@@ -140,7 +135,9 @@ INSERT INTO oauth2_provider_app_codes (
     user_id,
     resource_uri,
     code_challenge,
-    code_challenge_method
+    code_challenge_method,
+    state_hash,
+    redirect_uri
 ) VALUES(
     $1,
     $2,
@@ -151,7 +148,9 @@ INSERT INTO oauth2_provider_app_codes (
     $7,
     $8,
     $9,
-    $10
+    $10,
+    $11,
+    $12
 ) RETURNING *;
 
 -- name: DeleteOAuth2ProviderAppCodeByID :exec
@@ -245,5 +244,3 @@ WHERE id = $1 RETURNING *;
 -- name: DeleteOAuth2ProviderAppByClientID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1;
 
--- name: GetOAuth2ProviderAppByRegistrationToken :one
-SELECT * FROM oauth2_provider_apps WHERE registration_access_token = $1;

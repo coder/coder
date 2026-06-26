@@ -1,3 +1,8 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
+import { templateVersionPresetsKey } from "#/api/queries/templates";
+import type { Task } from "#/api/typesGenerated";
 import {
 	MockPresets,
 	MockTask,
@@ -5,16 +10,13 @@ import {
 	MockTasks,
 	MockTemplate,
 	MockTemplateVersion,
+	MockTemplateVersionExternalAuthAzure,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 	mockApiError,
-} from "testHelpers/entities";
-import { withAuthProvider, withGlobalSnackbar } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import type { Task } from "api/typesGenerated";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+} from "#/testHelpers/entities";
+import { withAuthProvider, withToaster } from "#/testHelpers/storybook";
 import type TasksPage from "../../../pages/TasksPage/TasksPage";
 import { TaskPrompt } from "./TaskPrompt";
 
@@ -110,7 +112,7 @@ export const SubmitDisabledWhenPromptEmpty: Story = {
 };
 
 export const Submitting: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "createTask").mockImplementation(
 			() =>
@@ -139,7 +141,7 @@ export const Submitting: Story = {
 };
 
 export const OnSuccess: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	parameters: {
 		permissions: {
 			updateTemplates: false,
@@ -174,7 +176,7 @@ export const OnSuccess: Story = {
 
 		await step("Displays success message", async () => {
 			const body = within(canvasElement.ownerDocument.body);
-			const successMessage = await body.findByText(/task created/i);
+			const successMessage = await body.findByText(/created successfully/i);
 			expect(successMessage).toBeInTheDocument();
 		});
 
@@ -186,7 +188,7 @@ export const OnSuccess: Story = {
 };
 
 export const ChangeTemplate: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		templates: [
 			{
@@ -250,7 +252,7 @@ export const ChangeTemplate: Story = {
 };
 
 export const SelectTemplateVersion: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersions").mockResolvedValue([
 			{
@@ -299,14 +301,14 @@ export const SelectTemplateVersion: Story = {
 
 		await step("Displays success message", async () => {
 			const body = within(canvasElement.ownerDocument.body);
-			const successMessage = await body.findByText(/task created/i);
+			const successMessage = await body.findByText(/created successfully/i);
 			expect(successMessage).toBeInTheDocument();
 		});
 	},
 };
 
 export const OnError: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
@@ -386,6 +388,39 @@ export const MissingExternalAuth: Story = {
 	},
 };
 
+export const MissingExternalAuthMultipleProviders: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(API, "createTask").mockResolvedValue(MockTask);
+		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+			MockTemplateVersionExternalAuthGithub,
+			MockTemplateVersionExternalAuthAzure,
+		]);
+		// Prevent the auth button from actually opening a popup.
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		const githubButton = await canvas.findByRole("button", {
+			name: /connect to github/i,
+		});
+		const azureButton = await canvas.findByRole("button", {
+			name: /connect to azure/i,
+		});
+
+		await step("Click GitHub auth button", async () => {
+			await userEvent.click(githubButton);
+		});
+
+		await step("Azure button remains enabled", () => {
+			expect(azureButton).toBeEnabled();
+		});
+	},
+};
+
 export const ExternalAuthError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTasks")
@@ -409,7 +444,10 @@ export const ExternalAuthError: Story = {
 		});
 
 		await step("Renders error", async () => {
-			await canvas.findByText(/failed to load external auth/i);
+			const alert = await canvas.findByRole("alert");
+			await within(alert).findByRole("heading", {
+				name: /failed to load external auth/i,
+			});
 		});
 	},
 };
@@ -470,6 +508,72 @@ export const CheckExternalAuthOnChangingVersions: Story = {
 				canvas.queryByRole("button", { name: /connect to github/i }),
 			).not.toBeInTheDocument();
 		});
+	},
+};
+
+// Regression test introduced in https://github.com/coder/coder/pull/22032
+// A change was introduced that cause the focused selector to be mostly
+// hidden due to an introduced `overflow-hidden`. The change wasn't spotted
+// in the PR it was introduced as no stories triggered that behavior, so we
+// have added one to ensure the behavior doesn't regress.
+export const PresetSelectorFocused: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(
+			MockPresets.map((preset, i) => ({
+				...preset,
+				Icon: i === 0 ? "/icon/code.svg" : i === 1 ? "/icon/database.svg" : "",
+				Description: i === 0 ? "For everyday development work" : "",
+			})),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const presetSelect = await canvas.findByLabelText(/preset/i);
+		presetSelect.focus();
+	},
+};
+
+// Regression test for https://github.com/coder/coder/issues/22245
+// Dark monochrome icons (like GitHub or Tasks) were invisible on dark
+// backgrounds because icons used a plain <img> instead of
+// ExternalImage, which applies theme-aware CSS filters.
+export const IconContrast: Story = {
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				id: "github-template",
+				name: "github-template",
+				display_name: "GitHub",
+				icon: "/icon/github.svg",
+				active_version_id: MockTemplateVersion.id,
+			},
+			{
+				...MockTemplate,
+				id: "tasks-template",
+				name: "tasks-template",
+				display_name: "Tasks",
+				icon: "/icon/tasks.svg",
+				active_version_id: MockTemplateVersion.id,
+			},
+		],
+	},
+	parameters: {
+		queries: [
+			{
+				key: templateVersionPresetsKey(MockTemplateVersion.id),
+				data: [
+					{
+						...MockPresets[0],
+						Icon: "/icon/github.svg",
+					},
+					{
+						...MockPresets[1],
+						Icon: "/icon/tasks.svg",
+					},
+				],
+			},
+		],
 	},
 };
 

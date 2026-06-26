@@ -1,9 +1,14 @@
-import { chromaticWithTablet } from "testHelpers/chromatic";
-import { MockTasks, MockUserMember, MockUserOwner } from "testHelpers/entities";
-import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { TasksFilter } from "api/typesGenerated";
 import { userEvent, within } from "storybook/test";
+import type { TasksFilter } from "#/api/typesGenerated";
+import { chromaticWithTablet } from "#/testHelpers/chromatic";
+import {
+	MockBuildInfo,
+	MockTasks,
+	MockUserMember,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
 
 const tasksFilter: TasksFilter = {
@@ -28,7 +33,9 @@ const meta: Meta<typeof NavbarView> = {
 		canViewAuditLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
+		canViewAISettings: true,
 		canViewOrganizations: true,
+		canCreateChat: true,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -52,6 +59,7 @@ export const ForAuditor: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 	},
 	play: async ({ canvasElement }) => {
@@ -68,7 +76,24 @@ export const ForOrgAdmin: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+	},
+};
+
+export const ForSingleOrgOSSAdmin: Story = {
+	args: {
+		canViewAuditLog: false,
+		canViewOrganizations: false,
+		canViewConnectionLog: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -84,13 +109,21 @@ export const ForMember: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
+		canCreateChat: false,
 	},
 };
 
-export const CustomLogo: Story = {
+export const ForMemberWithAgentsAccess: Story = {
 	args: {
-		logo_url: "/icon/github.svg",
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewAISettings: false,
+		canViewOrganizations: false,
+		canCreateChat: true,
 	},
 };
 
@@ -111,6 +144,7 @@ export const SupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		supportLinks: [
 			{
@@ -151,6 +185,7 @@ export const DefaultSupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },
@@ -163,5 +198,35 @@ export const DefaultSupportLinks: Story = {
 			},
 			{ icon: "star", name: "Star the Repo", target: "" },
 		],
+	},
+};
+
+export const DevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.21.0-devel+abc123",
+			external_url: "https://github.com/coder/coder/commit/abc123",
+		},
+	},
+};
+
+export const RcBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.21.0-rc.1+def456",
+			external_url: "https://github.com/coder/coder/releases/tag/v2.21.0-rc.1",
+		},
+	},
+};
+
+export const RcDevelBuild: Story = {
+	args: {
+		buildInfo: {
+			...MockBuildInfo,
+			version: "v2.33.0-rc.1-devel+727ec00f7",
+			external_url: "https://github.com/coder/coder/commit/727ec00f7",
+		},
 	},
 };

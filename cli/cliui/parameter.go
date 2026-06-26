@@ -30,9 +30,15 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 
 		var defaults []string
-		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &defaults)
-		if err != nil {
-			return "", err
+		defaultSource := defaultValue
+		if defaultSource == "" {
+			defaultSource = templateVersionParameter.DefaultValue
+		}
+		if defaultSource != "" {
+			err = json.Unmarshal([]byte(defaultSource), &defaults)
+			if err != nil {
+				return "", err
+			}
 		}
 
 		values, err := RichMultiSelect(inv, RichMultiSelectOptions{
@@ -69,7 +75,7 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		}
 	default:
 		text := "Enter a value"
-		if !templateVersionParameter.Required {
+		if defaultValue != "" {
 			text += fmt.Sprintf(" (default: %q)", defaultValue)
 		}
 		text += ":"
@@ -77,6 +83,10 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		value, err = Prompt(inv, PromptOptions{
 			Text: Bold(text),
 			Validate: func(value string) error {
+				// If empty, the default value will be used (if available).
+				if value == "" && defaultValue != "" {
+					value = defaultValue
+				}
 				return validateRichPrompt(value, templateVersionParameter)
 			},
 		})

@@ -38,7 +38,7 @@ import (
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param job path string true "Job ID" format(uuid)
 // @Success 200 {object} codersdk.ProvisionerJob
-// @Router /organizations/{organization}/provisionerjobs/{job} [get]
+// @Router /api/v2/organizations/{organization}/provisionerjobs/{job} [get]
 func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -78,7 +78,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Param initiator query string false "Filter results by initiator" format(uuid)
 // @Success 200 {array} codersdk.ProvisionerJob
-// @Router /organizations/{organization}/provisionerjobs [get]
+// @Router /api/v2/organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -87,7 +87,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, convertProvisionerJobWithQueuePosition))
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(jobs, convertProvisionerJobWithQueuePosition))
 }
 
 // handleAuthAndFetchProvisionerJobs is an internal method shared by
@@ -157,7 +157,29 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 		logger   = api.Logger.With(slog.F("job_id", job.ID))
 		follow   = r.URL.Query().Has("follow")
 		afterRaw = r.URL.Query().Get("after")
+		format   = r.URL.Query().Get("format")
 	)
+
+	// Validate format parameter.
+	if format == "" {
+		format = "json"
+	}
+	if format != "json" && format != "text" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid format parameter.",
+			Detail:  "Allowed values are \"json\" and \"text\".",
+		})
+		return
+	}
+
+	// Text format is not supported with streaming.
+	if format == "text" && follow {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Text format is not supported with follow mode.",
+			Detail:  "Use format=json or omit the follow parameter.",
+		})
+		return
+	}
 
 	var after int64
 	// Only fetch logs created after the time provided.
@@ -176,11 +198,11 @@ func (api *API) provisionerJobLogs(rw http.ResponseWriter, r *http.Request, job 
 	}
 
 	if !follow {
-		fetchAndWriteLogs(ctx, api.Database, job.ID, after, rw)
+		fetchAndWriteLogs(ctx, api.Database, job.ID, after, rw, format)
 		return
 	}
 
-	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, rw, r, job, after)
+	follower := newLogFollower(ctx, logger, api.Database, api.Pubsub, api.wsWatcher, rw, r, job, after)
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -293,7 +315,7 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 					dbApps = append(dbApps, app)
 				}
 			}
-			dbScripts := make([]database.WorkspaceAgentScript, 0)
+			dbScripts := make([]database.GetWorkspaceAgentScriptsByAgentIDsRow, 0)
 			for _, script := range scripts {
 				if script.WorkspaceAgentID == agent.ID {
 					dbScripts = append(dbScripts, script)
@@ -413,10 +435,13 @@ func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrga
 	if pj.WorkspaceID.Valid {
 		job.Metadata.WorkspaceID = &pj.WorkspaceID.UUID
 	}
+	if pj.WorkspaceBuildTransition.Valid {
+		job.Metadata.WorkspaceBuildTransition = codersdk.WorkspaceTransition(pj.WorkspaceBuildTransition.WorkspaceTransition)
+	}
 	return job
 }
 
-func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, after int64, rw http.ResponseWriter) {
+func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, after int64, rw http.ResponseWriter, format string) {
 	logs, err := db.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        jobID,
 		CreatedAfter: after,
@@ -430,6 +455,16 @@ func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, 
 	}
 	if logs == nil {
 		logs = []database.ProvisionerJobLog{}
+	}
+
+	if format == "text" {
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		rw.WriteHeader(http.StatusOK)
+		for _, log := range logs {
+			_, _ = rw.Write([]byte(db2sdk.ProvisionerJobLog(log).Text()))
+			_, _ = rw.Write([]byte("\n"))
+		}
+		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobLogs(logs))
 }
@@ -458,14 +493,15 @@ func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
 }
 
 type logFollower struct {
-	ctx    context.Context
-	logger slog.Logger
-	db     database.Store
-	pubsub pubsub.Pubsub
-	r      *http.Request
-	rw     http.ResponseWriter
-	conn   *websocket.Conn
-	enc    *wsjson.Encoder[codersdk.ProvisionerJobLog]
+	ctx       context.Context
+	logger    slog.Logger
+	db        database.Store
+	pubsub    pubsub.Pubsub
+	wsWatcher *httpapi.WSWatcher
+	r         *http.Request
+	rw        http.ResponseWriter
+	conn      *websocket.Conn
+	enc       *wsjson.Encoder[codersdk.ProvisionerJobLog]
 
 	jobID         uuid.UUID
 	after         int64
@@ -476,13 +512,15 @@ type logFollower struct {
 
 func newLogFollower(
 	ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub,
-	rw http.ResponseWriter, r *http.Request, job database.ProvisionerJob, after int64,
+	wsWatcher *httpapi.WSWatcher, rw http.ResponseWriter, r *http.Request,
+	job database.ProvisionerJob, after int64,
 ) *logFollower {
 	return &logFollower{
 		ctx:           ctx,
 		logger:        logger,
 		db:            db,
 		pubsub:        ps,
+		wsWatcher:     wsWatcher,
 		r:             r,
 		rw:            rw,
 		jobID:         job.ID,
@@ -544,26 +582,30 @@ func (f *logFollower) follow() {
 		return
 	}
 	defer f.conn.Close(websocket.StatusNormalClosure, "done")
-	go httpapi.HeartbeatClose(f.ctx, f.logger, cancel, f.conn)
+	// Do not reassign f.ctx here; the listener method reads
+	// f.ctx on the pubsub goroutine concurrently. Use a local
+	// variable instead. The watched context is a child of f.ctx,
+	// so canceling f.ctx still cascades.
+	watchCtx := f.wsWatcher.Watch(f.ctx, f.logger, f.conn)
 	f.enc = wsjson.NewEncoder[codersdk.ProvisionerJobLog](f.conn, websocket.MessageText)
 
 	// query for logs once right away, so we can get historical data from before
 	// subscription
-	if err := f.query(); err != nil {
-		if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+	if err := f.query(watchCtx); err != nil {
+		if watchCtx.Err() == nil && !xerrors.Is(err, io.EOF) {
 			// neither context expiry, nor EOF, close and log
-			f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
+			f.logger.Error(watchCtx, "failed to query logs", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
-				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+				f.logger.Warn(watchCtx, "failed to close websocket", slog.Error(err))
 			}
 		}
 		return
 	}
 
 	// Log the request immediately instead of after it completes.
-	if rl := loggermw.RequestLoggerFromContext(f.ctx); rl != nil {
-		rl.WriteLog(f.ctx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(watchCtx); rl != nil {
+		rl.WriteLog(watchCtx, http.StatusAccepted)
 	}
 
 	// no need to wait if the job is done
@@ -579,14 +621,14 @@ func (f *logFollower) follow() {
 			// We could soldier on and retry, but loss of database connectivity
 			// is fairly serious, so instead just 500 and bail out.  Client
 			// can retry and hopefully find a healthier node.
-			f.logger.Error(f.ctx, "dropped or corrupted notification", slog.Error(err))
+			f.logger.Error(watchCtx, "dropped or corrupted notification", slog.Error(err))
 			err = f.conn.Close(websocket.StatusInternalError, err.Error())
 			if err != nil {
-				f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+				f.logger.Warn(watchCtx, "failed to close websocket", slog.Error(err))
 			}
 			return
-		case <-f.ctx.Done():
-			// client disconnect
+		case <-watchCtx.Done():
+			// client disconnect or probe failure
 			return
 		case n := <-f.notifications:
 			if n.EndOfLogs {
@@ -595,14 +637,14 @@ func (f *logFollower) follow() {
 				// gotten all logs prior to the start of our subscription.
 				return
 			}
-			err = f.query()
+			err = f.query(watchCtx)
 			if err != nil {
-				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
+				if watchCtx.Err() == nil && !xerrors.Is(err, io.EOF) {
 					// neither context expiry, nor EOF, close and log
-					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
+					f.logger.Error(watchCtx, "failed to query logs", slog.Error(err))
 					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))
 					if err != nil {
-						f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
+						f.logger.Warn(watchCtx, "failed to close websocket", slog.Error(err))
 					}
 				}
 				return
@@ -638,9 +680,9 @@ func (f *logFollower) listener(_ context.Context, message []byte, err error) {
 
 // query fetches the latest job logs from the database and writes them to the
 // connection.
-func (f *logFollower) query() error {
-	f.logger.Debug(f.ctx, "querying logs", slog.F("after", f.after))
-	logs, err := f.db.GetProvisionerLogsAfterID(f.ctx, database.GetProvisionerLogsAfterIDParams{
+func (f *logFollower) query(watchCtx context.Context) error {
+	f.logger.Debug(watchCtx, "querying logs", slog.F("after", f.after))
+	logs, err := f.db.GetProvisionerLogsAfterID(watchCtx, database.GetProvisionerLogsAfterIDParams{
 		JobID:        f.jobID,
 		CreatedAfter: f.after,
 	})
@@ -653,7 +695,7 @@ func (f *logFollower) query() error {
 			return xerrors.Errorf("error writing to websocket: %w", err)
 		}
 		f.after = log.ID
-		f.logger.Debug(f.ctx, "wrote log to websocket", slog.F("id", log.ID))
+		f.logger.Debug(watchCtx, "wrote log to websocket", slog.F("id", log.ID))
 	}
 	return nil
 }

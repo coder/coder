@@ -1,4 +1,8 @@
-import { chromatic } from "testHelpers/chromatic";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { getPreferredProxy } from "#/contexts/ProxyContext";
+import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
 	MockPrimaryWorkspaceProxy,
@@ -12,15 +16,11 @@ import {
 	MockWorkspaceProxies,
 	MockWorkspaceSubAgent,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withDashboardProvider,
 	withProxyProvider,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { getPreferredProxy } from "contexts/ProxyContext";
-import { spyOn, userEvent, within } from "storybook/test";
+} from "#/testHelpers/storybook";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
@@ -137,6 +137,20 @@ export const NoContainerOrAgentOrName: Story = {
 	},
 };
 
+export const NoContainerOrAgentOrNameWithLongConfigPath: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			config_path:
+				"/home/coder/repos/coder/coder/.claude/worktrees/i-waited-for-some-things-and-i-got-some-banana-bread-at-work-today-dude/.devcontainer/devcontainer.json",
+			container: undefined,
+			agent: undefined,
+			name: "",
+		},
+		subAgents: [],
+	},
+};
+
 export const NoSubAgent: Story = {
 	args: {
 		devcontainer: {
@@ -183,6 +197,37 @@ export const WithPortForwarding: Story = {
 			proxies: MockWorkspaceProxies,
 		}),
 	],
+};
+
+export const TerraformManaged: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			subagent_id: "precreated-subagent-id",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const label = canvas.getByText("dev container (terraform agent)");
+		await userEvent.hover(label);
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const TerraformManagedDirty: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			subagent_id: "precreated-subagent-id",
+			dirty: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const outdatedStatus = canvas.getByText("Outdated");
+		await userEvent.click(outdatedStatus);
+		await screen.findByRole("dialog");
+	},
 };
 
 export const WithDeleteError: Story = {

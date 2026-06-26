@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -58,7 +57,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).WithContext(ctx).Wait()
 	return agentClient, r.AgentToken, pubkey
 }
 
@@ -118,10 +117,10 @@ func TestGitSSH(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 		client, token, pubkey := prepareTestGitSSH(setupCtx, t)
-		var inc int64
+		var inc atomic.Int64
 		errC := make(chan error, 1)
 		addr := serveSSHForGitSSH(t, func(s ssh.Session) {
-			atomic.AddInt64(&inc, 1)
+			inc.Add(1)
 			t.Log("got authenticated session")
 			select {
 			case errC <- s.Exit(0):
@@ -146,7 +145,7 @@ func TestGitSSH(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		require.EqualValues(t, 1, inc)
+		require.EqualValues(t, 1, inc.Load())
 
 		err = <-errC
 		require.NoError(t, err, "error in agent execute")
@@ -167,7 +166,7 @@ func TestGitSSH(t *testing.T) {
 		require.NoError(t, err)
 		writePrivateKeyToFile(t, idFile, privkey)
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, token, coderPubkey := prepareTestGitSSH(setupCtx, t)
 
 		authkey := make(chan gossh.PublicKey, 1)
@@ -194,7 +193,6 @@ func TestGitSSH(t *testing.T) {
 		}, "\n")), 0o600)
 		require.NoError(t, err)
 
-		pty := ptytest.New(t)
 		cmdArgs := []string{
 			"gitssh",
 			"--agent-url", client.SDK.URL.String(),
@@ -205,8 +203,6 @@ func TestGitSSH(t *testing.T) {
 		}
 		// Test authentication via local private key.
 		inv, _ := clitest.New(t, cmdArgs...)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
 		// This occasionally times out at 15s on Windows CI runners. Use a
 		// longer timeout to reduce flakes.
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -225,8 +221,6 @@ func TestGitSSH(t *testing.T) {
 
 		// With the local file deleted, the coder key should be used.
 		inv, _ = clitest.New(t, cmdArgs...)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
 		// This occasionally times out at 15s on Windows CI runners. Use a
 		// longer timeout to reduce flakes.
 		ctx = testutil.Context(t, testutil.WaitSuperLong) // Reset context for second cmd test.

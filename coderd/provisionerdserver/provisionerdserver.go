@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -76,6 +77,7 @@ const (
 type Options struct {
 	OIDCConfig          promoauth.OAuth2Config
 	ExternalAuthConfigs []*externalauth.Config
+	AISeatTracker       aiseats.SeatTracker
 
 	// Clock for testing
 	Clock quartz.Clock
@@ -120,6 +122,7 @@ type server struct {
 	NotificationsEnqueuer       notifications.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
+	AISeatTracker               aiseats.SeatTracker
 	Experiments                 codersdk.Experiments
 
 	OIDCConfig promoauth.OAuth2Config
@@ -215,6 +218,9 @@ func NewServer(
 	if err := tags.Valid(); err != nil {
 		return nil, xerrors.Errorf("invalid tags: %w", err)
 	}
+	if options.AISeatTracker == nil {
+		options.AISeatTracker = aiseats.Noop{}
+	}
 	if options.AcquireJobLongPollDur == 0 {
 		options.AcquireJobLongPollDur = DefaultAcquireJobLongPollDur
 	}
@@ -253,6 +259,7 @@ func NewServer(
 		heartbeatFn:                 options.HeartbeatFn,
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
+		AISeatTracker:               options.AISeatTracker,
 		metrics:                     metrics,
 		Experiments:                 experiments,
 	}
@@ -478,6 +485,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		TraceMetadata: jobTraceMetadata,
 	}
 
+	// jobTransition and jobBuildReason are used for metrics; only set for workspace builds.
+	var jobTransition string
+	var jobBuildReason string
+
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
 		var input WorkspaceProvisionJob
@@ -512,13 +523,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		// Fetch the file id of the cached module files if it exists.
 		versionModulesFile := ""
-		tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			// Older templates (before dynamic parameters) will not have cached module files.
-			return nil, failJob(fmt.Sprintf("get template version terraform values: %s", err))
-		}
-		if err == nil && tfvals.CachedModuleFiles.Valid {
-			versionModulesFile = tfvals.CachedModuleFiles.UUID.String()
+		if !template.DisableModuleCache {
+			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				// Older templates (before dynamic parameters) will not have cached module files.
+				return nil, failJob(fmt.Sprintf("get template version terraform values: %s", err))
+			}
+			if err == nil && tfvals.CachedModuleFiles.Valid {
+				versionModulesFile = tfvals.CachedModuleFiles.UUID.String()
+			}
 		}
 
 		var ownerSSHPublicKey, ownerSSHPrivateKey string
@@ -558,7 +571,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
 		// pointing to a typed nil.
 		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
-			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
+			workspaceOwnerOIDCAccessToken, err = ObtainOIDCAccessToken(ctx, s.Logger, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
 			}
@@ -581,6 +594,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
+		}
+		jobTransition = string(workspaceBuild.Transition)
+		// Prebuilds use BuildReasonInitiator in the database but we want to
+		// track them separately in metrics. Check the initiator ID to detect
+		// prebuild jobs.
+		if job.InitiatorID == database.PrebuildsSystemUserID {
+			jobBuildReason = BuildReasonPrebuild
+		} else {
+			jobBuildReason = string(workspaceBuild.Reason)
 		}
 
 		// A previous workspace build exists
@@ -710,11 +732,16 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		provisionerStateRow, err := s.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get workspace build provisioner state: %s", err))
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
 				WorkspaceName:           workspace.Name,
-				State:                   workspaceBuild.ProvisionerState,
+				State:                   provisionerStateRow.ProvisionerState,
 				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
@@ -821,6 +848,16 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 	}
 	if protobuf.Size(protoJob) > drpcsdk.MaxMessageSize {
 		return nil, failJob(fmt.Sprintf("payload was too big: %d > %d", protobuf.Size(protoJob), drpcsdk.MaxMessageSize))
+	}
+
+	// Record the time the job spent waiting in the queue.
+	if s.metrics != nil && job.StartedAt.Valid && job.Provisioner.Valid() {
+		// These timestamps lose their monotonic clock component after a Postgres
+		// round-trip, so the subtraction is based purely on wall-clock time. Floor at
+		// 1ms as a defensive measure against clock adjustments producing a negative
+		// delta while acknowledging there's a non-zero queue time.
+		queueWaitSeconds := max(job.StartedAt.Time.Sub(job.CreatedAt).Seconds(), 0.001)
+		s.metrics.ObserveJobQueueWait(string(job.Provisioner), string(job.Type), jobTransition, jobBuildReason, queueWaitSeconds)
 	}
 
 	return protoJob, err
@@ -1259,6 +1296,21 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
+
+		// Publish workspace build update to the all builds channel if the experiment is enabled.
+		if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+			err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, codersdk.WorkspaceBuildUpdate{
+				WorkspaceID:   workspace.ID,
+				WorkspaceName: workspace.Name,
+				BuildID:       build.ID,
+				Transition:    string(build.Transition),
+				JobStatus:     string(database.ProvisionerJobStatusFailed),
+				BuildNumber:   build.BuildNumber,
+			})
+			if err != nil {
+				s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+			}
+		}
 	case *proto.FailedJob_TemplateImport_:
 	}
 
@@ -1498,13 +1550,18 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 
 	// A graceful error message will help debugging.
 	fail := func(err error) error {
-		_ = stream.Send(&sdkproto.FileUpload{
+		if sendErr := stream.Send(&sdkproto.FileUpload{
 			Type: &sdkproto.FileUpload_Error{
 				Error: &sdkproto.FailedFile{
 					Error: err.Error(),
 				},
 			},
-		})
+		}); sendErr != nil {
+			s.Logger.Warn(ctx, "failed to send error response on download stream",
+				slog.Error(sendErr),
+				slog.F("original_error", err.Error()),
+			)
+		}
 		return err
 	}
 	if request.FileId == "" || request.FileId == uuid.Nil.String() {
@@ -1527,11 +1584,34 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 		if file.CreatedBy != uuid.Nil || file.Mimetype != tarMimeType {
 			return fail(xerrors.Errorf("file %s is not a modules file", fid))
 		}
+		// Ensure the requested module file belongs to a template version in
+		// this provisioner daemon's organization. Without this, any
+		// authenticated provisioner could download cached module archives
+		// (Terraform source) belonging to other organizations (ANT-2026-22440).
+		ok, err := s.Database.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, database.HasTemplateVersionsUsingCachedModuleFileInOrgParams{
+			FileID:         fid,
+			OrganizationID: s.OrganizationID,
+		})
+		if err != nil {
+			return fail(xerrors.Errorf("authorize module file: %w", err))
+		}
+		if !ok {
+			s.Logger.Warn(ctx, "module file download rejected: file not referenced by any template version in daemon org",
+				slog.F("file_id", fid),
+				slog.F("organization_id", s.OrganizationID),
+			)
+			// Use the same error as the metadata check above so the handler
+			// does not confirm the existence of files in other organizations.
+			return fail(xerrors.Errorf("file %s is not a modules file", fid))
+		}
 	default:
 		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}
 
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	if err != nil {
+		return fail(xerrors.Errorf("prepare file upload: %w", err))
+	}
 
 	err = stream.Send(&sdkproto.FileUpload{
 		Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload},
@@ -1644,6 +1724,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 					slog.F("transition", transition))
 
 				if err := InsertWorkspaceResource(ctx, db, jobID, transition, resource, telemetrySnapshot); err != nil {
+					s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 					return xerrors.Errorf("insert resource: %w", err)
 				}
 			}
@@ -1824,8 +1905,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				hashBytes := sha256.Sum256(moduleFiles)
 				hash := hex.EncodeToString(hashBytes[:])
 
-				// nolint:gocritic // Requires reading "system" files
-				file, err := db.GetFileByHashAndCreator(dbauthz.AsSystemRestricted(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
+				//nolint:gocritic // Acting as provisionerd
+				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
 				switch {
 				case err == nil:
 					// This set of modules is already cached, which means we can reuse them
@@ -1836,8 +1917,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				case !xerrors.Is(err, sql.ErrNoRows):
 					return xerrors.Errorf("check for cached modules: %w", err)
 				default:
-					// nolint:gocritic // Requires creating a "system" file
-					file, err = db.InsertFile(dbauthz.AsSystemRestricted(ctx), database.InsertFileParams{
+					//nolint:gocritic // Acting as provisionerd
+					file, err = db.InsertFile(dbauthz.AsProvisionerd(ctx), database.InsertFileParams{
 						ID:        uuid.New(),
 						Hash:      hash,
 						CreatedBy: uuid.Nil,
@@ -2062,9 +2143,24 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
 			)
 			if err != nil {
+				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
 		}
+
+		// Soft-delete agents from prior builds now that this build's
+		// agents have been inserted. Waiting until completion (rather
+		// than build creation) avoids bricking running workspaces
+		// whose agents would otherwise be deleted while the new build
+		// is still queued or provisioning. See #25155.
+		err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+			WorkspaceID:    workspaceBuild.WorkspaceID,
+			CurrentBuildID: workspaceBuild.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("soft delete prior workspace agents: %w", err)
+		}
+
 		for _, module := range jobType.WorkspaceBuild.Modules {
 			if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
 				return xerrors.Errorf("insert provisioner job module: %w", err)
@@ -2313,6 +2409,14 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace deleted: %w", err)
 		}
 
+		// Soft-delete any agents tied to this workspace so the
+		// aws-instance-identity handler (which filters on
+		// workspace_agents.deleted) doesn't keep seeing orphaned rows
+		// after the workspace itself is deleted. See #25155.
+		if err := db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("soft delete workspace agents: %w", err)
+		}
+
 		// A user might delete their task workspace directly, instead of
 		// deleting the task. To avoid leaving the Task in a scenario where
 		// it has no workspace, we also attempt to delete the task.
@@ -2387,6 +2491,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 	}
 
+	// Record AI seat usage for successful task workspace builds.
+	if workspaceBuild.Transition == database.WorkspaceTransitionStart && workspace.TaskID.Valid {
+		s.AISeatTracker.RecordUsage(ctx, workspace.OwnerID,
+			aiseats.ReasonTask("task workspace build succeeded"))
+	}
+
 	if s.PrebuildsOrchestrator != nil && input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 		// Track resource replacements, if there are any.
 		orchestrator := s.PrebuildsOrchestrator.Load()
@@ -2454,6 +2564,21 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("update workspace: %w", err)
 	}
 
+	// Publish workspace build update to the all builds channel if the experiment is enabled.
+	if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   workspace.ID,
+			WorkspaceName: workspace.Name,
+			BuildID:       workspaceBuild.ID,
+			Transition:    string(workspaceBuild.Transition),
+			JobStatus:     string(database.ProvisionerJobStatusSucceeded),
+			BuildNumber:   workspaceBuild.BuildNumber,
+		})
+		if err != nil {
+			s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+		}
+	}
+
 	if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 		s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
 			slog.F("workspace_id", workspace.ID))
@@ -2461,6 +2586,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		err = prebuilds.NewPubsubWorkspaceClaimPublisher(s.Pubsub).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
 			WorkspaceID: workspace.ID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			OwnerID:     workspace.OwnerID,
 		})
 		if err != nil {
 			s.Logger.Error(ctx, "failed to publish workspace claim event", slog.Error(err))
@@ -2486,6 +2612,7 @@ func (s *server) completeTemplateDryRunJob(ctx context.Context, job database.Pro
 
 			err := InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
 			if err != nil {
+				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 				return xerrors.Errorf("insert resource: %w", err)
 			}
 		}
@@ -2756,12 +2883,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		env := make(map[string]string)
-		// For now, we only support adding extra envs, not overriding
-		// existing ones or performing other manipulations. In future
-		// we may write these to a separate table so we can perform
-		// conditional logic on the agent.
-		for _, e := range prAgent.ExtraEnvs {
-			env[e.Name] = e.Value
+		// Apply extra envs with merge strategy support.
+		// When multiple coder_env resources define the same name,
+		// the merge_strategy controls how values are combined.
+		if err := MergeExtraEnvs(env, prAgent.ExtraEnvs); err != nil {
+			return err
 		}
 		// Allow the agent defined envs to override extra envs.
 		for k, v := range prAgent.Env {
@@ -2917,14 +3043,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptIDs = append(scriptsParams.ScriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
 				scriptsParams.ScriptDisplayNames = append(scriptsParams.ScriptDisplayNames, displayName)
 				scriptsParams.ScriptLogPaths = append(scriptsParams.ScriptLogPaths, "")
-				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, "")
 				scriptsParams.ScriptCron = append(scriptsParams.ScriptCron, "")
 				scriptsParams.ScriptTimeout = append(scriptsParams.ScriptTimeout, 0)
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
-				// Run on start to surface the warning message in case the
-				// terraform resource is used, but the experiment hasn't
-				// been enabled.
-				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, true)
+				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
 			}
 
@@ -3045,9 +3168,37 @@ func deleteSessionTokenForUserAndWorkspace(ctx context.Context, db database.Stor
 	return nil
 }
 
-// obtainOIDCAccessToken returns a valid OpenID Connect access token
+func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
+	if link.OAuthRefreshToken == "" {
+		// We cannot refresh even if we wanted to
+		return false, link.OAuthExpiry
+	}
+
+	if link.OAuthExpiry.IsZero() {
+		// 0 expire means the token never expires, so we shouldn't refresh
+		return false, link.OAuthExpiry
+	}
+
+	// This handles an edge case where the token is about to expire. A workspace
+	// build takes a non-trivial amount of time. If the token is to expire during the
+	// build, then the build risks failure. To mitigate this, refresh the token
+	// prematurely.
+	//
+	// If an OIDC provider issues short-lived tokens less than our defined period,
+	// the token will always be refreshed on every workspace build.
+	//
+	// By setting the expiration backwards, we are effectively shortening the
+	// time a token can be alive for by 10 minutes.
+	// Note: This is how it is done in the oauth2 package's own token refreshing logic.
+	expiresAt := link.OAuthExpiry.Add(-time.Minute * 10)
+
+	// Return if the token is assumed to be expired.
+	return expiresAt.Before(dbtime.Now()), expiresAt
+}
+
+// ObtainOIDCAccessToken returns a valid OpenID Connect access token
 // for the user if it's able to obtain one, otherwise it returns an empty string.
-func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
+func ObtainOIDCAccessToken(ctx context.Context, logger slog.Logger, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
 	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
 		LoginType: database.LoginTypeOIDC,
@@ -3059,11 +3210,13 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 		return "", xerrors.Errorf("get owner oidc link: %w", err)
 	}
 
-	if link.OAuthExpiry.Before(dbtime.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+	if shouldRefresh, expiresAt := shouldRefreshOIDCToken(link); shouldRefresh {
 		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
 			AccessToken:  link.OAuthAccessToken,
 			RefreshToken: link.OAuthRefreshToken,
-			Expiry:       link.OAuthExpiry,
+			// Use the expiresAt returned by shouldRefreshOIDCToken.
+			// It will force a refresh with an expired time.
+			Expiry: expiresAt,
 		}).Token()
 		if err != nil {
 			// If OIDC fails to refresh, we return an empty string and don't fail.
@@ -3088,6 +3241,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 		if err != nil {
 			return "", xerrors.Errorf("update user link: %w", err)
 		}
+		logger.Info(ctx, "refreshed expired OIDC token for user during workspace build", slog.F("user_id", userID))
 	}
 
 	return link.OAuthAccessToken, nil
@@ -3298,7 +3452,7 @@ func insertDevcontainerSubagent(
 		ResourceID:               resourceID,
 		Name:                     dc.GetName(),
 		AuthToken:                uuid.New(),
-		AuthInstanceID:           parentAgent.AuthInstanceID,
+		AuthInstanceID:           sql.NullString{},
 		Architecture:             parentAgent.Architecture,
 		EnvironmentVariables:     envJSON,
 		Directory:                dc.GetWorkspaceFolder(),
@@ -3329,14 +3483,54 @@ func insertDevcontainerSubagent(
 	return subAgentID, nil
 }
 
+// MergeExtraEnvs applies extra environment variables to the given map,
+// respecting the merge_strategy field on each env. When merge_strategy
+// is empty or "replace", the value overwrites any existing entry.
+// "append" and "prepend" join values with a ":" separator (PATH-style).
+// "error" causes a failure if the key already exists.
+func MergeExtraEnvs(env map[string]string, extraEnvs []*sdkproto.Env) error {
+	for _, e := range extraEnvs {
+		strategy := e.GetMergeStrategy()
+		if strategy == "" {
+			strategy = "replace"
+		}
+		existing, exists := env[e.GetName()]
+		switch strategy {
+		case "error":
+			if exists {
+				return xerrors.Errorf(
+					"duplicate env var %q: merge_strategy is %q but variable is already defined",
+					e.GetName(), strategy,
+				)
+			}
+			env[e.GetName()] = e.GetValue()
+		case "append":
+			if exists && existing != "" {
+				env[e.GetName()] = existing + ":" + e.GetValue()
+			} else {
+				env[e.GetName()] = e.GetValue()
+			}
+		case "prepend":
+			if exists && existing != "" {
+				env[e.GetName()] = e.GetValue() + ":" + existing
+			} else {
+				env[e.GetName()] = e.GetValue()
+			}
+		default: // "replace"
+			env[e.GetName()] = e.GetValue()
+		}
+	}
+	return nil
+}
+
 func encodeSubagentEnvs(envs []*sdkproto.Env) (pqtype.NullRawMessage, error) {
 	if len(envs) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
 
 	subAgentEnvs := make(map[string]string, len(envs))
-	for _, env := range envs {
-		subAgentEnvs[env.GetName()] = env.GetValue()
+	if err := MergeExtraEnvs(subAgentEnvs, envs); err != nil {
+		return pqtype.NullRawMessage{}, err
 	}
 
 	data, err := json.Marshal(subAgentEnvs)
@@ -3443,6 +3637,32 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 	return nil
 }
 
+type workspaceAppRebindError struct {
+	slug    string
+	appID   uuid.UUID
+	agentID uuid.UUID
+}
+
+func (e *workspaceAppRebindError) Error() string {
+	return fmt.Sprintf("workspace app slug %q with ID %q is already bound to a workspace-owned agent and cannot be rebound to an agent in another workspace or to an agent without a workspace; refusing to rebind to agent ID %q", e.slug, e.appID, e.agentID)
+}
+
+func (s *server) warnWorkspaceAppRebindRejected(ctx context.Context, jobID uuid.UUID, err error) {
+	slog.Helper()
+
+	var rebindErr *workspaceAppRebindError
+	if !errors.As(err, &rebindErr) {
+		return
+	}
+
+	s.Logger.Warn(ctx, "workspace app rebind rejected by SQL guard",
+		slog.F("job_id", jobID.String()),
+		slog.F("app_id", rebindErr.appID.String()),
+		slog.F("agent_id", rebindErr.agentID.String()),
+		slog.F("app_slug", rebindErr.slug),
+	)
+}
+
 func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, app *sdkproto.App, appSlugs map[string]struct{}, snapshot *telemetry.Snapshot) error {
 	// Similar logic is duplicated in terraform/resources.go.
 	slug := app.Slug
@@ -3460,10 +3680,11 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 	appSlugs[slug] = struct{}{}
 
 	health := database.WorkspaceAppHealthDisabled
-	if app.Healthcheck == nil {
-		app.Healthcheck = &sdkproto.Healthcheck{}
+	healthcheck := app.GetHealthcheck()
+	if healthcheck == nil {
+		healthcheck = &sdkproto.Healthcheck{}
 	}
-	if app.Healthcheck.Url != "" {
+	if healthcheck.Url != "" {
 		health = database.WorkspaceAppHealthInitializing
 	}
 
@@ -3518,9 +3739,9 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		External:             app.External,
 		Subdomain:            app.Subdomain,
 		SharingLevel:         sharingLevel,
-		HealthcheckUrl:       app.Healthcheck.Url,
-		HealthcheckInterval:  app.Healthcheck.Interval,
-		HealthcheckThreshold: app.Healthcheck.Threshold,
+		HealthcheckUrl:       healthcheck.Url,
+		HealthcheckInterval:  healthcheck.Interval,
+		HealthcheckThreshold: healthcheck.Threshold,
 		Health:               health,
 		// #nosec G115 - Order represents a display order value that's always small and fits in int32
 		DisplayOrder: int32(app.Order),
@@ -3530,6 +3751,17 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		Tooltip:      app.Tooltip,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// The upsert's ON CONFLICT guard refused to rebind an app
+			// owned by a workspace to an agent outside that workspace,
+			// including agents from import or dry-run jobs that resolve
+			// to no workspace (SEC-91).
+			return &workspaceAppRebindError{
+				slug:    slug,
+				appID:   id,
+				agentID: agentID,
+			}
+		}
 		return xerrors.Errorf("upsert app: %w", err)
 	}
 

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { API } from "api/api";
+import { API } from "#/api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
 import { login, randomName, requiresLicense } from "../../helpers";

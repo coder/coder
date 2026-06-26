@@ -5,12 +5,23 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { API } from "api/api";
+import { useFormik } from "formik";
+import {
+	BuildingIcon,
+	ExternalLinkIcon,
+	LockIcon,
+	LockOpenIcon,
+	RadioIcon,
+	ShareIcon,
+	XIcon,
+} from "lucide-react";
+import { type FC, useState } from "react";
+import { useMutation } from "react-query";
+import * as Yup from "yup";
 import {
 	deleteWorkspacePortShare,
 	upsertWorkspacePortShare,
-	workspacePortShares,
-} from "api/queries/workspaceportsharing";
+} from "#/api/queries/workspaceportsharing";
 import {
 	type Template,
 	type Workspace,
@@ -20,46 +31,34 @@ import {
 	type WorkspaceAgentPortShareLevel,
 	type WorkspaceAgentPortShareProtocol,
 	WorkspaceAppSharingLevels,
-} from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+} from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
-	HelpTooltipLink,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
+	HelpPopoverLink,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Spinner } from "components/Spinner/Spinner";
+} from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useFormik } from "formik";
-import {
-	BuildingIcon,
-	ChevronDownIcon,
-	ExternalLinkIcon,
-	LockIcon,
-	LockOpenIcon,
-	RadioIcon,
-	ShareIcon,
-	X as XIcon,
-} from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useState } from "react";
-import { useMutation, useQuery } from "react-query";
-import { docs } from "utils/docs";
-import { getFormHelpers } from "utils/formUtils";
+} from "#/components/Tooltip/Tooltip";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { usePortsData } from "#/modules/resources/usePortsData";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
 import {
 	getWorkspaceListeningPortsProtocol,
 	portForwardURL,
 	saveWorkspaceListeningPortsProtocol,
-} from "utils/portForward";
-import * as Yup from "yup";
+} from "#/utils/portForward";
 
 interface PortForwardButtonProps {
 	host: string;
@@ -76,19 +75,11 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 }) => {
 	const { entitlements } = useDashboard();
 
-	const { data: listeningPorts } = useQuery({
-		queryKey: ["portForward", agent.id],
-		queryFn: () => API.getAgentListeningPorts(agent.id),
-		enabled: agent.status === "connected",
-		refetchInterval: 5_000,
-		select: (res) => res.ports,
-	});
-
-	const { data: sharedPorts, refetch: refetchSharedPorts } = useQuery({
-		...workspacePortShares(workspace.id),
-		enabled: agent.status === "connected",
-		select: (res) => res.shares,
-	});
+	const { listeningPorts, sharedPorts, refetchSharedPorts } = usePortsData(
+		workspace,
+		agent,
+		agent.status === "connected",
+	);
 
 	return (
 		<Popover>
@@ -98,7 +89,7 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 						<span css={styles.portCount}>{listeningPorts?.length}</span>
 					</Spinner>
 					Open ports
-					<ChevronDownIcon className="size-4" />
+					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -193,13 +184,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
-	// filter out shared ports that are not from this agent
-	const filteredSharedPorts = sharedPorts.filter(
-		(port) => port.agent_name === agent.name,
-	);
-	// we don't want to show listening ports if it's a shared port
+	// usePortsData already filters shared ports down to this agent, so only
+	// hide listening ports that are also shared.
 	const filteredListeningPorts = listeningPorts.filter((port) =>
-		filteredSharedPorts.every((sharedPort) => sharedPort.port !== port.port),
+		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
@@ -251,42 +239,26 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	return (
 		<>
-			<div
-				css={{
-					maxHeight: 320,
-					overflowY: "auto",
-				}}
-			>
-				<Stack
-					direction="column"
-					css={{
-						padding: 20,
-					}}
-				>
+			<div className="max-h-80 overflow-y-auto">
+				<Stack direction="column" className="p-5">
 					<Stack
 						direction="row"
 						justifyContent="space-between"
 						alignItems="start"
 					>
-						<HelpTooltipTitle>Listening Ports</HelpTooltipTitle>
-						<HelpTooltipLink
+						<HelpPopoverTitle>Listening Ports</HelpPopoverTitle>
+						<HelpPopoverLink
 							href={docs("/admin/networking/port-forwarding#dashboard")}
 						>
 							Learn more
-						</HelpTooltipLink>
+						</HelpPopoverLink>
 					</Stack>
 					<Stack direction="column" gap={1}>
-						<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+						<HelpPopoverText css={{ color: theme.palette.text.secondary }}>
 							The listening ports are exclusively accessible to you. Selecting
 							HTTP/S will change the protocol for all listening ports.
-						</HelpTooltipText>
-						<Stack
-							direction="row"
-							gap={2}
-							css={{
-								paddingBottom: 8,
-							}}
-						>
+						</HelpPopoverText>
+						<Stack direction="row" gap={2} className="pb-2">
 							<FormControl size="small" css={styles.protocolFormControl}>
 								<Select
 									css={styles.listeningPortProtocol}
@@ -346,9 +318,9 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 						</Stack>
 					</Stack>
 					{filteredListeningPorts.length === 0 && (
-						<HelpTooltipText css={styles.noPortText}>
+						<HelpPopoverText css={styles.noPortText}>
 							No open ports were detected.
-						</HelpTooltipText>
+						</HelpPopoverText>
 					)}
 					{filteredListeningPorts.map((port) => {
 						const url = portForwardURL(
@@ -431,15 +403,15 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 					borderTop: `1px solid ${theme.palette.divider}`,
 				}}
 			>
-				<HelpTooltipTitle>Shared Ports</HelpTooltipTitle>
-				<HelpTooltipText css={{ color: theme.palette.text.secondary }}>
+				<HelpPopoverTitle>Shared Ports</HelpPopoverTitle>
+				<HelpPopoverText css={{ color: theme.palette.text.secondary }}>
 					{canSharePorts
 						? "Ports can be shared with organization members, other Coder users, or with the public."
 						: "This workspace template does not allow sharing ports. Contact a template administrator to enable port sharing."}
-				</HelpTooltipText>
+				</HelpPopoverText>
 				{canSharePorts && (
 					<div>
-						{filteredSharedPorts?.map((share) => {
+						{sharedPorts.map((share) => {
 							const url = portForwardURL(
 								host,
 								share.port,
@@ -527,6 +499,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										<Button
 											size="icon"
 											variant="subtle"
+											aria-label="Delete shared port"
 											onClick={async () => {
 												await deleteSharedPortMutation.mutateAsync({
 													agent_name: agent.name,
@@ -534,13 +507,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												});
 											}}
 										>
-											<XIcon
-												css={{
-													width: 14,
-													height: 14,
-													color: theme.palette.text.primary,
-												}}
-											/>
+											<XIcon />
 										</Button>
 									</Stack>
 								</Stack>

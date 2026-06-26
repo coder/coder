@@ -2,6 +2,7 @@
  * @file Provides reusable vertical overflow behavior.
  */
 import type { FC, ReactNode } from "react";
+import { cn } from "#/utils/cn";
 
 type OverflowYProps = {
 	children?: ReactNode;
@@ -12,6 +13,7 @@ type OverflowYProps = {
 
 export const OverflowY: FC<OverflowYProps> = ({
 	children,
+	className,
 	height,
 	maxHeight,
 	...attrs
@@ -27,12 +29,10 @@ export const OverflowY: FC<OverflowYProps> = ({
 
 	return (
 		<div
-			css={{
-				width: "100%",
+			className={cn("w-full overflow-y-auto shrink", className)}
+			style={{
 				height: computedHeight,
 				maxHeight: computedMaxHeight,
-				overflowY: "auto",
-				flexShrink: 1,
 			}}
 			{...attrs}
 		>

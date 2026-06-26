@@ -1,23 +1,21 @@
 import Link from "@mui/material/Link";
-import type { TemplateExample } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { Stack } from "components/Stack/Stack";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { docs } from "utils/docs";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
+import { docs } from "#/utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
-	"tasks-docker",
+	"quickstart",
 	"docker",
 	"kubernetes",
 	"aws-linux",
-	"aws-windows",
 	"gcp-linux",
-	"gcp-windows",
+	"azure-linux",
 ];
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
@@ -71,19 +69,18 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 					</>
 				}
 				cta={
-					<Stack alignItems="center" spacing={4}>
+					<div className="flex flex-col gap-8 items-center">
 						<div className="flex flex-wrap justify-center gap-4">
 							{featuredExamples.map((example) => (
 								<TemplateExampleCard example={example} key={example.id} />
 							))}
 						</div>
-
-						<Button size="sm" asChild css={{ borderRadius: 9999 }}>
+						<Button size="sm" asChild className="rounded-full">
 							<RouterLink to="/starter-templates">
 								View all starter templates
 							</RouterLink>
 						</Button>
-					</Stack>
+					</div>
 				}
 			/>
 		);

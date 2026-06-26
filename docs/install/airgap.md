@@ -6,13 +6,14 @@ air-gapped with Kubernetes or Docker.
 
 |                           | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                               |
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Terraform binary          | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                                                                   |
+| Terraform binary          | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../provisioner/terraform/install.go#L23-L24)                                                                                                                                                      |
 | Terraform registry        | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                           |
 | STUN                      | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../reference/cli/server.md#--derp-server-stun-addresses) users can still connect via [relayed connections](../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../reference/cli/server.md#--derp-server-stun-addresses) |
 | DERP                      | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../admin/networking/index.md#relayed-connections).                                                                                                                             | By default, Coder's built-in DERP relay can be used, or [custom relays](../admin/networking/index.md#custom-relays).                                                                                                                                                                                 |
 | PostgreSQL                | If no [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url) is specified, Coder will download Postgres from [repo1.maven.org](https://repo1.maven.org)                                                                                            | An external database is required, you must specify a [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url)                                                                                                                                                                          |
 | Telemetry                 | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                                                                  |
 | Update check              | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                                                                           |
+| License validation        | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](../admin/licensing/index.md#offline-license-validation)                                                                                                                                                                                          |
 | AI Governance Usage Count | By default, deployments with the [AI Governance Add On](../ai-coder/ai-governance.md) report usage data                                                                                                                                                            | [Contact us](https://coder.com/contact) to request a license with usage reporting off.                                                                                                                                                                                                               |
 
 ## Air-gapped container images
@@ -32,7 +33,7 @@ following:
 
 > [!NOTE]
 > Coder includes the latest
-> [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
+> [supported version](../../provisioner/terraform/install.go#L23-L24)
 > of Terraform in the official Docker images. If you need to bundle a different
 > version of terraform, you can do so by customizing the image.
 
@@ -49,10 +50,10 @@ RUN apk add curl unzip
 RUN mkdir -p /opt/terraform
 
 # Terraform is already included in the official Coder image.
-# See https://github.com/coder/coder/blob/main/scripts/Dockerfile.base#L15
+# See ../../scripts/Dockerfile.base#L15
 # If you need to install a different version of Terraform, you can do so here.
 # The below step is optional if you wish to keep the existing version.
-# See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
+# See ../../provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.11.0
 RUN apk update && \
@@ -114,7 +115,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 > [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the
 > provider version matches any templates or
-> [example templates](https://github.com/coder/coder/tree/main/examples/templates)
+> [example templates](../../examples/templates)
 > you intend to use.
 
 ```tf
@@ -235,8 +236,10 @@ accessible for your team to use.
 
 ## Coder Modules
 
-To use Coder modules in offline installations please follow the instructions
-[here](../admin/templates/extending-templates/modules.md#offline-installations).
+To use Coder modules in offline installations, you can either:
+
+- [Mirror the Coder Registry with JFrog Artifactory](./registry-mirror-artifactory.md) (recommended)
+- [Manually publish modules to Artifactory or use a private git repository](../admin/templates/extending-templates/modules.md#offline-installations)
 
 ## Firewall exceptions
 

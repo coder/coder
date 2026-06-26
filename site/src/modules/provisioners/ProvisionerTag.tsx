@@ -1,8 +1,7 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import IconButton from "@mui/material/IconButton";
-import { Pill } from "components/Pill/Pill";
 import { CircleCheckIcon, CircleMinusIcon, TagIcon, XIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
+import { Button } from "#/components/Button/Button";
+import { Pill } from "#/components/Pill/Pill";
 
 const parseBool = (s: string): { valid: boolean; value: boolean } => {
 	switch (s.toLowerCase()) {
@@ -35,22 +34,23 @@ export const ProvisionerTag: FC<ProvisionerTagProps> = ({
 	const { valid, value: boolValue } = parseBool(tagValue);
 	const kv = (
 		<>
-			<span css={{ fontWeight: 600 }}>{tagName}</span> <span>{tagValue}</span>
+			<span className="font-semibold">{tagName}</span> <span>{tagValue}</span>
 		</>
 	);
 	const content = onDelete ? (
 		<>
 			{kv}
-			<IconButton
-				size="small"
-				color="secondary"
+			<Button
+				size="icon"
+				variant="subtle"
 				onClick={() => {
 					onDelete(tagName);
 				}}
+				className="size-6"
 			>
 				<XIcon className="size-icon-xs" />
 				<span className="sr-only">Delete {tagName}</span>
-			</IconButton>
+			</Button>
 		</>
 	) : (
 		kv
@@ -84,9 +84,9 @@ const BooleanPill: FC<BooleanPillProps> = ({
 			size="lg"
 			icon={
 				value ? (
-					<CircleCheckIcon css={styles.truePill} className="size-icon-sm" />
+					<CircleCheckIcon className="size-icon-sm text-content-link" />
 				) : (
-					<CircleMinusIcon css={styles.falsePill} className="size-icon-sm" />
+					<CircleMinusIcon className="size-icon-sm text-content-warning" />
 				)
 			}
 			{...divProps}
@@ -95,12 +95,3 @@ const BooleanPill: FC<BooleanPillProps> = ({
 		</Pill>
 	);
 };
-
-const styles = {
-	truePill: (theme) => ({
-		color: theme.roles.active.outline,
-	}),
-	falsePill: (theme) => ({
-		color: theme.roles.danger.outline,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

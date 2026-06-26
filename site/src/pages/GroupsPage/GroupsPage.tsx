@@ -1,50 +1,61 @@
-import { getErrorMessage } from "api/errors";
-import { groupsByOrganization } from "api/queries/groups";
-import { organizationsPermissions } from "api/queries/organizations";
-import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
+import { PlusIcon } from "lucide-react";
+import { type FC, useEffect } from "react";
+import { useQuery } from "react-query";
+import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { groupsByOrganization } from "#/api/queries/groups";
+import { organizationsPermissions } from "#/api/queries/organizations";
+import { Button } from "#/components/Button/Button";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import { PlusIcon } from "lucide-react";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { RequirePermission } from "modules/permissions/RequirePermission";
-import { type FC, useEffect } from "react";
-import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router";
-import { pageTitle } from "utils/page";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView } from "./GroupsPageView";
 
 const GroupsPage: FC = () => {
-	const { template_rbac: groupsEnabled } = useFeatureVisibility();
+	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
+	const { experiments } = useDashboard();
 	const { organization, showOrganizations } = useGroupsSettings();
+	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
+	// the cost-control feature is stable.
+	const aibridgeVisible =
+		Boolean(aibridge) && experiments.includes("ai-gateway-cost-control");
 	const groupsQuery = useQuery({
 		...groupsByOrganization(organization?.name ?? ""),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 	const permissionsQuery = useQuery({
 		...organizationsPermissions([organization?.id ?? ""]),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 
 	useEffect(() => {
 		if (groupsQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(groupsQuery.error, "Unable to load groups."),
+				{
+					description: getErrorDetail(groupsQuery.error),
+				},
 			);
 		}
 	}, [groupsQuery.error]);
 
 	useEffect(() => {
 		if (permissionsQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(permissionsQuery.error, "Unable to load permissions."),
+				{
+					description: getErrorDetail(permissionsQuery.error),
+				},
 			);
 		}
 	}, [permissionsQuery.error]);
@@ -74,11 +85,7 @@ const GroupsPage: FC = () => {
 		<div className="w-full max-w-screen-2xl pb-10">
 			{title}
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex max-w-full flex-row items-baseline justify-between gap-4">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -95,12 +102,13 @@ const GroupsPage: FC = () => {
 						</RouterLink>
 					</Button>
 				)}
-			</Stack>
+			</div>
 
 			<GroupsPageView
 				groups={groupsQuery.data}
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
+				showAIBudget={aibridgeVisible}
 			/>
 		</div>
 	);

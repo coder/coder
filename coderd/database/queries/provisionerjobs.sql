@@ -19,6 +19,7 @@ WHERE
 			provisioner_jobs AS potential_job
 		WHERE
 			potential_job.started_at IS NULL
+			AND potential_job.completed_at IS NULL
 			AND potential_job.organization_id = @organization_id
 			-- Ensure the caller has the correct provisioner.
 			AND potential_job.provisioner = ANY(@types :: provisioner_type [ ])
@@ -66,19 +67,11 @@ WHERE
 	id = $1
 FOR UPDATE;
 
--- name: GetProvisionerJobsByIDs :many
-SELECT
-	*
-FROM
-	provisioner_jobs
-WHERE
-	id = ANY(@ids :: uuid [ ]);
-
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
 	SELECT
-		id, created_at
+		id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
@@ -93,21 +86,32 @@ pending_jobs AS (
 	WHERE
 		job_status = 'pending'
 ),
-online_provisioner_daemons AS (
-	SELECT id, tags FROM provisioner_daemons pd
-	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
+unique_daemon_tags AS (
+	SELECT DISTINCT tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL
+	  AND pd.last_seen_at >= (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
+),
+relevant_daemon_tags AS (
+	SELECT udt.tags
+	FROM unique_daemon_tags udt
+	WHERE EXISTS (
+		SELECT 1 FROM filtered_provisioner_jobs fpj
+		WHERE provisioner_tagset_contains(udt.tags, fpj.tags)
+	)
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY rdt.tags ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY rdt.tags) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN online_provisioner_daemons opd
-					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
+	INNER JOIN
+		relevant_daemon_tags rdt
+	ON
+		provisioner_tagset_contains(rdt.tags, pj.tags)
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -191,7 +195,8 @@ SELECT
 	w.id AS workspace_id,
 	COALESCE(w.name, '') AS workspace_name,
 	-- Include the name of the provisioner_daemon associated to the job
-	COALESCE(pd.name, '') AS worker_name
+	COALESCE(pd.name, '') AS worker_name,
+	wb.transition as workspace_build_transition
 FROM
 	provisioner_jobs pj
 LEFT JOIN
@@ -236,7 +241,8 @@ GROUP BY
 	t.icon,
 	w.id,
 	w.name,
-	pd.name
+	pd.name,
+	wb.transition
 ORDER BY
 	pj.created_at DESC
 LIMIT

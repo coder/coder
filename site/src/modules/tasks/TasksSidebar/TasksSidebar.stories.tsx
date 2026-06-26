@@ -1,15 +1,16 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { spyOn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
+import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
+	MockTask,
 	MockTasks,
 	MockUserOwner,
 	mockApiError,
-} from "testHelpers/entities";
-import { withAuthProvider } from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
-import { MockUsers } from "pages/UsersPage/storybookData/users";
-import { spyOn, userEvent, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+} from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { TasksSidebar } from "./TasksSidebar";
 
 const meta: Meta<typeof TasksSidebar> = {
@@ -129,5 +130,71 @@ export const OpenDeleteDialog: Story = {
 			});
 			await userEvent.click(deleteButton);
 		});
+	},
+};
+
+export const PauseMenuOpen: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const optionButtons = await canvas.findAllByRole("button", {
+			name: /task options/i,
+		});
+		await userEvent.click(optionButtons[0]);
+	},
+};
+
+export const ResumeMenuOpen: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue([
+			{ ...MockTask, status: "paused" },
+			...MockTasks.slice(1),
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const optionButtons = await canvas.findAllByRole("button", {
+			name: /task options/i,
+		});
+		await userEvent.click(optionButtons[0]);
+	},
+};
+
+export const MixedStatuses: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTasks").mockResolvedValue([
+			MockTask,
+			{
+				...MockTask,
+				id: "paused-task",
+				name: "paused-task",
+				display_name: "Paused task",
+				status: "paused",
+			},
+			{
+				...MockTask,
+				id: "error-task",
+				name: "error-task",
+				display_name: "Error task",
+				status: "error",
+			},
+			{
+				...MockTask,
+				id: "init-task",
+				name: "init-task",
+				display_name: "Initializing task",
+				status: "initializing",
+			},
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const optionButtons = await canvas.findAllByRole("button", {
+			name: /task options/i,
+		});
+		// Open menu on the error task (third item) to show both Pause and Resume.
+		await userEvent.click(optionButtons[2]);
 	},
 };

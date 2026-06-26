@@ -4,7 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"slices"
+	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -12,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -22,19 +28,21 @@ import (
 // @Tags Notifications
 // @Param request body codersdk.WebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/webpush/subscription [post]
+// @Router /api/v2/users/{user}/webpush/subscription [post]
 // @Success 204
 // @x-apidocgen {"skip": true}
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
 	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := validateWebpushEndpoint(req.Endpoint); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid webpush endpoint.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -59,8 +67,47 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	if invalidator, ok := api.WebpushDispatcher.(webpush.SubscriptionCacheInvalidator); ok {
+		invalidator.InvalidateUser(user.ID)
+	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func validateWebpushEndpoint(rawEndpoint string) error {
+	endpoint, err := url.Parse(rawEndpoint)
+	if err != nil {
+		return xerrors.Errorf("parse endpoint URL: %w", err)
+	}
+	if !endpoint.IsAbs() {
+		return xerrors.New("endpoint must be an absolute URL")
+	}
+	if endpoint.Scheme != "https" {
+		return xerrors.New("endpoint URL scheme must be https")
+	}
+	if endpoint.Host == "" {
+		return xerrors.New("endpoint host is required")
+	}
+	if endpoint.User != nil {
+		return xerrors.New("endpoint URL must not include userinfo")
+	}
+
+	hostname := strings.ToLower(endpoint.Hostname())
+	if hostname == "" {
+		return xerrors.New("endpoint hostname is required")
+	}
+	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
+		return xerrors.New("endpoint hostname must not be localhost")
+	}
+
+	if ip, err := netip.ParseAddr(hostname); err == nil &&
+		(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
+			ip.IsUnspecified()) {
+		return xerrors.New("endpoint IP must not be private, loopback, link-local, multicast, or unspecified")
+	}
+
+	return nil
 }
 
 // @Summary Delete user webpush subscription
@@ -70,17 +117,12 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 // @Tags Notifications
 // @Param request body codersdk.DeleteWebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/webpush/subscription [delete]
+// @Router /api/v2/users/{user}/webpush/subscription [delete]
 // @Success 204
 // @x-apidocgen {"skip": true}
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	var req codersdk.DeleteWebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -88,12 +130,15 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 	}
 
 	// Return NotFound if the subscription does not exist.
-	if existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID); err != nil && errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Webpush subscription not found.",
+	existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get webpush subscriptions.",
+			Detail:  err.Error(),
 		})
 		return
-	} else if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
+	}
+	if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
 		return s.Endpoint == req.Endpoint
 	}); idx == -1 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -118,6 +163,9 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 		})
 		return
 	}
+	if invalidator, ok := api.WebpushDispatcher.(webpush.SubscriptionCacheInvalidator); ok {
+		invalidator.InvalidateUser(user.ID)
+	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
@@ -128,16 +176,11 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 // @Tags Notifications
 // @Param user path string true "User ID, name, or me"
 // @Success 204
-// @Router /users/{user}/webpush/test [post]
+// @Router /api/v2/users/{user}/webpush/test [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-
-	if !api.Experiments.Enabled(codersdk.ExperimentWebPush) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 
 	// We need to authorize the user to send a push notification to themselves.
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceNotificationMessage.WithOwner(user.ID.String())) {

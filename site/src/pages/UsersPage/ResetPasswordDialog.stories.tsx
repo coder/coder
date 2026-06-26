@@ -1,5 +1,5 @@
-import { MockUserOwner } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { MockUserOwner } from "#/testHelpers/entities";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 
 const meta: Meta<typeof ResetPasswordDialog> = {

@@ -1,32 +1,9 @@
-import {
-	type CSSObject,
-	css,
-	type Interpolation,
-	type Theme,
-	useTheme,
-} from "@emotion/react";
-import Link from "@mui/material/Link";
-import { LicenseTelemetryRequiredErrorText } from "api/typesGenerated";
-import { Expander } from "components/Expander/Expander";
-import { Pill } from "components/Pill/Pill";
-import { type FC, useState } from "react";
-
-const Language = {
-	licenseIssue: "License Issue",
-	licenseIssues: (num: number): string => `${num} License Issues`,
-	upgrade: "Contact sales@coder.com.",
-	exception: "Contact sales@coder.com if you need an exception.",
-	exceeded: "It looks like you've exceeded some limits of your license.",
-	lessDetails: "Less",
-	moreDetails: "More",
-};
-
-const styles = {
-	leftContent: {
-		marginRight: 8,
-		marginLeft: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+import { cva } from "class-variance-authority";
+import { TriangleAlertIcon } from "lucide-react";
+import { useState } from "react";
+import { Expander } from "#/components/Expander/Expander";
+import { Link } from "#/components/Link/Link";
+import { cn } from "#/utils/cn";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.
@@ -36,77 +13,160 @@ const formatMessage = (message: string) => {
 	return message;
 };
 
-interface LicenseBannerViewProps {
-	errors: readonly string[];
-	warnings: readonly string[];
+type LicenseBannerVariant = "warning" | "warningProminent" | "error";
+
+export interface LicenseBannerLink {
+	href: string;
+	label: string;
+	showExternalIcon?: boolean;
+	target?: React.ComponentProps<typeof Link>["target"];
 }
 
-export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
-	errors,
-	warnings,
-}) => {
-	const theme = useTheme();
-	const [showDetails, setShowDetails] = useState(false);
-	const isError = errors.length > 0;
-	const messages = [...errors, ...warnings];
-	const type = isError ? "error" : "warning";
+export interface LicenseBannerMessage {
+	message: string;
+	variant: LicenseBannerVariant;
+	link?: LicenseBannerLink;
+}
 
-	const containerStyles = css`
-    ${theme.typography.body2 as CSSObject}
+const bannerVariants = cva("flex items-center p-3", {
+	variants: {
+		variant: {
+			warning: "bg-surface-secondary",
+			warningProminent: "bg-surface-orange",
+			error: "bg-surface-red",
+		},
+	},
+});
 
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    background-color: ${theme.roles[type].background};
-  `;
+const iconVariants = cva("size-4", {
+	variants: {
+		variant: {
+			warning: "text-content-warning",
+			warningProminent: "text-content-warning",
+			error: "text-content-destructive",
+		},
+	},
+});
 
-	const textColor = theme.roles[type].text;
+interface LicenseBannerViewProps {
+	messages: readonly LicenseBannerMessage[];
+}
 
-	if (messages.length === 1) {
-		return (
-			<div css={containerStyles}>
-				<Pill type={type}>{Language.licenseIssue}</Pill>
-				<div css={styles.leftContent}>
-					<span>{formatMessage(messages[0])}</span>
-					&nbsp;
-					<Link
-						color={textColor}
-						fontWeight="medium"
-						href="mailto:sales@coder.com"
-					>
-						{messages[0] === LicenseTelemetryRequiredErrorText
-							? Language.exception
-							: Language.upgrade}
-					</Link>
-				</div>
-			</div>
-		);
+const messageLinkClass = "text-xs font-medium !text-content-link";
+const listClass =
+	"m-0 list-disc space-y-1 pl-4 text-xs leading-[18px] text-content-primary";
+
+const getBannerVariant = (
+	messages: readonly LicenseBannerMessage[],
+): LicenseBannerVariant => {
+	const hasError = messages.some((entry) => entry.variant === "error");
+	if (hasError) {
+		return "error";
 	}
 
+	const hasProminentWarning = messages.some(
+		(entry) => entry.variant === "warningProminent",
+	);
+	return hasProminentWarning ? "warningProminent" : "warning";
+};
+
+const bannerTitle = (variant: LicenseBannerVariant): string =>
+	variant === "error"
+		? "License errors require attention"
+		: "Your license limits have been exceeded";
+
+const bannerRole = (variant: LicenseBannerVariant): "alert" | "status" =>
+	variant === "error" ? "alert" : "status";
+
+const LicenseMessageText: React.FC<{
+	entry: LicenseBannerMessage;
+}> = ({ entry }) => (
+	<>
+		{formatMessage(entry.message)}{" "}
+		{entry.link && (
+			<Link
+				className={messageLinkClass}
+				href={entry.link.href}
+				showExternalIcon={entry.link.showExternalIcon}
+				target={entry.link.target}
+			>
+				{entry.link.label}
+			</Link>
+		)}
+	</>
+);
+
+const LicenseMessageList: React.FC<{
+	messages: readonly LicenseBannerMessage[];
+}> = ({ messages }) => (
+	<ul className={listClass}>
+		{messages.map((entry, index) => (
+			<li key={`${entry.message}-${index}`}>
+				<LicenseMessageText entry={entry} />
+			</li>
+		))}
+	</ul>
+);
+
+const ExpandableLicenseMessageList: React.FC<{
+	visibleMessages: readonly LicenseBannerMessage[];
+	hiddenMessages: readonly LicenseBannerMessage[];
+}> = ({ visibleMessages, hiddenMessages }) => {
+	const [showDetails, setShowDetails] = useState(false);
+	const showExpander = hiddenMessages.length > 0;
+
 	return (
-		<div css={containerStyles}>
-			<Pill type={type}>{Language.licenseIssues(messages.length)}</Pill>
-			<div css={styles.leftContent}>
-				<div>
-					{Language.exceeded}
-					&nbsp;
-					<Link
-						color={textColor}
-						fontWeight="medium"
-						href="mailto:sales@coder.com"
-					>
-						{Language.upgrade}
-					</Link>
-				</div>
+		<div className="flex flex-col gap-1">
+			<LicenseMessageList messages={visibleMessages} />
+			{showExpander && (
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
-					<ul css={{ padding: 8, margin: 0 }}>
-						{messages.map((message) => (
-							<li css={{ margin: 4 }} key={message}>
-								{formatMessage(message)}
-							</li>
-						))}
-					</ul>
+					<LicenseMessageList messages={hiddenMessages} />
 				</Expander>
+			)}
+		</div>
+	);
+};
+
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
+	messages,
+}) => {
+	if (messages.length === 0) {
+		return null;
+	}
+
+	const isSingleMessage = messages.length === 1;
+	const bannerVariant = getBannerVariant(messages);
+	const visibleMessages = messages.slice(0, 2);
+	const hiddenMessages = messages.slice(2);
+
+	return (
+		<div
+			role={bannerRole(bannerVariant)}
+			className={cn(bannerVariants({ variant: bannerVariant }))}
+		>
+			<div className="flex min-w-0 flex-1 items-start gap-2">
+				<div className="flex h-6 items-center">
+					<TriangleAlertIcon
+						className={cn(iconVariants({ variant: bannerVariant }))}
+					/>
+				</div>
+				<div className="flex min-w-0 flex-1 flex-col gap-2">
+					{isSingleMessage ? (
+						<div className="flex min-h-6 items-center text-xs leading-4 text-content-primary">
+							<LicenseMessageText entry={messages[0]} />
+						</div>
+					) : (
+						<>
+							<div className="text-sm font-semibold leading-6 text-content-primary">
+								{bannerTitle(bannerVariant)}
+							</div>
+							<ExpandableLicenseMessageList
+								hiddenMessages={hiddenMessages}
+								visibleMessages={visibleMessages}
+							/>
+						</>
+					)}
+				</div>
 			</div>
 		</div>
 	);

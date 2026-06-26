@@ -1,14 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
-import { DropdownMenuItem } from "components/DropdownMenu/DropdownMenu";
-import { Link } from "components/Link/Link";
-import { Markdown } from "components/Markdown/Markdown";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { useProxy } from "contexts/ProxyContext";
 import {
 	Building2Icon,
 	CircleAlertIcon,
@@ -17,9 +6,25 @@ import {
 	SquareArrowOutUpRightIcon,
 	UsersIcon,
 } from "lucide-react";
-import { isExternalApp, needsSessionToken } from "modules/apps/apps";
-import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, type ReactNode, useState } from "react";
+import type * as TypesGen from "#/api/typesGenerated";
+import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
+import { Link } from "#/components/Link/Link";
+import { Markdown } from "#/components/Markdown/Markdown";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useProxy } from "#/contexts/ProxyContext";
+import {
+	isAppBlockedByMissingWildcard,
+	isExternalApp,
+	needsSessionToken,
+} from "#/modules/apps/apps";
+import { useAppLink } from "#/modules/apps/useAppLink";
+import { docs } from "#/utils/docs";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
 
@@ -75,7 +80,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		primaryTooltip = "Unhealthy";
 	}
 
-	if (!host && app.subdomain) {
+	if (isAppBlockedByMissingWildcard(app, host)) {
 		canClick = false;
 		icon = (
 			<CircleAlertIcon
@@ -98,7 +103,7 @@ export const AppLink: FC<AppLinkProps> = ({
 			<>
 				Port forwarding will not work because hostname is too long, see the{" "}
 				<Link
-					href="https://coder.com/docs/user-guides/workspace-access/port-forwarding#dashboard"
+					href={docs("/user-guides/workspace-access/port-forwarding#dashboard")}
 					target="_blank"
 					size="sm"
 				>
@@ -135,7 +140,12 @@ export const AppLink: FC<AppLinkProps> = ({
 
 	const button = grouped ? (
 		<DropdownMenuItem asChild>
-			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target={app.open_in === "tab" ? "_blank" : undefined}
+				rel={app.open_in === "tab" ? "noreferrer" : undefined}
+			>
 				{icon}
 				{link.label}
 				{ShareIcon && <ShareIcon />}
@@ -143,7 +153,12 @@ export const AppLink: FC<AppLinkProps> = ({
 		</DropdownMenuItem>
 	) : (
 		<AgentButton asChild>
-			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target={app.open_in === "tab" ? "_blank" : undefined}
+				rel={app.open_in === "tab" ? "noreferrer" : undefined}
+			>
 				{icon}
 				{link.label}
 				{ShareIcon && <ShareIcon />}

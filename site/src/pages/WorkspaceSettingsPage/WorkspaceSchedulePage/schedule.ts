@@ -4,7 +4,7 @@ import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 import map from "lodash/map";
 import some from "lodash/some";
-import { extractTimezone, stripTimezone } from "utils/schedule";
+import { extractTimezone, stripTimezone } from "#/utils/schedule";
 import type { Autostop } from "./ttl";
 import type { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm";
 

@@ -26,7 +26,7 @@ test("remove group", async ({ page, baseURL }) => {
 	const dialog = page.getByTestId("dialog");
 	await dialog.getByLabel("Name of the group to delete").fill(group.name);
 	await dialog.getByRole("button", { name: "Delete" }).click();
-	await expect(page.getByText("Group deleted successfully.")).toBeVisible();
+	await expect(page.getByText(/deleted successfully/)).toBeVisible();
 
 	await expect(page).toHaveTitle("Groups - Coder");
 });

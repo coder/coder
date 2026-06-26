@@ -35,6 +35,7 @@ const localURL = (port: number, path: string): string => {
 export default defineConfig({
 	retries,
 	globalSetup: require.resolve("./setup/preflight"),
+	outputDir: "../test-results",
 	projects: [
 		{
 			name: "testsSetup",
@@ -47,10 +48,20 @@ export default defineConfig({
 			timeout: 30_000,
 		},
 	],
-	reporter: [["list"], ["./reporter.ts"]],
+	reporter: [
+		["list"],
+		["html", { open: "never" }],
+		[
+			"json",
+			{ outputFile: path.join(__dirname, "../test-results/results.json") },
+		],
+		["./reporter.ts"],
+	],
 	use: {
 		actionTimeout: 5000,
 		baseURL: `http://localhost:${coderPort}`,
+		screenshot: "only-on-failure",
+		trace: "retain-on-failure",
 		video: "retain-on-failure",
 		...(wsEndpoint
 			? {
@@ -66,6 +77,9 @@ export default defineConfig({
 	},
 	webServer: {
 		url: `http://localhost:${coderPort}/api/v2/deployment/config`,
+		// The default timeout is 60s, but `go run` compilation with the
+		// embed tag can take longer on CI.
+		timeout: 120_000,
 		command: [
 			`go run -tags embed ${path.join(__dirname, "../../enterprise/cmd/coder")}`,
 			"server",

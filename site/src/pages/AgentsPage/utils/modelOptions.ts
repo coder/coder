@@ -1,0 +1,243 @@
+import type * as TypesGen from "#/api/typesGenerated";
+import type { ModelSelectorOption } from "../components/ChatElements";
+import {
+	asNumber,
+	asString,
+} from "../components/ChatElements/runtimeTypeUtils";
+
+type RuntimeModelRef = {
+	readonly provider?: unknown;
+	readonly model?: unknown;
+};
+
+type ModelRefLike =
+	| Pick<TypesGen.ChatModel, "provider" | "model">
+	| Pick<TypesGen.ChatModelConfig, "provider" | "model">
+	| RuntimeModelRef;
+
+type CatalogModelLike =
+	| TypesGen.ChatModel
+	| (RuntimeModelRef & {
+			readonly id?: unknown;
+			readonly display_name?: unknown;
+	  });
+
+type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
+	readonly models?: readonly CatalogModelLike[];
+};
+
+type ModelCatalogLike = {
+	readonly providers?: readonly CatalogProviderLike[];
+};
+
+type ModelOptionConfigLike =
+	| TypesGen.ChatModelConfig
+	| (RuntimeModelRef & {
+			readonly id?: unknown;
+			readonly display_name?: unknown;
+			readonly enabled?: unknown;
+			readonly context_limit?: unknown;
+	  });
+
+export const hasConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	return countConfiguredProviderConfigs(providerConfigs, catalog) > 0;
+};
+
+export const countConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): number => {
+	const availableProviders = getAvailableProviders(catalog);
+	return (
+		providerConfigs?.filter((providerConfig) => {
+			if (
+				providerConfig.source === "supported" ||
+				providerConfig.enabled !== true
+			) {
+				return false;
+			}
+			const provider = asString(providerConfig.provider).trim().toLowerCase();
+			return provider !== "" && availableProviders.has(provider);
+		}).length ?? 0
+	);
+};
+
+export const getNormalizedModelRef = (
+	value: ModelRefLike,
+): { readonly provider: string; readonly model: string } => {
+	const modelRef = value ?? {};
+	return {
+		provider: asString(modelRef.provider).trim().toLowerCase(),
+		model: asString(modelRef.model).trim(),
+	};
+};
+
+const getCatalogProviders = (
+	catalog: ModelCatalogLike | null | undefined,
+): readonly CatalogProviderLike[] => {
+	const providers = catalog?.providers;
+	return Array.isArray(providers) ? providers : [];
+};
+
+const getProviderModels = (
+	provider: CatalogProviderLike,
+): readonly CatalogModelLike[] => {
+	const models = provider.models;
+	return Array.isArray(models) ? models : [];
+};
+
+const isProviderConfiguredInCatalog = (
+	provider: CatalogProviderLike,
+): boolean => {
+	if (getProviderModels(provider).length > 0) {
+		return true;
+	}
+	if (provider.available === true) {
+		return true;
+	}
+	const unavailableReason = asString(provider.unavailable_reason).trim();
+	return unavailableReason !== "" && unavailableReason !== "missing_api_key";
+};
+
+export const hasConfiguredModelsInCatalog = (
+	catalog: ModelCatalogLike | null | undefined,
+): boolean => {
+	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
+};
+
+export const hasUserFixableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	if (!catalog?.providers) {
+		return false;
+	}
+	return catalog.providers.some(
+		(provider) => provider.unavailable_reason === "user_api_key_required",
+	);
+};
+
+const getAvailableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): ReadonlySet<string> => {
+	const availableProviders = new Set<string>();
+	for (const provider of getCatalogProviders(catalog)) {
+		if (provider.available !== true) {
+			continue;
+		}
+		const providerName = asString(provider.provider).trim().toLowerCase();
+		if (providerName) {
+			availableProviders.add(providerName);
+		}
+	}
+	return availableProviders;
+};
+
+/**
+ * Resolves a stored model reference (config ID or legacy
+ * "provider:model" string) to the ID of a matching model option.
+ * Returns the matched option ID, or an empty string if no match is
+ * found.
+ */
+export const resolveModelOptionId = (
+	storedRef: string | null | undefined,
+	modelOptions: readonly ModelSelectorOption[],
+): string => {
+	const normalized = asString(storedRef).trim();
+	if (!normalized) {
+		return "";
+	}
+
+	const directMatch = modelOptions.find((option) => option.id === normalized);
+	if (directMatch) {
+		return directMatch.id;
+	}
+
+	const legacyMatch = modelOptions.find(
+		(option) => `${option.provider}:${option.model}` === normalized,
+	);
+	if (legacyMatch) {
+		return legacyMatch.id;
+	}
+
+	return "";
+};
+
+export const getModelOptionsFromConfigs = (
+	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly ModelSelectorOption[] => {
+	if (!configs || !catalog) {
+		return [];
+	}
+
+	const availableProviders = getAvailableProviders(catalog);
+	const options: ModelSelectorOption[] = [];
+
+	for (const config of configs as readonly ModelOptionConfigLike[]) {
+		if (config.enabled !== true) {
+			continue;
+		}
+
+		const configID = asString(config.id).trim();
+		const { provider, model } = getNormalizedModelRef(config);
+		if (!configID || !provider || !model) {
+			continue;
+		}
+		if (!availableProviders.has(provider)) {
+			continue;
+		}
+
+		const displayName = asString(config.display_name).trim() || model;
+		const contextLimit = asNumber(config.context_limit);
+		options.push({
+			id: configID,
+			provider,
+			model,
+			displayName,
+			...(contextLimit !== undefined ? { contextLimit } : {}),
+		});
+	}
+
+	return options.sort((a, b) => {
+		const providerCompare = a.provider.localeCompare(b.provider);
+		if (providerCompare !== 0) {
+			return providerCompare;
+		}
+		return a.displayName.localeCompare(b.displayName);
+	});
+};
+
+// getProviderForModelOption returns the provider string for the
+// currently-selected model option, or undefined when the selection
+// is not (yet) in the options list. Extracted so resize/budget logic
+// has one place to resolve provider from the selector state.
+export const getProviderForModelOption = (
+	modelOptions: readonly ModelSelectorOption[],
+	selectedModel: string,
+): string | undefined =>
+	modelOptions.find((option) => option.id === selectedModel)?.provider;
+
+export { formatProviderLabel } from "#/utils/aiProviders";
+
+export const getModelSelectorPlaceholder = (
+	modelOptions: readonly ModelSelectorOption[],
+	isModelCatalogLoading: boolean,
+	hasConfiguredModels: boolean,
+	catalog?: TypesGen.ChatModelsResponse | null,
+): string => {
+	if (modelOptions.length > 0) {
+		return "Select model";
+	}
+	if (isModelCatalogLoading) {
+		return "Loading models...";
+	}
+	if (hasConfiguredModels) {
+		return hasUserFixableProviders(catalog)
+			? "Configure API Keys"
+			: "No Models Available";
+	}
+	return "No Models Configured";
+};

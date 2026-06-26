@@ -1,5 +1,6 @@
-import type { FC, PropsWithChildren, ReactNode } from "react";
-import { Stack } from "../Stack/Stack";
+import type React from "react";
+import type { FC, ReactNode } from "react";
+import { cn } from "#/utils/cn";
 
 interface PageHeaderProps {
 	actions?: ReactNode;
@@ -14,116 +15,79 @@ export const PageHeader: FC<PageHeaderProps> = ({
 }) => {
 	return (
 		<header
-			className={className}
-			css={(theme) => ({
-				display: "flex",
-				alignItems: "center",
-				paddingTop: 48,
-				paddingBottom: 48,
-				gap: 32,
-
-				[theme.breakpoints.down("md")]: {
-					flexDirection: "column",
-					alignItems: "flex-start",
-				},
-			})}
+			className={cn(
+				"flex items-start flex-col md:flex-row md:items-center",
+				"py-12 gap-8",
+				className,
+			)}
 			data-testid="header"
 		>
-			<hgroup>{children}</hgroup>
+			<hgroup className="flex flex-col gap-2">{children}</hgroup>
 			{actions && (
-				<Stack
-					direction="row"
-					css={(theme) => ({
-						marginLeft: "auto",
-
-						[theme.breakpoints.down("md")]: {
-							marginLeft: "initial",
-							width: "100%",
-						},
-					})}
-				>
+				<div className="flex items-center gap-2 ml-[initial] md:ml-auto w-full md:w-auto">
 					{actions}
-				</Stack>
+				</div>
 			)}
 		</header>
 	);
 };
 
-export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
+type PageHeaderTitleProps = React.ComponentPropsWithRef<"h1">;
+
+export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
+	children,
+	className,
+	...props
+}) => {
 	return (
 		<h1
-			css={{
-				fontSize: 24,
-				fontWeight: 400,
-				margin: 0,
-				display: "flex",
-				alignItems: "center",
-				lineHeight: "140%",
-			}}
+			className={cn(
+				"text-3xl font-semibold m-0 flex items-center leading-snug",
+				className,
+			)}
+			{...props}
 		>
 			{children}
 		</h1>
 	);
 };
 
-interface PageHeaderSubtitleProps {
-	children?: ReactNode;
-	condensed?: boolean;
-}
+type PageHeaderSubtitleProps = React.ComponentPropsWithRef<"h2">;
 
 export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	children,
-	condensed,
+	className,
+	...props
 }) => {
 	return (
 		<h2
-			css={(theme) => ({
-				fontSize: 16,
-				color: theme.palette.text.secondary,
-				fontWeight: 400,
-				display: "block",
-				margin: 0,
-				marginTop: condensed ? 4 : 8,
-				lineHeight: "140%",
-			})}
+			className={cn(
+				"text-sm text-content-secondary font-normal block m-0 leading-snug",
+				className,
+			)}
+			{...props}
 		>
 			{children}
 		</h2>
 	);
 };
 
-export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
+type PageHeaderCaptionProps = React.ComponentPropsWithRef<"span">;
+
+export const PageHeaderCaption: FC<PageHeaderCaptionProps> = ({
+	children,
+	className,
+	...props
+}) => {
 	return (
 		<span
-			css={(theme) => ({
-				fontSize: 12,
-				color: theme.palette.text.secondary,
-				fontWeight: 600,
-				textTransform: "uppercase",
-				letterSpacing: "0.1em",
-			})}
+			className={cn(
+				"text-sm text-content-secondary font-medium uppercase tracking-widest",
+				className,
+			)}
+			{...props}
 		>
 			{children}
 		</span>
-	);
-};
-
-interface ResourcePageHeaderProps extends Omit<PageHeaderProps, "children"> {
-	displayName?: string;
-	name: string;
-}
-
-export const ResourcePageHeader: FC<ResourcePageHeaderProps> = ({
-	displayName,
-	name,
-	...props
-}) => {
-	const title = displayName || name;
-
-	return (
-		<PageHeader {...props}>
-			<PageHeaderTitle>{title}</PageHeaderTitle>
-			{name !== title && <PageHeaderSubtitle>{name}</PageHeaderSubtitle>}
-		</PageHeader>
 	);
 };

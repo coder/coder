@@ -33,6 +33,16 @@ import (
 )
 
 const (
+	// PubsubEventLicenses is the pubsub event that tells other replicas to
+	// re-read licenses from the database and recompute entitlements.
+	//
+	// It is published and subscribed on api.ReplicaSyncPubsub (always Postgres),
+	// not api.Pubsub. When the NATS pubsub experiment is enabled, api.Pubsub is
+	// the embedded NATS pubsub whose cluster mesh only forms once a replica is
+	// HA-licensed, so propagating license changes over it is circular: a fresh
+	// replica could not learn about the license that would let it join the mesh.
+	// ReplicaSyncPubsub is available as soon as the DB connection is, independent
+	// of clustering or licensing.
 	PubsubEventLicenses = "licenses"
 )
 
@@ -62,7 +72,7 @@ var Keys = map[string]ed25519.PublicKey{"2022-08-12": ed25519.PublicKey(key20220
 // @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
-// @Router /licenses [post]
+// @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -136,7 +146,8 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("add"))
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("add"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
@@ -165,7 +176,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Success 201 {object} codersdk.Response
-// @Router /licenses/refresh-entitlements [post]
+// @Router /api/v2/licenses/refresh-entitlements [post]
 func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -217,7 +228,8 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("failed to update entitlements: %w", err)
 	}
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("refresh"))
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("refresh"))
 	if err != nil {
 		api.Logger.Error(ctx, "failed to publish forced entitlement update", slog.Error(err))
 		return xerrors.Errorf("failed to publish forced entitlement update, other replicas might not be updated: %w", err)
@@ -231,7 +243,7 @@ func (api *API) refreshEntitlements(ctx context.Context) error {
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.License
-// @Router /licenses [get]
+// @Router /api/v2/licenses [get]
 func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	licenses, err := api.Database.GetLicenses(ctx)
@@ -273,7 +285,7 @@ func (api *API) licenses(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param id path string true "License ID" format(number)
 // @Success 200
-// @Router /licenses/{id} [delete]
+// @Router /api/v2/licenses/{id} [delete]
 func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()
@@ -331,7 +343,8 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("delete"))
+	// Postgres pubsub; see PubsubEventLicenses.
+	err = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("delete"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
@@ -349,7 +362,7 @@ func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 }
 
 func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
-	var out []codersdk.License
+	out := make([]codersdk.License, 0, len(licenses))
 	for _, l := range licenses {
 		c, err := decodeClaims(l)
 		if err != nil {

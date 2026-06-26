@@ -204,6 +204,7 @@ func TestMetricsCollector(t *testing.T) {
 										newNoopUsageCheckerPtr(),
 										noop.NewTracerProvider(),
 										10,
+										nil,
 									)
 									ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -344,6 +345,7 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		newNoopUsageCheckerPtr(),
 		noop.NewTracerProvider(),
 		10,
+		nil,
 	)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -430,6 +432,7 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 			continue
 		}
 
+	metricLoop:
 		for _, metric := range metricFamily.GetMetric() {
 			labelPairs := metric.GetLabel()
 
@@ -442,7 +445,7 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 			// Check if all requested labels match
 			for wantName, wantValue := range labels {
 				if metricLabels[wantName] != wantValue {
-					continue
+					continue metricLoop
 				}
 			}
 
@@ -456,6 +459,7 @@ func findMetric(metricsFamilies []*prometheus_client.MetricFamily, name string, 
 func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labels map[string]string) map[string]*prometheus_client.Metric {
 	series := make(map[string]*prometheus_client.Metric)
 	for _, metricFamily := range metricsFamilies {
+	metricLoop:
 		for _, metric := range metricFamily.GetMetric() {
 			labelPairs := metric.GetLabel()
 
@@ -472,7 +476,7 @@ func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labe
 			// Check if all requested labels match
 			for wantName, wantValue := range labels {
 				if metricLabels[wantName] != wantValue {
-					continue
+					continue metricLoop
 				}
 			}
 
@@ -500,6 +504,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -537,6 +542,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -574,6 +580,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 			newNoopUsageCheckerPtr(),
 			noop.NewTracerProvider(),
 			10,
+			nil,
 		)
 		ctx := testutil.Context(t, testutil.WaitLong)
 

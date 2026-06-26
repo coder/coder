@@ -1,8 +1,8 @@
 import data from "@emoji-mart/data/sets/15/apple.json";
 import EmojiMart from "@emoji-mart/react";
 import { type ComponentProps, type FC, useEffect } from "react";
-import { DEPRECATED_ICONS } from "theme/deprecatedIcons";
-import icons from "theme/icons.json";
+import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
+import icons from "#/theme/icons.json";
 
 const custom = [
 	{
@@ -25,7 +25,7 @@ const custom = [
 
 type EmojiPickerProps = Omit<
 	ComponentProps<typeof EmojiMart>,
-	"custom" | "data" | "set" | "theme"
+	"custom" | "data" | "set" | "theme" | "getSpritesheetURL"
 >;
 
 const EmojiPicker: FC<EmojiPickerProps> = (props) => {
@@ -53,6 +53,7 @@ const EmojiPicker: FC<EmojiPickerProps> = (props) => {
 			emojiVersion="15"
 			data={data}
 			custom={custom}
+			getSpritesheetURL={() => "/emojis/spritesheet.png"}
 			{...props}
 		/>
 	);

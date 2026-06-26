@@ -3,50 +3,15 @@
  * This file provides MUI theme overrides for legacy compatibility only.
  */
 
-/** @deprecated MUI Alert classes are deprecated. Use shadcn/ui Alert component instead. */
-import { alertClasses } from "@mui/material/Alert";
 /** @deprecated MUI ThemeOptions is deprecated. Migrate to Tailwind CSS theme system. */
 import type { ThemeOptions } from "@mui/material/styles";
-import {
-	BODY_FONT_FAMILY,
-	BUTTON_LG_HEIGHT,
-	BUTTON_MD_HEIGHT,
-} from "./constants";
+import { BUTTON_LG_HEIGHT, BUTTON_MD_HEIGHT } from "./constants";
 import tw from "./tailwindColors";
 
 // biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
 type MuiStyle = any;
 
 export const components = {
-	MuiCssBaseline: {
-		styleOverrides: (theme) => `
-      html, body, #root, #storybook-root {
-        height: 100%;
-      }
-
-      button, input {
-        font-family: ${BODY_FONT_FAMILY};
-      }
-
-      input:-webkit-autofill,
-      input:-webkit-autofill:hover,
-      input:-webkit-autofill:focus,
-      input:-webkit-autofill:active  {
-        -webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
-      }
-
-      ::placeholder {
-        color: ${theme.palette.text.disabled};
-      }
-
-      fieldset {
-        border: unset;
-        padding: 0;
-        margin: 0;
-        width: 100%;
-      }
-    `,
-	},
 	MuiAvatar: {
 		styleOverrides: {
 			root: {
@@ -68,17 +33,6 @@ export const components = {
 			underline: "hover",
 		},
 	},
-	MuiPaper: {
-		defaultProps: {
-			elevation: 0,
-		},
-		styleOverrides: {
-			root: ({ theme }) => ({
-				border: `1px solid ${theme.palette.divider}`,
-				backgroundImage: "none",
-			}),
-		},
-	},
 	MuiSkeleton: {
 		styleOverrides: {
 			root: ({ theme }) => ({
@@ -90,13 +44,6 @@ export const components = {
 		styleOverrides: {
 			root: {
 				borderRadius: 999,
-			},
-		},
-	},
-	MuiChip: {
-		styleOverrides: {
-			root: {
-				backgroundColor: tw.zinc[600],
 			},
 		},
 	},
@@ -238,18 +185,6 @@ export const components = {
 			},
 		},
 	},
-	MuiSwitch: {
-		defaultProps: { color: "primary" },
-		styleOverrides: {
-			root: {
-				".Mui-focusVisible .MuiSwitch-thumb": {
-					// Had to thicken outline to make sure that the focus color didn't
-					// bleed into the thumb and was still easily-visible
-					boxShadow: `0 0 0 3px ${tw.blue[400]}`,
-				},
-			},
-		},
-	},
 	MuiAutocomplete: {
 		styleOverrides: {
 			root: {
@@ -282,49 +217,6 @@ export const components = {
 			arrow: ({ theme }) => ({
 				color: theme.palette.divider,
 			}),
-		},
-	},
-	MuiAlert: {
-		defaultProps: {
-			variant: "outlined",
-		},
-		styleOverrides: {
-			root: ({ theme }) => ({
-				background: theme.palette.background.paper,
-			}),
-			action: {
-				paddingTop: 2, // Idk why it is not aligned as expected
-			},
-			icon: {
-				fontSize: 16,
-				marginTop: "4px", // The size of text is 24 so (24 - 16)/2 = 4
-			},
-			message: ({ theme }) => ({
-				color: theme.palette.text.primary,
-			}),
-			outlinedWarning: ({ theme }) => ({
-				[`& .${alertClasses.icon}`]: {
-					color: theme.palette.warning.light,
-				},
-			}),
-			outlinedInfo: ({ theme }) => ({
-				[`& .${alertClasses.icon}`]: {
-					color: theme.palette.primary.light,
-				},
-			}),
-			outlinedError: ({ theme }) => ({
-				[`& .${alertClasses.icon}`]: {
-					color: theme.palette.error.light,
-				},
-			}),
-		},
-	},
-	MuiAlertTitle: {
-		styleOverrides: {
-			root: {
-				fontSize: "inherit",
-				marginBottom: 0,
-			},
 		},
 	},
 } satisfies ThemeOptions["components"];

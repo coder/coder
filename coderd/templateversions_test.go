@@ -3,6 +3,9 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -16,9 +19,13 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -693,6 +700,39 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}
 					`,
 				},
+				expectError: "", // Presets are not validated unless they are for a prebuild
+			},
+			{
+				name: "invalid prebuild",
+				files: map[string]string{
+					`main.tf`: `
+						terraform {
+							required_providers {
+								coder = {
+									source = "coder/coder"
+									version = "2.8.0"
+								}
+							}
+						}
+						data "coder_parameter" "valid_parameter" {
+							name = "valid_parameter_name"
+							default = "valid_option_value"
+							option {
+								name = "valid_option_name"
+								value = "valid_option_value"
+							}
+						}
+						data "coder_workspace_preset" "invalid_parameter_name" {
+							name = "invalid_parameter_name"
+							parameters = {
+								"invalid_parameter_name" = "irrelevant_value"
+							}
+							prebuilds {
+								instances = 2
+							}
+						}
+					`,
+				},
 				expectError: "Undefined Parameter",
 			},
 		} {
@@ -733,6 +773,123 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestTemplateVersionPresetValidation validates that presets with prebuilds
+// are validated dynamically. A preset that enables a conditional parameter
+// but doesn't provide the required value for the newly-visible parameter
+// should fail validation during template version import.
+//
+// Scenario:
+// - Parameter A (use_custom_image): defaults to false
+// - Parameter B (custom_image_url): only exists when A is true, has no default
+// - Preset with prebuilds enables A but doesn't provide B
+//
+// Static validation passes because B doesn't exist when evaluated with default
+// values. ValidatePrebuilds catches this by evaluating with the preset's
+// parameter values.
+func TestTemplateVersionPresetValidation(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: store,
+		Pubsub:   ps,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	tf := func(valid bool, prebuildCount int) string {
+		customImageURL := ""
+		if valid {
+			customImageURL = `custom_image_url = "ghcr.io/coder/example:latest"`
+		}
+		return fmt.Sprintf(`
+		terraform {
+		  required_providers {
+			coder = {
+			  source = "coder/coder"
+			  version = "2.8.0"
+			}
+		  }
+		}
+
+		data "coder_parameter" "use_custom_image" {
+		  name    = "use_custom_image"
+		  type    = "bool"
+		  default = "false"
+		}
+
+		data "coder_parameter" "custom_image_url" {
+		  count   = data.coder_parameter.use_custom_image.value == "true" ? 1 : 0
+		  name    = "custom_image_url"
+		  type    = "string"
+		  # No default - required when shown
+		}
+
+		data "coder_workspace_preset" "invalid" {
+		  name = "Invalid Preset"
+		  parameters = {
+			"use_custom_image" = "true"
+			%s
+		  }
+		  prebuilds {
+			instances = %d
+		  }
+		}
+		`, customImageURL, prebuildCount)
+	}
+
+	tarFile := testutil.CreateTar(t, map[string]string{
+		`main.tf`: tf(false, 1),
+	})
+
+	fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+	require.NoError(t, err)
+
+	_, err = templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomNameHyphenated(t),
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		FileID:        fi.ID,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "Parameter custom_image_url: Required parameter not provided; parameter value is null")
+
+	// If the preset is not a prebuild, validation should pass. As presets can
+	// be partially applied, we test with a prebuild count of 0.
+	tarFile = testutil.CreateTar(t, map[string]string{
+		`main.tf`: tf(false, 0),
+	})
+
+	fi, err = templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+	require.NoError(t, err)
+
+	_, err = templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomNameHyphenated(t),
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		FileID:        fi.ID,
+	})
+	require.NoError(t, err)
+
+	// The valid preset should pass
+	tarFile = testutil.CreateTar(t, map[string]string{
+		`main.tf`: tf(true, 1),
+	})
+
+	fi, err = templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+	require.NoError(t, err)
+
+	_, err = templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+		Name:          testutil.GetRandomNameHyphenated(t),
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		FileID:        fi.ID,
+	})
+	require.NoError(t, err)
 }
 
 func TestPatchCancelTemplateVersion(t *testing.T) {
@@ -996,6 +1153,103 @@ func TestTemplateVersionLogs(t *testing.T) {
 	}
 }
 
+func TestTemplateVersionLogsFormat(t *testing.T) {
+	t.Parallel()
+
+	// Setup: Create template version with logs using dbfake.
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).
+		Do()
+
+	// Insert test log directly into database.
+	jl := dbgen.ProvisionerJobLog(t, db, database.ProvisionerJobLog{
+		JobID:  tv.TemplateVersion.JobID,
+		Stage:  "Planning",
+		Source: database.LogSourceProvisioner,
+		Level:  database.LogLevelInfo,
+		Output: "test log output",
+	})
+
+	tests := []struct {
+		name                string
+		queryParams         string
+		expectedStatus      int
+		expectedContentType string
+		checkBody           func(t *testing.T, body string)
+	}{
+		{
+			name:                "JSON",
+			queryParams:         "",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "application/json",
+			checkBody: func(t *testing.T, body string) {
+				assert.NotEmpty(t, body) // This is checked more thoroughly in TestTemplateVersionLogs above.
+			},
+		},
+		{
+			name:                "Text",
+			queryParams:         "?format=text",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/plain",
+			checkBody: func(t *testing.T, body string) {
+				expected := db2sdk.ProvisionerJobLog(jl).Text()
+				assert.Contains(t, body, expected)
+			},
+		},
+		{
+			name:           "InvalidFormat",
+			queryParams:    "?format=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				t.Log(body)
+				var sdkErr codersdk.Error
+				assert.NoError(t, json.NewDecoder(strings.NewReader(body)).Decode(&sdkErr))
+				assert.Equal(t, "Invalid format parameter.", sdkErr.Message)
+			},
+		},
+		{
+			name:           "TextWithFollowFails",
+			queryParams:    "?format=text&follow",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				t.Log(body)
+				var sdkErr codersdk.Error
+				assert.NoError(t, json.NewDecoder(strings.NewReader(body)).Decode(&sdkErr))
+				assert.Equal(t, "Text format is not supported with follow mode.", sdkErr.Message)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			urlPath := fmt.Sprintf("/api/v2/templateversions/%s/logs%s", tv.TemplateVersion.ID, tt.queryParams)
+
+			res, err := client.Request(ctx, http.MethodGet, urlPath, nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, res.StatusCode)
+			if tt.expectedContentType != "" {
+				require.Contains(t, res.Header.Get("Content-Type"), tt.expectedContentType)
+			}
+			if assert.NotNil(t, tt.checkBody) {
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				tt.checkBody(t, string(body))
+			}
+		})
+	}
+}
+
 func TestTemplateVersionsByTemplate(t *testing.T) {
 	t.Parallel()
 	t.Run("Get", func(t *testing.T) {
@@ -1018,10 +1272,14 @@ func TestTemplateVersionsByTemplate(t *testing.T) {
 
 func TestTemplateVersionByName(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all sub-tests. Each sub-test
+	// creates its own template version and template with unique
+	// IDs so parallel execution is safe.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1036,8 +1294,6 @@ func TestTemplateVersionByName(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1285,7 +1541,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		// This import job will never finish
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Response{{
+			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
@@ -1461,6 +1717,111 @@ func TestTemplateVersionDryRun(t *testing.T) {
 	})
 }
 
+func TestTemplateVersionDryRunLogsFormat(t *testing.T) {
+	t.Parallel()
+
+	// Setup: Create template version and dry-run job with logs using dbfake.
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	tv := dbfake.TemplateVersion(t, db).
+		Seed(database.TemplateVersion{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+		}).
+		Do()
+
+	// Create a dry-run provisioner job.
+	dryRunInput, err := json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+		TemplateVersionID: tv.TemplateVersion.ID,
+	})
+	require.NoError(t, err)
+
+	dryRunJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+		Input:          dryRunInput,
+	})
+
+	// Insert test log directly into database.
+	jl := dbgen.ProvisionerJobLog(t, db, database.ProvisionerJobLog{
+		JobID:  dryRunJob.ID,
+		Stage:  "Planning",
+		Source: database.LogSourceProvisioner,
+		Level:  database.LogLevelInfo,
+		Output: "test dry-run log output",
+	})
+
+	tests := []struct {
+		name                string
+		queryParams         string
+		expectedStatus      int
+		expectedContentType string
+		checkBody           func(t *testing.T, body string)
+	}{
+		{
+			name:                "JSON",
+			queryParams:         "",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "application/json",
+			checkBody: func(t *testing.T, body string) {
+				assert.NotEmpty(t, body)
+			},
+		},
+		{
+			name:                "Text",
+			queryParams:         "?format=text",
+			expectedStatus:      http.StatusOK,
+			expectedContentType: "text/plain",
+			checkBody: func(t *testing.T, body string) {
+				expected := db2sdk.ProvisionerJobLog(jl).Text()
+				assert.Contains(t, body, expected)
+			},
+		},
+		{
+			name:           "InvalidFormat",
+			queryParams:    "?format=invalid",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				assert.Contains(t, body, "Invalid format")
+			},
+		},
+		{
+			name:           "TextWithFollowFails",
+			queryParams:    "?format=text&follow",
+			expectedStatus: http.StatusBadRequest,
+			checkBody: func(t *testing.T, body string) {
+				assert.Contains(t, body, "not supported with follow mode")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			urlPath := fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/logs%s", tv.TemplateVersion.ID, dryRunJob.ID, tt.queryParams)
+
+			res, err := client.Request(ctx, http.MethodGet, urlPath, nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+
+			require.Equal(t, tt.expectedStatus, res.StatusCode)
+			if tt.expectedContentType != "" {
+				require.Contains(t, res.Header.Get("Content-Type"), tt.expectedContentType)
+			}
+
+			if assert.NotNil(t, tt.checkBody) {
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
+				tt.checkBody(t, string(body))
+			}
+		})
+	}
+}
+
 // TestPaginatedTemplateVersions creates a list of template versions and paginate.
 func TestPaginatedTemplateVersions(t *testing.T) {
 	t.Parallel()
@@ -1576,10 +1937,12 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 
 func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 	t.Parallel()
+
+	// Shared instance — see TestTemplateVersionByName for rationale.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1594,8 +1957,6 @@ func TestTemplateVersionByOrganizationTemplateAndName(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1619,8 +1980,8 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateAVersion1.ID)
-		// Create two versions for the template B to be sure if we try to get the
-		// previous version of the first version it will returns a 404
+		// Create two versions for template B so we can verify that requesting
+		// the previous version of the first version returns nil.
 		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion1.ID)
@@ -1631,9 +1992,7 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		defer cancel()
 
 		_, err := client.PreviousTemplateVersion(ctx, user.OrganizationID, templateB.Name, templateBVersion1.Name)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		require.ErrorIs(t, err, codersdk.ErrNoPreviousVersion)
 	})
 
 	t.Run("Previous version found", func(t *testing.T) {
@@ -1845,10 +2204,14 @@ func TestTemplateVersionVariables(t *testing.T) {
 
 func TestTemplateVersionPatch(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all 9 sub-tests. Each sub-test
+	// creates its own template version(s) and template(s) with
+	// unique IDs so parallel execution is safe.
+	client := coderdtest.New(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
 	t.Run("Update the name", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1867,8 +2230,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Update the message", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.Message = "Example message"
 		})
@@ -1888,8 +2249,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Remove the message", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.Message = "Example message"
 		})
@@ -1909,8 +2268,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Keep the message", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		wantMessage := "Example message"
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.Message = wantMessage
@@ -1932,8 +2289,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -1947,9 +2302,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use the same name for two different templates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1975,8 +2327,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use the same name for two versions for the same templates", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.Name = "v1"
 		})
@@ -1997,8 +2347,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Rename the unassigned template", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -2014,8 +2362,6 @@ func TestTemplateVersionPatch(t *testing.T) {
 
 	t.Run("Use incorrect template version name", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

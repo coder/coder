@@ -5,9 +5,11 @@ more information about how to use secrets and other security tips, visit our
 guide to
 [security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
 
-This article explains how to use secrets in a workspace. To authenticate the
-workspace provisioner, see the
+Use this guide to configure how templates make secrets available to Coder
+workspaces. To authenticate workspace provisioners with Coder, see the
 <a href="../provisioners/index.md#authentication">provisioners documentation</a>.
+For secret values that developers manage themselves, see
+[User secrets](../../user-guides/user-secrets.md).
 
 ## Before you begin
 
@@ -41,6 +43,15 @@ Users can view their public key in their account settings:
 > [!NOTE]
 > SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
+
+## User secrets (Beta)
+
+User secrets are developer-managed values that Coder injects at workspace start.
+If a user secret targets the same environment variable name or file path as a
+template-provided variable or file, Coder injects the user secret into that
+workspace. User secret values are covered by
+[Database Encryption](./database-encryption.md) when it is enabled. See the
+[User secrets guide](../../user-guides/user-secrets.md).
 
 ## Dynamic Secrets
 

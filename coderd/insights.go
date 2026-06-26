@@ -33,7 +33,7 @@ const insightsTimeLayout = time.RFC3339
 // @Tags Insights
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.DAUsResponse
-// @Router /insights/daus [get]
+// @Router /api/v2/insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -106,7 +106,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 // @Param end_time query string true "End time" format(date-time)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserActivityInsightsResponse
-// @Router /insights/user-activity [get]
+// @Router /api/v2/insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -209,7 +209,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Param end_time query string true "End time" format(date-time)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
-// @Router /insights/user-latency [get]
+// @Router /api/v2/insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -298,16 +298,18 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param tz_offset query int true "Time-zone offset (e.g. -2)"
+// @Param timezone query string false "IANA timezone name (e.g. America/St_Johns)"
+// @Param tz_offset query int false "Deprecated: Time-zone offset (e.g. -2). Use timezone instead."
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
-// @Router /insights/user-status-counts [get]
+// @Router /api/v2/insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
+	timezone := p.String(vals, "", "timezone")
 	tzOffset := p.Int(vals, 0, "tz_offset")
-	interval := p.Int(vals, int((24 * time.Hour).Seconds()), "interval")
+	_ = p.Int(vals, 0, "interval") // Deprecated: ignored, kept for backward compatibility.
 	p.ErrorExcessParams(vals)
 
 	if len(p.Errors) > 0 {
@@ -318,16 +320,45 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	loc := time.FixedZone("", tzOffset*3600)
+	if timezone != "" && tzOffset != 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Provide either \"timezone\" or \"tz_offset\", not both.",
+		})
+		return
+	}
+
+	var loc *time.Location
+	if timezone == "" {
+		timezone = "UTC"
+		if tzOffset > 0 {
+			timezone = fmt.Sprintf("Etc/GMT-%d", tzOffset)
+		} else if tzOffset < 0 {
+			timezone = fmt.Sprintf("Etc/GMT+%d", -tzOffset)
+		}
+	}
+
+	loc, err := time.LoadLocation(timezone)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid timezone.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	nextHourInLoc := dbtime.Now().Truncate(time.Hour).Add(time.Hour).In(loc)
 	sixtyDaysAgo := dbtime.StartOfDay(nextHourInLoc).AddDate(0, 0, -60)
 
-	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+	queryParams := database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
-		// #nosec G115 - Interval value is small and fits in int32 (typically days or hours)
-		Interval: int32(interval),
-	})
+		// loc.String() returns an IANA timezone name (e.g. "America/New_York").
+		// Both Go and PostgreSQL use the IANA Time Zone Database, so names are
+		// compatible. The Etc/GMT±N names used for offset fallback are also valid
+		// in both systems.
+		Tz: loc.String(),
+	}
+	rows, err := api.Database.GetUserStatusCounts(ctx, queryParams)
 	if err != nil {
 		if httpapi.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
@@ -365,7 +396,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 // @Param interval query string true "Interval" enums(week,day)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.TemplateInsightsResponse
-// @Router /insights/templates [get]
+// @Router /api/v2/insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

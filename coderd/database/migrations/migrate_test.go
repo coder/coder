@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -138,7 +139,6 @@ func TestCheckLatestVersion(t *testing.T) {
 	}
 
 	for i, tc := range tests {
-		i, tc := i, tc
 		t.Run(fmt.Sprintf("entry %d", i), func(t *testing.T) {
 			t.Parallel()
 
@@ -296,10 +296,6 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 
 			db := testSQLDB(t)
 
-			// This test occasionally timed out in CI, which is understandable
-			// considering the amount of migrations and fixtures we have.
-			ctx := testutil.Context(t, testutil.WaitSuperLong)
-
 			// Prepare database for stepping up.
 			err := migrations.Down(db)
 			require.NoError(t, err)
@@ -337,6 +333,8 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 				t.Logf("migrated to version %d, fixture version %d", version, fixtureVer)
 			}
 
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+
 			// Gather number of rows for all existing tables
 			// at the end of the migrations and fixtures.
 			var tables pq.StringArray
@@ -373,9 +371,6 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	t.Parallel()
 
 	const migrationVersion = 362
-
-	// Similarly to the other test, this test will probably time out in CI.
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	sqlDB := testSQLDB(t)
 	db := database.New(sqlDB)
@@ -431,6 +426,7 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 		},
 	}
 
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	for _, usageEvent := range usageEvents {
 		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
 			ID:        uuid.New().String(),
@@ -495,7 +491,6 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 
 	const migrationVersion = 387
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	sqlDB := testSQLDB(t)
 
 	// Migrate up to the migration before the task workspace migration.
@@ -563,6 +558,7 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	wsAntBuild1ID := uuid.New()
 
 	// Create all fixtures in a single transaction.
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer tx.Rollback()
@@ -881,4 +877,918 @@ func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	`, wsAntDeletedID, wsAntID).Scan(&antCount)
 	require.NoError(t, err)
 	require.Equal(t, 0, antCount, "antagonist workspaces (deleted and regular) should not be migrated")
+}
+
+func TestMigration000457ChatAccessRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 457
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the one that grants
+	// agents-access roles.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Define test users.
+	userWithChat := uuid.New()         // Has a chat, no agents-access role.
+	userAlreadyHasRole := uuid.New()   // Has a chat and already has agents-access.
+	userNoChat := uuid.New()           // No chat at all.
+	userWithChatAndRoles := uuid.New() // Has a chat and other existing roles.
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// We need a chat_provider and chat_model_config for the chats FK.
+	providerID := uuid.New()
+	modelConfigID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		// Insert test users with varying rbac_roles.
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithChat, "user-with-chat", "chat@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userAlreadyHasRole, "user-already-has-role", "already@test.com", []byte{}, now, now, "active", pq.StringArray{"agents-access"}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userNoChat, "user-no-chat", "nochat@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithChatAndRoles, "user-with-roles", "roles@test.com", []byte{}, now, now, "active", pq.StringArray{"template-admin"}, "password"},
+		},
+		// Insert a chat provider and model config for the chats FK.
+		{
+			`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerID, "openai", "OpenAI", "", true, now, now},
+		},
+		{
+			`INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{modelConfigID, "openai", "gpt-4", "GPT 4", true, 100000, 70, now, now},
+		},
+		// Insert chats for users A, B, and D (not C).
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{uuid.New(), userWithChat, modelConfigID, "Chat A", now, now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{uuid.New(), userAlreadyHasRole, modelConfigID, "Chat B", now, now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			[]any{uuid.New(), userWithChatAndRoles, modelConfigID, "Chat D", now, now},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run the migration.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Helper to get rbac_roles for a user.
+	getRoles := func(t *testing.T, userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx,
+			"SELECT rbac_roles FROM users WHERE id = $1", userID,
+		).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+
+	// Verify: user with chat gets agents-access.
+	roles := getRoles(t, userWithChat)
+	require.Contains(t, roles, "agents-access",
+		"user with chat should get agents-access")
+
+	// Verify: user who already had agents-access has no duplicate.
+	roles = getRoles(t, userAlreadyHasRole)
+	count := 0
+	for _, r := range roles {
+		if r == "agents-access" {
+			count++
+		}
+	}
+	require.Equal(t, 1, count,
+		"user who already had agents-access should not get a duplicate")
+
+	// Verify: user without chat does NOT get agents-access.
+	roles = getRoles(t, userNoChat)
+	require.NotContains(t, roles, "agents-access",
+		"user without chat should not get agents-access")
+
+	// Verify: user with chat and existing roles gets agents-access
+	// appended while preserving existing roles.
+	roles = getRoles(t, userWithChatAndRoles)
+	require.Contains(t, roles, "agents-access",
+		"user with chat and other roles should get agents-access")
+	require.Contains(t, roles, "template-admin",
+		"existing roles should be preserved")
+}
+
+func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 475
+
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before 000475.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Seed: a user with site-level agents-access who is a member of
+	// two orgs, plus a second user who is a member of one org and
+	// does not have the role.
+	userWithRole := uuid.New()
+	userWithoutRole := uuid.New()
+	org1ID := uuid.New()
+	org2ID := uuid.New()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithRole, "user-with-role", "withrole@test.com", []byte{}, now, now, "active", pq.StringArray{"agents-access"}, "password"},
+		},
+		{
+			`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[]any{userWithoutRole, "user-without-role", "withoutrole@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password"},
+		},
+		{
+			`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{org1ID, "org-1", "Org 1", "", "", now, now, false},
+		},
+		{
+			`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[]any{org2ID, "org-2", "Org 2", "", "", now, now, false},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{org1ID, userWithRole, now, now, pq.StringArray{}},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{org2ID, userWithRole, now, now, pq.StringArray{}},
+		},
+		{
+			`INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+			VALUES ($1, $2, $3, $4, $5)`,
+			[]any{org1ID, userWithoutRole, now, now, pq.StringArray{}},
+		},
+	}
+
+	for i, f := range fixtures {
+		_, err := tx.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+	require.NoError(t, tx.Commit())
+
+	// Run migration 000475.
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Verify: userWithRole no longer has agents-access at site level.
+	var siteRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT rbac_roles FROM users WHERE id = $1", userWithRole,
+	).Scan(&siteRoles)
+	require.NoError(t, err)
+	require.NotContains(t, siteRoles, "agents-access",
+		"agents-access should be removed from users.rbac_roles")
+
+	// Verify: userWithRole has agents-access in both orgs.
+	for _, orgID := range []uuid.UUID{org1ID, org2ID} {
+		var orgRoles pq.StringArray
+		err = sqlDB.QueryRowContext(ctx,
+			"SELECT roles FROM organization_members WHERE user_id = $1 AND organization_id = $2",
+			userWithRole, orgID,
+		).Scan(&orgRoles)
+		require.NoError(t, err)
+		require.Contains(t, orgRoles, "agents-access",
+			"agents-access should be granted in org %s", orgID)
+	}
+
+	// Verify: userWithoutRole did not gain agents-access.
+	var orgRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT roles FROM organization_members WHERE user_id = $1 AND organization_id = $2",
+		userWithoutRole, org1ID,
+	).Scan(&orgRoles)
+	require.NoError(t, err)
+	require.NotContains(t, orgRoles, "agents-access",
+		"agents-access should not be granted to a user who didn't have it")
+
+	// Verify: no DB row exists for agents-access as a custom_role.
+	// The role is now a builtin, resolved in Go via RoleByName.
+	var customRoleCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM custom_roles WHERE name = 'agents-access'",
+	).Scan(&customRoleCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, customRoleCount,
+		"no custom_roles row should exist for agents-access")
+
+	// Verify: creating a new organization does NOT insert an
+	// agents-access custom_role via the trigger. It should only
+	// insert organization-member and organization-service-account.
+	newOrgID := uuid.New()
+	_, err = sqlDB.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		newOrgID, "new-org", "New Org", "", "", now, now, false,
+	)
+	require.NoError(t, err)
+
+	rows, err := sqlDB.QueryContext(ctx,
+		"SELECT name FROM custom_roles WHERE organization_id = $1 AND is_system = true ORDER BY name",
+		newOrgID,
+	)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var gotRoleNames []string
+	for rows.Next() {
+		var name string
+		require.NoError(t, rows.Scan(&name))
+		gotRoleNames = append(gotRoleNames, name)
+	}
+	require.NoError(t, rows.Err())
+	require.ElementsMatch(t,
+		[]string{"organization-member", "organization-service-account"},
+		gotRoleNames,
+		"trigger should only create org-member and org-service-account system roles",
+	)
+}
+
+func TestMigration000504AIProvidersBackfill(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	openAIProviderID := uuid.New()
+	anthropicProviderID := uuid.New()
+	openAIUserKeyID := uuid.New()
+	anthropicUserKeyID := uuid.New()
+	openAIModelConfigID := uuid.New()
+	anthropicModelConfigID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "ai-provider-backfill", "ai-provider-backfill@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES
+			($1, 'openai', 'OpenAI', 'sk-provider-openai', TRUE, 'https://api.openai.example.com/v1', $3, $3),
+			($2, 'anthropic', '', '', FALSE, '', $3, $3)
+	`, openAIProviderID, anthropicProviderID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO user_chat_provider_keys (id, user_id, chat_provider_id, api_key, created_at, updated_at)
+		VALUES
+			($1, $3, $4, 'sk-user-openai', $6, $6),
+			($2, $3, $5, 'sk-user-anthropic', $6, $6)
+	`, openAIUserKeyID, anthropicUserKeyID, userID, openAIProviderID, anthropicProviderID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+		VALUES
+			($1, 'openai', 'gpt-4', 'GPT 4', TRUE, 100000, 70, $3, $3),
+			($2, 'anthropic', 'claude-3-5-sonnet-latest', 'Claude 3.5 Sonnet', TRUE, 200000, 70, $3, $3)
+	`, openAIModelConfigID, anthropicModelConfigID, now)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	var preBackfillCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&preBackfillCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillCount, "test setup should start before the legacy chat providers are backfilled")
+
+	var preBackfillModelConfigCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+			AND ai_provider_id IS NOT NULL
+	`, openAIModelConfigID, anthropicModelConfigID).Scan(&preBackfillModelConfigCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillModelConfigCount, "test setup should start before model configs point at AI providers")
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	assertBackfilledProvider := func(providerID uuid.UUID, providerType, name string, displayName sql.NullString, enabled bool, baseURL string) {
+		t.Helper()
+		var provider struct {
+			Typ         string
+			Name        string
+			DisplayName sql.NullString
+			Enabled     bool
+			BaseURL     string
+		}
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT type, name, display_name, enabled, base_url
+			FROM ai_providers
+			WHERE id = $1
+		`, providerID).Scan(&provider.Typ, &provider.Name, &provider.DisplayName, &provider.Enabled, &provider.BaseURL)
+		require.NoError(t, err)
+		require.Equal(t, providerType, provider.Typ)
+		require.Equal(t, name, provider.Name)
+		require.Equal(t, displayName, provider.DisplayName)
+		require.Equal(t, enabled, provider.Enabled)
+		require.Equal(t, baseURL, provider.BaseURL)
+	}
+	assertBackfilledProvider(
+		openAIProviderID,
+		"openai",
+		"agents-openai",
+		sql.NullString{String: "OpenAI", Valid: true},
+		true,
+		"https://api.openai.example.com/v1",
+	)
+	assertBackfilledProvider(
+		anthropicProviderID,
+		"anthropic",
+		"agents-anthropic",
+		sql.NullString{},
+		false,
+		"",
+	)
+
+	var providerKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1 AND api_key = 'sk-provider-openai'
+	`, openAIProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, providerKeyCount, "non-empty legacy provider API key should be copied")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1
+	`, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "empty legacy provider API key should not create an AI provider key")
+
+	assertBackfilledUserKey := func(userKeyID, providerID uuid.UUID, apiKey string) {
+		t.Helper()
+		var userKeyCount int
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM user_ai_provider_keys
+			WHERE id = $1 AND user_id = $2 AND ai_provider_id = $3 AND api_key = $4
+		`, userKeyID, userID, providerID, apiKey).Scan(&userKeyCount)
+		require.NoError(t, err)
+		require.Equal(t, 1, userKeyCount)
+	}
+	assertBackfilledUserKey(openAIUserKeyID, openAIProviderID, "sk-user-openai")
+	assertBackfilledUserKey(anthropicUserKeyID, anthropicProviderID, "sk-user-anthropic")
+
+	assertModelConfigProviderID := func(modelConfigID, providerID uuid.UUID) {
+		t.Helper()
+		var aiProviderID sql.NullString
+		err = sqlDB.QueryRowContext(ctx,
+			`SELECT ai_provider_id::text FROM chat_model_configs WHERE id = $1`,
+			modelConfigID,
+		).Scan(&aiProviderID)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullString{String: providerID.String(), Valid: true}, aiProviderID)
+	}
+	assertModelConfigProviderID(openAIModelConfigID, openAIProviderID)
+	assertModelConfigProviderID(anthropicModelConfigID, anthropicProviderID)
+
+	var legacyProviderCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, legacyProviderCount, "backfill should leave legacy rows for the rest of the stack")
+
+	downSQL, err := os.ReadFile("000504_ai_providers_backfill.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "down migration should remove backfilled AI providers")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "down migration should remove backfilled provider keys")
+
+	var userKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM user_ai_provider_keys
+		WHERE id IN ($1, $2)
+	`, openAIUserKeyID, anthropicUserKeyID).Scan(&userKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, userKeyCount, "down migration should remove backfilled user keys")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+			AND ai_provider_id IS NOT NULL
+	`, openAIModelConfigID, anthropicModelConfigID).Scan(&preBackfillModelConfigCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillModelConfigCount, "down migration should clear model config AI provider references")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, legacyProviderCount, "down migration should leave the legacy source rows intact")
+}
+
+// TestMigration000504AIProvidersBackfillOverridesNameConflict verifies that a
+// pre-existing live ai_providers row whose name collides with the backfill
+// (for example, agents-openai) is soft-deleted so the chat_providers-derived
+// row inserted by the migration becomes authoritative. This scenario should
+// not occur in practice since no other process writes to ai_providers before
+// this migration runs, but the migration tolerates it rather than failing.
+func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	chatProviderID := uuid.New()
+	staleProviderID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Pre-existing live ai_providers row that collides on name.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO ai_providers (id, type, name, display_name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		staleProviderID, "openai", "agents-openai", "Stale OpenAI", true, "https://stale.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+
+	// chat_providers row whose backfill will collide with the stale row above.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		chatProviderID, "openai", "OpenAI", "sk-provider", true, "https://api.openai.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// The stale row must be soft-deleted and disabled so the unique name index
+	// (which is partial WHERE deleted = FALSE) no longer covers it.
+	var stale struct {
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT deleted, enabled FROM ai_providers WHERE id = $1`,
+		staleProviderID,
+	).Scan(&stale.Deleted, &stale.Enabled)
+	require.NoError(t, err)
+	require.True(t, stale.Deleted, "pre-existing conflicting ai_providers row should be soft-deleted")
+	require.False(t, stale.Enabled, "pre-existing conflicting ai_providers row should be disabled")
+
+	// The new authoritative row must exist with the chat_providers id, the
+	// agents-openai name, and the chat_providers base_url.
+	var fresh struct {
+		Name    string
+		BaseURL string
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT name, base_url, deleted, enabled FROM ai_providers WHERE id = $1`,
+		chatProviderID,
+	).Scan(&fresh.Name, &fresh.BaseURL, &fresh.Deleted, &fresh.Enabled)
+	require.NoError(t, err)
+	require.Equal(t, "agents-openai", fresh.Name)
+	require.Equal(t, "https://api.openai.example.com/v1", fresh.BaseURL)
+	require.False(t, fresh.Deleted)
+	require.True(t, fresh.Enabled)
+}
+
+// TestMigration000504AIProvidersBackfillEnumInSingleTxn reproduces the
+// production migration path, where every pending migration runs inside a
+// single transaction (see pgTxnDriver). Migration 000499 widens
+// ai_provider_type with ALTER TYPE ... ADD VALUE, and 000504 casts existing
+// chat_providers rows to that enum. Postgres forbids using an enum value
+// added by ADD VALUE within the same transaction, so when a legacy provider
+// uses one of the new values (for example openai-compat) the batch fails with
+// "unsafe use of new value". The per-step Stepper used by the other tests
+// commits each migration separately and cannot surface this.
+func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Apply everything through 498 and commit, so chat_providers exists and is
+	// populated before the batch under test runs, matching a deployment that
+	// ran an earlier migration batch before this one.
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 498)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	providerID := uuid.New()
+
+	// A legacy provider whose type is one of the values added in 000499.
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai-compat', 'OpenAI Compatible', '', TRUE, 'https://api.example.com/v1', $2, $2)
+	`, providerID, now)
+	require.NoError(t, err)
+
+	// Apply 000499 through 000504 in a single transaction, as production does.
+	applyMigrationsInTxn(ctx, t, sqlDB, 499, 504)
+
+	var typ string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT type FROM ai_providers WHERE id = $1`, providerID,
+	).Scan(&typ)
+	require.NoError(t, err)
+	require.Equal(t, "openai-compat", typ)
+}
+
+// applyMigrationsInTxn executes the up SQL for every migration whose version is
+// in [from, to] inside a single transaction, mirroring pgTxnDriver. The whole
+// batch commits or rolls back together.
+func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from, to int) {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	var files []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+		var version int
+		if _, err := fmt.Sscanf(name, "%06d_", &version); err != nil {
+			continue
+		}
+		if version >= from && version <= to {
+			files = append(files, name)
+		}
+	}
+	slices.Sort(files)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	for _, name := range files {
+		query, err := os.ReadFile(name)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, string(query))
+		require.NoErrorf(t, err, "apply migration %s", name)
+	}
+	require.NoError(t, tx.Commit())
+}
+
+func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 498
+
+	sqlDB := testSQLDB(t)
+
+	// Step up to migrationVersion - 1.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// Seed the prerequisite tables. Two workspaces share the same EC2-style
+	// instance id across several builds; a third workspace has a single
+	// build on a different instance (baseline, must not be affected).
+	userID := uuid.New()
+	orgID := uuid.New()
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	fileID := uuid.New()
+
+	wsA := uuid.New()
+	wsB := uuid.New()
+	wsSingle := uuid.New()
+	wsDeleted := uuid.New()
+
+	instanceAB := "i-shared-ab"
+	instanceSingle := "i-solo"
+	instanceDeleted := "i-deleted"
+
+	// For workspace A: 3 builds on the same instance.
+	// For workspace B: 2 builds on the same instance (different workspace,
+	// same instance id, exercises the cross-workspace scoping case).
+	// For wsSingle: 1 build, should stay non-deleted after the backfill.
+	// For wsDeleted: 1 build on a soft-deleted workspace. Agent should be
+	// marked deleted even though it's on the latest build.
+	type build struct {
+		id         uuid.UUID
+		jobID      uuid.UUID
+		resourceID uuid.UUID
+		agentID    uuid.UUID
+		buildNum   int32
+		wsID       uuid.UUID
+		instanceID string
+	}
+
+	mkBuild := func(ws uuid.UUID, buildNum int32, instance string) build {
+		return build{
+			id:         uuid.New(),
+			jobID:      uuid.New(),
+			resourceID: uuid.New(),
+			agentID:    uuid.New(),
+			buildNum:   buildNum,
+			wsID:       ws,
+			instanceID: instance,
+		}
+	}
+
+	aBuilds := []build{
+		mkBuild(wsA, 1, instanceAB),
+		mkBuild(wsA, 2, instanceAB),
+		mkBuild(wsA, 3, instanceAB),
+	}
+	bBuilds := []build{
+		mkBuild(wsB, 1, instanceAB),
+		mkBuild(wsB, 2, instanceAB),
+	}
+	singleBuilds := []build{
+		mkBuild(wsSingle, 1, instanceSingle),
+	}
+	deletedBuilds := []build{
+		mkBuild(wsDeleted, 1, instanceDeleted),
+	}
+	allBuilds := append(append(append(append([]build{}, aBuilds...), bBuilds...), singleBuilds...), deletedBuilds...)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Minimal user / org / template / template_version / file.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "seed", "seed@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		orgID, "seed-org", "Seed Org", "", "", now, now, false,
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO files (id, hash, created_at, created_by, mimetype, data) VALUES ($1, $2, $3, $4, $5, $6)`,
+		fileID, "hash", now, userID, "application/octet-stream", []byte{},
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, description, created_by, group_acl, user_acl, display_name)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		templateID, now, now, orgID, "tpl", "echo", templateVersionID, "", userID, "{}", "{}", "",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO template_versions (id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, message)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		templateVersionID, templateID, orgID, now, now, "v", "", uuid.New(), userID, "",
+	)
+	require.NoError(t, err)
+
+	for _, ws := range []uuid.UUID{wsA, wsB, wsSingle} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, false, 'never')`,
+			ws, now, now, userID, orgID, templateID, "ws-"+ws.String()[:8],
+		)
+		require.NoError(t, err)
+	}
+	// wsDeleted is a soft-deleted workspace. Its agent is on the latest
+	// build but must still be soft-deleted by the migration.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'never')`,
+		wsDeleted, now, now, userID, orgID, templateID, "ws-"+wsDeleted.String()[:8],
+	)
+	require.NoError(t, err)
+
+	// For every build: provisioner_job -> workspace_build -> workspace_resource -> workspace_agent.
+	for _, b := range allBuilds {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, type, input, file_id)
+			VALUES ($1, $2, $3, $4, $5, 'echo', 'file', 'workspace_build', '{}', $6)`,
+			b.jobID, now, now, orgID, userID, fileID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason)
+			VALUES ($1, $2, $3, $4, $5, $6, 'start', $7, $8, 'initiator')`,
+			b.id, now, now, b.wsID, templateVersionID, b.buildNum, userID, b.jobID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_resources (id, created_at, job_id, transition, type, name)
+			VALUES ($1, $2, $3, 'start', 'aws_instance', 'dev')`,
+			b.resourceID, now, b.jobID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_agents (id, created_at, updated_at, name, resource_id, auth_token, auth_instance_id, architecture, operating_system, deleted)
+			VALUES ($1, $2, $3, 'main', $4, $5, $6, 'amd64', 'linux', false)`,
+			b.agentID, now, now, b.resourceID, uuid.New(), b.instanceID,
+		)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, tx.Commit())
+
+	// Sanity check pre-migration: all agents should be deleted=false.
+	var preDeletedCount int
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM workspace_agents WHERE deleted = true`).Scan(&preDeletedCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, preDeletedCount, "no agents should be deleted pre-migration")
+
+	// Run migration 491.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Backfill assertions:
+	//   wsA: builds 1,2,3 → keep agent for build 3, delete for 1 and 2.
+	//   wsB: builds 1,2 → keep agent for build 2, delete for 1.
+	//   wsSingle: 1 build → keep.
+	//   Per workspace, exactly one agent remains deleted=false.
+	check := func(label string, expectDeleted bool, agent uuid.UUID) {
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, agent).Scan(&deleted)
+		require.NoError(t, err, label)
+		require.Equal(t, expectDeleted, deleted, label)
+	}
+	check("wsA build 1 (old) should be deleted", true, aBuilds[0].agentID)
+	check("wsA build 2 (old) should be deleted", true, aBuilds[1].agentID)
+	check("wsA build 3 (latest) should be kept", false, aBuilds[2].agentID)
+	check("wsB build 1 (old) should be deleted", true, bBuilds[0].agentID)
+	check("wsB build 2 (latest) should be kept", false, bBuilds[1].agentID)
+	check("wsSingle build 1 (solo latest) should be kept", false, singleBuilds[0].agentID)
+	check("wsDeleted: agent on deleted workspace should be soft-deleted even though it's the latest build",
+		true, deletedBuilds[0].agentID)
+
+	// The ongoing invariants are enforced by wsbuilder.Builder.Build and
+	// provisionerdserver.CompleteJob via SoftDeletePriorWorkspaceAgents and
+	// SoftDeleteWorkspaceAgentsByWorkspaceID. Those paths are covered by
+	// the querier tests TestSoftDeletePriorWorkspaceAgents and
+	// TestSoftDeleteWorkspaceAgentsByWorkspaceID, plus integration tests
+	// under coderd/coderd_test.go; not retested here.
 }

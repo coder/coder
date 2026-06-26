@@ -1,3 +1,17 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import uniqueId from "lodash/uniqueId";
+import { expect, within } from "storybook/test";
+import {
+	type Workspace,
+	type WorkspaceStatus,
+	WorkspaceStatuses,
+} from "#/api/typesGenerated";
+import {
+	getDefaultFilterProps,
+	MockMenu,
+} from "#/components/Filter/storyHelpers";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockBuildInfo,
 	MockOrganization,
@@ -7,27 +21,15 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceSubAgent,
 	mockApiError,
-} from "testHelpers/entities";
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
-} from "testHelpers/storybook";
-import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	type Workspace,
-	type WorkspaceStatus,
-	WorkspaceStatuses,
-} from "api/typesGenerated";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "components/Filter/storyHelpers";
-import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
-import dayjs from "dayjs";
-import uniqueId from "lodash/uniqueId";
-import { expect, within } from "storybook/test";
+} from "#/testHelpers/storybook";
 import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
@@ -168,7 +170,6 @@ const meta: Meta<typeof WorkspacesPageView> = {
 		limit: DEFAULT_RECORDS_PER_PAGE,
 		filterState: defaultFilterProps,
 		checkedWorkspaces: [],
-		canCheckWorkspaces: true,
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
 		count: 13,
@@ -193,6 +194,21 @@ export const AllStates: Story = {
 	args: {
 		workspaces: allWorkspaces,
 		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(allWorkspaces[0].name);
+		const images = canvasElement.querySelectorAll("img");
+		expect(images.length).toBeGreaterThan(0);
+		for (const img of images) {
+			expect(img).toHaveAttribute("alt");
+		}
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		workspaces: undefined,
+		count: undefined,
 	},
 };
 
@@ -348,6 +364,66 @@ export const MultipleApps: Story = {
 	},
 };
 
+// The shortcuts row only renders apps from the parent agent (the agent without
+// a `parent_id`). Apps from sub-agents, such as those created by devcontainers,
+// are excluded so the row stays deterministic regardless of agent ordering.
+export const ParentAgentApps: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "parent-agent-apps",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								// Sub-agent is listed first to prove ordering does
+								// not determine which apps are shown.
+								{
+									...MockWorkspaceSubAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "sub-agent-app",
+											slug: "sub-agent-app",
+											display_name: "Sub Agent App",
+											health: "healthy",
+										},
+									],
+								},
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "parent-agent-app",
+											slug: "parent-agent-app",
+											display_name: "Parent Agent App",
+											health: "healthy",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("link", { name: /Open Parent Agent App/i });
+		expect(
+			canvas.queryByRole("link", { name: /Open Sub Agent App/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [
@@ -398,11 +474,27 @@ export const ShowWorkspaceTasks: Story = {
 	},
 };
 
+export const ShowWorkspaceChats: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "regular-workspace",
+			},
+			{
+				...MockWorkspace,
+				id: "ws-with-agent",
+				name: "agent-workspace",
+			},
+		],
+		chatsByWorkspace: { "ws-with-agent": "some-chat-id" },
+	},
+};
+
 export const WithCheckedWorkspaces: Story = {
 	args: {
 		workspaces: allWorkspaces.slice(0, 5),
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
-		canCheckWorkspaces: true,
 		count: 5,
 	},
 };

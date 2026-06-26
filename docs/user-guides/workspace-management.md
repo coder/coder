@@ -66,8 +66,9 @@ The following filters are supported:
 - `dormant` - Filters workspaces based on the dormant state, e.g `dormant:true`
 - `has-agent` - Only applicable for workspaces in "start" transition. Stopped
   and deleted workspaces don't have agents. List of supported values
-  `connecting|connected|timeout`, e.g, `has-agent:connecting`
+  `connecting|connected|timeout|disconnected`, e.g, `has-agent:connecting`
 - `id` - Workspace UUID
+- `healthy` - Only applicable for workspaces in "start" transition. `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
 
 ## Updating workspaces
 
@@ -101,11 +102,7 @@ manually updated the workspace.
 
 ## Bulk operations
 
-> [!NOTE]
-> Bulk operations are a Premium feature.
-> [Learn more](https://coder.com/pricing#compare-plans).
-
-Licensed admins may apply bulk operations (update, delete, start, stop) in the
+Admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.

@@ -13,32 +13,64 @@ var _ usage.Inserter = (*UsageInserter)(nil)
 
 type UsageInserter struct {
 	sync.Mutex
-	events []usagetypes.DiscreteEvent
+	discreteEvents  []usagetypes.DiscreteEvent
+	heartbeatEvents []usagetypes.HeartbeatEvent
+	seenHeartbeats  map[string]struct{}
 }
 
 func NewUsageInserter() *UsageInserter {
 	return &UsageInserter{
-		events: []usagetypes.DiscreteEvent{},
+		discreteEvents:  []usagetypes.DiscreteEvent{},
+		seenHeartbeats:  map[string]struct{}{},
+		heartbeatEvents: []usagetypes.HeartbeatEvent{},
 	}
 }
 
 func (u *UsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
 	u.Lock()
 	defer u.Unlock()
-	u.events = append(u.events, event)
+	u.discreteEvents = append(u.discreteEvents, event)
 	return nil
 }
 
-func (u *UsageInserter) GetEvents() []usagetypes.DiscreteEvent {
+func (u *UsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, event usagetypes.HeartbeatEvent) error {
 	u.Lock()
 	defer u.Unlock()
-	eventsCopy := make([]usagetypes.DiscreteEvent, len(u.events))
-	copy(eventsCopy, u.events)
+	if _, seen := u.seenHeartbeats[id]; seen {
+		return nil
+	}
+
+	u.seenHeartbeats[id] = struct{}{}
+	u.heartbeatEvents = append(u.heartbeatEvents, event)
+	return nil
+}
+
+func (u *UsageInserter) GetHeartbeatEvents() []usagetypes.HeartbeatEvent {
+	u.Lock()
+	defer u.Unlock()
+	eventsCopy := make([]usagetypes.HeartbeatEvent, len(u.heartbeatEvents))
+	copy(eventsCopy, u.heartbeatEvents)
 	return eventsCopy
+}
+
+func (u *UsageInserter) GetDiscreteEvents() []usagetypes.DiscreteEvent {
+	u.Lock()
+	defer u.Unlock()
+	eventsCopy := make([]usagetypes.DiscreteEvent, len(u.discreteEvents))
+	copy(eventsCopy, u.discreteEvents)
+	return eventsCopy
+}
+
+func (u *UsageInserter) TotalEventCount() int {
+	u.Lock()
+	defer u.Unlock()
+	return len(u.discreteEvents) + len(u.heartbeatEvents)
 }
 
 func (u *UsageInserter) Reset() {
 	u.Lock()
 	defer u.Unlock()
-	u.events = []usagetypes.DiscreteEvent{}
+	u.seenHeartbeats = map[string]struct{}{}
+	u.discreteEvents = []usagetypes.DiscreteEvent{}
+	u.heartbeatEvents = []usagetypes.HeartbeatEvent{}
 }

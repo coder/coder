@@ -3,6 +3,7 @@ package pubsub_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -151,7 +152,10 @@ func TestPGPubsubDriver(t *testing.T) {
 	gotChan := make(chan struct{}, 1)
 	defer close(gotChan)
 	subCancel, err := subber.Subscribe("test", func(_ context.Context, _ []byte) {
-		gotChan <- struct{}{}
+		select {
+		case gotChan <- struct{}{}:
+		default:
+		}
 	})
 	require.NoError(t, err)
 	defer subCancel()
@@ -174,14 +178,156 @@ func TestPGPubsubDriver(t *testing.T) {
 
 	// wait for the reconnect
 	_ = testutil.TryReceive(ctx, t, subDriver.Connections)
-	// we need to sleep because the raw connection notification
-	// is sent before the pq.Listener can reestablish it's listeners
-	time.Sleep(1 * time.Second)
 
-	// ensure our old subscription still fires
-	err = pubber.Publish("test", []byte("hello-again"))
-	require.NoError(t, err)
+	// The raw connection notification is sent before the
+	// pq.Listener re-issues LISTEN on the new connection.
+	// Rather than sleeping a fixed duration, retry publishing
+	// until the subscriber receives a message, which proves
+	// that the LISTEN has been re-established.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		// Drain any stale signals before publishing.
+		select {
+		case <-gotChan:
+		default:
+		}
+		err := pubber.Publish("test", []byte("hello-again"))
+		if err != nil {
+			return false
+		}
+		select {
+		case <-gotChan:
+			return true
+		case <-time.After(testutil.IntervalFast):
+			return false
+		}
+	}, testutil.IntervalMedium, "subscriber did not receive message after reconnect")
+}
 
-	// wait for the message on the old subscription
-	_ = testutil.TryReceive(ctx, t, gotChan)
+func Test_MsgQueue_ListenerWithError(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	m := make(chan string)
+	e := make(chan error)
+	uut := pubsub.NewMsgQueue(ctx, nil, func(ctx context.Context, msg []byte, err error) {
+		m <- string(msg)
+		e <- err
+	})
+	defer uut.Close()
+
+	// We're going to enqueue 4 messages and an error in a loop -- that is, a cycle of 5.
+	// PubsubBufferSize is 2048, which is a power of 2, so a pattern of 5 will not be aligned
+	// when we wrap around the end of the circular buffer.  This tests that we correctly handle
+	// the wrapping and aren't dequeueing misaligned data.
+	cycles := (pubsub.BufferSize / 5) * 2 // almost twice around the ring
+	for j := 0; j < cycles; j++ {
+		for i := 0; i < 4; i++ {
+			uut.Enqueue([]byte(fmt.Sprintf("%d%d", j, i)))
+		}
+		uut.Dropped()
+		for i := 0; i < 4; i++ {
+			select {
+			case <-ctx.Done():
+				t.Fatal("timed out")
+			case msg := <-m:
+				require.Equal(t, fmt.Sprintf("%d%d", j, i), msg)
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatal("timed out")
+			case err := <-e:
+				require.NoError(t, err)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("timed out")
+		case msg := <-m:
+			require.Equal(t, "", msg)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("timed out")
+		case err := <-e:
+			require.ErrorIs(t, err, pubsub.ErrDroppedMessages)
+		}
+	}
+}
+
+func Test_MsgQueue_Listener(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	m := make(chan string)
+	uut := pubsub.NewMsgQueue(ctx, func(ctx context.Context, msg []byte) {
+		m <- string(msg)
+	}, nil)
+	defer uut.Close()
+
+	// We're going to enqueue 4 messages and an error in a loop -- that is, a cycle of 5.
+	// PubsubBufferSize is 2048, which is a power of 2, so a pattern of 5 will not be aligned
+	// when we wrap around the end of the circular buffer.  This tests that we correctly handle
+	// the wrapping and aren't dequeueing misaligned data.
+	cycles := (pubsub.BufferSize / 5) * 2 // almost twice around the ring
+	for j := 0; j < cycles; j++ {
+		for i := 0; i < 4; i++ {
+			uut.Enqueue([]byte(fmt.Sprintf("%d%d", j, i)))
+		}
+		uut.Dropped()
+		for i := 0; i < 4; i++ {
+			select {
+			case <-ctx.Done():
+				t.Fatal("timed out")
+			case msg := <-m:
+				require.Equal(t, fmt.Sprintf("%d%d", j, i), msg)
+			}
+		}
+		// Listener skips over errors, so we only read out the 4 real messages.
+	}
+}
+
+func Test_MsgQueue_Full(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	firstDequeue := make(chan struct{})
+	allowRead := make(chan struct{})
+	n := 0
+	errors := make(chan error)
+	uut := pubsub.NewMsgQueue(ctx, nil, func(ctx context.Context, msg []byte, err error) {
+		if n == 0 {
+			close(firstDequeue)
+		}
+		<-allowRead
+		if err == nil {
+			require.Equal(t, fmt.Sprintf("%d", n), string(msg))
+			n++
+			return
+		}
+		errors <- err
+	})
+	defer uut.Close()
+
+	// we send 2 more than the capacity.  One extra because the call to the ListenerFunc blocks
+	// but only after we've dequeued a message, and then another extra because we want to exceed
+	// the capacity, not just reach it.
+	for i := 0; i < pubsub.BufferSize+2; i++ {
+		uut.Enqueue([]byte(fmt.Sprintf("%d", i)))
+		// ensure the first dequeue has happened before proceeding, so that this function isn't racing
+		// against the goroutine that dequeues items.
+		<-firstDequeue
+	}
+	close(allowRead)
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("timed out")
+	case err := <-errors:
+		require.ErrorIs(t, err, pubsub.ErrDroppedMessages)
+	}
+	// Ok, so we sent 2 more than capacity, but we only read the capacity, that's because the last
+	// message we send doesn't get queued, AND, it bumps a message out of the queue to make room
+	// for the error, so we read 2 less than we sent.
+	require.Equal(t, pubsub.BufferSize, n)
 }

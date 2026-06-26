@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"math"
+	"net"
 	"net/netip"
 	"slices"
 	"strings"
@@ -153,6 +154,17 @@ type BasicCoordinationController struct {
 	Logger      slog.Logger
 	Coordinatee Coordinatee
 	SendAcks    bool
+	// Initiator labels which side of the coordination this controller
+	// represents (e.g. "agent", "client", "server"). It is attached as
+	// a slog field to disconnect-related logs emitted by this
+	// coordination so operators can attribute connection-close events
+	// without inspecting call sites. Leave unset on synthetic
+	// controllers (tests, in-memory fakes) and the field will be
+	// omitted from log output.
+	Initiator codersdk.DisconnectInitiator
+	// Direction labels the connection layer (server_to_agent,
+	// agent_to_client, client_to_server) for disconnect logs.
+	Direction codersdk.ConnectionDirection
 }
 
 // New satisfies the method on the CoordinationController interface
@@ -166,9 +178,11 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 		logger:       c.Logger,
 		errChan:      make(chan error, 1),
 		coordinatee:  c.Coordinatee,
-		Client:       client,
+		client:       client,
 		respLoopDone: make(chan struct{}),
 		sendAcks:     c.SendAcks,
+		initiator:    c.Initiator,
+		direction:    c.Direction,
 	}
 
 	c.Coordinatee.SetNodeCallback(func(node *Node) {
@@ -184,7 +198,7 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 			b.logger.Debug(context.Background(), "ignored node update because coordination is closed")
 			return
 		}
-		err = b.Client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
+		err = b.client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
 		if err != nil {
 			b.SendErr(xerrors.Errorf("write: %w", err))
 		}
@@ -207,46 +221,94 @@ type BasicCoordination struct {
 	errChan      chan error
 	coordinatee  Coordinatee
 	logger       slog.Logger
-	Client       CoordinatorClient
+	client       CoordinatorClient
 	respLoopDone chan struct{}
 	sendAcks     bool
+	initiator    codersdk.DisconnectInitiator
+	direction    codersdk.ConnectionDirection
+}
+
+// CloseClient forcibly closes the underlying coordinator client connection
+// without sending a graceful Disconnect message. Use this when you need to
+// tear down the connection immediately, for example after a send error.
+func (c *BasicCoordination) CloseClient() error {
+	return c.client.Close()
+}
+
+// SendRequest sends a coordinate request on the client connection, holding
+// the coordination lock to prevent concurrent writes on the dRPC stream.
+func (c *BasicCoordination) SendRequest(req *proto.CoordinateRequest) error {
+	c.Lock()
+	defer c.Unlock()
+	if c.closed {
+		return xerrors.New("coordination is closed")
+	}
+	return c.client.Send(req)
 }
 
 // Close the coordination gracefully. If the context expires before the remote API server has hung
 // up on us, we forcibly close the Client connection.
 func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	c.Lock()
-	defer c.Unlock()
 	if c.closed {
+		c.Unlock()
 		return nil
 	}
 	c.closed = true
-	defer func() {
-		// We shouldn't just close the protocol right away, because the way dRPC streams work is
-		// that if you close them, that could take effect immediately, even before the Disconnect
-		// message is processed. Coordinators are supposed to hang up on us once they get a
-		// Disconnect message, so we should wait around for that until the context expires.
-		select {
-		case <-c.respLoopDone:
-			c.logger.Debug(ctx, "responses closed after disconnect")
-			return
-		case <-ctx.Done():
-			c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
-		}
-		// forcefully close the stream
-		protoErr := c.Client.Close()
-		<-c.respLoopDone
-		if retErr == nil {
-			retErr = protoErr
-		}
-	}()
-	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	err := c.client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
-		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
-		return xerrors.Errorf("send disconnect: %w", err)
+		reason := codersdk.DisconnectReasonNetworkError
+		// Log but don't return early; we must still clean up below.
+		c.logger.Warn(context.Background(), "failed to send disconnect",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+			slog.Error(err),
+		)
+		retErr = xerrors.Errorf("send disconnect: %w", err)
+	} else {
+		reason := codersdk.DisconnectReasonGraceful
+		c.logger.Debug(context.Background(), "sent disconnect",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+		)
 	}
-	c.logger.Debug(context.Background(), "sent disconnect")
-	return nil
+
+	// We shouldn't just close the protocol right away, because the way dRPC streams work is
+	// that if you close them, that could take effect immediately, even before the Disconnect
+	// message is processed. Coordinators are supposed to hang up on us once they get a
+	// Disconnect message, so we should wait around for that until the context expires.
+	select {
+	case <-c.respLoopDone:
+		reason := codersdk.DisconnectReasonGraceful
+		c.logger.Debug(ctx, "responses closed after disconnect",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+		)
+		return retErr
+	case <-ctx.Done():
+		reason := codersdk.DisconnectReasonNetworkError
+		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+			codersdk.SlogDisconnectDetail("context expired before coordinator hung up"),
+		)
+	}
+	// forcefully close the stream
+	protoErr := c.client.Close()
+	<-c.respLoopDone
+	if retErr == nil {
+		retErr = protoErr
+	}
+	return retErr
 }
 
 // Wait for the Coordination to complete
@@ -266,7 +328,7 @@ func (c *BasicCoordination) SendErr(err error) {
 
 func (c *BasicCoordination) respLoop() {
 	defer func() {
-		cErr := c.Client.Close()
+		cErr := c.client.Close()
 		if cErr != nil {
 			c.logger.Debug(context.Background(),
 				"failed to close coordinate client after respLoop exit", slog.Error(cErr))
@@ -275,7 +337,7 @@ func (c *BasicCoordination) respLoop() {
 		close(c.respLoopDone)
 	}()
 	for {
-		resp, err := c.Client.Recv()
+		resp, err := c.client.Recv()
 		if err != nil {
 			c.logger.Debug(context.Background(),
 				"failed to read from protocol", slog.Error(err))
@@ -316,7 +378,7 @@ func (c *BasicCoordination) respLoop() {
 				rfh = append(rfh, &proto.CoordinateRequest_ReadyForHandshake{Id: peer.Id})
 			}
 			if len(rfh) > 0 {
-				err := c.Client.Send(&proto.CoordinateRequest{
+				err := c.SendRequest(&proto.CoordinateRequest{
 					ReadyForHandshake: rfh,
 				})
 				if err != nil {
@@ -348,6 +410,8 @@ func NewTunnelSrcCoordController(
 			Logger:      logger,
 			Coordinatee: coordinatee,
 			SendAcks:    false,
+			Initiator:   codersdk.DisconnectInitiatorClient,
+			Direction:   codersdk.ConnectionDirectionClientToServer,
 		},
 		dests: make(map[uuid.UUID]struct{}),
 	}
@@ -360,7 +424,7 @@ func (c *TunnelSrcCoordController) New(client CoordinatorClient) CloserWaiter {
 	c.coordination = b
 	// resync destinations on reconnect
 	for dest := range c.dests {
-		err := client.Send(&proto.CoordinateRequest{
+		err := b.SendRequest(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 		})
 		if err != nil {
@@ -388,13 +452,13 @@ func (c *TunnelSrcCoordController) AddDestination(dest uuid.UUID) {
 	if c.coordination == nil {
 		return
 	}
-	err := c.coordination.Client.Send(
+	err := c.coordination.SendRequest(
 		&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 		})
 	if err != nil {
 		c.coordination.SendErr(err)
-		cErr := c.coordination.Client.Close() // close the client so we don't gracefully disconnect
+		cErr := c.coordination.client.Close() // close the client so we don't gracefully disconnect
 		if cErr != nil {
 			c.Logger.Debug(context.Background(),
 				"failed to close coordinator client after add tunnel failure",
@@ -411,13 +475,13 @@ func (c *TunnelSrcCoordController) RemoveDestination(dest uuid.UUID) {
 	if c.coordination == nil {
 		return
 	}
-	err := c.coordination.Client.Send(
+	err := c.coordination.SendRequest(
 		&proto.CoordinateRequest{
 			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 		})
 	if err != nil {
 		c.coordination.SendErr(err)
-		cErr := c.coordination.Client.Close() // close the client so we don't gracefully disconnect
+		cErr := c.coordination.client.Close() // close the client so we don't gracefully disconnect
 		if cErr != nil {
 			c.Logger.Debug(context.Background(),
 				"failed to close coordinator client after remove tunnel failure",
@@ -448,7 +512,7 @@ func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
 	defer func() {
 		if err != nil {
 			c.coordination.SendErr(err)
-			cErr := c.coordination.Client.Close() // don't gracefully disconnect
+			cErr := c.coordination.client.Close() // don't gracefully disconnect
 			if cErr != nil {
 				c.Logger.Debug(context.Background(),
 					"failed to close coordinator client during sync destinations",
@@ -459,7 +523,7 @@ func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
 	}()
 	for dest := range toAdd {
 		c.Coordinatee.SetTunnelDestination(dest)
-		err = c.coordination.Client.Send(
+		err = c.coordination.SendRequest(
 			&proto.CoordinateRequest{
 				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 			})
@@ -468,7 +532,7 @@ func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
 		}
 	}
 	for dest := range toRemove {
-		err = c.coordination.Client.Send(
+		err = c.coordination.SendRequest(
 			&proto.CoordinateRequest{
 				RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
 			})
@@ -487,6 +551,8 @@ func NewAgentCoordinationController(
 		Logger:      logger,
 		Coordinatee: coordinatee,
 		SendAcks:    true,
+		Initiator:   codersdk.DisconnectInitiatorAgent,
+		Direction:   codersdk.ConnectionDirectionServerToAgent,
 	}
 }
 
@@ -985,6 +1051,30 @@ func (a *Agent) Clone() Agent {
 func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient) CloserWaiter {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	// Preserve workspace state from the previous updater so that DNS
+	// hosts remain programmed while we wait for the new server
+	// snapshot. Without this, a control-plane reconnection would
+	// leave the internal DNS resolver empty until the first
+	// workspace update arrives, breaking .coder resolution.
+	var previousWorkspaces map[uuid.UUID]*Workspace
+	if t.updater != nil {
+		t.updater.Lock()
+		if len(t.updater.workspaces) > 0 {
+			previousWorkspaces = make(map[uuid.UUID]*Workspace, len(t.updater.workspaces))
+			for id, w := range t.updater.workspaces {
+				clone := w.Clone()
+				previousWorkspaces[id] = &clone
+			}
+		}
+		t.updater.Unlock()
+	}
+
+	workspaces := make(map[uuid.UUID]*Workspace)
+	if previousWorkspaces != nil {
+		workspaces = previousWorkspaces
+	}
+
 	updater := &tunnelUpdater{
 		client:         client,
 		errChan:        make(chan error, 1),
@@ -995,8 +1085,26 @@ func (t *TunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 		updateHandler:  t.updateHandler,
 		ownerUsername:  t.ownerUsername,
 		recvLoopDone:   make(chan struct{}),
-		workspaces:     make(map[uuid.UUID]*Workspace),
+		workspaces:     workspaces,
 	}
+
+	// If we inherited workspace state, immediately re-program DNS
+	// hosts so the resolver stays populated during the reconnection
+	// window.
+	if len(previousWorkspaces) > 0 {
+		dnsNames := updater.updateDNSNamesLocked()
+		if updater.dnsHostsSetter != nil {
+			t.logger.Debug(context.Background(), "re-applying DNS hosts from previous session",
+				slog.F("num_hosts", len(dnsNames)),
+			)
+			if err := updater.dnsHostsSetter.SetDNSHosts(dnsNames); err != nil {
+				t.logger.Warn(context.Background(), "failed to re-apply DNS hosts from previous session",
+					slog.Error(err),
+				)
+			}
+		}
+	}
+
 	t.updater = updater
 	go t.updater.recvLoop()
 	return t.updater
@@ -1155,6 +1263,14 @@ func (w *WorkspaceUpdate) Clone() WorkspaceUpdate {
 func (t *tunnelUpdater) handleUpdate(update *proto.WorkspaceUpdate, updateKind UpdateKind) error {
 	t.Lock()
 	defer t.Unlock()
+
+	// Snapshots represent the complete state, not a diff. Clear any
+	// inherited or previously accumulated workspace data so that
+	// workspaces absent from the snapshot (e.g. stopped while we
+	// were disconnected) do not linger.
+	if updateKind == Snapshot {
+		t.workspaces = make(map[uuid.UUID]*Workspace)
+	}
 
 	currentUpdate := WorkspaceUpdate{
 		UpsertedWorkspaces: []*Workspace{},
@@ -1429,8 +1545,20 @@ func (c *Controller) Run(ctx context.Context) {
 
 			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+				if c.ctx.Err() != nil {
 					return
+				}
+
+				if errors.Is(err, net.ErrClosed) {
+					reason := codersdk.DisconnectReasonNetworkError
+					c.logger.Warn(c.ctx, "control plane connection closed, retrying",
+						codersdk.ConnectionDirectionServerToAgent.SlogField(),
+						reason.SlogField(),
+						reason.SlogExpectedField(),
+						codersdk.DisconnectInitiatorNetwork.SlogField(),
+						slog.Error(err),
+					)
+					continue
 				}
 
 				// If the database is unreachable by the control plane, there's not much we can do, so we'll just retry later.

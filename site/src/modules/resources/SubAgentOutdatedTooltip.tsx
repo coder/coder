@@ -1,19 +1,18 @@
+import { RotateCcwIcon } from "lucide-react";
+import type { FC } from "react";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
-} from "api/typesGenerated";
+} from "#/api/typesGenerated";
 import {
-	HelpTooltip,
-	HelpTooltipAction,
-	HelpTooltipContent,
-	HelpTooltipLinksGroup,
-	HelpTooltipText,
-	HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
-import { TooltipTrigger } from "components/Tooltip/Tooltip";
-import { RotateCcwIcon } from "lucide-react";
-import type { FC } from "react";
+	HelpPopover,
+	HelpPopoverAction,
+	HelpPopoverContent,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+	HelpPopoverTrigger,
+} from "#/components/HelpPopover/HelpPopover";
 
 type SubAgentOutdatedTooltipProps = {
 	devcontainer: WorkspaceAgentDevcontainer;
@@ -33,35 +32,35 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 		return null;
 	}
 
-	const title = "Dev Container Outdated";
-	const opener = "This Dev Container is outdated.";
-	const text = `${opener} This can happen if you modify your devcontainer.json file after the Dev Container has been created. To fix this, you can rebuild the Dev Container.`;
-
 	return (
-		<HelpTooltip>
-			<TooltipTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
+		<HelpPopover>
+			<HelpPopoverTrigger className="px-0 py-1 bg-transparent text-inherit border-none opacity-50 hover:opacity-100">
 				<span role="status" className="cursor-pointer">
 					Outdated
 				</span>
-			</TooltipTrigger>
-			<HelpTooltipContent>
-				<Stack spacing={1}>
+			</HelpPopoverTrigger>
+			<HelpPopoverContent>
+				<div className="flex flex-col gap-2">
 					<div>
-						<HelpTooltipTitle>{title}</HelpTooltipTitle>
-						<HelpTooltipText>{text}</HelpTooltipText>
+						<HelpPopoverTitle>Dev Container Outdated</HelpPopoverTitle>
+						<HelpPopoverText>
+							This Dev Container is outdated. This can happen if you modify your
+							devcontainer.json file after the Dev Container has been created.
+							To fix this, you can rebuild the Dev Container.
+						</HelpPopoverText>
 					</div>
 
-					<HelpTooltipLinksGroup>
-						<HelpTooltipAction
+					<HelpPopoverLinksGroup>
+						<HelpPopoverAction
 							icon={RotateCcwIcon}
 							onClick={onUpdate}
 							ariaLabel="Rebuild Dev Container"
 						>
 							Rebuild Dev Container
-						</HelpTooltipAction>
-					</HelpTooltipLinksGroup>
-				</Stack>
-			</HelpTooltipContent>
-		</HelpTooltip>
+						</HelpPopoverAction>
+					</HelpPopoverLinksGroup>
+				</div>
+			</HelpPopoverContent>
+		</HelpPopover>
 	);
 };

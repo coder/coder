@@ -27,6 +27,7 @@ const (
 
 	ActionCreateAgent Action = "create_agent"
 	ActionDeleteAgent Action = "delete_agent"
+	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
 )
@@ -63,6 +64,7 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	ActionCreateAgent: "create a new workspace agent",
 	ActionDeleteAgent: "delete an existing workspace agent",
+	ActionUpdateAgent: "update an existing workspace agent",
 
 	// Sharing a workspace
 	ActionShare: "share a workspace with other users or groups",
@@ -73,6 +75,14 @@ var taskActions = map[Action]ActionDefinition{
 	ActionRead:   "read task data or output to view on the UI or CLI",
 	ActionUpdate: "edit task settings or send input to an existing task",
 	ActionDelete: "delete task",
+}
+
+var chatActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new chat",
+	ActionRead:   "read chat messages and metadata",
+	ActionUpdate: "update chat title or settings",
+	ActionDelete: "delete a chat",
+	ActionShare:  "share a chat with other users or groups",
 }
 
 // RBACPermissions is indexed by the type
@@ -100,6 +110,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"task": {
 		Actions: taskActions,
+	},
+	"chat": {
+		Actions: chatActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
@@ -366,6 +379,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete a user secret",
 		},
 	},
+	"user_skill": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a user skill",
+			ActionRead:   "read user skill metadata and content",
+			ActionUpdate: "update user skill metadata and content",
+			ActionDelete: "delete a user skill",
+		},
+	},
 	"usage_event": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a usage event",
@@ -378,6 +399,42 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read aibridge interceptions & related records",
 			ActionUpdate: "update aibridge interceptions & related records",
 			ActionCreate: "create aibridge interceptions & related records",
+		},
+	},
+	"ai_model_price": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read AI model prices",
+			ActionUpdate: "update AI model prices",
+		},
+	},
+	"ai_provider": {
+		Name: "AIProvider",
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read AI provider configuration",
+			ActionCreate: "create an AI provider",
+			ActionUpdate: "update an AI provider",
+			ActionDelete: "delete an AI provider",
+		},
+	},
+	"ai_seat": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "record AI seat usage",
+			ActionRead:   "read AI seat state",
+		},
+	},
+	"boundary_log": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create boundary log records",
+			ActionRead:   "read boundary logs and session metadata",
+			ActionDelete: "delete boundary logs",
+		},
+	},
+	"ai_gateway_key": {
+		Name: "AIGatewayKey",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an AI Gateway key",
+			ActionRead:   "read AI Gateway keys",
+			ActionDelete: "delete an AI Gateway key",
 		},
 	},
 	"boundary_usage": {

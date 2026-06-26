@@ -50,13 +50,14 @@ DO UPDATE SET
 	updated_at = now() at time zone 'utc'
 RETURNING *;
 
--- name: UpdateTailnetPeerStatusByCoordinator :exec
+-- name: UpdateTailnetPeerStatusByCoordinator :many
 UPDATE
 	tailnet_peers
 SET
 	status = $2
 WHERE
-	coordinator_id = $1;
+	coordinator_id = $1
+RETURNING id;
 
 -- name: DeleteTailnetPeer :one
 DELETE
@@ -91,32 +92,11 @@ FROM tailnet_tunnels
 WHERE coordinator_id = $1 and src_id = $2 and dst_id = $3
 RETURNING coordinator_id, src_id, dst_id;
 
--- name: DeleteAllTailnetTunnels :exec
+-- name: DeleteAllTailnetTunnels :many
 DELETE
 FROM tailnet_tunnels
-WHERE coordinator_id = $1 and src_id = $2;
-
--- name: GetTailnetTunnelPeerIDs :many
-SELECT dst_id as peer_id, coordinator_id, updated_at
-FROM tailnet_tunnels
-WHERE tailnet_tunnels.src_id = $1
-UNION
-SELECT src_id as peer_id, coordinator_id, updated_at
-FROM tailnet_tunnels
-WHERE tailnet_tunnels.dst_id = $1;
-
--- name: GetTailnetTunnelPeerBindings :many
-SELECT id AS peer_id, coordinator_id, updated_at, node, status
-FROM tailnet_peers
-WHERE id IN (
-  SELECT dst_id as peer_id
-  FROM tailnet_tunnels
-  WHERE tailnet_tunnels.src_id = $1
-  UNION
-  SELECT src_id as peer_id
-  FROM tailnet_tunnels
-  WHERE tailnet_tunnels.dst_id = $1
-);
+WHERE coordinator_id = $1 and src_id = $2
+RETURNING src_id, dst_id;
 
 -- For PG Coordinator HTMLDebug
 
@@ -128,3 +108,22 @@ SELECT * FROM tailnet_peers;
 
 -- name: GetAllTailnetTunnels :many
 SELECT * FROM tailnet_tunnels;
+
+-- name: GetTailnetTunnelPeerIDsBatch :many
+SELECT src_id AS lookup_id, dst_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE src_id = ANY(@ids :: uuid[])
+UNION ALL
+SELECT dst_id AS lookup_id, src_id AS peer_id, coordinator_id, updated_at
+FROM tailnet_tunnels WHERE dst_id = ANY(@ids :: uuid[]);
+
+-- name: GetTailnetTunnelPeerBindingsBatch :many
+SELECT tp.id AS peer_id, tp.coordinator_id, tp.updated_at, tp.node, tp.status,
+       tunnels.lookup_id
+FROM (
+  SELECT dst_id AS peer_id, src_id AS lookup_id
+  FROM tailnet_tunnels WHERE src_id = ANY(@ids :: uuid[])
+  UNION
+  SELECT src_id AS peer_id, dst_id AS lookup_id
+  FROM tailnet_tunnels WHERE dst_id = ANY(@ids :: uuid[])
+) tunnels
+INNER JOIN tailnet_peers tp ON tp.id = tunnels.peer_id;

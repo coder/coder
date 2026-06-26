@@ -26,6 +26,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		eventToSend := agentsdk.ReinitializationEvent{
 			WorkspaceID: uuid.New(),
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			OwnerID:     uuid.New(),
 		}
 
 		events := make(chan agentsdk.ReinitializationEvent, 1)
@@ -152,4 +153,36 @@ func TestRewriteDERPMap(t *testing.T) {
 	node := region.Nodes[0]
 	require.Equal(t, "coconuts.org", node.HostName)
 	require.Equal(t, 44558, node.DERPPort)
+}
+
+func TestExternalAuthRequestQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("IncludesGitRefFieldsAndOmitsWorkdir", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/api/v2/workspaceagents/me/external-auth", r.URL.Path)
+			require.Equal(t, "true", r.URL.Query().Get("listen"))
+			require.Equal(t, "main", r.URL.Query().Get("git_branch"))
+			require.Equal(t, "https://github.com/coder/coder.git", r.URL.Query().Get("git_remote_origin"))
+			require.Equal(t, "test-chat-id", r.URL.Query().Get("chat_id"))
+			require.False(t, r.URL.Query().Has("workdir"))
+			_, _ = w.Write([]byte(`{"type":"github","access_token":"token"}`))
+		}))
+		defer srv.Close()
+
+		parsedURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := agentsdk.New(parsedURL, agentsdk.WithFixedToken("token"))
+		_, err = client.ExternalAuth(testutil.Context(t, testutil.WaitShort), agentsdk.ExternalAuthRequest{
+			Match:           "github.com",
+			Listen:          true,
+			GitBranch:       "main",
+			GitRemoteOrigin: "https://github.com/coder/coder.git",
+			ChatID:          "test-chat-id",
+		})
+		require.NoError(t, err)
+	})
 }

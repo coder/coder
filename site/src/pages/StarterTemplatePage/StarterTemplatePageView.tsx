@@ -1,20 +1,18 @@
-import { useTheme } from "@emotion/react";
-import type { TemplateExample } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link } from "react-router";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { ExternalLinkIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link } from "react-router";
+} from "#/components/PageHeader/PageHeader";
 
 interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;
@@ -25,8 +23,6 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 	starterTemplate,
 	error,
 }) => {
-	const theme = useTheme();
-
 	if (error) {
 		return (
 			<Margins>
@@ -59,46 +55,24 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 					</>
 				}
 			>
-				<Stack direction="row" spacing={3} alignItems="center">
-					<div
-						css={{
-							height: 48,
-							width: 48,
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-
-							"& img": {
-								width: "100%",
-							},
-						}}
-					>
+				<div className="flex flex-row gap-6 items-center">
+					<div className="h-12 w-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
 					<div>
 						<PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
-						<PageHeaderSubtitle condensed>
+						<PageHeaderSubtitle>
 							{starterTemplate.description}
 						</PageHeaderSubtitle>
 					</div>
-				</Stack>
+				</div>
 			</PageHeader>
 
 			<div
-				css={{
-					background: theme.palette.background.paper,
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
-				}}
+				className="bg-surface-secondary border border-solid border-border rounded-lg"
 				id="readme"
 			>
-				<div
-					css={{
-						padding: "40px 40px 64px",
-						maxWidth: 800,
-						margin: "auto",
-					}}
-				>
+				<div className="px-8 pt-2 pb-12 max-w-[860px]">
 					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
 				</div>
 			</div>

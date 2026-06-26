@@ -1,8 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionChecks } from "modules/permissions";
 import { HttpResponse, http } from "msw";
+import type {
+	CreateUserSecretRequest,
+	CreateWorkspaceBuildRequest,
+	UpdateUserSecretRequest,
+	UserSecret,
+} from "#/api/typesGenerated";
+import { permissionChecks } from "#/modules/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 
@@ -192,6 +197,46 @@ export const handlers = [
 	http.get("/api/v2/users/:userId/gitsshkey", () => {
 		return HttpResponse.json(M.MockGitSSHKey);
 	}),
+	http.get("/api/v2/users/:userId/secrets", () => {
+		return HttpResponse.json(M.MockUserSecrets);
+	}),
+	http.get("/api/v2/users/:userId/secrets/:name", ({ params }) => {
+		const secret = M.MockUserSecrets.find(
+			(secret) => secret.name === params.name,
+		);
+		if (!secret) {
+			return HttpResponse.json(
+				{ message: "Secret not found." },
+				{ status: 404 },
+			);
+		}
+		return HttpResponse.json(secret);
+	}),
+	http.post("/api/v2/users/:userId/secrets", async ({ request }) => {
+		const body = (await request.json()) as CreateUserSecretRequest;
+		return HttpResponse.json(userSecretFromCreateRequest(body), {
+			status: 201,
+		});
+	}),
+	http.patch(
+		"/api/v2/users/:userId/secrets/:name",
+		async ({ request, params }) => {
+			const body = (await request.json()) as UpdateUserSecretRequest;
+			const existing = M.MockUserSecrets.find(
+				(secret) => secret.name === params.name,
+			);
+			if (!existing) {
+				return HttpResponse.json(
+					{ message: "Secret not found." },
+					{ status: 404 },
+				);
+			}
+			return HttpResponse.json(userSecretFromUpdateRequest(existing, body));
+		},
+	),
+	http.delete("/api/v2/users/:userId/secrets/:name", () => {
+		return new HttpResponse(null, { status: 204 });
+	}),
 	http.get("/api/v2/users/:userId/workspace/:workspaceName", () => {
 		return HttpResponse.json(M.MockWorkspace);
 	}),
@@ -287,7 +332,15 @@ export const handlers = [
 
 	// Groups
 	http.get("/api/v2/organizations/:organizationId/groups", () => {
-		return HttpResponse.json([MockGroup]);
+		return HttpResponse.json([
+			{
+				...MockGroup,
+				ai_cost_control: {
+					current_spend_micros: 25_492_000_000,
+					spend_limit_micros: null,
+				},
+			},
+		]);
 	}),
 
 	http.post("/api/v2/organizations/:organizationId/groups", () => {
@@ -343,7 +396,7 @@ export const handlers = [
 			path.resolve(__dirname, "./templateFiles.tar"),
 		);
 
-		return HttpResponse.arrayBuffer(fileBuffer);
+		return new HttpResponse(fileBuffer);
 	}),
 
 	http.get("/api/v2/templateversions/:templateVersionId/parameters", () => {
@@ -378,3 +431,31 @@ export const handlers = [
 		return HttpResponse.json(M.MockListeningPortsResponse);
 	}),
 ];
+
+function userSecretFromCreateRequest(
+	request: CreateUserSecretRequest,
+): UserSecret {
+	const now = "2026-05-04T00:00:00Z";
+	return {
+		id: `secret-${request.name}`,
+		name: request.name,
+		description: request.description ?? "",
+		env_name: request.env_name ?? "",
+		file_path: request.file_path ?? "",
+		created_at: now,
+		updated_at: now,
+	};
+}
+
+function userSecretFromUpdateRequest(
+	secret: UserSecret,
+	request: UpdateUserSecretRequest,
+): UserSecret {
+	return {
+		...secret,
+		description: request.description ?? secret.description,
+		env_name: request.env_name ?? secret.env_name,
+		file_path: request.file_path ?? secret.file_path,
+		updated_at: "2026-05-04T00:00:00Z",
+	};
+}

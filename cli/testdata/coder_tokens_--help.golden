@@ -27,7 +27,7 @@ USAGE:
 SUBCOMMANDS:
     create    Create a token
     list      List tokens
-    remove    Delete a token
+    remove    Expire or delete a token
     view      Display detailed information about a token
 
 ———

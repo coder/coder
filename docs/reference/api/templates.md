@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates`
+`GET /api/v2/organizations/{organization}/templates`
 
 Returns a list of templates for the specified organization.
 By default, only non-deprecated templates are returned.
@@ -62,9 +62,11 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deleted": true,
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
+    "disable_module_cache": true,
     "display_name": "string",
     "failure_ttl_ms": 0,
     "icon": "string",
@@ -77,6 +79,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -119,9 +122,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
 |`» default_ttl_ms`|integer|false|||
+|`» deleted`|boolean|false|||
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
@@ -134,6 +139,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» organization_name`|string(url)|false|||
 |`» provisioner`|string|false|||
 |`» require_active_version`|boolean|false||Require active version mandates that workspaces are built with the active template version.|
+|`» time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.|
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
@@ -161,7 +167,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/templates`
+`POST /api/v2/organizations/{organization}/templates`
 
 > Body parameter
 
@@ -195,7 +201,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "name": "string",
   "require_active_version": true,
   "template_use_classic_parameter_flow": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "time_til_autostop_notify_ms": 0
 }
 ```
 
@@ -244,9 +251,11 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -259,6 +268,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -285,7 +295,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/examples`
+`GET /api/v2/organizations/{organization}/templates/examples`
 
 ### Parameters
 
@@ -347,7 +357,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{templatename}`
+`GET /api/v2/organizations/{organization}/templates/{templatename}`
 
 ### Parameters
 
@@ -394,9 +404,11 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -409,6 +421,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -435,7 +448,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{templatename}/versions/{templateversionname}`
+`GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}`
 
 ### Parameters
 
@@ -485,6 +498,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -537,7 +551,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
+`GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
 ### Parameters
 
@@ -587,6 +601,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -622,9 +637,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| Status | Meaning                                                         | Description | Schema                                                         |
+|--------|-----------------------------------------------------------------|-------------|----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)         | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |                                                                |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -640,7 +656,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/templateversions`
+`POST /api/v2/organizations/{organization}/templateversions`
 
 > Body parameter
 
@@ -713,6 +729,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -765,7 +782,7 @@ curl -X GET http://coder-server:8080/api/v2/templates \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates`
+`GET /api/v2/templates`
 
 Returns a list of templates.
 By default, only non-deprecated templates are returned.
@@ -810,9 +827,11 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deleted": true,
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
+    "disable_module_cache": true,
     "display_name": "string",
     "failure_ttl_ms": 0,
     "icon": "string",
@@ -825,6 +844,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -867,9 +887,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
 |`» default_ttl_ms`|integer|false|||
+|`» deleted`|boolean|false|||
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
+|`» disable_module_cache`|boolean|false||Disable module cache disables the use of cached Terraform modules during provisioning.|
 |`» display_name`|string|false|||
 |`» failure_ttl_ms`|integer|false||Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.|
 |`» icon`|string|false|||
@@ -882,6 +904,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» organization_name`|string(url)|false|||
 |`» provisioner`|string|false|||
 |`» require_active_version`|boolean|false||Require active version mandates that workspaces are built with the active template version.|
+|`» time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.|
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
@@ -908,7 +931,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/examples \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/examples`
+`GET /api/v2/templates/examples`
 
 ### Example responses
 
@@ -964,7 +987,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}`
+`GET /api/v2/templates/{template}`
 
 ### Parameters
 
@@ -1010,9 +1033,11 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1025,6 +1050,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1051,7 +1077,7 @@ curl -X DELETE http://coder-server:8080/api/v2/templates/{template} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /templates/{template}`
+`DELETE /api/v2/templates/{template}`
 
 ### Parameters
 
@@ -1096,7 +1122,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{template}`
+`PATCH /api/v2/templates/{template}`
 
 > Body parameter
 
@@ -1122,12 +1148,14 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "deprecation_message": "string",
   "description": "string",
   "disable_everyone_group_access": true,
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
@@ -1181,9 +1209,11 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
+  "disable_module_cache": true,
   "display_name": "string",
   "failure_ttl_ms": 0,
   "icon": "string",
@@ -1196,6 +1226,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1222,7 +1253,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/daus`
+`GET /api/v2/templates/{template}/daus`
 
 ### Parameters
 
@@ -1265,7 +1296,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/versions`
+`GET /api/v2/templates/{template}/versions`
 
 ### Parameters
 
@@ -1318,6 +1349,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -1362,70 +1394,72 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
 
 Status Code **200**
 
-| Name                        | Type                                                                         | Required | Restrictions | Description                                                                                                                                                         |
-|-----------------------------|------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`              | array                                                                        | false    |              |                                                                                                                                                                     |
-| `» archived`                | boolean                                                                      | false    |              |                                                                                                                                                                     |
-| `» created_at`              | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `» created_by`              | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
-| `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
-| `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
-| `»» name`                   | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
-| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
-| `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
-| `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
-| `»» canceled_at`            | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» completed_at`           | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» created_at`             | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» error`                  | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» error_code`             | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |                                                                                                                                                                     |
-| `»» file_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» id`                     | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» initiator_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» input`                  | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
-| `»»» error`                 | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_version_id`   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»»» workspace_build_id`    | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» logs_overflowed`        | boolean                                                                      | false    |              |                                                                                                                                                                     |
-| `»» metadata`               | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
-| `»»» template_display_name` | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_icon`         | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»»» template_name`         | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_version_name` | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» workspace_id`          | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»»» workspace_name`        | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» organization_id`        | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» queue_position`         | integer                                                                      | false    |              |                                                                                                                                                                     |
-| `»» queue_size`             | integer                                                                      | false    |              |                                                                                                                                                                     |
-| `»» started_at`             | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» status`                 | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)     | false    |              |                                                                                                                                                                     |
-| `»» tags`                   | object                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» [any property]`        | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» type`                   | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
-| `»» worker_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» worker_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» matched_provisioners`    | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
-| `»» available`              | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
-| `»» count`                  | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
-| `»» most_recently_seen`     | string(date-time)                                                            | false    |              | Most recently seen is the most recently seen time of the set of matched provisioners. If no provisioners matched, this field will be null.                          |
-| `» message`                 | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» name`                    | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» organization_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `» readme`                  | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» template_id`             | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `» updated_at`              | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `» warnings`                | array                                                                        | false    |              |                                                                                                                                                                     |
+| Name                             | Type                                                                         | Required | Restrictions | Description                                                                                                                                                         |
+|----------------------------------|------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`                   | array                                                                        | false    |              |                                                                                                                                                                     |
+| `» archived`                     | boolean                                                                      | false    |              |                                                                                                                                                                     |
+| `» created_at`                   | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `» created_by`                   | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
+| `»» avatar_url`                  | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
+| `»» id`                          | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
+| `»» name`                        | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» username`                    | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`           | boolean                                                                      | false    |              |                                                                                                                                                                     |
+| `» id`                           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `» job`                          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
+| `»» available_workers`           | array                                                                        | false    |              |                                                                                                                                                                     |
+| `»» canceled_at`                 | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» completed_at`                | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» created_at`                  | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» error`                       | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» error_code`                  | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |                                                                                                                                                                     |
+| `»» file_id`                     | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» id`                          | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» initiator_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
+| `»»» error`                      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_version_id`        | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» workspace_build_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» logs_overflowed`             | boolean                                                                      | false    |              |                                                                                                                                                                     |
+| `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
+| `»»» template_display_name`      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_icon`              | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» template_name`              | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_version_name`      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» workspace_build_transition` | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)       | false    |              |                                                                                                                                                                     |
+| `»»» workspace_id`               | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» workspace_name`             | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» organization_id`             | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» queue_position`              | integer                                                                      | false    |              |                                                                                                                                                                     |
+| `»» queue_size`                  | integer                                                                      | false    |              |                                                                                                                                                                     |
+| `»» started_at`                  | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» status`                      | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)     | false    |              |                                                                                                                                                                     |
+| `»» tags`                        | object                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» [any property]`             | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» type`                        | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
+| `»» worker_id`                   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» worker_name`                 | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» matched_provisioners`         | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
+| `»» available`                   | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
+| `»» count`                       | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
+| `»» most_recently_seen`          | string(date-time)                                                            | false    |              | Most recently seen is the most recently seen time of the set of matched provisioners. If no provisioners matched, this field will be null.                          |
+| `» message`                      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» name`                         | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» organization_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `» readme`                       | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» template_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `» updated_at`                   | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `» warnings`                     | array                                                                        | false    |              |                                                                                                                                                                     |
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                 |
-|--------------|--------------------------------------------------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                            |
-| `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                 |
+|------------------------------|--------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1441,7 +1475,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templates/{template}/versions`
+`PATCH /api/v2/templates/{template}/versions`
 
 > Body parameter
 
@@ -1495,7 +1529,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templates/{template}/versions/archive`
+`POST /api/v2/templates/{template}/versions/archive`
 
 > Body parameter
 
@@ -1548,7 +1582,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templates/{template}/versions/{templateversionname}`
+`GET /api/v2/templates/{template}/versions/{templateversionname}`
 
 ### Parameters
 
@@ -1598,6 +1632,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
+        "workspace_build_transition": "start",
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
         "workspace_name": "string"
       },
@@ -1642,70 +1677,72 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
 
 Status Code **200**
 
-| Name                        | Type                                                                         | Required | Restrictions | Description                                                                                                                                                         |
-|-----------------------------|------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`              | array                                                                        | false    |              |                                                                                                                                                                     |
-| `» archived`                | boolean                                                                      | false    |              |                                                                                                                                                                     |
-| `» created_at`              | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `» created_by`              | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
-| `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
-| `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
-| `»» name`                   | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
-| `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
-| `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `» job`                     | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
-| `»» available_workers`      | array                                                                        | false    |              |                                                                                                                                                                     |
-| `»» canceled_at`            | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» completed_at`           | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» created_at`             | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» error`                  | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» error_code`             | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |                                                                                                                                                                     |
-| `»» file_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» id`                     | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» initiator_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» input`                  | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
-| `»»» error`                 | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_version_id`   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»»» workspace_build_id`    | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» logs_overflowed`        | boolean                                                                      | false    |              |                                                                                                                                                                     |
-| `»» metadata`               | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
-| `»»» template_display_name` | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_icon`         | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»»» template_name`         | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» template_version_name` | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» workspace_id`          | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»»» workspace_name`        | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» organization_id`        | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» queue_position`         | integer                                                                      | false    |              |                                                                                                                                                                     |
-| `»» queue_size`             | integer                                                                      | false    |              |                                                                                                                                                                     |
-| `»» started_at`             | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `»» status`                 | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)     | false    |              |                                                                                                                                                                     |
-| `»» tags`                   | object                                                                       | false    |              |                                                                                                                                                                     |
-| `»»» [any property]`        | string                                                                       | false    |              |                                                                                                                                                                     |
-| `»» type`                   | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
-| `»» worker_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `»» worker_name`            | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» matched_provisioners`    | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
-| `»» available`              | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
-| `»» count`                  | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
-| `»» most_recently_seen`     | string(date-time)                                                            | false    |              | Most recently seen is the most recently seen time of the set of matched provisioners. If no provisioners matched, this field will be null.                          |
-| `» message`                 | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» name`                    | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» organization_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `» readme`                  | string                                                                       | false    |              |                                                                                                                                                                     |
-| `» template_id`             | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
-| `» updated_at`              | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
-| `» warnings`                | array                                                                        | false    |              |                                                                                                                                                                     |
+| Name                             | Type                                                                         | Required | Restrictions | Description                                                                                                                                                         |
+|----------------------------------|------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`                   | array                                                                        | false    |              |                                                                                                                                                                     |
+| `» archived`                     | boolean                                                                      | false    |              |                                                                                                                                                                     |
+| `» created_at`                   | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `» created_by`                   | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
+| `»» avatar_url`                  | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
+| `»» id`                          | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
+| `»» name`                        | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» username`                    | string                                                                       | true     |              |                                                                                                                                                                     |
+| `» has_external_agent`           | boolean                                                                      | false    |              |                                                                                                                                                                     |
+| `» id`                           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `» job`                          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                 | false    |              |                                                                                                                                                                     |
+| `»» available_workers`           | array                                                                        | false    |              |                                                                                                                                                                     |
+| `»» canceled_at`                 | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» completed_at`                | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» created_at`                  | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» error`                       | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» error_code`                  | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |                                                                                                                                                                     |
+| `»» file_id`                     | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» id`                          | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» initiator_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
+| `»»» error`                      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_version_id`        | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» workspace_build_id`         | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» logs_overflowed`             | boolean                                                                      | false    |              |                                                                                                                                                                     |
+| `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |                                                                                                                                                                     |
+| `»»» template_display_name`      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_icon`              | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» template_name`              | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» template_version_name`      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» workspace_build_transition` | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)       | false    |              |                                                                                                                                                                     |
+| `»»» workspace_id`               | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»»» workspace_name`             | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» organization_id`             | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» queue_position`              | integer                                                                      | false    |              |                                                                                                                                                                     |
+| `»» queue_size`                  | integer                                                                      | false    |              |                                                                                                                                                                     |
+| `»» started_at`                  | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `»» status`                      | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)     | false    |              |                                                                                                                                                                     |
+| `»» tags`                        | object                                                                       | false    |              |                                                                                                                                                                     |
+| `»»» [any property]`             | string                                                                       | false    |              |                                                                                                                                                                     |
+| `»» type`                        | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)         | false    |              |                                                                                                                                                                     |
+| `»» worker_id`                   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» worker_name`                 | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» matched_provisioners`         | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)       | false    |              |                                                                                                                                                                     |
+| `»» available`                   | integer                                                                      | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
+| `»» count`                       | integer                                                                      | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
+| `»» most_recently_seen`          | string(date-time)                                                            | false    |              | Most recently seen is the most recently seen time of the set of matched provisioners. If no provisioners matched, this field will be null.                          |
+| `» message`                      | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» name`                         | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» organization_id`              | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `» readme`                       | string                                                                       | false    |              |                                                                                                                                                                     |
+| `» template_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `» updated_at`                   | string(date-time)                                                            | false    |              |                                                                                                                                                                     |
+| `» warnings`                     | array                                                                        | false    |              |                                                                                                                                                                     |
 
 #### Enumerated Values
 
-| Property     | Value(s)                                                                 |
-|--------------|--------------------------------------------------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                            |
-| `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                 |
+|------------------------------|--------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1720,7 +1757,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}`
+`GET /api/v2/templateversions/{templateversion}`
 
 ### Parameters
 
@@ -1768,6 +1805,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -1821,7 +1859,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}`
+`PATCH /api/v2/templateversions/{templateversion}`
 
 > Body parameter
 
@@ -1879,6 +1917,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
+      "workspace_build_transition": "start",
       "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
       "workspace_name": "string"
     },
@@ -1931,7 +1970,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/archive`
+`POST /api/v2/templateversions/{templateversion}/archive`
 
 ### Parameters
 
@@ -1975,7 +2014,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}/cancel`
+`PATCH /api/v2/templateversions/{templateversion}/cancel`
 
 ### Parameters
 
@@ -2020,7 +2059,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/dry-run`
+`POST /api/v2/templateversions/{templateversion}/dry-run`
 
 > Body parameter
 
@@ -2078,6 +2117,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
+    "workspace_build_transition": "start",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string"
   },
@@ -2115,7 +2155,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}`
 
 ### Parameters
 
@@ -2153,6 +2193,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
+    "workspace_build_transition": "start",
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
     "workspace_name": "string"
   },
@@ -2190,7 +2231,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /templateversions/{templateversion}/dry-run/{jobID}/cancel`
+`PATCH /api/v2/templateversions/{templateversion}/dry-run/{jobID}/cancel`
 
 ### Parameters
 
@@ -2235,17 +2276,24 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}/logs`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/logs`
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description           |
-|-------------------|-------|--------------|----------|-----------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID   |
-| `jobID`           | path  | string(uuid) | true     | Job ID                |
-| `before`          | query | integer      | false    | Before Unix timestamp |
-| `after`           | query | integer      | false    | After Unix timestamp  |
-| `follow`          | query | boolean      | false    | Follow log stream     |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `jobID`           | path  | string(uuid) | true     | Job ID                                                                                                                                      |
+| `before`          | query | integer      | false    | Before Unix timestamp                                                                                                                       |
+| `after`           | query | integer      | false    | After Unix timestamp                                                                                                                        |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
@@ -2304,7 +2352,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners`
 
 ### Parameters
 
@@ -2344,7 +2392,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dry-run/{jobID}/resources`
+`GET /api/v2/templateversions/{templateversion}/dry-run/{jobID}/resources`
 
 ### Parameters
 
@@ -2456,6 +2504,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
           {
             "cron": "string",
             "display_name": "string",
+            "exit_code": 0,
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -2463,6 +2512,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
+            "status": "ok",
             "timeout": 0
           }
         ],
@@ -2582,6 +2632,7 @@ Status Code **200**
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» exit_code`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2589,6 +2640,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceAgentScriptStatus](schemas.md#codersdkworkspaceagentscriptstatus)                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
@@ -2620,8 +2672,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -2636,7 +2688,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/dynamic-parameters`
+`GET /api/v2/templateversions/{templateversion}/dynamic-parameters`
 
 ### Parameters
 
@@ -2664,7 +2716,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/dynamic-parameters/evaluate`
+`POST /api/v2/templateversions/{templateversion}/dynamic-parameters/evaluate`
 
 > Body parameter
 
@@ -2783,7 +2835,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/external-auth`
+`GET /api/v2/templateversions/{templateversion}/external-auth`
 
 ### Parameters
 
@@ -2843,16 +2895,23 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/l
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/logs`
+`GET /api/v2/templateversions/{templateversion}/logs`
 
 ### Parameters
 
-| Name              | In    | Type         | Required | Description         |
-|-------------------|-------|--------------|----------|---------------------|
-| `templateversion` | path  | string(uuid) | true     | Template version ID |
-| `before`          | query | integer      | false    | Before log id       |
-| `after`           | query | integer      | false    | After log id        |
-| `follow`          | query | boolean      | false    | Follow log stream   |
+| Name              | In    | Type         | Required | Description                                                                                                                                 |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                                                                                         |
+| `before`          | query | integer      | false    | Before log id                                                                                                                               |
+| `after`           | query | integer      | false    | After log id                                                                                                                                |
+| `follow`          | query | boolean      | false    | Follow log stream                                                                                                                           |
+| `format`          | query | string       | false    | Log output format. Accepted: 'json' (default), 'text' (plain text with RFC3339 timestamps and ANSI colors). Not supported with follow=true. |
+
+#### Enumerated Values
+
+| Parameter | Value(s)       |
+|-----------|----------------|
+| `format`  | `json`, `text` |
 
 ### Example responses
 
@@ -2910,7 +2969,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/parameters`
+`GET /api/v2/templateversions/{templateversion}/parameters`
 
 ### Parameters
 
@@ -2937,7 +2996,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/presets`
+`GET /api/v2/templateversions/{templateversion}/presets`
 
 ### Parameters
 
@@ -3004,7 +3063,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/resources`
+`GET /api/v2/templateversions/{templateversion}/resources`
 
 ### Parameters
 
@@ -3115,6 +3174,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
           {
             "cron": "string",
             "display_name": "string",
+            "exit_code": 0,
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -3122,6 +3182,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
+            "status": "ok",
             "timeout": 0
           }
         ],
@@ -3241,6 +3302,7 @@ Status Code **200**
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» cron`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» exit_code`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -3248,6 +3310,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» status`                    | [codersdk.WorkspaceAgentScriptStatus](schemas.md#codersdkworkspaceagentscriptstatus)                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
@@ -3279,8 +3342,8 @@ Status Code **200**
 | `sharing_level`           | `authenticated`, `organization`, `owner`, `public`                                                                           |
 | `state`                   | `complete`, `failure`, `idle`, `working`                                                                                     |
 | `lifecycle_state`         | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting` |
+| `status`                  | `connected`, `connecting`, `disconnected`, `exit_failure`, `ok`, `pipes_left_open`, `timed_out`, `timeout`                   |
 | `startup_script_behavior` | `blocking`, `non-blocking`                                                                                                   |
-| `status`                  | `connected`, `connecting`, `disconnected`, `timeout`                                                                         |
 | `workspace_transition`    | `delete`, `start`, `stop`                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -3296,7 +3359,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/rich-parameters`
+`GET /api/v2/templateversions/{templateversion}/rich-parameters`
 
 ### Parameters
 
@@ -3394,7 +3457,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/s
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/schema`
+`GET /api/v2/templateversions/{templateversion}/schema`
 
 ### Parameters
 
@@ -3421,7 +3484,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /templateversions/{templateversion}/unarchive`
+`POST /api/v2/templateversions/{templateversion}/unarchive`
 
 ### Parameters
 
@@ -3465,7 +3528,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/v
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/variables`
+`GET /api/v2/templateversions/{templateversion}/variables`
 
 ### Parameters
 

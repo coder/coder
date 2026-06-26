@@ -41,7 +41,7 @@ func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 		ID:               deploymentID,
 		Name:             "primary",
 		DisplayName:      proxy.DisplayName,
-		IconURL:          proxy.IconUrl,
+		IconURL:          proxy.IconURL,
 		Healthy:          true,
 		PathAppURL:       api.AccessURL.String(),
 		WildcardHostname: appurl.SubdomainAppHost(api.AppHostname, api.AccessURL),
@@ -74,7 +74,7 @@ func (api *API) PrimaryWorkspaceProxy(ctx context.Context) (database.WorkspacePr
 // @Produce json
 // @Tags WorkspaceProxies
 // @Success 200 {object} codersdk.RegionsResponse[codersdk.Region]
-// @Router /regions [get]
+// @Router /api/v2/regions [get]
 func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // this route intentionally requests resources that users

@@ -1,13 +1,10 @@
 package site
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/sha1" //#nosec // Not used for cryptography.
 	"database/sql"
 	_ "embed"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,7 +16,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,10 +24,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/justinas/nosurf"
-	"github.com/klauspost/compress/zstd"
 	"github.com/unrolled/secure"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -42,7 +36,10 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -74,9 +71,9 @@ func init() {
 }
 
 type Options struct {
-	BinFS             http.FileSystem
-	BinHashes         map[string]string
+	CacheDir          string
 	Database          database.Store
+	Authorizer        rbac.Authorizer
 	SiteFS            fs.FS
 	OAuth2Configs     *httpmw.OAuth2Configs
 	DocsURL           string
@@ -88,7 +85,7 @@ type Options struct {
 	HideAITasks       bool
 }
 
-func New(opts *Options) *Handler {
+func New(opts *Options) (*Handler, error) {
 	if opts.AppearanceFetcher == nil {
 		daf := atomic.Pointer[appearance.Fetcher]{}
 		f := appearance.NewDefaultFetcher(opts.DocsURL)
@@ -106,11 +103,16 @@ func New(opts *Options) *Handler {
 	var err error
 	handler.htmlTemplates, err = findAndParseHTMLFiles(opts.SiteFS)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to parse html files: %v", err))
+		return nil, xerrors.Errorf("failed to parse html files: %w", err)
+	}
+
+	binHand, err := newBinHandler(opts)
+	if err != nil {
+		return nil, xerrors.Errorf("create bin handler: %w", err)
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/bin/", binHandler(opts.BinFS, newBinMetadataCache(opts.BinFS, opts.BinHashes)))
+	mux.Handle("/bin/", binHand)
 	mux.Handle("/", http.FileServer(
 		http.FS(
 			// OnlyFiles is a wrapper around the file system that prevents directory
@@ -122,7 +124,7 @@ func New(opts *Options) *Handler {
 	)
 	buildInfoResponse, err := json.Marshal(opts.BuildInfo)
 	if err != nil {
-		panic("failed to marshal build info: " + err.Error())
+		return nil, xerrors.Errorf("failed to marshal build info: %w", err)
 	}
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
@@ -132,61 +134,7 @@ func New(opts *Options) *Handler {
 		opts.Logger.Warn(context.Background(), "could not parse install.sh, it will be unavailable", slog.Error(err))
 	}
 
-	return handler
-}
-
-func binHandler(binFS http.FileSystem, binMetadataCache *binMetadataCache) http.Handler {
-	return http.StripPrefix("/bin", http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// Convert underscores in the filename to hyphens. We eventually want to
-		// change our hyphen-based filenames to underscores, but we need to
-		// support both for now.
-		r.URL.Path = strings.ReplaceAll(r.URL.Path, "_", "-")
-
-		// Set ETag header to the SHA1 hash of the file contents.
-		name := filePath(r.URL.Path)
-		if name == "" || name == "/" {
-			// Serve the directory listing. This intentionally allows directory listings to
-			// be served. This file system should not contain anything sensitive.
-			http.FileServer(binFS).ServeHTTP(rw, r)
-			return
-		}
-		if strings.Contains(name, "/") {
-			// We only serve files from the root of this directory, so avoid any
-			// shenanigans by blocking slashes in the URL path.
-			http.NotFound(rw, r)
-			return
-		}
-
-		metadata, err := binMetadataCache.getMetadata(name)
-		if xerrors.Is(err, os.ErrNotExist) {
-			http.NotFound(rw, r)
-			return
-		}
-		if err != nil {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// http.FileServer will not set Content-Length when performing chunked
-		// transport encoding, which is used for large files like our binaries
-		// so stream compression can be used.
-		//
-		// Clients like IDE extensions and the desktop apps can compare the
-		// value of this header with the amount of bytes written to disk after
-		// decompression to show progress. Without this, they cannot show
-		// progress without disabling compression.
-		//
-		// There isn't really a spec for a length header for the "inner" content
-		// size, but some nginx modules use this header.
-		rw.Header().Set("X-Original-Content-Length", fmt.Sprintf("%d", metadata.sizeBytes))
-
-		// Get and set ETag header. Must be quoted.
-		rw.Header().Set("ETag", fmt.Sprintf(`%q`, metadata.sha1Hash))
-
-		// http.FileServer will see the ETag header and automatically handle
-		// If-Match and If-None-Match headers on the request properly.
-		http.FileServer(binFS).ServeHTTP(rw, r)
-	}))
+	return handler, nil
 }
 
 type Handler struct {
@@ -319,6 +267,8 @@ type htmlState struct {
 	DocsURL        string
 
 	TasksTabVisible string
+	Permissions     string
+	Organizations   string
 }
 
 type csrfState struct {
@@ -404,6 +354,16 @@ func execTmpl(tmpl *template.Template, state htmlState) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+func userAppearanceSettingsFromRow(settings database.GetUserAppearanceSettingsRow) codersdk.UserAppearanceSettings {
+	return codersdk.UserAppearanceSettings{
+		ThemePreference: settings.ThemePreference,
+		ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
+		ThemeLight:      settings.ThemeLight,
+		ThemeDark:       settings.ThemeDark,
+		TerminalFont:    codersdk.TerminalFontName(settings.TerminalFont),
+	}
+}
+
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
 func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state htmlState) ([]byte, error) {
@@ -437,8 +397,8 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		// nolint:gocritic // User is not expected to be signed in.
 		ctx := dbauthz.AsSystemRestricted(r.Context())
 		cfg, _ = af.Fetch(ctx)
-		state.ApplicationName = applicationNameOrDefault(cfg)
-		state.LogoURL = cfg.LogoURL
+		state.ApplicationName = html.EscapeString(applicationNameOrDefault(cfg))
+		state.LogoURL = html.EscapeString(cfg.LogoURL)
 		return execTmpl(tmpl, state)
 	}
 
@@ -446,31 +406,21 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 
 	var eg errgroup.Group
 	var user database.User
-	var themePreference string
-	var terminalFont string
+	var userAppearance codersdk.UserAppearanceSettings
 	orgIDs := []uuid.UUID{}
+	var userOrgs []database.Organization
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
 		return err
 	})
 	eg.Go(func() error {
-		var err error
-		themePreference, err = h.opts.Database.GetUserThemePreference(ctx, apiKey.UserID)
-		if errors.Is(err, sql.ErrNoRows) {
-			themePreference = ""
-			return nil
+		settings, err := h.opts.Database.GetUserAppearanceSettings(ctx, apiKey.UserID)
+		if err != nil {
+			return err
 		}
-		return err
-	})
-	eg.Go(func() error {
-		var err error
-		terminalFont, err = h.opts.Database.GetUserTerminalFont(ctx, apiKey.UserID)
-		if errors.Is(err, sql.ErrNoRows) {
-			terminalFont = ""
-			return nil
-		}
-		return err
+		userAppearance = userAppearanceSettingsFromRow(settings)
+		return nil
 	})
 	eg.Go(func() error {
 		memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.UserID})
@@ -483,88 +433,150 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		orgIDs = memberIDs[0].OrganizationIDs
 		return err
 	})
+	eg.Go(func() error {
+		orgs, err := h.opts.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+			UserID: apiKey.UserID,
+		})
+		if err == nil {
+			userOrgs = orgs
+		}
+		// Don't fail the entire group if we can't fetch orgs.
+		return nil
+	})
 	err := eg.Wait()
 	if err == nil {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			user, err := json.Marshal(db2sdk.User(user, orgIDs))
-			if err == nil {
-				state.User = html.EscapeString(string(user))
-			}
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			userAppearance, err := json.Marshal(codersdk.UserAppearanceSettings{
-				ThemePreference: themePreference,
-				TerminalFont:    codersdk.TerminalFontName(terminalFont),
-			})
-			if err == nil {
-				state.UserAppearance = html.EscapeString(string(userAppearance))
-			}
-		}()
-
-		if h.Entitlements != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
-			}()
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cfg, err := af.Fetch(ctx)
-			if err == nil {
-				appr, err := json.Marshal(cfg)
-				if err == nil {
-					state.Appearance = html.EscapeString(string(appr))
-					state.ApplicationName = applicationNameOrDefault(cfg)
-					state.LogoURL = cfg.LogoURL
-				}
-			}
-		}()
-
-		if h.RegionsFetcher != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				regions, err := h.RegionsFetcher(ctx)
-				if err == nil {
-					regions, err := json.Marshal(regions)
-					if err == nil {
-						state.Regions = html.EscapeString(string(regions))
-					}
-				}
-			}()
-		}
-		experiments := h.Experiments.Load()
-		if experiments != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				experiments, err := json.Marshal(experiments)
-				if err == nil {
-					state.Experiments = html.EscapeString(string(experiments))
-				}
-			}()
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			tasksTabVisible, err := json.Marshal(!h.opts.HideAITasks)
-			if err == nil {
-				state.TasksTabVisible = html.EscapeString(string(tasksTabVisible))
-			}
-		}()
-		wg.Wait()
+		h.populateHTMLState(ctx, &state, af, actor, user, orgIDs, userOrgs, userAppearance)
 	}
 
 	return execTmpl(tmpl, state)
+}
+
+// populateHTMLState runs concurrent goroutines to populate all
+// authenticated user metadata in the HTML state. This is extracted
+// from renderHTMLWithState to reduce nesting complexity.
+func (h *Handler) populateHTMLState(
+	ctx context.Context,
+	state *htmlState,
+	af appearance.Fetcher,
+	actor *rbac.Subject,
+	user database.User,
+	orgIDs []uuid.UUID,
+	userOrgs []database.Organization,
+	userAppearance codersdk.UserAppearanceSettings,
+) {
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		data, err := json.Marshal(db2sdk.User(user, orgIDs))
+		if err == nil {
+			state.User = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(userAppearance)
+		if err == nil {
+			state.UserAppearance = html.EscapeString(string(data))
+		}
+	})
+	if h.Entitlements != nil {
+		wg.Go(func() {
+			state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
+		})
+	}
+	wg.Go(func() {
+		cfg, err := af.Fetch(ctx)
+		if err == nil {
+			appr, err := json.Marshal(cfg)
+			if err == nil {
+				state.Appearance = html.EscapeString(string(appr))
+				state.ApplicationName = html.EscapeString(applicationNameOrDefault(cfg))
+				state.LogoURL = html.EscapeString(cfg.LogoURL)
+			}
+		}
+	})
+	if h.RegionsFetcher != nil {
+		wg.Go(func() {
+			regions, err := h.RegionsFetcher(ctx)
+			if err == nil {
+				data, err := json.Marshal(regions)
+				if err == nil {
+					state.Regions = html.EscapeString(string(data))
+				}
+			}
+		})
+	}
+	experiments := h.Experiments.Load()
+	if experiments != nil {
+		wg.Go(func() {
+			data, err := json.Marshal(experiments)
+			if err == nil {
+				state.Experiments = html.EscapeString(string(data))
+			}
+		})
+	}
+	wg.Go(func() {
+		data, err := json.Marshal(!h.opts.HideAITasks)
+		if err == nil {
+			state.TasksTabVisible = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		sdkOrgs := slice.List(userOrgs, db2sdk.Organization)
+		data, err := json.Marshal(sdkOrgs)
+		if err == nil {
+			state.Organizations = html.EscapeString(string(data))
+		}
+	})
+	if h.opts.Authorizer != nil {
+		wg.Go(func() {
+			state.Permissions = h.renderPermissions(ctx, *actor)
+		})
+	}
+	wg.Wait()
+}
+
+// permissionChecks is the single source of truth for site-wide
+// permission checks, shared with the TypeScript frontend via
+// permissions.json.
+//
+//go:embed permissions.json
+var permissionChecksJSON []byte
+
+var permissionChecks map[string]codersdk.AuthorizationCheck
+
+func init() {
+	if err := json.Unmarshal(permissionChecksJSON, &permissionChecks); err != nil {
+		panic("failed to parse permissions.json: " + err.Error())
+	}
+}
+
+// renderPermissions checks all the site-wide permissions for the
+// given actor and returns an HTML-escaped JSON string suitable for
+// embedding in a meta tag.
+func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) string {
+	response := make(codersdk.AuthorizationResponse)
+	for k, v := range permissionChecks {
+		// Resolve the "me" sentinel so permission checks
+		// run against the actual actor, matching the
+		// API-side handling in coderd/authorize.go.
+		ownerID := v.Object.OwnerID
+		if ownerID == codersdk.Me {
+			ownerID = actor.ID
+		}
+		obj := rbac.Object{
+			ID:          v.Object.ResourceID,
+			Owner:       ownerID,
+			OrgID:       v.Object.OrganizationID,
+			AnyOrgOwner: v.Object.AnyOrgOwner,
+			Type:        string(v.Object.ResourceType),
+		}
+		err := h.opts.Authorizer.Authorize(ctx, actor, policy.Action(v.Action), obj)
+		response[k] = err == nil
+	}
+	data, err := json.Marshal(response)
+	if err != nil {
+		return ""
+	}
+	return html.EscapeString(string(data))
 }
 
 // noopResponseWriter is a response writer that does nothing.
@@ -591,7 +603,7 @@ func secureHeaders() *secure.Secure {
 		"geolocation=()",
 		"gyroscope=()",
 		"magnetometer=()",
-		"microphone=()",
+		"microphone=(self)",
 		"midi=()",
 		"payment=()",
 		"usb=()",
@@ -679,260 +691,6 @@ func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]by
 	return buf.Bytes(), nil
 }
 
-// ExtractOrReadBinFS checks the provided fs for compressed coder binaries and
-// extracts them into dest/bin if found. As a fallback, the provided FS is
-// checked for a /bin directory, if it is non-empty it is returned. Finally
-// dest/bin is returned as a fallback allowing binaries to be manually placed in
-// dest (usually ${CODER_CACHE_DIRECTORY}/site/bin).
-//
-// Returns a http.FileSystem that serves unpacked binaries, and a map of binary
-// name to SHA1 hash. The returned hash map may be incomplete or contain hashes
-// for missing files.
-func ExtractOrReadBinFS(dest string, siteFS fs.FS) (http.FileSystem, map[string]string, error) {
-	if dest == "" {
-		// No destination on fs, embedded fs is the only option.
-		binFS, err := fs.Sub(siteFS, "bin")
-		if err != nil {
-			return nil, nil, xerrors.Errorf("cache path is empty and embedded fs does not have /bin: %w", err)
-		}
-		return http.FS(binFS), nil, nil
-	}
-
-	dest = filepath.Join(dest, "bin")
-	mkdest := func() (http.FileSystem, error) {
-		err := os.MkdirAll(dest, 0o700)
-		if err != nil {
-			return nil, xerrors.Errorf("mkdir failed: %w", err)
-		}
-		return http.Dir(dest), nil
-	}
-
-	archive, err := siteFS.Open("bin/coder.tar.zst")
-	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
-			files, err := fs.ReadDir(siteFS, "bin")
-			if err != nil {
-				if xerrors.Is(err, fs.ErrNotExist) {
-					// Given fs does not have a bin directory, serve from cache
-					// directory without extracting anything.
-					binFS, err := mkdest()
-					if err != nil {
-						return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
-					}
-					return binFS, map[string]string{}, nil
-				}
-				return nil, nil, xerrors.Errorf("site fs read dir failed: %w", err)
-			}
-
-			if len(filterFiles(files, "GITKEEP")) > 0 {
-				// If there are other files than bin/GITKEEP, serve the files.
-				binFS, err := fs.Sub(siteFS, "bin")
-				if err != nil {
-					return nil, nil, xerrors.Errorf("site fs sub dir failed: %w", err)
-				}
-				return http.FS(binFS), nil, nil
-			}
-
-			// Nothing we can do, serve the cache directory, thus allowing
-			// binaries to be placed there.
-			binFS, err := mkdest()
-			if err != nil {
-				return nil, nil, xerrors.Errorf("mkdest failed: %w", err)
-			}
-			return binFS, map[string]string{}, nil
-		}
-		return nil, nil, xerrors.Errorf("open coder binary archive failed: %w", err)
-	}
-	defer archive.Close()
-
-	binFS, err := mkdest()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	shaFiles, err := parseSHA1(siteFS)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("parse sha1 file failed: %w", err)
-	}
-
-	ok, err := verifyBinSha1IsCurrent(dest, siteFS, shaFiles)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("verify coder binaries sha1 failed: %w", err)
-	}
-	if !ok {
-		n, err := extractBin(dest, archive)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("extract coder binaries failed: %w", err)
-		}
-		if n == 0 {
-			return nil, nil, xerrors.New("no files were extracted from coder binaries archive")
-		}
-	}
-
-	return binFS, shaFiles, nil
-}
-
-func filterFiles(files []fs.DirEntry, names ...string) []fs.DirEntry {
-	var filtered []fs.DirEntry
-	for _, f := range files {
-		if slices.Contains(names, f.Name()) {
-			continue
-		}
-		filtered = append(filtered, f)
-	}
-	return filtered
-}
-
-// errHashMismatch is a sentinel error used in verifyBinSha1IsCurrent.
-var errHashMismatch = xerrors.New("hash mismatch")
-
-func parseSHA1(siteFS fs.FS) (map[string]string, error) {
-	b, err := fs.ReadFile(siteFS, "bin/coder.sha1")
-	if err != nil {
-		return nil, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
-	}
-
-	shaFiles := make(map[string]string)
-	for _, line := range bytes.Split(bytes.TrimSpace(b), []byte{'\n'}) {
-		parts := bytes.Split(line, []byte{' ', '*'})
-		if len(parts) != 2 {
-			return nil, xerrors.Errorf("malformed sha1 file: %w", err)
-		}
-		shaFiles[string(parts[1])] = strings.ToLower(string(parts[0]))
-	}
-	if len(shaFiles) == 0 {
-		return nil, xerrors.Errorf("empty sha1 file: %w", err)
-	}
-
-	return shaFiles, nil
-}
-
-func verifyBinSha1IsCurrent(dest string, siteFS fs.FS, shaFiles map[string]string) (ok bool, err error) {
-	b1, err := fs.ReadFile(siteFS, "bin/coder.sha1")
-	if err != nil {
-		return false, xerrors.Errorf("read coder sha1 from embedded fs failed: %w", err)
-	}
-	b2, err := os.ReadFile(filepath.Join(dest, "coder.sha1"))
-	if err != nil {
-		if xerrors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
-		return false, xerrors.Errorf("read coder sha1 failed: %w", err)
-	}
-
-	// Check shasum files for equality for early-exit.
-	if !bytes.Equal(b1, b2) {
-		return false, nil
-	}
-
-	var eg errgroup.Group
-	// Speed up startup by verifying files concurrently. Concurrency
-	// is limited to save resources / early-exit. Early-exit speed
-	// could be improved by using a context aware io.Reader and
-	// passing the context from errgroup.WithContext.
-	eg.SetLimit(3)
-
-	// Verify the hash of each on-disk binary.
-	for file, hash1 := range shaFiles {
-		eg.Go(func() error {
-			hash2, err := sha1HashFile(filepath.Join(dest, file))
-			if err != nil {
-				if xerrors.Is(err, fs.ErrNotExist) {
-					return errHashMismatch
-				}
-				return xerrors.Errorf("hash file failed: %w", err)
-			}
-			if !strings.EqualFold(hash1, hash2) {
-				return errHashMismatch
-			}
-			return nil
-		})
-	}
-	err = eg.Wait()
-	if err != nil {
-		if xerrors.Is(err, errHashMismatch) {
-			return false, nil
-		}
-		return false, err
-	}
-
-	return true, nil
-}
-
-// sha1HashFile computes a SHA1 hash of the file, returning the hex
-// representation.
-func sha1HashFile(name string) (string, error) {
-	//#nosec // Not used for cryptography.
-	hash := sha1.New()
-	f, err := os.Open(name)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	_, err = io.Copy(hash, f)
-	if err != nil {
-		return "", err
-	}
-
-	b := make([]byte, hash.Size())
-	hash.Sum(b[:0])
-
-	return hex.EncodeToString(b), nil
-}
-
-func extractBin(dest string, r io.Reader) (numExtracted int, err error) {
-	opts := []zstd.DOption{
-		// Concurrency doesn't help us when decoding the tar and
-		// can actually slow us down.
-		zstd.WithDecoderConcurrency(1),
-		// Ignoring checksums can give a slight performance
-		// boost but it's probably not worth the reduced safety.
-		zstd.IgnoreChecksum(false),
-		// Allow the decoder to use more memory giving us a 2-3x
-		// performance boost.
-		zstd.WithDecoderLowmem(false),
-	}
-	zr, err := zstd.NewReader(r, opts...)
-	if err != nil {
-		return 0, xerrors.Errorf("open zstd archive failed: %w", err)
-	}
-	defer zr.Close()
-
-	tr := tar.NewReader(zr)
-	n := 0
-	for {
-		h, err := tr.Next()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return n, nil
-			}
-			return n, xerrors.Errorf("read tar archive failed: %w", err)
-		}
-		if h.Name == "." || strings.Contains(h.Name, "..") {
-			continue
-		}
-
-		name := filepath.Join(dest, filepath.Base(h.Name))
-		f, err := os.Create(name)
-		if err != nil {
-			return n, xerrors.Errorf("create file failed: %w", err)
-		}
-		//#nosec // We created this tar, no risk of decompression bomb.
-		_, err = io.Copy(f, tr)
-		if err != nil {
-			_ = f.Close()
-			return n, xerrors.Errorf("write file contents failed: %w", err)
-		}
-		err = f.Close()
-		if err != nil {
-			return n, xerrors.Errorf("close file failed: %w", err)
-		}
-
-		n++
-	}
-}
-
 // Action represents a link.
 type Action struct {
 	// URL is set as the href property on the anchor.  If empty, refreshes the
@@ -983,107 +741,6 @@ func RenderStaticErrorPage(rw http.ResponseWriter, r *http.Request, data ErrorPa
 	}
 }
 
-type binMetadata struct {
-	sizeBytes int64 // -1 if not known yet
-	// SHA1 was chosen because it's fast to compute and reasonable for
-	// determining if a file has changed. The ETag is not used a security
-	// measure.
-	sha1Hash string // always set if in the cache
-}
-
-type binMetadataCache struct {
-	binFS          http.FileSystem
-	originalHashes map[string]string
-
-	metadata map[string]binMetadata
-	mut      sync.RWMutex
-	sf       singleflight.Group
-	sem      chan struct{}
-}
-
-func newBinMetadataCache(binFS http.FileSystem, binSha1Hashes map[string]string) *binMetadataCache {
-	b := &binMetadataCache{
-		binFS:          binFS,
-		originalHashes: make(map[string]string, len(binSha1Hashes)),
-
-		metadata: make(map[string]binMetadata, len(binSha1Hashes)),
-		mut:      sync.RWMutex{},
-		sf:       singleflight.Group{},
-		sem:      make(chan struct{}, 4),
-	}
-
-	// Previously we copied binSha1Hashes to the cache immediately. Since we now
-	// read other information like size from the file, we can't do that. Instead
-	// we copy the hashes to a different map that will be used to populate the
-	// cache on the first request.
-	for k, v := range binSha1Hashes {
-		b.originalHashes[k] = v
-	}
-
-	return b
-}
-
-func (b *binMetadataCache) getMetadata(name string) (binMetadata, error) {
-	b.mut.RLock()
-	metadata, ok := b.metadata[name]
-	b.mut.RUnlock()
-	if ok {
-		return metadata, nil
-	}
-
-	// Avoid DOS by using a pool, and only doing work once per file.
-	v, err, _ := b.sf.Do(name, func() (any, error) {
-		b.sem <- struct{}{}
-		defer func() { <-b.sem }()
-
-		// Reject any invalid or non-basename paths before touching the filesystem.
-		if name == "" ||
-			name == "." ||
-			strings.Contains(name, "/") ||
-			strings.Contains(name, "\\") ||
-			!fs.ValidPath(name) ||
-			path.Base(name) != name {
-			return binMetadata{}, os.ErrNotExist
-		}
-
-		f, err := b.binFS.Open(name)
-		if err != nil {
-			return binMetadata{}, err
-		}
-		defer f.Close()
-
-		var metadata binMetadata
-
-		stat, err := f.Stat()
-		if err != nil {
-			return binMetadata{}, err
-		}
-		metadata.sizeBytes = stat.Size()
-
-		if hash, ok := b.originalHashes[name]; ok {
-			metadata.sha1Hash = hash
-		} else {
-			h := sha1.New() //#nosec // Not used for cryptography.
-			_, err := io.Copy(h, f)
-			if err != nil {
-				return binMetadata{}, err
-			}
-			metadata.sha1Hash = hex.EncodeToString(h.Sum(nil))
-		}
-
-		b.mut.Lock()
-		b.metadata[name] = metadata
-		b.mut.Unlock()
-		return metadata, nil
-	})
-	if err != nil {
-		return binMetadata{}, err
-	}
-
-	//nolint:forcetypeassert
-	return v.(binMetadata), nil
-}
-
 func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
 	if cfg.ApplicationName != "" {
 		return cfg.ApplicationName
@@ -1126,11 +783,12 @@ func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 // RenderOAuthAllowData contains the variables that are found in
 // site/static/oauth2allow.html.
 type RenderOAuthAllowData struct {
-	AppIcon     string
-	AppName     string
-	CancelURI   string
-	RedirectURI string
-	Username    string
+	AppIcon      string
+	AppName      string
+	CancelURI    htmltemplate.URL
+	DashboardURL string
+	CSRFToken    string
+	Username     string
 }
 
 // RenderOAuthAllowPage renders the static page for a user to "Allow" an create
@@ -1141,6 +799,11 @@ type RenderOAuthAllowData struct {
 // It cannot defer to the FE typescript easily.
 func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Prevent the consent page from being framed to mitigate
+	// clickjacking attacks (coder/security#121).
+	rw.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	rw.Header().Set("X-Frame-Options", "DENY")
 
 	err := oauthTemplate.Execute(rw, data)
 	if err != nil {

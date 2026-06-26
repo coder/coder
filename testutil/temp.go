@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,4 +51,23 @@ func CreateTemp(t *testing.T, dir, pattern string) *os.File {
 		}
 	})
 	return f
+}
+
+// TempDirResolved returns t.TempDir() with symlinks resolved via
+// filepath.EvalSymlinks. Tests that compare paths against values
+// processed by EvalSymlinks (directly or indirectly) should use
+// this helper so the comparison works on macOS, where the default
+// temp dir lives under /var which is a symlink to /private/var.
+//
+// If EvalSymlinks errors (for example on Windows where the temp
+// path may not resolve cleanly), the raw t.TempDir() result is
+// returned. This matches the lenient behavior already used in
+// existing tests.
+func TempDirResolved(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		return resolved
+	}
+	return dir
 }

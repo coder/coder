@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -36,11 +36,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v3.29.5
+        uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
         with:
           languages: go, javascript
 
@@ -50,7 +55,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v3.29.5
+        uses: github/codeql-action/analyze@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -63,113 +68,72 @@ jobs:
             --data "{\"content\": \"$msg\"}" \
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
-  trivy:
+  osv-scanner:
     permissions:
       security-events: write
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    env:
+      IMAGE_REF: ghcr.io/coder/coder-preview:main
+      OSV_SCANNER_VERSION: v2.3.5
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
-
-      - name: Install cosign
-        uses: ./.github/actions/install-cosign
-
-      - name: Install syft
-        uses: ./.github/actions/install-syft
-
-      - name: Install yq
-        run: go run github.com/mikefarah/yq/v4@v4.44.3
-      - name: Install mockgen
-        run: ./.github/scripts/retry.sh -- go install go.uber.org/mock/mockgen@v0.6.0
-      - name: Install protoc-gen-go
-        run: ./.github/scripts/retry.sh -- go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-      - name: Install protoc-gen-go-drpc
-        run: ./.github/scripts/retry.sh -- go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
-      - name: Install Protoc
+      - name: Install OSV-Scanner
         run: |
-          # protoc must be in lockstep with our dogfood Dockerfile or the
-          # version in the comments will differ. This is also defined in
-          # ci.yaml.
-          set -euxo pipefail
-          cd dogfood/coder
-          mkdir -p /usr/local/bin
-          mkdir -p /usr/local/include
+          curl -fsSL -o /usr/local/bin/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          chmod +x /usr/local/bin/osv-scanner
 
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
-          # Copy the generated files to the include directory.
-          docker run --rm -v /usr/local/include:/target protoc cp -r /tmp/include/google /target/
-          ls -la /usr/local/include/google/protobuf/
-          stat /usr/local/include/google/protobuf/timestamp.proto
+      - name: Pull latest Coder preview image
+        run: docker pull "$IMAGE_REF"
 
-      - name: Build Coder linux amd64 Docker image
-        id: build
+      - name: Run OSV-Scanner vulnerability scanner
+        id: scan
         run: |
-          set -euo pipefail
+          set +e
+          osv-scanner scan image "$IMAGE_REF" \
+            --format sarif \
+            --output-file osv-results.sarif
+          scan_exit_code=$?
+          set -e
 
-          version="$(./scripts/version.sh)"
-          image_job="build/coder_${version}_linux_amd64.tag"
+          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
 
-          # This environment variable force make to not build packages and
-          # archives (which the Docker image depends on due to technical reasons
-          # related to concurrent FS writes).
-          export DOCKER_IMAGE_NO_PREREQUISITES=true
-          # This environment variables forces scripts/build_docker.sh to build
-          # the base image tag locally instead of using the cached version from
-          # the registry.
-          CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          export CODER_IMAGE_BUILD_BASE_TAG
+          if [[ "${scan_exit_code}" -eq 0 ]]; then
+            exit 0
+          fi
 
-          # We would like to use make -j here, but it doesn't work with the some recent additions
-          # to our code generation.
-          make "$image_job"
-          echo "image=$(cat "$image_job")" >> "$GITHUB_OUTPUT"
+          if [[ "${scan_exit_code}" -eq 1 ]]; then
+            echo "OSV-Scanner found vulnerabilities in ${IMAGE_REF}."
+            echo "Results will be uploaded to GitHub Security and as a SARIF artifact."
+            exit 0
+          fi
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
+          echo "::error::OSV-Scanner failed with exit code ${scan_exit_code}"
+          exit "${scan_exit_code}"
+
+      - name: Upload OSV-Scanner scan results to GitHub Security tab
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v3.29.5
         with:
-          image-ref: ${{ steps.build.outputs.image }}
-          format: sarif
-          output: trivy-results.sarif
-          severity: "CRITICAL,HIGH"
+          sarif_file: osv-results.sarif
+          category: "OSV-Scanner"
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v3.29.5
+      - name: Upload OSV-Scanner scan results as an artifact
+        if: ${{ always() && hashFiles('osv-results.sarif') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          sarif_file: trivy-results.sarif
-          category: "Trivy"
-
-      - name: Upload Trivy scan results as an artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: trivy
-          path: trivy-results.sarif
+          name: osv-scanner
+          path: osv-results.sarif
           retention-days: 7
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
         run: |
-          msg="❌ Trivy Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          msg="❌ OSV-Scanner Failed\n\nhttps://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl \
             -qfsSL \
             -X POST \

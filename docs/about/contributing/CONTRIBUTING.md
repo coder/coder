@@ -4,7 +4,7 @@
 
 <div class="tabs">
 
-To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix).
+To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](../../../flake.nix).
 Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Nix
@@ -56,9 +56,13 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Without Nix
 
-If you're not using the Nix environment, you can launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer) to get a fully configured development environment.
+If you're not using the Nix environment, you can launch a local [DevContainer](../../../.devcontainer) to get a fully configured development environment.
 
-DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, and `make`.
+DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, `mise`, and `make`.
+
+For manual setup outside Nix and DevContainers, install Docker, `mise`, and
+`make`. Run `mise install` from the repository root to install Go, Node.js
+with `pnpm`, and development tools at the versions pinned in `mise.toml`.
 
 </div>
 
@@ -70,6 +74,22 @@ Use the following `make` commands and scripts in development:
 - `make build` compiles binaries and release packages
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`
+- `make pre-commit` runs gen, fmt, lint, typos, and builds a slim binary
+- `make pre-commit-light` runs fmt and lint for shell, terraform, markdown,
+  helm, actions, and typos (skips gen, Go/TS lint+fmt, and binary build)
+- `make pre-push` runs heavier CI checks including tests (allowlisted)
+
+Install the git hooks to run these automatically:
+
+```sh
+git config core.hooksPath scripts/githooks
+```
+
+The hooks classify staged/changed files and select the appropriate target.
+Commits that only touch docs, shell, terraform, or other lightweight files
+run `make pre-commit-light` instead of the full `make pre-commit`, and
+`pre-push` is skipped entirely. Changes to Go, TypeScript, SQL, proto, or
+the Makefile trigger the full targets as before.
 
 ### Running Coder on development mode
 
@@ -94,7 +114,7 @@ Use the following `make` commands and scripts in development:
    ./scripts/coder-dev.sh list
       ```
 
-   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
+   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](../../../scripts/develop.sh) script for issues.
 
    > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
@@ -119,9 +139,7 @@ this:
 - Run `./scripts/deploy-pr.sh`
 - Manually trigger the
   [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
-  GitHub Action workflow:
-
-  <Image src="./images/deploy-pr-manually.png" alt="Deploy PR manually" height="348px" align="center" />
+  GitHub Action workflow.
 
 #### Available options
 
@@ -193,37 +211,62 @@ be applied selectively or to discourage anyone from contributing.
 
 ## Releases
 
-Coder releases are initiated via
-[`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh)
-and automated via GitHub Actions. Specifically, the
-[`release.yaml`](https://github.com/coder/coder/blob/main/.github/workflows/release.yaml)
-workflow. They are created based on the current
-[`main`](https://github.com/coder/coder/tree/main) branch.
+Coder releases are managed entirely through the
+[`release.yaml`](../../../.github/workflows/release.yaml)
+GitHub Actions workflow, triggered manually via "Run workflow" in the Actions
+tab. Release notes are automatically generated from commit titles and PR
+metadata.
 
-The release notes for a release are automatically generated from commit titles
-and metadata from PRs that are merged into `main`.
+### Release types
 
-### Creating a release
+| Type                   | Tag           | Source           | Purpose                               |
+|------------------------|---------------|------------------|---------------------------------------|
+| RC (release candidate) | `vX.Y.0-rc.W` | `main` or branch | Pre-release for testing               |
+| Create release branch  | `vX.Y.0-rc.W` | `main`           | Cut `release/X.Y` + tag RC atomically |
+| Release                | `vX.Y.0`      | `release/X.Y`    | First release of a minor version      |
+| Patch                  | `vX.Y.Z`      | `release/X.Y`    | Bug fixes and security patches        |
 
-The creation of a release is initiated via
-[`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh).
-This script will show a preview of the release that will be created, and if you
-choose to continue, create and push the tag which will trigger the creation of
-the release via GitHub Actions.
+### Workflow
 
-See `./scripts/release.sh --help` for more information.
+RC tags can be created from `main` or from a release branch. The
+`create-release-branch` type creates `release/X.Y` and tags the next RC in one
+step, continuing the RC numbering sequence.
 
-### Creating a release (via workflow dispatch)
+```text
+main:  --*--*--*--*--*--*--*--*--*--
+              |  rc.0   rc.1  |
+              |               +--- create-release-branch ---+
+              |                                             |
+              |            release/2.34:  --*-- rc.2 -- rc.3 -- v2.34.0
+              |
+              +-- (more RCs on main for next cycle)
+```
 
-Typically the workflow dispatch is only used to test (dry-run) a release,
-meaning no actual release will take place. The workflow can be dispatched
-manually from
-[Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml).
-Simply press "Run workflow" and choose dry-run.
+1. **RC:** Go to [Actions > Release](https://github.com/coder/coder/actions/workflows/release.yaml),
+   click "Run workflow", select `main` (or a release branch) from the "Use
+   workflow from" dropdown, choose `rc`, and optionally provide a commit SHA
+   (defaults to HEAD). The workflow calculates the next RC version
+   automatically.
+2. **Create release branch:** Select `main` in the dropdown, choose
+   `create-release-branch`, and optionally provide a commit SHA. This creates
+   `release/X.Y` and tags the next RC atomically.
+3. **Release:** Select the release branch (e.g. `release/2.34`) from the
+   dropdown and choose `release`. No other inputs needed.
+4. **Patch:** Cherry-pick fixes onto `release/X.Y`, select that branch from
+   the dropdown, and choose `release`.
 
-If a release has failed after the tag has been created and pushed, it can be
-retried by again, pressing "Run workflow", changing "Use workflow from" from
-"Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
+The workflow validates that commits are on the expected branch for each release
+type.
+
+### Retrying a failed release
+
+If the
+[`release.yaml`](https://github.com/coder/coder/actions/workflows/release.yaml)
+workflow fails after the tag has been pushed, re-run the failed jobs from the
+GitHub Actions UI. The `prepare-release` job is idempotent and will detect
+the existing tag.
+
+To test the workflow without publishing, select dry-run.
 
 ### Commit messages
 
@@ -241,23 +284,45 @@ characters long (no more than 72).
 
 Examples:
 
-- Good: `feat(api): add feature X`
-- Bad: `feat(api): added feature X` (past tense)
+- Good: `feat(coderd): add feature X`
+- Bad: `feat(coderd): added feature X` (past tense)
+
+Scopes must reference a real path in the repository (a directory or file stem)
+and must contain all changed files. For example, use `coderd/database` if all
+changes are within that directory. If changes span multiple top-level
+directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
-[If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
+[If applied, this commit will ...](https://cbea.ms/git-commit/).
 
 **Note:** We lint PR titles to ensure they follow the Conventional Commits
 specification, however, it's still possible to merge PRs on GitHub with a badly
 formatted title. Take care when merging single-commit PRs as GitHub may prefer
 to use the original commit title instead of the PR title.
 
+### Backporting fixes to release branches
+
+When a merged PR on `main` should also ship in older releases, add the
+`backport` label to the PR. The
+[backport workflow](../../../.github/workflows/backport.yaml)
+will automatically detect the latest three `release/*` branches,
+cherry-pick the merge commit onto each one, and open PRs for
+review.
+
+The label can be added before or after the PR is merged. Each backport
+PR reuses the original title (e.g.
+`fix(site): correct button alignment (#12345)`) so the change is
+meaningful in release notes.
+
+If the cherry-pick encounters conflicts, the backport PR is still created
+with instructions for manual resolution — no conflict markers are committed.
+
 ### Breaking changes
 
 Breaking changes can be triggered in two ways:
 
 - Add `!` to the commit message title, e.g.
-  `feat(api)!: remove deprecated endpoint /test`
+  `feat(coderd)!: remove deprecated endpoint /test`
 - Add the
   [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking)
   label to a PR that has, or will be, merged into `main`.
@@ -286,6 +351,20 @@ label can be used to move the note to the bottom of the release notes under a
 separate title.
 
 ## Troubleshooting
+
+### Database migration mismatch after switching branches
+
+If `./scripts/develop.sh` exits with a "database migration conflict" error,
+it means the database has migrations from another branch that don't exist
+on the current one. You have two options:
+
+```shell
+# Roll back the mismatched migrations (preserves your dev data):
+./scripts/develop.sh --db-rollback
+
+# Or wipe the database and start fresh:
+./scripts/develop.sh --db-reset
+```
 
 ### Nix on macOS: `error: creating directory`
 

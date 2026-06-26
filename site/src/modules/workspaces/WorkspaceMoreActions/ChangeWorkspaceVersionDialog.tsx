@@ -2,22 +2,21 @@ import { css } from "@emotion/css";
 import Autocomplete from "@mui/material/Autocomplete";
 import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
-import { templateVersions } from "api/queries/templates";
-import type { TemplateVersion, Workspace } from "api/typesGenerated";
-import { Alert, AlertTitle } from "components/Alert/Alert";
-import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { DialogProps } from "components/Dialogs/Dialog";
-import { FormFields } from "components/Form/Form";
-import { Loader } from "components/Loader/Loader";
-import { Pill } from "components/Pill/Pill";
-import { Stack } from "components/Stack/Stack";
 import { InfoIcon } from "lucide-react";
-import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
-import { createDayString } from "utils/createDayString";
+import { templateVersions } from "#/api/queries/templates";
+import type { TemplateVersion, Workspace } from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { FormFields } from "#/components/Form/Form";
+import { Loader } from "#/components/Loader/Loader";
+import { Pill } from "#/components/Pill/Pill";
+import { TemplateUpdateMessage } from "#/modules/templates/TemplateUpdateMessage";
+import { createDayString } from "#/utils/createDayString";
 
 type ChangeWorkspaceVersionDialogProps = DialogProps & {
 	workspace: Workspace;
@@ -55,7 +54,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 			confirmText="Change"
 			title="Change version"
 			description={
-				<Stack>
+				<div className="flex flex-col gap-4">
 					<p>You are about to change the version of this workspace.</p>
 					{validVersions ? (
 						<>
@@ -90,16 +89,8 @@ export const ChangeWorkspaceVersionDialog: FC<
 													/>
 												}
 												title={
-													<Stack
-														direction="row"
-														justifyContent="space-between"
-														style={{ width: "100%" }}
-													>
-														<Stack
-															direction="row"
-															alignItems="center"
-															spacing={1}
-														>
+													<div className="flex flex-row justify-between gap-4 w-full">
+														<div className="flex flex-row items-center gap-2">
 															{option.name}
 															{option.message && (
 																<InfoIcon
@@ -107,10 +98,10 @@ export const ChangeWorkspaceVersionDialog: FC<
 																	className="size-icon-xs"
 																/>
 															)}
-														</Stack>
+														</div>
 														{workspace.template_active_version_id ===
 															option.id && <Pill type="success">Active</Pill>}
-													</Stack>
+													</div>
 												}
 												subtitle={createDayString(option.created_at)}
 											/>
@@ -155,7 +146,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 					) : (
 						<Loader />
 					)}
-				</Stack>
+				</div>
 			}
 		/>
 	);
@@ -164,6 +155,6 @@ export const ChangeWorkspaceVersionDialog: FC<
 const classNames = {
 	// Same `padding-left` as input
 	root: css`
-    padding-left: 14px !important;
-  `,
+		padding-left: 14px !important;
+	`,
 };

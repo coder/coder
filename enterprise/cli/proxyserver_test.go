@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func Test_ProxyServer_Headers(t *testing.T) {
@@ -32,9 +32,9 @@ func Test_ProxyServer_Headers(t *testing.T) {
 	// We're not going to actually start a proxy, we're going to point it
 	// towards a fake server that returns an unexpected status code. This'll
 	// cause the proxy to exit with an error that we can check for.
-	var called int64
+	var called atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&called, 1)
+		called.Add(1)
 		assert.Equal(t, headerVal1, r.Header.Get(headerName1))
 		assert.Equal(t, headerVal2, r.Header.Get(headerName2))
 
@@ -46,17 +46,14 @@ func Test_ProxyServer_Headers(t *testing.T) {
 		"--primary-access-url", srv.URL,
 		"--proxy-session-token", "test-token",
 		"--access-url", "http://localhost:8080",
+		"--http-address", ":0",
 		"--header", fmt.Sprintf("%s=%s", headerName1, headerVal1),
 		"--header-command", fmt.Sprintf("printf %s=%s", headerName2, headerVal2),
 	)
-	pty := ptytest.New(t)
-	inv.Stdout = pty.Output()
 	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "unexpected status code 418")
-	require.NoError(t, pty.Close())
-
-	assert.EqualValues(t, 1, atomic.LoadInt64(&called))
+	assert.EqualValues(t, 1, called.Load())
 }
 
 //nolint:paralleltest,tparallel // Test uses a static port.
@@ -97,11 +94,11 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 		"--primary-access-url", srv.URL,
 		"--proxy-session-token", "test-token",
 		"--access-url", "http://foobar:3001",
-		"--http-address", fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t)),
+		"--http-address", ":0",
 		"--prometheus-enable",
 		"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort),
 	)
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
 	ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 	defer cancel()
@@ -110,7 +107,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
 		// actually no assertions are needed as the test verifies only Prometheus endpoint
 	})
-	pty.ExpectMatchContext(ctx, "Started HTTP listener at")
+	stdout.ExpectMatch(ctx, "Started HTTP listener at")
 
 	// Fetch metrics from Prometheus endpoint
 	var res *http.Response

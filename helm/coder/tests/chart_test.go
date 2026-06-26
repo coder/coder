@@ -145,6 +145,18 @@ var testCases = []testCase{
 		name:          "probes_disabled",
 		expectedError: "",
 	},
+	{
+		name:          "pprof_address_override",
+		expectedError: "",
+	},
+	{
+		name:          "prometheus_address_override",
+		expectedError: "",
+	},
+	{
+		name:          "host_aliases",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

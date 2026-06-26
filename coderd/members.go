@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -28,7 +30,7 @@ import (
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.OrganizationMember
-// @Router /organizations/{organization}/members/{user} [post]
+// @Router /api/v2/organizations/{organization}/members/{user} [post]
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -95,7 +97,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
 // @Success 204
-// @Router /organizations/{organization}/members/{user} [delete]
+// @Router /api/v2/organizations/{organization}/members/{user} [delete]
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -144,6 +146,64 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get organization member
+// @ID get-organization-member
+// @Security CoderSessionToken
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param user path string true "User ID, name, or me"
+// @Success 200 {object} codersdk.OrganizationMemberWithUserData
+// @Produce json
+// @Router /api/v2/organizations/{organization}/members/{user} [get]
+func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+		member       = httpmw.OrganizationMemberParam(r)
+	)
+
+	// This is unfortunate to fetch like this, but we need the user table data.
+	// The listing route uses this data format, so it is just easier to reuse the
+	// list query.
+	rows, err := api.Database.OrganizationMembers(ctx, database.OrganizationMembersParams{
+		OrganizationID: organization.ID,
+		UserID:         member.UserID,
+		IncludeSystem:  false,
+		GithubUserID:   0,
+	})
+	if httpapi.Is404Error(err) || len(rows) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows, aiSeatSet)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	if len(resp) != 1 {
+		httpapi.InternalServerError(rw, xerrors.Errorf("unexpected organization members, something went wrong"))
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
 // @Deprecated use /organizations/{organization}/paginated-members [get]
 // @Summary List organization members
 // @ID list-organization-members
@@ -152,7 +212,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 // @Tags Members
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
-// @Router /organizations/{organization}/members [get]
+// @Router /api/v2/organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
@@ -178,7 +238,21 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
+	userIDs := make([]uuid.UUID, 0, len(members))
+	for _, member := range members {
+		userIDs = append(userIDs, member.OrganizationMember.UserID)
+	}
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members, aiSeatSet)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -193,27 +267,52 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
+// @Param q query string false "Member search query"
+// @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit, if 0 returns all members"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
-// @Router /organizations/{organization}/paginated-members [get]
+// @Router /api/v2/organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx                  = r.Context()
-		organization         = httpmw.OrganizationParam(r)
-		paginationParams, ok = ParsePagination(rw, r)
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
 	)
+
+	filterQuery := r.URL.Query().Get("q")
+	userFilterParams, filterErrs := searchquery.Users(filterQuery)
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid member search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
 
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
-		OrganizationID: organization.ID,
-		IncludeSystem:  false,
-		// #nosec G115 - Pagination limits are small and fit in int32
-		LimitOpt: int32(paginationParams.Limit),
+		AfterID:          paginationParams.AfterID,
+		OrganizationID:   organization.ID,
+		IncludeSystem:    false,
+		Search:           userFilterParams.Search,
+		Name:             userFilterParams.Name,
+		Status:           userFilterParams.Status,
+		IsServiceAccount: userFilterParams.IsServiceAccount,
+		RbacRole:         userFilterParams.RbacRole,
+		LastSeenBefore:   userFilterParams.LastSeenBefore,
+		LastSeenAfter:    userFilterParams.LastSeenAfter,
+		CreatedAfter:     userFilterParams.CreatedAfter,
+		CreatedBefore:    userFilterParams.CreatedBefore,
+		GithubComUserID:  userFilterParams.GithubComUserID,
+		LoginType:        userFilterParams.LoginType,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -224,23 +323,50 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberRows := make([]database.OrganizationMembersRow, 0)
-	for _, pRow := range paginatedMemberRows {
-		row := database.OrganizationMembersRow{
+	memberRows := make([]database.OrganizationMembersRow, len(paginatedMemberRows))
+	for i, pRow := range paginatedMemberRows {
+		memberRows[i] = database.OrganizationMembersRow{
 			OrganizationMember: pRow.OrganizationMember,
 			Username:           pRow.Username,
 			AvatarURL:          pRow.AvatarURL,
 			Name:               pRow.Name,
 			Email:              pRow.Email,
 			GlobalRoles:        pRow.GlobalRoles,
+			LastSeenAt:         pRow.LastSeenAt,
+			Status:             pRow.Status,
+			IsServiceAccount:   pRow.IsServiceAccount,
+			LoginType:          pRow.LoginType,
+			UserCreatedAt:      pRow.UserCreatedAt,
+			UserUpdatedAt:      pRow.UserUpdatedAt,
 		}
-
-		memberRows = append(memberRows, row)
 	}
 
-	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
+	if len(paginatedMemberRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedMembersResponse{
+			Members: []codersdk.OrganizationMemberWithUserData{},
+			Count:   0,
+		})
+		return
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(memberRows))
+	for _, member := range memberRows {
+		userIDs = append(userIDs, member.OrganizationMember.UserID)
+	}
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+
+	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows, aiSeatSet)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	resp := codersdk.PaginatedMembersResponse{
@@ -248,6 +374,23 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		Count:   int(paginatedMemberRows[0].Count),
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	aiSeatUserIDs, err := db.GetUserAISeatStates(ctx, userIDs)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
+	for _, uid := range aiSeatUserIDs {
+		aiSeatSet[uid] = struct{}{}
+	}
+
+	return aiSeatSet, nil
 }
 
 // @Summary Assign role to organization member
@@ -260,7 +403,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.OrganizationMember
-// @Router /organizations/{organization}/members/{user}/roles [put]
+// @Router /api/v2/organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -370,7 +513,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 			OrganizationID: m.OrganizationID,
 			CreatedAt:      m.CreatedAt,
 			UpdatedAt:      m.UpdatedAt,
-			Roles: db2sdk.List(m.Roles, func(r string) codersdk.SlimRole {
+			Roles: slice.List(m.Roles, func(r string) codersdk.SlimRole {
 				// If it is a built-in role, no lookups are needed.
 				rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: r, OrganizationID: m.OrganizationID})
 				if err == nil {
@@ -421,7 +564,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	return converted, nil
 }
 
-func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithUserData, error) {
+func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow, aiSeatSet map[uuid.UUID]struct{}) ([]codersdk.OrganizationMemberWithUserData, error) {
 	members := make([]database.OrganizationMember, 0)
 	for _, row := range rows {
 		members = append(members, row.OrganizationMember)
@@ -437,12 +580,20 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 
 	converted := make([]codersdk.OrganizationMemberWithUserData, 0)
 	for i := range convertedMembers {
+		_, hasAISeat := aiSeatSet[rows[i].OrganizationMember.UserID]
 		converted = append(converted, codersdk.OrganizationMemberWithUserData{
 			Username:           rows[i].Username,
 			AvatarURL:          rows[i].AvatarURL,
 			Name:               rows[i].Name,
 			Email:              rows[i].Email,
 			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
+			HasAISeat:          hasAISeat,
+			LastSeenAt:         rows[i].LastSeenAt,
+			Status:             codersdk.UserStatus(rows[i].Status),
+			IsServiceAccount:   rows[i].IsServiceAccount,
+			LoginType:          codersdk.LoginType(rows[i].LoginType),
+			UserCreatedAt:      rows[i].UserCreatedAt,
+			UserUpdatedAt:      rows[i].UserUpdatedAt,
 			OrganizationMember: convertedMembers[i],
 		})
 	}

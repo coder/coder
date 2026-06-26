@@ -16,6 +16,7 @@ coder server [flags]
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
+| [<code>fix-oidc-links</code>](./server_fix-oidc-links.md)                 | Reset OIDC linked IDs that do not match the expected issuer, allowing users to re-authenticate.        |
 | [<code>dbcrypt</code>](./server_dbcrypt.md)                               | Manage database encryption.                                                                            |
 
 ## Options
@@ -982,7 +983,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code>   |
 | YAML        | <code>networking.proxyTrustedOrigins</code> |
 
-Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
 ### --cache-dir
 
@@ -1058,6 +1059,17 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 Controls the 'SameSite' property is set on browser session cookies.
 
+### --host-prefix-cookie
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_HOST_PREFIX_COOKIE</code>   |
+| YAML        | <code>networking.hostPrefixCookie</code> |
+| Default     | <code>false</code>                       |
+
+Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart.
+
 ### --terms-of-service-url
 
 |             |                                          |
@@ -1110,6 +1122,16 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 Whether Coder only allows connections to workspaces via the browser.
 
+### --cluster-host
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_CLUSTER_HOST</code>            |
+| YAML        | <code>networking.cluster.clusterHost</code> |
+
+Hostname or (more commonly) IP to reach this replica for clustering.
+
 ### --scim-auth-header
 
 |             |                                      |
@@ -1118,6 +1140,17 @@ Whether Coder only allows connections to workspaces via the browser.
 | Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
+
+### --scim-use-legacy
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_SCIM_USE_LEGACY</code> |
+| YAML        | <code>scimUseLegacy</code>          |
+| Default     | <code>true</code>                   |
+
+Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.
 
 ### --external-token-encryption-keys
 
@@ -1156,7 +1189,17 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 | Environment | <code>$CODER_DISABLE_WORKSPACE_SHARING</code> |
 | YAML        | <code>disableWorkspaceSharing</code>          |
 
-Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+
+### --disable-chat-sharing
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_DISABLE_CHAT_SHARING</code> |
+| YAML        | <code>disableChatSharing</code>          |
+
+Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
 ### --session-duration
 
@@ -1207,7 +1250,7 @@ Specify a YAML file to load configuration from.
 | YAML        | <code>client.workspaceHostnameSuffix</code>   |
 | Default     | <code>coder</code>                            |
 
-Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.
+Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).
 
 ### --ssh-config-options
 
@@ -1217,7 +1260,7 @@ Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Des
 | Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
 | YAML        | <code>client.sshConfigOptions</code>   |
 
-These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
+These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas. Using this incorrectly can break SSH to your deployment, use cautiously. The following options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation. Option values must not contain newline, carriage return, or NUL characters.
 
 ### --cli-upgrade-message
 
@@ -1246,6 +1289,17 @@ The upgrade message to display to users when a client/server mismatch is detecte
 | YAML        | <code>supportLinks</code>                  |
 
 Support links to display in the top right drop down menu.
+
+### --external-auth-github-default-provider-enable
+
+|             |                                                                  |
+|-------------|------------------------------------------------------------------|
+| Type        | <code>bool</code>                                                |
+| Environment | <code>$CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE</code> |
+| YAML        | <code>externalAuthGithubDefaultProviderEnable</code>             |
+| Default     | <code>true</code>                                                |
+
+Enable the default GitHub external auth provider managed by Coder.
 
 ### --proxy-health-interval
 
@@ -1680,255 +1734,338 @@ How often to reconcile workspace prebuilds state.
 
 Hide AI tasks from the dashboard.
 
-### --aibridge-enabled
+### --chat-debug-logging-enabled
 
-|             |                                      |
-|-------------|--------------------------------------|
-| Type        | <code>bool</code>                    |
-| Environment | <code>$CODER_AIBRIDGE_ENABLED</code> |
-| YAML        | <code>aibridge.enabled</code>        |
-| Default     | <code>false</code>                   |
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_CHAT_DEBUG_LOGGING_ENABLED</code> |
+| YAML        | <code>chat.debugLoggingEnabled</code>          |
+| Default     | <code>false</code>                             |
 
-Whether to start an in-memory aibridged instance.
+Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
-### --aibridge-openai-base-url
+### --ai-gateway-enabled
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>bool</code>                      |
+| Environment | <code>$CODER_AI_GATEWAY_ENABLED</code> |
+| YAML        | <code>ai_gateway.enabled</code>        |
+| Default     | <code>true</code>                      |
+
+Whether to start an in-memory AI Gateway instance.
+
+### --ai-gateway-openai-base-url
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AI_GATEWAY_OPENAI_BASE_URL</code> |
+| YAML        | <code>ai_gateway.openai_base_url</code>        |
+| Default     | <code>https://api.openai.com/v1/</code>        |
+
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the OpenAI API.
+
+### --ai-gateway-openai-key
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_AI_GATEWAY_OPENAI_KEY</code> |
+
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the OpenAI API.
+
+### --ai-gateway-anthropic-base-url
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_ANTHROPIC_BASE_URL</code> |
+| YAML        | <code>ai_gateway.anthropic_base_url</code>        |
+| Default     | <code>https://api.anthropic.com/</code>           |
+
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the Anthropic API.
+
+### --ai-gateway-anthropic-key
 
 |             |                                              |
 |-------------|----------------------------------------------|
 | Type        | <code>string</code>                          |
-| Environment | <code>$CODER_AIBRIDGE_OPENAI_BASE_URL</code> |
-| YAML        | <code>aibridge.openai_base_url</code>        |
-| Default     | <code>https://api.openai.com/v1/</code>      |
+| Environment | <code>$CODER_AI_GATEWAY_ANTHROPIC_KEY</code> |
 
-The base URL of the OpenAI API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the Anthropic API.
 
-### --aibridge-openai-key
-
-|             |                                         |
-|-------------|-----------------------------------------|
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_AIBRIDGE_OPENAI_KEY</code> |
-
-The key to authenticate against the OpenAI API.
-
-### --aibridge-anthropic-base-url
+### --ai-gateway-bedrock-base-url
 
 |             |                                                 |
 |-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_BASE_URL</code> |
-| YAML        | <code>aibridge.anthropic_base_url</code>        |
-| Default     | <code>https://api.anthropic.com/</code>         |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_BASE_URL</code> |
+| YAML        | <code>ai_gateway.bedrock_base_url</code>        |
 
-The base URL of the Anthropic API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
 
-### --aibridge-anthropic-key
-
-|             |                                            |
-|-------------|--------------------------------------------|
-| Type        | <code>string</code>                        |
-| Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_KEY</code> |
-
-The key to authenticate against the Anthropic API.
-
-### --aibridge-bedrock-base-url
+### --ai-gateway-bedrock-region
 
 |             |                                               |
 |-------------|-----------------------------------------------|
 | Type        | <code>string</code>                           |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_BASE_URL</code> |
-| YAML        | <code>aibridge.bedrock_base_url</code>        |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_REGION</code> |
+| YAML        | <code>ai_gateway.bedrock_region</code>        |
 
-The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
-### --aibridge-bedrock-region
+### --ai-gateway-bedrock-access-key
 
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_REGION</code> |
-| YAML        | <code>aibridge.bedrock_region</code>        |
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY</code> |
 
-The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key to authenticate against the AWS Bedrock API.
 
-### --aibridge-bedrock-access-key
+### --ai-gateway-bedrock-access-key-secret
 
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>string</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY</code> |
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>string</code>                                      |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET</code> |
 
-The access key to authenticate against the AWS Bedrock API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 
-### --aibridge-bedrock-access-key-secret
-
-|             |                                                        |
-|-------------|--------------------------------------------------------|
-| Type        | <code>string</code>                                    |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET</code> |
-
-The access key secret to use with the access key to authenticate against the AWS Bedrock API.
-
-### --aibridge-bedrock-model
+### --ai-gateway-bedrock-model
 
 |             |                                                               |
 |-------------|---------------------------------------------------------------|
 | Type        | <code>string</code>                                           |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_MODEL</code>                    |
-| YAML        | <code>aibridge.bedrock_model</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_MODEL</code>                  |
+| YAML        | <code>ai_gateway.bedrock_model</code>                         |
 | Default     | <code>global.anthropic.claude-sonnet-4-5-20250929-v1:0</code> |
 
-The model to use when making requests to the AWS Bedrock API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The model to use when making requests to the AWS Bedrock API.
 
-### --aibridge-bedrock-small-fastmodel
+### --ai-gateway-bedrock-small-fastmodel
 
 |             |                                                              |
 |-------------|--------------------------------------------------------------|
 | Type        | <code>string</code>                                          |
-| Environment | <code>$CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL</code>        |
-| YAML        | <code>aibridge.bedrock_small_fast_model</code>               |
+| Environment | <code>$CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL</code>      |
+| YAML        | <code>ai_gateway.bedrock_small_fast_model</code>             |
 | Default     | <code>global.anthropic.claude-haiku-4-5-20251001-v1:0</code> |
 
-The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
-### --aibridge-inject-coder-mcp-tools
+### --ai-gateway-retention
 
-|             |                                                     |
-|-------------|-----------------------------------------------------|
-| Type        | <code>bool</code>                                   |
-| Environment | <code>$CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS</code> |
-| YAML        | <code>aibridge.inject_coder_mcp_tools</code>        |
-| Default     | <code>false</code>                                  |
-
-Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
-
-### --aibridge-retention
-
-|             |                                        |
-|-------------|----------------------------------------|
-| Type        | <code>duration</code>                  |
-| Environment | <code>$CODER_AIBRIDGE_RETENTION</code> |
-| YAML        | <code>aibridge.retention</code>        |
-| Default     | <code>60d</code>                       |
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>duration</code>                    |
+| Environment | <code>$CODER_AI_GATEWAY_RETENTION</code> |
+| YAML        | <code>ai_gateway.retention</code>        |
+| Default     | <code>60d</code>                         |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
 
-### --aibridge-max-concurrency
+### --ai-gateway-max-concurrency
 
-|             |                                              |
-|-------------|----------------------------------------------|
-| Type        | <code>int</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_MAX_CONCURRENCY</code> |
-| YAML        | <code>aibridge.max_concurrency</code>        |
-| Default     | <code>0</code>                               |
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>int</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_MAX_CONCURRENCY</code> |
+| YAML        | <code>ai_gateway.max_concurrency</code>        |
+| Default     | <code>0</code>                                 |
 
-Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable (unlimited).
+Maximum number of concurrent AI Gateway requests per replica. Set to 0 to disable (unlimited).
 
-### --aibridge-rate-limit
+### --ai-gateway-rate-limit
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>int</code>                          |
+| Environment | <code>$CODER_AI_GATEWAY_RATE_LIMIT</code> |
+| YAML        | <code>ai_gateway.rate_limit</code>        |
+| Default     | <code>0</code>                            |
+
+Maximum number of AI Gateway requests per second per replica. Set to 0 to disable (unlimited).
+
+### --ai-gateway-structured-logging
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_AI_GATEWAY_STRUCTURED_LOGGING</code> |
+| YAML        | <code>ai_gateway.structured_logging</code>        |
+| Default     | <code>false</code>                                |
+
+Emit structured logs for AI Gateway interception records. Use this for exporting these records to external SIEM or observability systems.
+
+### --ai-gateway-send-actor-headers
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_AI_GATEWAY_SEND_ACTOR_HEADERS</code> |
+| YAML        | <code>ai_gateway.send_actor_headers</code>        |
+| Default     | <code>false</code>                                |
+
+Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+
+### --ai-gateway-dump-dir
 
 |             |                                         |
 |-------------|-----------------------------------------|
-| Type        | <code>int</code>                        |
-| Environment | <code>$CODER_AIBRIDGE_RATE_LIMIT</code> |
-| YAML        | <code>aibridge.rate_limit</code>        |
-| Default     | <code>0</code>                          |
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
+| YAML        | <code>ai_gateway.api_dump_dir</code>    |
 
-Maximum number of AI Bridge requests per second per replica. Set to 0 to disable (unlimited).
+Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
 
-### --aibridge-structured-logging
+### --ai-gateway-allow-byok
 
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>bool</code>                               |
-| Environment | <code>$CODER_AIBRIDGE_STRUCTURED_LOGGING</code> |
-| YAML        | <code>aibridge.structured_logging</code>        |
-| Default     | <code>false</code>                              |
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_AI_GATEWAY_ALLOW_BYOK</code> |
+| YAML        | <code>ai_gateway.allow_byok</code>        |
+| Default     | <code>true</code>                         |
 
-Emit structured logs for AI Bridge interception records. Use this for exporting these records to external SIEM or observability systems.
+Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.
 
-### --aibridge-send-actor-headers
+### --ai-gateway-circuit-breaker-enabled
 
-|             |                                                 |
-|-------------|-------------------------------------------------|
-| Type        | <code>bool</code>                               |
-| Environment | <code>$CODER_AIBRIDGE_SEND_ACTOR_HEADERS</code> |
-| YAML        | <code>aibridge.send_actor_headers</code>        |
-| Default     | <code>false</code>                              |
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>bool</code>                                      |
+| Environment | <code>$CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED</code> |
+| YAML        | <code>ai_gateway.circuit_breaker_enabled</code>        |
+| Default     | <code>false</code>                                     |
 
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. This is only needed if you are using a proxy between AI Bridge and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).
 
-### --aibridge-circuit-breaker-enabled
+### --ai-budget-policy
 
-|             |                                                      |
-|-------------|------------------------------------------------------|
-| Type        | <code>bool</code>                                    |
-| Environment | <code>$CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED</code> |
-| YAML        | <code>aibridge.circuit_breaker_enabled</code>        |
-| Default     | <code>false</code>                                   |
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>highest</code>                  |
+| Environment | <code>$CODER_AI_BUDGET_POLICY</code>  |
+| YAML        | <code>ai_gateway.budget_policy</code> |
+| Default     | <code>highest</code>                  |
 
-Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).
+Determines the effective group when a user belongs to multiple groups with AI budgets. "highest" selects the group with the largest spend limit, and is currently the only supported value.
 
-### --aibridge-proxy-enabled
+### --ai-budget-period
 
-|             |                                            |
-|-------------|--------------------------------------------|
-| Type        | <code>bool</code>                          |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_ENABLED</code> |
-| YAML        | <code>aibridgeproxy.enabled</code>         |
-| Default     | <code>false</code>                         |
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>month</code>                    |
+| Environment | <code>$CODER_AI_BUDGET_PERIOD</code>  |
+| YAML        | <code>ai_gateway.budget_period</code> |
+| Default     | <code>month</code>                    |
 
-Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requests.
+Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only "month" is currently supported.
 
-### --aibridge-proxy-listen-addr
-
-|             |                                                |
-|-------------|------------------------------------------------|
-| Type        | <code>string</code>                            |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_LISTEN_ADDR</code> |
-| YAML        | <code>aibridgeproxy.listen_addr</code>         |
-| Default     | <code>:8888</code>                             |
-
-The address the AI Bridge Proxy will listen on.
-
-### --aibridge-proxy-cert-file
+### --ai-gateway-proxy-enabled
 
 |             |                                              |
 |-------------|----------------------------------------------|
-| Type        | <code>string</code>                          |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
-| YAML        | <code>aibridgeproxy.cert_file</code>         |
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_ENABLED</code> |
+| YAML        | <code>ai_gateway_proxy.enabled</code>        |
+| Default     | <code>false</code>                           |
 
-Path to the CA certificate file for AI Bridge Proxy.
+Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider requests.
 
-### --aibridge-proxy-key-file
+### --ai-gateway-proxy-listen-addr
 
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
-| YAML        | <code>aibridgeproxy.key_file</code>         |
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_LISTEN_ADDR</code> |
+| YAML        | <code>ai_gateway_proxy.listen_addr</code>        |
+| Default     | <code>:8888</code>                               |
 
-Path to the CA private key file for AI Bridge Proxy.
+The address the AI Gateway Proxy will listen on.
 
-### --aibridge-proxy-upstream
+### --ai-gateway-proxy-tls-cert-file
 
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM</code> |
-| YAML        | <code>aibridgeproxy.upstream_proxy</code>   |
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.tls_cert_file</code>        |
 
-URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Key File.
 
-### --aibridge-proxy-upstream-ca
+### --ai-gateway-proxy-tls-key-file
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.tls_key_file</code>        |
+
+Path to the TLS private key file for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy TLS Certificate File.
+
+### --ai-gateway-proxy-cert-file
 
 |             |                                                |
 |-------------|------------------------------------------------|
 | Type        | <code>string</code>                            |
-| Environment | <code>$CODER_AIBRIDGE_PROXY_UPSTREAM_CA</code> |
-| YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_CERT_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.cert_file</code>        |
+
+Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
+
+### --ai-gateway-proxy-key-file
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_KEY_FILE</code> |
+| YAML        | <code>ai_gateway_proxy.key_file</code>        |
+
+Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
+
+### --ai-gateway-proxy-upstream
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_UPSTREAM</code> |
+| YAML        | <code>ai_gateway_proxy.upstream_proxy</code>  |
+
+URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests through. Format: http://[user:pass@]host:port or https://[user:pass@]host:port.
+
+### --ai-gateway-proxy-upstream-ca
+
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_UPSTREAM_CA</code> |
+| YAML        | <code>ai_gateway_proxy.upstream_proxy_ca</code>  |
 
 Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
+
+### --ai-gateway-proxy-allowed-private-cidrs
+
+|             |                                                            |
+|-------------|------------------------------------------------------------|
+| Type        | <code>string-array</code>                                  |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS</code> |
+| YAML        | <code>ai_gateway_proxy.allowed_private_cidrs</code>        |
+
+Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
+
+### --ai-gateway-proxy-dump-dir
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>string</code>                           |
+| Environment | <code>$CODER_AI_GATEWAY_PROXY_DUMP_DIR</code> |
+| YAML        | <code>ai_gateway_proxy.api_dump_dir</code>    |
+
+Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.
 
 ### --audit-logs-retention
 
@@ -1973,3 +2110,35 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --boundary-log-retention
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_BOUNDARY_LOG_RETENTION</code> |
+| YAML        | <code>retention.boundary_logs</code>       |
+| Default     | <code>0</code>                             |
+
+How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.
+
+### --disable-template-builder
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DISABLE_TEMPLATE_BUILDER</code> |
+| YAML        | <code>templateBuilder.disabled</code>        |
+
+Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
+
+### --template-builder-registry-url
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
+| YAML        | <code>templateBuilder.registryURL</code>          |
+| Default     | <code>registry.coder.com</code>                   |
+
+The base URL of the module registry used by the template builder for module source paths.

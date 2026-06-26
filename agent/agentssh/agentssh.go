@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -107,11 +106,24 @@ type Config struct {
 	// where users will land when they connect via SSH. Default is the home
 	// directory of the user.
 	WorkingDirectory func() string
+	// EnvInfo sources the session command environment. Default is
+	// usershell.SystemEnvInfo. A container override still applies per
+	// session when ExperimentalContainers is enabled.
+	EnvInfo usershell.EnvInfoer
 	// X11DisplayOffset is the offset to add to the X11 display number.
 	// Default is 10.
 	X11DisplayOffset *int
+	// X11MaxPort overrides the highest port used for X11 forwarding
+	// listeners. Defaults to X11MaxPort (6200). Useful in tests
+	// to shrink the port range and reduce the number of sessions
+	// required.
+	X11MaxPort *int
 	// BlockFileTransfer restricts use of file transfer applications.
 	BlockFileTransfer bool
+	// BlockReversePortForwarding disables reverse port forwarding (ssh -R).
+	BlockReversePortForwarding bool
+	// BlockLocalPortForwarding disables local port forwarding (ssh -L).
+	BlockLocalPortForwarding bool
 	// ReportConnection.
 	ReportConnection reportConnectionFunc
 	// Experimental: allow connecting to running containers via Docker exec.
@@ -158,6 +170,10 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		offset := X11DefaultDisplayOffset
 		config.X11DisplayOffset = &offset
 	}
+	if config.X11MaxPort == nil {
+		maxPort := X11MaxPort
+		config.X11MaxPort = &maxPort
+	}
 	if config.UpdateEnv == nil {
 		config.UpdateEnv = func(current []string) ([]string, error) { return current, nil }
 	}
@@ -168,20 +184,19 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		config.AnnouncementBanners = func() *[]codersdk.BannerConfig { return &[]codersdk.BannerConfig{} }
 	}
 	if config.WorkingDirectory == nil {
-		config.WorkingDirectory = func() string {
-			home, err := userHomeDir()
-			if err != nil {
-				return ""
-			}
-			return home
-		}
+		// Empty means unset, so resolveWorkingDirectory falls back to the
+		// EnvInfo home directory.
+		config.WorkingDirectory = func() string { return "" }
+	}
+	if config.EnvInfo == nil {
+		config.EnvInfo = &usershell.SystemEnvInfo{}
 	}
 	if config.ReportConnection == nil {
 		config.ReportConnection = func(uuid.UUID, MagicSessionType, string) func(int, string) { return func(int, string) {} }
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
-	unixForwardHandler := newForwardedUnixHandler(logger)
+	unixForwardHandler := newForwardedUnixHandler(logger, config.BlockReversePortForwarding)
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
@@ -201,6 +216,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			x11HandlerErrors: metrics.x11HandlerErrors,
 			fs:               fs,
 			displayOffset:    *config.X11DisplayOffset,
+			maxPort:          *config.X11MaxPort,
 			sessions:         make(map[*x11Session]struct{}),
 			connections:      make(map[net.Conn]struct{}),
 			network: func() X11Network {
@@ -219,8 +235,15 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ReportConnection, newChan, &s.connCountJetBrains)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
-			"direct-streamlocal@openssh.com": directStreamLocalHandler,
-			"session":                        ssh.DefaultSessionHandler,
+			"direct-streamlocal@openssh.com": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
+				if s.config.BlockLocalPortForwarding {
+					s.logger.Warn(ctx, "unix local port forward blocked")
+					_ = newChan.Reject(gossh.Prohibited, "local port forwarding is disabled")
+					return
+				}
+				directStreamLocalHandler(srv, conn, newChan, ctx)
+			},
+			"session": ssh.DefaultSessionHandler,
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
 			s.logger.Warn(ctx, "ssh connection failed",
@@ -240,6 +263,12 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		// be set before we start listening.
 		HostSigners: []ssh.Signer{},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
+			if s.config.BlockLocalPortForwarding {
+				s.logger.Warn(ctx, "local port forward blocked",
+					slog.F("destination_host", destinationHost),
+					slog.F("destination_port", destinationPort))
+				return false
+			}
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
 				slog.F("destination_host", destinationHost),
@@ -250,6 +279,12 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			return true
 		},
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
+			if s.config.BlockReversePortForwarding {
+				s.logger.Warn(ctx, "reverse port forward blocked",
+					slog.F("bind_host", bindHost),
+					slog.F("bind_port", bindPort))
+				return false
+			}
 			// Allow reverse port forwarding all!
 			s.logger.Debug(ctx, "reverse port forward",
 				slog.F("bind_host", bindHost),
@@ -429,17 +464,23 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
 	}
 
-	closeCause := func(string) {}
+	closeCause := func(_ string) {}
 	if reportSession {
-		var reason string
-		closeCause = func(r string) { reason = r }
+		var reason codersdk.DisconnectReason
+		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
 
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
 
 		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
 		defer func() {
-			disconnected(scr.exitCode(), reason)
+			logger.Info(ctx, "ssh session closed",
+				codersdk.ConnectionDirectionAgentToClient.SlogField(),
+				reason.SlogField(),
+				reason.SlogExpectedField(),
+				slog.F("exit_code", scr.exitCode()),
+			)
+			disconnected(scr.exitCode(), string(reason))
 		}()
 	}
 
@@ -534,6 +575,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
+	closeCause(string(codersdk.DisconnectReasonGraceful))
 	logger.Info(ctx, "normal ssh session exit")
 	_ = session.Exit(0)
 }
@@ -579,7 +621,7 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		ptyLabel = "yes"
 	}
 
-	var ei usershell.EnvInfoer
+	ei := s.config.EnvInfo
 	var err error
 	if s.config.ExperimentalContainers && container != "" {
 		ei, err = agentcontainers.EnvInfo(ctx, s.Execer, container, containerUser)
@@ -702,7 +744,7 @@ func (s *Server) startPTYSession(logger slog.Logger, session ptySession, magicTy
 		}
 	}
 
-	if !isQuietLogin(s.fs, session.RawCommand()) {
+	if !isQuietLogin(s.fs, s.config.EnvInfo, session.RawCommand()) {
 		err := showMOTD(s.fs, session, s.config.MOTDFile())
 		if err != nil {
 			logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
@@ -831,13 +873,14 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	// Change current working directory to the configured
 	// directory (or home directory if not set) so that SFTP
 	// connections land there.
-	dir := s.config.WorkingDirectory()
-	if dir == "" {
-		var err error
-		dir, err = userHomeDir()
-		if err != nil {
-			logger.Warn(ctx, "get sftp working directory failed, unable to get home dir", slog.Error(err))
-		}
+	//
+	// The host EnvInfo is used here, not a container's. This is
+	// correct only while SFTP is blocked for container sessions
+	// (see the closeCause guard above). If container SFTP is added,
+	// the container EnvInfo must be resolved and passed here.
+	dir, err := s.resolveWorkingDirectory(s.config.EnvInfo)
+	if err != nil {
+		logger.Warn(ctx, "resolve sftp working directory failed", slog.Error(err))
 	}
 	if dir != "" {
 		opts = append(opts, sftp.WithServerWorkingDirectory(dir))
@@ -869,6 +912,12 @@ func (s *Server) sftpHandler(logger slog.Logger, session ssh.Session) error {
 	return xerrors.Errorf("sftp server closed with error: %w", err)
 }
 
+// resolveWorkingDirectory returns the working directory for a session, binding
+// the server filesystem and configured directory to the shared resolver.
+func (s *Server) resolveWorkingDirectory(ei usershell.EnvInfoer) (string, error) {
+	return usershell.ResolveWorkingDirectory(s.fs, ei, s.config.WorkingDirectory())
+}
+
 func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir string, env []string, err error) {
 	if ei == nil {
 		ei = &usershell.SystemEnvInfo{}
@@ -885,18 +934,9 @@ func (s *Server) CommandEnv(ei usershell.EnvInfoer, addEnv []string) (shell, dir
 		return "", "", nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
-	dir = s.config.WorkingDirectory()
-
-	// If the metadata directory doesn't exist, we run the command
-	// in the users home directory.
-	_, err = os.Stat(dir)
-	if dir == "" || err != nil {
-		// Default to user home if a directory is not set.
-		homedir, err := ei.HomeDir()
-		if err != nil {
-			return "", "", nil, xerrors.Errorf("get home dir: %w", err)
-		}
-		dir = homedir
+	dir, err = s.resolveWorkingDirectory(ei)
+	if err != nil {
+		return "", "", nil, xerrors.Errorf("resolve working dir: %w", err)
 	}
 	env = append(ei.Environ(), addEnv...)
 	// Set login variables (see `man login`).
@@ -1241,7 +1281,7 @@ func isLoginShell(rawCommand string) bool {
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
-func isQuietLogin(fs afero.Fs, rawCommand string) bool {
+func isQuietLogin(fs afero.Fs, ei usershell.EnvInfoer, rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
 	if !isLoginShell(rawCommand) {
 		return true
@@ -1249,7 +1289,7 @@ func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 
 	// Best effort, if we can't get the home directory,
 	// we can't lookup .hushlogin.
-	homedir, err := userHomeDir()
+	homedir, err := ei.HomeDir()
 	if err != nil {
 		return false
 	}
@@ -1306,23 +1346,6 @@ func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
 		return xerrors.Errorf("read line: %w", err)
 	}
 	return nil
-}
-
-// userHomeDir returns the home directory of the current user, giving
-// priority to the $HOME environment variable.
-func userHomeDir() (string, error) {
-	// First we check the environment.
-	homedir, err := os.UserHomeDir()
-	if err == nil {
-		return homedir, nil
-	}
-
-	// As a fallback, we try the user information.
-	u, err := user.Current()
-	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
-	}
-	return u.HomeDir, nil
 }
 
 // UpdateHostSigner updates the host signer with a new key generated from the provided seed.

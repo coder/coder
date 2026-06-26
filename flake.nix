@@ -2,7 +2,7 @@
   description = "Development environments on your infrastructure";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
@@ -61,6 +61,30 @@
           inherit nodejs; # Ensure it points to the above nodejs version
         };
 
+        mise = pkgs.stdenvNoCC.mkDerivation rec {
+          pname = "mise";
+          version = "2026.5.12";
+          target = {
+            x86_64-linux = "linux-x64";
+            aarch64-linux = "linux-arm64";
+            x86_64-darwin = "macos-x64";
+            aarch64-darwin = "macos-arm64";
+          }.${system};
+          src = pkgs.fetchurl {
+            url = "https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${target}";
+            hash = {
+              x86_64-linux = "sha256-ojiXKjFi1xC4WyjDJDculspOS0hsgf54aVAA2fvHfEg=";
+              aarch64-linux = "sha256-/S1SJ6itCx41nHBSeoNFqa2nIHf43LtVk3FlPD2VRk8=";
+              x86_64-darwin = "sha256-3lfo3IK72ICmnJvIruBrncxXgYSz5c+G/O+AY11qkLQ=";
+              aarch64-darwin = "sha256-53cHBUD/4iz4srn4iu2ItGHQiH2UDE8cGpc1lGPN5uE=";
+            }.${system};
+          };
+          dontUnpack = true;
+          installPhase = ''
+            install -Dm755 "$src" "$out/bin/mise"
+          '';
+        };
+
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -84,6 +108,47 @@
           vendorHash = null;
         };
 
+        # Keep protoc aligned with mise.toml so local Nix shells use
+        # the same codegen tool version as CI and release workflows,
+        # regardless of nixpkgs channel defaults.
+        protobuf_23_4 =
+          let
+            releases = {
+              x86_64-linux = {
+                platform = "linux-x86_64";
+                hash = "sha256-BQLyhqye2GC2KaeWWhRSex8t0THkKD+iPC1/GEZyqpo=";
+              };
+              aarch64-linux = {
+                platform = "linux-aarch_64";
+                hash = "sha256-HHdQtuA4MFtaf8PQzaHr798Qak8wp4e/gm7S/EfDln0=";
+              };
+              aarch64-darwin = {
+                platform = "osx-aarch_64";
+                hash = "sha256-jHr66GJraBHntYl9FtlAwtv1Cx4TXtlYoB22VmvdpyY=";
+              };
+              x86_64-darwin = {
+                platform = "osx-x86_64";
+                hash = "sha256-B+X9zxsHCNM2fcXm640TXefkB9dTFskxVc/YqzYu7IA=";
+              };
+            };
+            target = releases.${system} or null;
+          in
+          if target != null then
+            pkgs.runCommand "protobuf-23.4" {
+              nativeBuildInputs = [ pkgs.unzip ];
+              src = pkgs.fetchurl {
+                url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-${target.platform}.zip";
+                hash = target.hash;
+              };
+            } ''
+              mkdir -p "$out"
+              cd "$out"
+              unzip "$src"
+              chmod +x "$out/bin/protoc"
+            ''
+          else
+            throw "protobuf 23.4 is not defined for ${system}";
+
         # Custom sqlc build from coder/sqlc fork to fix ambiguous column bug, see:
         # - https://github.com/coder/sqlc/pull/1
         # - https://github.com/sqlc-dev/sqlc/pull/4159
@@ -94,20 +159,74 @@
         # 3. Update the sha256 and run again
         # 4. Nix will fail with the correct vendorHash
         # 5. Update the vendorHash
-        sqlc-custom = unstablePkgs.buildGo124Module {
+        sqlc-custom = unstablePkgs.buildGo126Module {
           pname = "sqlc";
-          version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
+          version = "coder-fork-337309bfb9524f38466a5090e310040fc7af0203";
 
           src = pkgs.fetchFromGitHub {
             owner = "coder";
             repo = "sqlc";
-            rev = "aab4e865a51df0c43e1839f81a9d349b41d14f05";
-            sha256 = "sha256-zXjTypEFWDOkoZMKHMMRtAz2coNHSCkQ+nuZ8rOnzZ8=";
+            rev = "337309bfb9524f38466a5090e310040fc7af0203";
+            sha256 = "sha256-i8hZaaMlNJyW0hUWYcuNqUcwRdQU747055OknZsJ9Es=";
           };
 
           subPackages = [ "cmd/sqlc" ];
-          vendorHash = "sha256-69kg3qkvEWyCAzjaCSr3a73MNonub9sZTYyGaCW+UTI=";
+          vendorHash = "sha256-4Cb15MhKyhRvYVKfMqBwuC3WBBIJE6AinJt02+TSMVY=";
         };
+
+        paralleltestctx = unstablePkgs.buildGo126Module {
+          pname = "paralleltestctx";
+          version = "0.0.2";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "coder";
+            repo = "paralleltestctx";
+            rev = "v0.0.2";
+            sha256 = "sha256-qFQ4LZR2IwqscypD0URSZKXTlhUcz/axDb8NTH5CxLw=";
+          };
+
+          subPackages = [ "cmd/paralleltestctx" ];
+          vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
+        };
+
+        # Pin to provisioner/terraform/testdata/version.txt for deterministic
+        # `make gen` across platforms.
+        terraform_1_15_5 =
+          let
+            releases = {
+              x86_64-linux = {
+                platform = "linux_amd64";
+                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
+              };
+              aarch64-linux = {
+                platform = "linux_arm64";
+                hash = "sha256-Bue0jegmFGxtkzG6NbE9oSMy2Dkr4w0d1reJukcT//A=";
+              };
+              aarch64-darwin = {
+                platform = "darwin_arm64";
+                hash = "sha256-ARN2YFEABbkYu6ghVIZvvqxDkxY9gnfCq+hh37WELDw=";
+              };
+              x86_64-darwin = {
+                platform = "darwin_amd64";
+                hash = "sha256-NofQfANLPn3u1bByzYris0g1vLE5uuw/xPX9U02r9e0=";
+              };
+            };
+            target = releases.${system} or null;
+          in
+          if target != null then
+            pkgs.runCommand "terraform-1.15.5" {
+              nativeBuildInputs = [ pkgs.unzip ];
+              src = pkgs.fetchurl {
+                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_${target.platform}.zip";
+                hash = target.hash;
+              };
+            } ''
+              mkdir -p "$out/bin"
+              unzip -p "$src" terraform > "$out/bin/terraform"
+              chmod +x "$out/bin/terraform"
+            ''
+          else
+            unstablePkgs.terraform;
 
         # Packages required to build the frontend
         frontendPackages =
@@ -123,9 +242,17 @@
             python312Packages.setuptools # Needed for node-gyp
           ]
           ++ (lib.optionals stdenv.targetPlatform.isDarwin [
-            darwin.apple_sdk.frameworks.Foundation
+            darwin.apple_sdk_12_3.frameworks.Foundation
             xcbuild
           ]);
+
+        migrate = pkgs.go-migrate.overrideAttrs (_oldAttrs: {
+          # Coder only needs migrate for migration creation and local Postgres
+          # migrations. The nixpkgs default build includes every database
+          # driver and is broken by a bad Go and driver combination, so rebuild
+          # only with the driver we need.
+          tags = [ "postgres" ];
+        });
 
         # The minimal set of packages to build Coder.
         devShellPackages =
@@ -156,9 +283,9 @@
             gnused
             gnugrep
             gnutar
-            unstablePkgs.go_1_24
+            unstablePkgs.go_1_26
             gofumpt
-            go-migrate
+            migrate
             (pinnedPkgs.golangci-lint)
             gopls
             gotestsum
@@ -170,28 +297,29 @@
             lazydocker
             lazygit
             less
-            mockgen
+            mise
+            unstablePkgs.mockgen
             moreutils
             nfpm
             nix-prefetch-git
             nodejs
             openssh
             openssl
+            paralleltestctx
             pango
             pixman
             pkg-config
-            playwright-driver.browsers
             pnpm
             postgresql_16
             proto_gen_go_1_30
-            protobuf_23
+            protobuf_23_4
             ripgrep
             shellcheck
             (pinnedPkgs.shfmt)
             # sqlc
             sqlc-custom
             syft
-            unstablePkgs.terraform
+            terraform_1_15_5
             typos
             which
             # Needed for many LD system libs!
@@ -204,8 +332,6 @@
             zstd
           ]
           ++ frontendPackages;
-
-        docker = pkgs.callPackage ./nix/docker.nix { };
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
@@ -224,7 +350,7 @@
         # slim bundle into it's own derivation.
         buildFat =
           osArch:
-          unstablePkgs.buildGo124Module {
+          unstablePkgs.buildGo126Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
@@ -260,25 +386,18 @@
             '';
           };
       in
-      # "Keep in mind that you need to use the same version of playwright in your node playwright project as in your nixpkgs, or else playwright will try to use browsers versions that aren't installed!"
-      # - https://nixos.wiki/wiki/Playwright
-      assert pkgs.lib.assertMsg
-        (
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-          == pkgs.playwright-driver.version
-        )
-        "There is a mismatch between the playwright versions in the ./nix.flake (${pkgs.playwright-driver.version}) and the ./site/package.json (${
-          (pkgs.lib.importJSON ./site/package.json).devDependencies."@playwright/test"
-        }) file. Please make sure that they use the exact same version.";
       rec {
         inherit formatter;
 
         devShells = {
-          default = pkgs.mkShell {
+          default =
+            (pkgs.mkShell.override (
+              pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+                stdenv = pkgs.overrideSDK pkgs.stdenv "12.3";
+              }
+            ))
+            {
             buildInputs = devShellPackages;
-
-            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
-            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
 
             LOCALE_ARCHIVE =
               with pkgs;
@@ -289,59 +408,20 @@
           };
         };
 
-        packages =
-          {
-            default = packages.${system};
+        packages = {
+          default = packages.${system};
 
-            proto_gen_go = proto_gen_go_1_30;
-            site = buildSite;
+          proto_gen_go = proto_gen_go_1_30;
+          site = buildSite;
 
-            # Copying `OS_ARCHES` from the Makefile.
-            x86_64-linux = buildFat "linux_amd64";
-            aarch64-linux = buildFat "linux_arm64";
-            x86_64-darwin = buildFat "darwin_amd64";
-            aarch64-darwin = buildFat "darwin_arm64";
-            x86_64-windows = buildFat "windows_amd64.exe";
-            aarch64-windows = buildFat "windows_arm64.exe";
-          }
-          // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            dev_image = docker.buildNixShellImage rec {
-              name = "codercom/oss-dogfood-nix";
-              tag = "latest-${system}";
-
-              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
-              # to have issues on dogfood envs.
-              maxLayers = 32;
-
-              uname = "coder";
-              homeDirectory = "/home/${uname}";
-              releaseName = version;
-
-              drv = devShells.default.overrideAttrs (oldAttrs: {
-                buildInputs =
-                  (with pkgs; [
-                    coreutils
-                    nix.out
-                    curl.bin # Ensure the actual curl binary is included in the PATH
-                    glibc.bin # Ensure the glibc binaries are included in the PATH
-                    jq.bin
-                    binutils # ld and strings
-                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
-                    systemd.out
-                    service-wrapper
-                    docker_26
-                    shadow.out
-                    su
-                    ncurses.out # clear
-                    unzip
-                    zip
-                    gzip
-                    procps # free
-                  ])
-                  ++ oldAttrs.buildInputs;
-              });
-            };
-          });
+          # Copying `OS_ARCHES` from the Makefile.
+          x86_64-linux = buildFat "linux_amd64";
+          aarch64-linux = buildFat "linux_arm64";
+          x86_64-darwin = buildFat "darwin_amd64";
+          aarch64-darwin = buildFat "darwin_arm64";
+          x86_64-windows = buildFat "windows_amd64.exe";
+          aarch64-windows = buildFat "windows_arm64.exe";
+        };
       }
     );
 }

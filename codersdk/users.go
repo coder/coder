@@ -37,6 +37,33 @@ type UsersRequest struct {
 	Pagination
 }
 
+func (req UsersRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.Search != "" {
+			params = append(params, req.Search)
+		}
+		if req.Name != "" {
+			params = append(params, "name:"+req.Name)
+		}
+		if req.Status != "" {
+			params = append(params, "status:"+string(req.Status))
+		}
+		if req.Role != "" {
+			params = append(params, "role:"+req.Role)
+		}
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		for _, lt := range req.LoginType {
+			params = append(params, "login_type:"+string(lt))
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // MinimalUser is the minimal information needed to identify a user and show
 // them on the UI.
 type MinimalUser struct {
@@ -57,8 +84,9 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
-	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
-	LoginType LoginType  `json:"login_type"`
+	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	LoginType        LoginType  `json:"login_type"`
+	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	// Deprecated: this value should be retrieved from
 	// `codersdk.UserPreferenceSettings` instead.
 	ThemePreference string `json:"theme_preference,omitempty"`
@@ -70,6 +98,9 @@ type User struct {
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []SlimRole  `json:"roles"`
+	// HasAISeat intentionally omits omitempty so the API always includes the
+	// field, even when false.
+	HasAISeat bool `json:"has_ai_seat"`
 }
 
 type GetUsersResponse struct {
@@ -94,12 +125,13 @@ type LicensorTrialRequest struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email     string                   `json:"email" validate:"required,email"`
-	Username  string                   `json:"username" validate:"required,username"`
-	Name      string                   `json:"name" validate:"user_real_name"`
-	Password  string                   `json:"password" validate:"required"`
-	Trial     bool                     `json:"trial"`
-	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+	Email          string                         `json:"email" validate:"required,email"`
+	Username       string                         `json:"username" validate:"required,username"`
+	Name           string                         `json:"name" validate:"user_real_name"`
+	Password       string                         `json:"password" validate:"required"`
+	Trial          bool                           `json:"trial"`
+	TrialInfo      CreateFirstUserTrialInfo       `json:"trial_info"`
+	OnboardingInfo *CreateFirstUserOnboardingInfo `json:"onboarding_info,omitempty"`
 }
 
 type CreateFirstUserTrialInfo struct {
@@ -110,6 +142,13 @@ type CreateFirstUserTrialInfo struct {
 	CompanyName string `json:"company_name"`
 	Country     string `json:"country"`
 	Developers  string `json:"developers"`
+}
+
+// CreateFirstUserOnboardingInfo contains optional newsletter preference
+// data collected during first user setup.
+type CreateFirstUserOnboardingInfo struct {
+	NewsletterMarketing bool `json:"newsletter_marketing"`
+	NewsletterReleases  bool `json:"newsletter_releases"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
@@ -138,7 +177,7 @@ type CreateUserRequest struct {
 }
 
 type CreateUserRequestWithOrgs struct {
-	Email    string `json:"email" validate:"required,email" format:"email"`
+	Email    string `json:"email" validate:"required_unless=ServiceAccount true,omitempty,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
 	Password string `json:"password"`
@@ -148,6 +187,10 @@ type CreateUserRequestWithOrgs struct {
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
+	// Service accounts are admin-managed accounts that cannot login.
+	ServiceAccount bool `json:"service_account,omitempty"`
+	// Roles is an optional list of site-level roles to assign at creation.
+	Roles []string `json:"roles,omitempty"`
 }
 
 // UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
@@ -196,34 +239,125 @@ type ValidateUserPasswordResponse struct {
 type TerminalFontName string
 
 var TerminalFontNames = []TerminalFontName{
-	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
-	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+	TerminalFontUnknown, TerminalFontGeistMono, TerminalFontIBMPlexMono,
+	TerminalFontFiraCode, TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
 }
 
 const (
 	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontGeistMono     TerminalFontName = "geist-mono"
 	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
 	TerminalFontFiraCode      TerminalFontName = "fira-code"
 	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"
 	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
 )
 
+type ThemeMode string
+
+const (
+	// ThemeModeUnset is the server-side default when the user has never
+	// set a theme_mode. It is also stored for legacy auto preferences so
+	// clients can migrate the old sync-with-system setting. Clients should
+	// inspect ThemePreference for legacy auto values before treating unset
+	// mode as ThemeModeSingle for backward compatibility with PR #24672.
+	ThemeModeUnset  ThemeMode = ""
+	ThemeModeSync   ThemeMode = "sync"
+	ThemeModeSingle ThemeMode = "single"
+)
+
 type UserAppearanceSettings struct {
-	ThemePreference string           `json:"theme_preference"`
-	TerminalFont    TerminalFontName `json:"terminal_font"`
+	// ThemePreference is the legacy single-field appearance setting. In
+	// "single" mode it mirrors the active theme. In "sync" mode modern
+	// clients normally mirror the active OS slot, but older clients can
+	// update only this field, so it may diverge from ThemeLight or
+	// ThemeDark until a modern client saves the full appearance state
+	// again.
+	ThemePreference string    `json:"theme_preference"`
+	ThemeMode       ThemeMode `json:"theme_mode"`
+	// Ignored when ThemeMode is "single"
+	ThemeLight string `json:"theme_light"`
+	// Ignored when ThemeMode is "single"
+	ThemeDark    string           `json:"theme_dark"`
+	TerminalFont TerminalFontName `json:"terminal_font"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
-	ThemePreference string           `json:"theme_preference" validate:"required"`
-	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
+	ThemePreference string `json:"theme_preference" validate:"required"`
+	// ThemeMode is optional for backward compatibility. When empty,
+	// the server leaves theme_mode, theme_light, and theme_dark
+	// unchanged so older CLI clients do not erase sync-mode settings.
+	// Legacy auto preferences are the exception: they clear theme_mode
+	// so clients can migrate the old sync-with-system setting.
+	ThemeMode ThemeMode `json:"theme_mode" validate:"omitempty,oneof=sync single"`
+	// ThemeLight is required when ThemeMode is "sync". In "single"
+	// mode an empty value means "preserve the previously persisted
+	// slot" rather than "clear the slot", so partial updates that send
+	// only one slot keep the other intact.
+	ThemeLight string `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	// ThemeDark is required when ThemeMode is "sync". In "single" mode
+	// an empty value means "preserve the previously persisted slot"
+	// rather than "clear the slot", so partial updates that send only
+	// one slot keep the other intact.
+	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed bool                  `json:"task_notification_alert_dismissed"`
+	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode"`
+	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode"`
+	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode"`
+	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
+	TaskNotificationAlertDismissed *bool                 `json:"task_notification_alert_dismissed,omitempty"`
+	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
+	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
+	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
+	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+}
+
+type AgentChatSendShortcut string
+
+const (
+	AgentChatSendShortcutEnter         AgentChatSendShortcut = "enter"
+	AgentChatSendShortcutModifierEnter AgentChatSendShortcut = "modifier_enter"
+)
+
+var ValidAgentChatSendShortcuts = []AgentChatSendShortcut{
+	AgentChatSendShortcutEnter,
+	AgentChatSendShortcutModifierEnter,
+}
+
+type ThinkingDisplayMode string
+
+const (
+	ThinkingDisplayModeAuto            ThinkingDisplayMode = "auto"
+	ThinkingDisplayModePreview         ThinkingDisplayMode = "preview"
+	ThinkingDisplayModeAlwaysExpanded  ThinkingDisplayMode = "always_expanded"
+	ThinkingDisplayModeAlwaysCollapsed ThinkingDisplayMode = "always_collapsed"
+)
+
+var ValidThinkingDisplayModes = []ThinkingDisplayMode{
+	ThinkingDisplayModeAuto,
+	ThinkingDisplayModePreview,
+	ThinkingDisplayModeAlwaysExpanded,
+	ThinkingDisplayModeAlwaysCollapsed,
+}
+
+type AgentDisplayMode string
+
+const (
+	AgentDisplayModeAuto            AgentDisplayMode = "auto"
+	AgentDisplayModeAlwaysExpanded  AgentDisplayMode = "always_expanded"
+	AgentDisplayModeAlwaysCollapsed AgentDisplayMode = "always_collapsed"
+)
+
+var ValidAgentDisplayModes = []AgentDisplayMode{
+	AgentDisplayModeAuto,
+	AgentDisplayModeAlwaysExpanded,
+	AgentDisplayModeAlwaysCollapsed,
 }
 
 type UpdateUserPasswordRequest struct {
@@ -333,6 +467,14 @@ type OIDCAuthMethod struct {
 	AuthMethod
 	SignInText string `json:"signInText"`
 	IconURL    string `json:"iconUrl"`
+}
+
+// OIDCClaimsResponse represents the merged OIDC claims for a user.
+type OIDCClaimsResponse struct {
+	// Claims are the merged claims from the OIDC provider. These
+	// are the union of the ID token claims and the userinfo claims,
+	// where userinfo claims take precedence on conflict.
+	Claims map[string]interface{} `json:"claims"`
 }
 
 type UserParameter struct {
@@ -644,6 +786,19 @@ func OrganizationMembersQueryOptionGithubUserID(githubUserID int64) Organization
 	}
 }
 
+func (c *Client) OrganizationMember(ctx context.Context, organizationIdent, userIdent string) (OrganizationMemberWithUserData, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationIdent, userIdent), nil)
+	if err != nil {
+		return OrganizationMemberWithUserData{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMemberWithUserData{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMemberWithUserData
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
 // OrganizationMembers lists all members in an organization
 func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID, opts ...OrganizationMembersQueryOption) ([]OrganizationMemberWithUserData, error) {
 	var query OrganizationMembersQuery
@@ -660,6 +815,25 @@ func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UU
 	}
 	var members []OrganizationMemberWithUserData
 	return members, json.NewDecoder(res.Body).Decode(&members)
+}
+
+// OrganizationMembers lists filtered and paginated members in an organization
+func (c *Client) OrganizationMembersPaginated(ctx context.Context, organizationID uuid.UUID, req UsersRequest) (PaginatedMembersResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/paginated-members", organizationID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return PaginatedMembersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return PaginatedMembersResponse{}, ReadBodyAsError(res)
+	}
+	var membersRes PaginatedMembersResponse
+	return membersRes, json.NewDecoder(res.Body).Decode(&membersRes)
 }
 
 // UpdateUserRoles grants the userID the specified roles.
@@ -704,6 +878,20 @@ func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) 
 	}
 	var roles UserRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
+}
+
+// UserOIDCClaims returns the merged OIDC claims for the authenticated user.
+func (c *Client) UserOIDCClaims(ctx context.Context) (OIDCClaimsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/oidc-claims", nil)
+	if err != nil {
+		return OIDCClaimsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OIDCClaimsResponse{}, ReadBodyAsError(res)
+	}
+	var resp OIDCClaimsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // LoginWithPassword creates a session token authenticating with an email and password.
@@ -842,30 +1030,7 @@ func (c *Client) UpdateUserQuietHoursSchedule(ctx context.Context, userIdent str
 func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
-		func(r *http.Request) {
-			q := r.URL.Query()
-			var params []string
-			if req.Search != "" {
-				params = append(params, req.Search)
-			}
-			if req.Name != "" {
-				params = append(params, "name:"+req.Name)
-			}
-			if req.Status != "" {
-				params = append(params, "status:"+string(req.Status))
-			}
-			if req.Role != "" {
-				params = append(params, "role:"+req.Role)
-			}
-			if req.SearchQuery != "" {
-				params = append(params, req.SearchQuery)
-			}
-			for _, lt := range req.LoginType {
-				params = append(params, "login_type:"+string(lt))
-			}
-			q.Set("q", strings.Join(params, " "))
-			r.URL.RawQuery = q.Encode()
-		},
+		req.asRequestOption(),
 	)
 	if err != nil {
 		return GetUsersResponse{}, err

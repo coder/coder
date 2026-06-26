@@ -1,20 +1,31 @@
-import { useTheme } from "@emotion/react";
-import Divider from "@mui/material/Divider";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import Skeleton, { type SkeletonProps } from "@mui/material/Skeleton";
-import type { Breakpoint } from "@mui/system/createTheme";
+import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
+import {
+	type ComponentProps,
+	type FC,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
 	isApiValidationError,
-} from "api/errors";
-import { Button } from "components/Button/Button";
-import { InputGroup } from "components/InputGroup/InputGroup";
-import { SearchField } from "components/SearchField/SearchField";
-import { useDebouncedFunction } from "hooks/debounce";
-import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+} from "#/api/errors";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { Skeleton, type SkeletonProps } from "#/components/Skeleton/Skeleton";
+import { useDebouncedFunction } from "#/hooks/debounce";
+import { cn } from "#/utils/cn";
 
 type PresetFilter = {
 	name: string;
@@ -96,15 +107,13 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 		return {};
 	}
 
-	const pairs = filterQuery.split(" ");
 	const result: FilterValues = {};
+	const keyValuePair = /(\w+):"([^"]+)"|(\w+):(\S+)/g;
 
-	for (const pair of pairs) {
-		const [key, value] = pair.split(":") as [
-			keyof FilterValues,
-			string | undefined,
-		];
-		if (value) {
+	for (const match of filterQuery.matchAll(keyValuePair)) {
+		const key = match[1] ?? match[3];
+		const value = match[2] ?? match[4];
+		if (key && value) {
 			result[key] = value;
 		}
 	}
@@ -118,7 +127,8 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 	for (const key in filterValue) {
 		const value = filterValue[key];
 		if (value) {
-			result += `${key}:${value} `;
+			const needsQuotes = value.includes(" ");
+			result += needsQuotes ? `${key}:"${value}" ` : `${key}:${value} `;
 		}
 	}
 
@@ -128,13 +138,9 @@ const stringifyFilter = (filterValue: FilterValues): string => {
 const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 	return (
 		<Skeleton
-			variant="rectangular"
 			height={36}
 			{...skeletonProps}
-			css={(theme) => ({
-				backgroundColor: theme.palette.background.paper,
-				borderRadius: "6px",
-			})}
+			className="bg-surface-tertiary rounded-md w-52"
 		>
 			{children}
 		</Skeleton>
@@ -142,10 +148,10 @@ const BaseSkeleton: FC<SkeletonProps> = ({ children, ...skeletonProps }) => {
 };
 
 export const MenuSkeleton: FC = () => {
-	return <BaseSkeleton css={{ minWidth: 200, flexShrink: 0 }} />;
+	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
 };
 
-type FilterProps = {
+type FilterProps = ComponentProps<"div"> & {
 	filter: ReturnType<typeof useFilter>;
 	optionsSkeleton: ReactNode;
 	isLoading: boolean;
@@ -155,13 +161,6 @@ type FilterProps = {
 	error?: unknown;
 	options?: ReactNode;
 	presets: PresetFilter[];
-
-	/**
-	 * The CSS media query breakpoint that defines when the UI will try
-	 * displaying all options on one row, regardless of the number of options
-	 * present
-	 */
-	singleRowBreakpoint?: Breakpoint;
 };
 
 export const Filter: FC<FilterProps> = ({
@@ -174,9 +173,9 @@ export const Filter: FC<FilterProps> = ({
 	learnMoreLabel2,
 	learnMoreLink2,
 	presets,
-	singleRowBreakpoint = "lg",
+	className,
+	...props
 }) => {
-	const theme = useTheme();
 	// Storing local copy of the filter query so that it can be updated more
 	// aggressively without re-renders rippling out to the rest of the app every
 	// single time. Exists for performance reasons - not really a good way to
@@ -201,16 +200,8 @@ export const Filter: FC<FilterProps> = ({
 
 	return (
 		<div
-			css={{
-				display: "flex",
-				gap: 8,
-				marginBottom: 16,
-				flexWrap: "wrap",
-
-				[theme.breakpoints.up(singleRowBreakpoint)]: {
-					flexWrap: "nowrap",
-				},
-			}}
+			className={cn("flex gap-2 flex-wrap lg:flex-nowrap mb-4", className)}
+			{...props}
 		>
 			{isLoading ? (
 				<>
@@ -219,39 +210,42 @@ export const Filter: FC<FilterProps> = ({
 				</>
 			) : (
 				<>
-					<InputGroup css={{ width: "100%" }}>
-						<PresetMenu
-							onSelect={(query) => filter.update(query)}
-							presets={presets}
-							learnMoreLink={learnMoreLink}
-							learnMoreLabel2={learnMoreLabel2}
-							learnMoreLink2={learnMoreLink2}
-						/>
+					<PresetMenu
+						value={filter.query}
+						onSelect={(query) => filter.update(query)}
+						presets={presets}
+						learnMoreLink={learnMoreLink}
+						learnMoreLabel2={learnMoreLabel2}
+						learnMoreLink2={learnMoreLink2}
+					/>
+					<div className="flex flex-col gap-2 w-full">
 						<SearchField
-							css={{ flex: 1 }}
-							error={shouldDisplayError}
-							helperText={
-								shouldDisplayError
-									? getValidationErrorMessage(error)
-									: undefined
-							}
-							placeholder="Search..."
+							ref={textboxInputRef}
+							className="w-full"
 							value={queryCopy}
+							aria-label="Filter"
+							aria-invalid={shouldDisplayError}
 							onChange={(query) => {
 								setQueryCopy(query);
 								filter.debounceUpdate(query);
 							}}
-							InputProps={{
-								ref: textboxInputRef,
-								"aria-label": "Filter",
-								onBlur: () => {
-									if (queryCopy !== filter.query) {
-										setQueryCopy(filter.query);
-									}
-								},
+							onClear={() => {
+								setQueryCopy("");
+								filter.cancelDebounce();
+								filter.update("");
 							}}
+							onBlur={() => {
+								if (queryCopy === filter.query) return;
+								setQueryCopy(filter.query);
+							}}
+							placeholder="Search..."
 						/>
-					</InputGroup>
+						{hasError(error) && (
+							<span className="text-content-destructive text-sm">
+								{getValidationErrorMessage(error)}
+							</span>
+						)}
+					</div>
 					{options}
 				</>
 			)}
@@ -260,6 +254,7 @@ export const Filter: FC<FilterProps> = ({
 };
 
 interface PresetMenuProps {
+	value: string;
 	presets: PresetFilter[];
 	learnMoreLink?: string;
 	learnMoreLabel2?: string;
@@ -268,86 +263,51 @@ interface PresetMenuProps {
 }
 
 const PresetMenu: FC<PresetMenuProps> = ({
+	value,
 	presets,
 	learnMoreLink,
 	learnMoreLabel2,
 	learnMoreLink2,
 	onSelect,
 }) => {
-	const [isOpen, setIsOpen] = useState(false);
-	const anchorRef = useRef<HTMLButtonElement>(null);
-	const theme = useTheme();
-
 	return (
-		<>
-			<Button
-				onClick={() => setIsOpen(true)}
-				ref={anchorRef}
-				variant="outline"
-				className="h-9"
-			>
-				Filters
-				<ChevronDownIcon />
-			</Button>
-			<Menu
-				id="filter-menu"
-				anchorEl={anchorRef.current}
-				open={isOpen}
-				onClose={() => setIsOpen(false)}
-				anchorOrigin={{
-					vertical: "bottom",
-					horizontal: "left",
-				}}
-				transformOrigin={{
-					vertical: "top",
-					horizontal: "left",
-				}}
-				css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
-			>
-				{presets.map((presetFilter) => (
-					<MenuItem
-						css={{ fontSize: 14 }}
-						key={presetFilter.name}
-						onClick={() => {
-							onSelect(presetFilter.query);
-							setIsOpen(false);
-						}}
-					>
-						{presetFilter.name}
-					</MenuItem>
-				))}
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="outline">
+					<SlidersHorizontalIcon />
+					Filters
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent side="bottom" align="start">
+				<DropdownMenuRadioGroup value={value}>
+					{presets.map((presetFilter) => (
+						<DropdownMenuRadioItem
+							value={presetFilter.query}
+							onSelect={() => onSelect(presetFilter.query)}
+							key={presetFilter.name}
+						>
+							{presetFilter.name}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
+				{(learnMoreLink || learnMoreLink2) && <DropdownMenuSeparator />}
 				{learnMoreLink && (
-					<Divider css={{ borderColor: theme.palette.divider }} />
-				)}
-				{learnMoreLink && (
-					<MenuItem
-						component="a"
-						href={learnMoreLink}
-						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
-						onClick={() => {
-							setIsOpen(false);
-						}}
-					>
-						<ExternalLinkIcon className="size-icon-xs" />
-						View advanced filtering
-					</MenuItem>
+					<DropdownMenuItem asChild>
+						<a href={learnMoreLink} target="_blank" rel="noreferrer">
+							<ExternalLinkIcon className="size-icon-xs" />
+							View advanced filtering
+						</a>
+					</DropdownMenuItem>
 				)}
 				{learnMoreLink2 && learnMoreLabel2 && (
-					<MenuItem
-						component="a"
-						href={learnMoreLink2}
-						target="_blank"
-						css={{ fontSize: 13, fontWeight: 500 }}
-						onClick={() => {
-							setIsOpen(false);
-						}}
-					>
-						<ExternalLinkIcon className="size-icon-xs" />
-						{learnMoreLabel2}
-					</MenuItem>
+					<DropdownMenuItem asChild>
+						<a href={learnMoreLink2} target="_blank" rel="noreferrer">
+							<ExternalLinkIcon className="size-icon-xs" />
+							{learnMoreLabel2}
+						</a>
+					</DropdownMenuItem>
 				)}
-			</Menu>
-		</>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };

@@ -33,7 +33,7 @@ func TestStatePull(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).
-			Seed(database.WorkspaceBuild{ProvisionerState: wantState}).
+			Seed(database.WorkspaceBuild{}).ProvisionerState(wantState).
 			Do()
 		statefilePath := filepath.Join(t.TempDir(), "state")
 		inv, root := clitest.New(t, "state", "pull", r.Workspace.Name, statefilePath)
@@ -54,7 +54,7 @@ func TestStatePull(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).
-			Seed(database.WorkspaceBuild{ProvisionerState: wantState}).
+			Seed(database.WorkspaceBuild{}).ProvisionerState(wantState).
 			Do()
 		inv, root := clitest.New(t, "state", "pull", r.Workspace.Name)
 		var gotState bytes.Buffer
@@ -74,7 +74,7 @@ func TestStatePull(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).
-			Seed(database.WorkspaceBuild{ProvisionerState: wantState}).
+			Seed(database.WorkspaceBuild{}).ProvisionerState(wantState).
 			Do()
 		inv, root := clitest.New(t, "state", "pull", taUser.Username+"/"+r.Workspace.Name,
 			"--build", fmt.Sprintf("%d", r.Build.BuildNumber))
@@ -170,7 +170,7 @@ func TestStatePush(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).
-			Seed(database.WorkspaceBuild{ProvisionerState: initialState}).
+			Seed(database.WorkspaceBuild{}).ProvisionerState(initialState).
 			Do()
 		wantState := []byte("updated state")
 		stateFile, err := os.CreateTemp(t.TempDir(), "")

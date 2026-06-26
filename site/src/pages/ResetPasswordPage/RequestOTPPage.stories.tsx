@@ -1,14 +1,14 @@
-import { mockApiError } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { API } from "api/api";
 import { spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { mockApiError } from "#/testHelpers/entities";
+import { withToaster } from "#/testHelpers/storybook";
 import RequestOTPPage from "./RequestOTPPage";
 
 const meta: Meta<typeof RequestOTPPage> = {
 	title: "pages/ResetPasswordPage/RequestOTPPage",
 	component: RequestOTPPage,
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 };
 
 export default meta;
@@ -23,6 +23,24 @@ export const Success: Story = {
 		const user = userEvent.setup();
 		const emailInput = await canvas.findByLabelText(/email/i);
 		await user.type(emailInput, "admin@coder.com");
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+	},
+};
+
+export const InvalidEmail: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		const emailInput = await canvas.findByLabelText(/email/i);
+		await user.type(emailInput, "not-an-email");
+		await user.click(canvas.getByRole("button", { name: /reset password/i }));
+	},
+};
+
+export const EmptySubmission: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
 	},
 };

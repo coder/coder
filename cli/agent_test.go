@@ -44,6 +44,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 
 		clitest.Start(t, inv)
@@ -76,6 +77,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-token", r.AgentToken,
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 		// Set the subsystems for the agent.
 		inv.Environ.Set(agent.EnvAgentSubsystem, fmt.Sprintf("%s,%s", codersdk.AgentSubsystemExectrace, codersdk.AgentSubsystemEnvbox))
@@ -109,7 +111,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		t.Cleanup(func() {
 			_ = provisionerCloser.Close()
 		})
-		client := codersdk.New(serverURL)
+		client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 		t.Cleanup(func() {
 			cancelFunc()
 			_ = provisionerCloser.Close()
@@ -120,8 +122,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		var (
 			admin              = coderdtest.CreateFirstUser(t, client)
 			member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-			called             int64
-			derpCalled         int64
+			called             atomic.Int64
+			derpCalled         atomic.Int64
 		)
 
 		setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,9 +133,9 @@ func TestWorkspaceAgent(t *testing.T) {
 				assert.Equal(t, "very-wow-"+client.URL.String(), r.Header.Get("X-Process-Testing"))
 				assert.Equal(t, "more-wow", r.Header.Get("X-Process-Testing2"))
 				if strings.HasPrefix(r.URL.Path, "/derp") {
-					atomic.AddInt64(&derpCalled, 1)
+					derpCalled.Add(1)
 				} else {
-					atomic.AddInt64(&called, 1)
+					called.Add(1)
 				}
 			}
 			coderAPI.RootHandler.ServeHTTP(w, r)
@@ -158,6 +160,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-header", "X-Testing=agent",
 			"--agent-header", "Cool-Header=Ethan was Here!",
 			"--agent-header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 		clitest.Start(t, agentInv)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
@@ -175,8 +178,8 @@ func TestWorkspaceAgent(t *testing.T) {
 		err := clientInv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		require.Greater(t, atomic.LoadInt64(&called), int64(0), "expected coderd to be reached with custom headers")
-		require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called with custom headers")
+		require.Greater(t, called.Load(), int64(0), "expected coderd to be reached with custom headers")
+		require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called with custom headers")
 	})
 
 	t.Run("DisabledServers", func(t *testing.T) {
@@ -199,6 +202,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--pprof-address", "",
 			"--prometheus-address", "",
 			"--debug-address", "",
+			"--socket-path", testutil.AgentSocketPath(t),
 		)
 
 		clitest.Start(t, inv)

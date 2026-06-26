@@ -1,55 +1,74 @@
-import type { SerpentOption } from "api/typesGenerated";
-import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
+import type { FC } from "react";
+import type { SerpentOption } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { deploymentGroupHasParent } from "#/utils/deployOptions";
+import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
 
 type AIGovernanceSettingsPageViewProps = {
 	options: SerpentOption[];
+	featureAIBridgeEntitled: boolean;
 	featureAIBridgeEnabled: boolean;
 };
 
 export const AIGovernanceSettingsPageView: FC<
 	AIGovernanceSettingsPageViewProps
-> = ({ options, featureAIBridgeEnabled }) => {
+> = ({ options, featureAIBridgeEntitled, featureAIBridgeEnabled }) => {
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
 			</SettingsHeader>
 
-			{featureAIBridgeEnabled ? (
-				<div>
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
-						}
-					>
-						<SettingsHeaderTitle hierarchy="secondary" level="h2">
-							AI Bridge
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Monitor and manage AI requests across your deployment.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+			<div>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-gateway")} />
+					}
+				>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						AI Gateway
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Monitor and manage AI requests across your deployment.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-					<OptionsTable
-						options={options
-							.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
-							.filter((o) => !o.annotations?.secret === true)}
-					/>
-				</div>
-			) : (
-				<PaywallAIGovernance />
-			)}
-		</Stack>
+				{featureAIBridgeEntitled ? (
+					<>
+						{!featureAIBridgeEnabled && (
+							<Alert className="mb-12" severity="warning" prominent>
+								<AlertTitle>
+									AI Gateway is included in your license, but not set up yet.
+								</AlertTitle>
+								<AlertDescription>
+									You have access to AI Governance, but it still needs to be
+									setup. Check out the{" "}
+									<Link href={docs("/ai-coder/ai-gateway")} target="_blank">
+										AI Gateway
+									</Link>{" "}
+									documentation to get started.
+								</AlertDescription>
+							</Alert>
+						)}
+						<OptionsTable
+							options={options
+								.filter((o) => deploymentGroupHasParent(o.group, "AI Gateway"))
+								.filter((o) => !o.annotations?.secret === true)}
+						/>
+					</>
+				) : (
+					<PaywallAIGovernance />
+				)}
+			</div>
+		</div>
 	);
 };

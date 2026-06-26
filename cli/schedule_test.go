@@ -19,8 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // setupTestSchedule creates 4 workspaces:
@@ -97,20 +97,21 @@ func TestScheduleShow(t *testing.T) {
 		inv, root := clitest.New(t, "schedule", "show")
 		//nolint:gocritic // Testing that owner user sees all
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: they should see their own workspaces.
 		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
-		pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
-		pty.ExpectMatch(sched.Humanize())
-		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
-		pty.ExpectMatch("8h")
-		pty.ExpectMatch(ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: b-owner-ws2 has only autostart enabled.
-		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
-		pty.ExpectMatch(sched.Humanize())
-		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("OwnerAll", func(t *testing.T) {
@@ -118,26 +119,27 @@ func TestScheduleShow(t *testing.T) {
 		inv, root := clitest.New(t, "schedule", "show", "--all")
 		//nolint:gocritic // Testing that owner user sees all
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: they should see all workspaces
 		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
-		pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
-		pty.ExpectMatch(sched.Humanize())
-		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
-		pty.ExpectMatch("8h")
-		pty.ExpectMatch(ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: b-owner-ws2 has only autostart enabled.
-		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
-		pty.ExpectMatch(sched.Humanize())
-		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 		// 3rd workspace: c-member-ws3 has only autostop enabled.
-		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
-		pty.ExpectMatch("8h")
-		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 4th workspace: d-member-ws4 has neither autostart nor autostop enabled.
-		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
 	})
 
 	t.Run("OwnerSearchByName", func(t *testing.T) {
@@ -145,14 +147,15 @@ func TestScheduleShow(t *testing.T) {
 		inv, root := clitest.New(t, "schedule", "show", "--search", "name:"+ws[1].Name)
 		//nolint:gocritic // Testing that owner user sees all
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: they should see workspaces matching that query
 		// 2nd workspace: b-owner-ws2 has only autostart enabled.
-		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
-		pty.ExpectMatch(sched.Humanize())
-		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("OwnerOneArg", func(t *testing.T) {
@@ -160,37 +163,39 @@ func TestScheduleShow(t *testing.T) {
 		inv, root := clitest.New(t, "schedule", "show", ws[2].OwnerName+"/"+ws[2].Name)
 		//nolint:gocritic // Testing that owner user sees all
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: they should see that workspace
 		// 3rd workspace: c-member-ws3 has only autostop enabled.
-		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
-		pty.ExpectMatch("8h")
-		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("MemberNoArgs", func(t *testing.T) {
 		// When: a member specifies no args
 		inv, root := clitest.New(t, "schedule", "show")
 		clitest.SetupConfig(t, memberClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: they should see their own workspaces
 		// 1st workspace: c-member-ws3 has only autostop enabled.
-		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
-		pty.ExpectMatch("8h")
-		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: d-member-ws4 has neither autostart nor autostop enabled.
-		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
 	})
 
 	t.Run("MemberAll", func(t *testing.T) {
 		// When: a member lists all workspaces
 		inv, root := clitest.New(t, "schedule", "show", "--all")
 		clitest.SetupConfig(t, memberClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		errC := make(chan error)
 		go func() {
@@ -200,11 +205,11 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should only see their own
 		// 1st workspace: c-member-ws3 has only autostop enabled.
-		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
-		pty.ExpectMatch("8h")
-		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: d-member-ws4 has neither autostart nor autostop enabled.
-		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
 	})
 
 	t.Run("JSON", func(t *testing.T) {
@@ -276,13 +281,14 @@ func TestScheduleModify(t *testing.T) {
 		)
 		//nolint:gocritic // this workspace is not owned by the same user
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		pty.ExpectMatch(ws[3].OwnerName + "/" + ws[3].Name)
-		pty.ExpectMatch(sched.Humanize())
-		pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("SetStop", func(t *testing.T) {
@@ -292,13 +298,14 @@ func TestScheduleModify(t *testing.T) {
 		)
 		//nolint:gocritic // this workspace is not owned by the same user
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		pty.ExpectMatch(ws[2].OwnerName + "/" + ws[2].Name)
-		pty.ExpectMatch("8h30m")
-		pty.ExpectMatch(ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h30m")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("UnsetStart", func(t *testing.T) {
@@ -308,11 +315,12 @@ func TestScheduleModify(t *testing.T) {
 		)
 		//nolint:gocritic // this workspace is owned by owner
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		pty.ExpectMatch(ws[1].OwnerName + "/" + ws[1].Name)
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
 	})
 
 	t.Run("UnsetStop", func(t *testing.T) {
@@ -322,11 +330,12 @@ func TestScheduleModify(t *testing.T) {
 		)
 		//nolint:gocritic // this workspace is owned by owner
 		clitest.SetupConfig(t, ownerClient, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
+		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
 	})
 }
 
@@ -352,8 +361,6 @@ func TestScheduleOverride(t *testing.T) {
 			require.NoError(t, err, "invalid schedule")
 			ownerClient, _, _, ws := setupTestSchedule(t, sched)
 			now := time.Now()
-			// To avoid the likelihood of time-related flakes, only matching up to the hour.
-			expectedDeadline := now.In(loc).Add(10 * time.Hour).Format("2006-01-02T15:")
 
 			// When: we override the stop schedule
 			inv, root := clitest.New(t,
@@ -361,15 +368,29 @@ func TestScheduleOverride(t *testing.T) {
 			)
 
 			clitest.SetupConfig(t, ownerClient, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			ctx := testutil.Context(t, testutil.WaitShort)
 			require.NoError(t, inv.Run())
 
+			// Fetch the workspace to get the actual deadline set by the
+			// server. Computing our own expected deadline from a separately
+			// captured time.Now() is racy: the CLI command calls time.Now()
+			// internally, and with the Asia/Kolkata +05:30 offset the hour
+			// boundary falls at :30 UTC minutes. A small delay between our
+			// time.Now() and the command's is enough to land in different
+			// hours.
+			updated, err := ownerClient.Workspace(context.Background(), ws[0].ID)
+			require.NoError(t, err)
+			require.False(t, updated.LatestBuild.Deadline.IsZero(), "deadline should be set after extend")
+			require.WithinDuration(t, now.Add(10*time.Hour), updated.LatestBuild.Deadline.Time, 5*time.Minute)
+			expectedDeadline := updated.LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339)
+
 			// Then: the updated schedule should be shown
-			pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
-			pty.ExpectMatch(sched.Humanize())
-			pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
-			pty.ExpectMatch("8h")
-			pty.ExpectMatch(expectedDeadline)
+			stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+			stdout.ExpectMatch(ctx, sched.Humanize())
+			stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+			stdout.ExpectMatch(ctx, "8h")
+			stdout.ExpectMatch(ctx, expectedDeadline)
 		})
 	}
 }
@@ -411,13 +432,14 @@ func TestScheduleStart_TemplateAutostartRequirement(t *testing.T) {
 			"schedule", "start", workspace.Name, "9:30AM", "Mon-Fri",
 		)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		require.NoError(t, inv.Run())
 
 		// Then: warning should be shown
 		// In AGPL, this will show all days (enterprise feature defaults to all days allowed)
-		pty.ExpectMatch("Warning")
-		pty.ExpectMatch("may only autostart")
+		stdout.ExpectMatch(ctx, "Warning")
+		stdout.ExpectMatch(ctx, "may only autostart")
 	})
 
 	t.Run("NoWarningWhenManual", func(t *testing.T) {

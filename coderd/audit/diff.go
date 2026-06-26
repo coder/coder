@@ -32,7 +32,16 @@ type Auditable interface {
 		idpsync.OrganizationSyncSettings |
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |
-		database.TaskTable
+		database.TaskTable |
+		database.AISeatState |
+		database.AIProvider |
+		database.AIProviderKey |
+		database.AIGatewayKey |
+		database.Chat |
+		database.AuditableGroupAIBudget |
+		database.AuditableUserAIBudgetOverride |
+		database.UserSecret |
+		database.UserSkill
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

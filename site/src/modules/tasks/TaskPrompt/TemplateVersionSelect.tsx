@@ -1,14 +1,14 @@
-import { templateVersions } from "api/queries/templates";
-import { Badge } from "components/Badge/Badge";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { templateVersions } from "#/api/queries/templates";
+import { Badge } from "#/components/Badge/Badge";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectValue,
-} from "components/Select/Select";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import type { FC } from "react";
-import { useQuery } from "react-query";
+} from "#/components/Select/Select";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 
 type TemplateVersionSelectProps = {
@@ -48,10 +48,10 @@ export const TemplateVersionSelect: FC<TemplateVersionSelectProps> = ({
 				{versions.map((version) => {
 					return (
 						<SelectItem value={version.id} key={version.id}>
-							<span className="flex items-center gap-2">
-								{version.name}
+							<span className="flex items-center gap-2 min-w-0">
+								<span className="truncate">{version.name}</span>
 								{activeVersionId === version.id && (
-									<Badge size="xs" variant="green">
+									<Badge size="xs" variant="green" className="shrink-0">
 										Active
 									</Badge>
 								)}
