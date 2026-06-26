@@ -7,8 +7,8 @@ import { asRecord, asString, type ToolStatus } from "./utils";
 
 /**
  * Collapsed-by-default rendering for `list_agents` tool calls. Shows
- * "Listed N agents" with a chevron; expanding reveals the agent list
- * with links to each agent's chat.
+ * "Listed N of M agents" with a chevron; expanding reveals the agent
+ * list with links to each agent's chat.
  */
 export const ListAgentsTool: React.FC<{
 	agents: unknown[];

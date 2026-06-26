@@ -770,6 +770,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 				chat_id: "every-explore-child",
 				type: "explore",
 				status: "completed",
+				interrupted: true,
 			},
 		},
 
@@ -1705,6 +1706,7 @@ export const WithMixedSubagentTranscript: Story = {
 									chat_id: "legacy-child",
 									type: "general",
 									status: "completed",
+									interrupted: "true",
 								},
 							},
 						],

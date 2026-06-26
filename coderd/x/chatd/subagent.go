@@ -1450,6 +1450,10 @@ func (p *Server) checkSubagentCompletion(
 		return database.Chat{}, "", false, xerrors.Errorf("get chat: %w", err)
 	}
 
+	// interrupting is transient: the worker transitions it to
+	// waiting (no queued messages) or running (queued messages).
+	// Treat it as not-done so the agent settles before
+	// classification, avoiding stale partial output.
 	if chat.Status == database.ChatStatusPending ||
 		chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusInterrupting {
