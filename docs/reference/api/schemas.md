@@ -3987,6 +3987,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
+## codersdk.ClusterConfig
+
+```json
+{
+  "host": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `host` | string | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -5578,6 +5592,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -6180,6 +6197,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "browser_only": true,
   "cache_directory": "string",
   "cli_upgrade_message": "string",
+  "cluster": {
+    "host": "string"
+  },
   "config": "string",
   "config_ssh": {
     "deploymentName": "string",
@@ -6607,6 +6627,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `browser_only`                                 | boolean                                                                                              | false    |              |                                                                    |
 | `cache_directory`                              | string                                                                                               | false    |              |                                                                    |
 | `cli_upgrade_message`                          | string                                                                                               | false    |              |                                                                    |
+| `cluster`                                      | [codersdk.ClusterConfig](#codersdkclusterconfig)                                                     | false    |              |                                                                    |
 | `config`                                       | string                                                                                               | false    |              |                                                                    |
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |

@@ -17838,6 +17838,14 @@ const docTemplate = `{
                 "ChatWatchEventKindContextDirty"
             ]
         },
+        "codersdk.ClusterConfig": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -19173,6 +19181,9 @@ const docTemplate = `{
                 },
                 "cli_upgrade_message": {
                     "type": "string"
+                },
+                "cluster": {
+                    "$ref": "#/definitions/codersdk.ClusterConfig"
                 },
                 "config": {
                     "type": "string"
