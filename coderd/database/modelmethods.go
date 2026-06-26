@@ -869,6 +869,13 @@ func (k CryptoKey) ExpiresAt(keyDuration time.Duration) time.Time {
 	return k.StartsAt.Add(keyDuration).UTC()
 }
 
+// DecodeString hex-decodes the key's secret. It is only valid for features
+// whose secret is hex-encoded bytes; it must NOT be used for nats_ca, whose
+// secret is a PEM certificate+key bundle (see coderd/cryptokeys parseCASecret).
+//
+// TODO: this method currently has no callers (the keycache hex-decodes via its
+// own helper). Investigate removing it, or making it feature-aware, so the
+// secret column's dual format (hex bytes vs PEM bundle) cannot be misdecoded.
 func (k CryptoKey) DecodeString() ([]byte, error) {
 	return hex.DecodeString(k.Secret.String)
 }
