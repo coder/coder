@@ -2,6 +2,7 @@ package integrationtest
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -34,15 +35,17 @@ func TestAgentFirewallHeaders(t *testing.T) {
 		reqBody, err := sjson.SetBytes(fix.Request(), "stream", false)
 		require.NoError(t, err)
 
+		agentFirewallSessionID := "e5f6a7b8-1234-5678-9abc-def012345678"
+		agentFirewallSequenceNumber := int32(42)
 		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathOpenAIChatCompletions, reqBody, http.Header{
-			agplaibridge.HeaderAgentFirewallSessionID:      {"e5f6a7b8-1234-5678-9abc-def012345678"},
-			agplaibridge.HeaderAgentFirewallSequenceNumber: {"42"},
+			agplaibridge.HeaderAgentFirewallSessionID:      {agentFirewallSessionID},
+			agplaibridge.HeaderAgentFirewallSequenceNumber: {fmt.Sprintf("%d", agentFirewallSequenceNumber)},
 		})
 		require.NoError(t, err)
 		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		// Drain body so asyncRecorder.Wait() flushes pending recordings.
+		// Read the full response body so that AI Gateway can record the interception.
 		_, err = io.ReadAll(resp.Body)
 		require.NoError(t, err)
 
@@ -50,9 +53,9 @@ func TestAgentFirewallHeaders(t *testing.T) {
 		interceptions := bridgeServer.Recorder.RecordedInterceptions()
 		require.Len(t, interceptions, 1)
 		require.NotNil(t, interceptions[0].AgentFirewallSessionID)
-		assert.Equal(t, "e5f6a7b8-1234-5678-9abc-def012345678", *interceptions[0].AgentFirewallSessionID)
+		assert.Equal(t, agentFirewallSessionID, *interceptions[0].AgentFirewallSessionID)
 		require.NotNil(t, interceptions[0].AgentFirewallSequenceNumber)
-		assert.Equal(t, int32(42), *interceptions[0].AgentFirewallSequenceNumber)
+		assert.Equal(t, agentFirewallSequenceNumber, *interceptions[0].AgentFirewallSequenceNumber)
 
 		// Verify firewall headers were stripped before reaching upstream.
 		received := upstream.ReceivedRequests()
@@ -82,8 +85,8 @@ func TestAgentFirewallHeaders(t *testing.T) {
 		reqBody, err := sjson.SetBytes(fix.Request(), "stream", false)
 		require.NoError(t, err)
 
-		// Session ID without a sequence number is malformed; the
-		// validation matrix itself is covered by the unit tests for
+		// Session ID without a sequence number is malformed; the rest of
+		// the validation matrix itself is covered by the unit tests for
 		// extractAgentFirewallHeaders.
 		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathOpenAIChatCompletions, reqBody, http.Header{
 			agplaibridge.HeaderAgentFirewallSessionID: {"e5f6a7b8-1234-5678-9abc-def012345678"},
