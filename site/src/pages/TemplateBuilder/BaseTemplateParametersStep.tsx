@@ -123,12 +123,11 @@ export const BaseTemplateParametersStep: FC<
 					<div className="mt-6">
 						<MemoizedMarkdown
 							className={cn(
-								"text-xs font-normal",
-								"[&_h2]:mt-4 [&_h2]:text-sm [&_h2]:font-semibold",
-								"[&_h3]:mt-4 [&_h3]:text-xs [&_h2]:font-semibold",
-								"[&_p]:text-content-secondary",
-								"[&_a]:text-xs [&_a]:font-normal",
-								"[&_code]:text-xs",
+								"text-sm font-normal",
+								"[&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-semibold",
+								"[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
+								"[&_p]:mb-3 [&_p]:text-content-secondary",
+								"[&_a]:font-normal",
 							)}
 						>
 							{prerequisites}
