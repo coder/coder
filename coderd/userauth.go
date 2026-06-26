@@ -1489,18 +1489,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Audit-style signal when the INSECURE email fallback resolves a login
-	// with a linked_id mismatch. The existing user_link's linked_id is
-	// preserved; only the OAuth token/claims are refreshed downstream.
-	if api.OIDCConfig.EmailFallback && user.ID != uuid.Nil && link.LinkedID != "" && link.LinkedID != oidcLinkedID(idToken) {
-		logger.Warn(ctx, "oauth2: INSECURE oidc email fallback resolved login with mismatched linked_id",
-			slog.F("email", email),
-			slog.F("user_id", user.ID),
-			slog.F("existing_linked_id", link.LinkedID),
-			slog.F("login_linked_id", oidcLinkedID(idToken)),
-		)
-	}
-
 	orgSync, orgSyncErr := api.IDPSync.ParseOrganizationClaims(ctx, mergedClaims)
 	if orgSyncErr != nil {
 		orgSyncErr.Write(rw, r)
