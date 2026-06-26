@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -337,14 +338,28 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
+	providers, err := api.templateVersionExternalAuthForUser(ctx, templateVersion, apiKey.UserID)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, providers)
+}
+
+// templateVersionExternalAuthForUser returns the external auth providers
+// referenced by the template version, with Authenticated reporting whether
+// the given user has a usable token for each provider. Failures are returned
+// as httperror response errors suitable for writing directly to an API
+// response.
+func (api *API) templateVersionExternalAuthForUser(ctx context.Context, templateVersion database.TemplateVersion, userID uuid.UUID) ([]codersdk.TemplateVersionExternalAuth, error) {
 	var rawProviders []database.ExternalAuthProvider
 	err := json.Unmarshal(templateVersion.ExternalAuthProviders, &rawProviders)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error reading auth config from database",
 			Detail:  err.Error(),
 		})
-		return
 	}
 
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
@@ -357,21 +372,19 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			}
 		}
 		if config == nil {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("The template version references a Git auth provider %q that no longer exists.", rawProvider.ID),
 				Detail:  "You'll need to update the template version to use a different provider.",
 			})
-			return
 		}
 
 		// This is the URL that will redirect the user with a state token.
 		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", config.ID))
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to parse access URL.",
 				Detail:  err.Error(),
 			})
-			return
 		}
 
 		provider := codersdk.TemplateVersionExternalAuth{
@@ -385,7 +398,7 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 
 		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: config.ID,
-			UserID:     apiKey.UserID,
+			UserID:     userID,
 		})
 		// If there isn't an auth link, then the user just isn't authenticated.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -393,27 +406,25 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			continue
 		}
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching external auth link.",
 				Detail:  err.Error(),
 			})
-			return
 		}
 
 		_, err = config.RefreshToken(ctx, api.Database, authLink)
 		if err != nil && !externalauth.IsInvalidTokenError(err) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			return nil, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to refresh external auth token.",
 				Detail:  err.Error(),
 			})
-			return
 		}
 
 		provider.Authenticated = err == nil
 		providers = append(providers, provider)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, providers)
+	return providers, nil
 }
 
 // @Summary Get template variables by template version

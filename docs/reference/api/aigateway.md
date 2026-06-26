@@ -1,6 +1,6 @@
 # AI Gateway
 
-## List AI Bridge clients
+## List AI Gateway clients
 
 ### Code samples
 
@@ -31,11 +31,11 @@ Alias: also available at /api/v2/aibridge/clients for backward compatibility.
 |--------|---------------------------------------------------------|-------------|-----------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
 
-<h3 id="list-ai-bridge-clients-responseschema">Response Schema</h3>
+<h3 id="list-ai-gateway-clients-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## List AI Bridge models
+## List AI Gateway models
 
 ### Code samples
 
@@ -66,11 +66,11 @@ Alias: also available at /api/v2/aibridge/models for backward compatibility.
 |--------|---------------------------------------------------------|-------------|-----------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
 
-<h3 id="list-ai-bridge-models-responseschema">Response Schema</h3>
+<h3 id="list-ai-gateway-models-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## List AI Bridge sessions
+## List AI Gateway sessions
 
 ### Code samples
 
@@ -145,7 +145,7 @@ Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get AI Bridge session threads
+## Get AI Gateway session threads
 
 ### Code samples
 

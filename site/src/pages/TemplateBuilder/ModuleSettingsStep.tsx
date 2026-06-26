@@ -7,9 +7,11 @@ import type {
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
-import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
-import { ConfigurationField } from "./ConfigurationField";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
 interface ModuleSettingsStepProps {
@@ -113,10 +115,10 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 
 	return (
 		<div className="border border-border border-solid p-6 rounded-lg">
-			<h2 className="text-lg font-semibold mb-1">Configure modules</h2>
-			<p className="text-sm text-content-secondary mb-4">
+			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Set values for module variables.
-			</p>
+			</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {
@@ -143,18 +145,9 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								iconUrl={mod.icon}
 								detailsUrl={moduleDetailsUrl(mod.id)}
 								fields={requiredFields}
-							>
-								{optionalFields.length > 0 && (
-									<CollapsibleSummary
-										label="Advanced settings"
-										className="mt-4"
-									>
-										{optionalFields.map((f) => (
-											<ConfigurationField key={f.id} field={f} />
-										))}
-									</CollapsibleSummary>
-								)}
-							</ModuleConfiguration>
+								optionalFields={optionalFields}
+							/>
+
 							{sensitiveVars.length > 0 && (
 								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-sm text-content-secondary">
 									<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />

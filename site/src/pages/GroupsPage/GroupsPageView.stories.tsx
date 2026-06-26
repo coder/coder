@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import type { Group } from "#/api/typesGenerated";
+import type { GroupAICostControl, GroupWithAICostControl } from "#/api/api";
 import { MockGroup } from "#/testHelpers/entities";
 import { GroupsPageView } from "./GroupsPageView";
 
@@ -12,11 +12,16 @@ const meta: Meta<typeof GroupsPageView> = {
 export default meta;
 type Story = StoryObj<typeof GroupsPageView>;
 
-const aiGroup = (id: string, name: string): Group => ({
+const aiGroup = (
+	id: string,
+	name: string,
+	ai_cost_control?: GroupAICostControl,
+): GroupWithAICostControl => ({
 	...MockGroup,
 	id,
 	name,
 	display_name: name,
+	ai_cost_control,
 });
 
 export const NotEnabled: Story = {
@@ -39,57 +44,39 @@ export const WithAIBudgets: Story = {
 	args: {
 		canCreateGroup: true,
 		groupsEnabled: true,
+		showAIBudget: true,
 		groups: [
-			aiGroup("ai-unlimited", "Unlimited"),
-			aiGroup("ai-under", "Under budget"),
-			aiGroup("ai-warning", "Near limit"),
-			aiGroup("ai-at-limit", "At limit"),
-			aiGroup("ai-over", "Over budget"),
-			aiGroup("ai-zero-budget", "Zero budget"),
-			aiGroup("ai-zero-both", "Zero spend and budget"),
+			aiGroup("ai-unlimited", "Unlimited", {
+				current_spend_micros: 25_492_000_000,
+				spend_limit_micros: null,
+			}),
+			aiGroup("ai-under", "Under budget", {
+				current_spend_micros: 10_000_000,
+				spend_limit_micros: 50_000_000,
+			}),
+			aiGroup("ai-warning", "Near limit", {
+				current_spend_micros: 46_000_000,
+				spend_limit_micros: 50_000_000,
+			}),
+			aiGroup("ai-at-limit", "At limit", {
+				current_spend_micros: 50_000_000,
+				spend_limit_micros: 50_000_000,
+			}),
+			aiGroup("ai-over", "Over budget", {
+				current_spend_micros: 75_000_000,
+				spend_limit_micros: 50_000_000,
+			}),
+			aiGroup("ai-zero-budget", "Zero budget", {
+				current_spend_micros: 5_000_000,
+				spend_limit_micros: 0,
+			}),
+			aiGroup("ai-zero-both", "Zero spend and budget", {
+				current_spend_micros: 0,
+				spend_limit_micros: 0,
+			}),
+			// No cost control exercises the missing-spend "-" fallback.
 			aiGroup("ai-no-data", "No data"),
 		],
-		aiBudget: {
-			isLoading: false,
-			// "ai-no-data" is omitted to exercise the missing-spend "-" fallback.
-			spend: [
-				{
-					group_id: "ai-unlimited",
-					current_spend_micros: 25_492_000_000,
-					spend_limit_micros: null,
-				},
-				{
-					group_id: "ai-under",
-					current_spend_micros: 10_000_000,
-					spend_limit_micros: 50_000_000,
-				},
-				{
-					group_id: "ai-warning",
-					current_spend_micros: 46_000_000,
-					spend_limit_micros: 50_000_000,
-				},
-				{
-					group_id: "ai-at-limit",
-					current_spend_micros: 50_000_000,
-					spend_limit_micros: 50_000_000,
-				},
-				{
-					group_id: "ai-over",
-					current_spend_micros: 75_000_000,
-					spend_limit_micros: 50_000_000,
-				},
-				{
-					group_id: "ai-zero-budget",
-					current_spend_micros: 5_000_000,
-					spend_limit_micros: 0,
-				},
-				{
-					group_id: "ai-zero-both",
-					current_spend_micros: 0,
-					spend_limit_micros: 0,
-				},
-			],
-		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -114,23 +101,23 @@ export const WithAIBudgets: Story = {
 	},
 };
 
+// Groups still loading: the table shows skeleton rows including the AI column.
 export const WithAIBudgetsLoading: Story = {
 	args: {
-		groups: [MockGroup],
+		groups: undefined,
 		canCreateGroup: true,
 		groupsEnabled: true,
-		aiBudget: { spend: undefined, isLoading: true },
+		showAIBudget: true,
 	},
 };
 
-// Spend unavailable (request failed or returned nothing): groups fall back to
-// "-". The error toast is fired by the GroupsPage container, not this view.
+// Cost control unset for a group: the cell falls back to "-".
 export const WithAIBudgetsSpendUnavailable: Story = {
 	args: {
 		groups: [aiGroup("ai-unavailable", "Spend unavailable")],
 		canCreateGroup: true,
 		groupsEnabled: true,
-		aiBudget: { spend: undefined, isLoading: false },
+		showAIBudget: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -146,7 +133,7 @@ export const WithoutAIBudgetColumn: Story = {
 		groups: [aiGroup("ai-hidden", "No AI column")],
 		canCreateGroup: true,
 		groupsEnabled: true,
-		aiBudget: undefined,
+		showAIBudget: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

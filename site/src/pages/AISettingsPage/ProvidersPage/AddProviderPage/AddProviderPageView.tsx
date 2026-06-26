@@ -28,7 +28,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 
 	return (
 		<>
-			<Link to="/ai/settings" className="-ml-3">
+			<Link to="/ai/settings/providers" className="-ml-3">
 				<Button variant="subtle">
 					<ArrowLeftIcon />
 					<span>Back to providers</span>
@@ -63,7 +63,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 								);
 								// Awaited so the form's submitting state stays true through
 								// navigation, keeping the unsaved-changes prompt suppressed.
-								await navigate(`/ai/settings/${res.name}`);
+								await navigate(`/ai/settings/providers/${res.name}`);
 							} catch (error) {
 								const name = values.name.trim();
 								toast.error(

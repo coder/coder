@@ -8,12 +8,9 @@ This guide documents structure, research, and content patterns for documentation
 > Read that first. When this style guide conflicts with the content
 > guidelines, the content guidelines govern.
 >
-> **For prose rules**, the canonical Coder documentation style guide lives
-> at [`docs/.style/style-guide.md`](../../docs/.style/style-guide.md) and
-> will be enforced by the Vale rules under `docs/.style/styles/Coder/`.
-> That guide is currently a scaffold; continue using the **Writing Style**
-> section below until it is populated. This file also remains authoritative
-> for structure, research, and content patterns.
+> **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
+> Vale rules under `docs/.style/styles/Coder/` enforce those rules incrementally as each rule lands.
+> This file remains authoritative for structure, research, and content patterns.
 
 See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
 
