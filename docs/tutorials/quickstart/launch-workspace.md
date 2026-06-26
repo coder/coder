@@ -77,8 +77,9 @@ provides the Docker daemon on macOS without the overhead of Docker Desktop.
    colima start
    ```
 
-   Colima exposes the Docker socket at `/var/run/docker.sock`, so the Coder
-   Quickstart template works without additional configuration.
+   Colima configures the `docker` CLI to use its socket. If the Coder server
+   later can't reach the Docker daemon, refer to
+   [Cannot connect to the Docker daemon](#cannot-connect-to-the-docker-daemon).
 
 ### Windows
 
@@ -161,16 +162,16 @@ is installed.
 
 </div>
 
-Coder will attempt to open the setup page in your browser. If it doesn't open
-automatically, go to <http://localhost:3000>.
+Coder attempts to open the setup page in your browser. If it doesn't open
+automatically, go to <http://localhost:3000>. If your Coder server is on a
+network or cloud device, or you have trouble viewing the page, find the web UI
+URL in the Coder logs in your terminal. It looks like
+`https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app` and is one of the first lines
+of output, so you might have to scroll up to find it.
 
-- If you get a browser warning similar to `Secure Site Not Available`, you can
-  ignore the warning and continue to the setup page.
-
-If your Coder server is on a network or cloud device, or you are having trouble
-viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
-like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
-lines of output, so you might have to scroll up to find it.
+> [!NOTE]
+> If you get a browser warning similar to `Secure Site Not Available`, you can
+> ignore it and continue to the setup page.
 
 ## Step 3: Initial setup
 
@@ -179,7 +180,7 @@ lines of output, so you might have to scroll up to find it.
    - Password: Choose a strong password.
 
    You can also choose to **Continue with GitHub** instead of creating an admin
-   account. Coder automatically grants admin permissions to the first user that signs in.
+   account manually. Coder automatically grants admin permissions to the first user that signs in.
 
    ![Welcome to Coder - Create admin user](../../images/screenshots/welcome-create-admin-user.png)
 
@@ -194,12 +195,11 @@ Templates define what's in your development environment. The following is a basi
 
 2. Select the **Coder Quickstart** template from the list of starter templates.
 
-   **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
+   **Note:** This template requires a running container runtime. Make sure the runtime you installed in [Step 1](#step-1-install-a-container-runtime) is started.
 
-3. Name your template:
-   - Name: `quickstart`
-   - Display name: `quickstart doc template`
-   - Description: `Provision Docker containers as Coder workspaces`
+3. Set the template **Name** to `quickstart`. The rest of this series refers to
+   the template by this name, so use `quickstart` exactly. You can keep the
+   default **Display name** and **Description** or set your own.
 
 4. Select **Save**.
 
@@ -209,6 +209,20 @@ Templates define what's in your development environment. The following is a basi
 environments, in your Coder deployment. It's now stored in your organization's
 template list, where you and any teammates in the same org can create workspaces
 from it. Now it's time to launch a workspace.
+
+<details>
+<summary>What's happening behind the scenes?</summary>
+
+Coder uses [Terraform](https://developer.hashicorp.com/terraform) to manage
+templates and workspaces. Publishing this template ran a Terraform job that
+imported and validated it. When you create a workspace in the next step, Coder
+runs Terraform again to provision the container, then the template's startup
+script installs the languages and tools you selected.
+
+To go deeper on how Coder runs Terraform, refer to
+[Coder's architecture](../../admin/infrastructure/architecture.md).
+
+</details>
 
 ## Step 5: Launch your workspace
 
@@ -306,6 +320,23 @@ workspace from a Docker-based template.
    ```shell
    docker ps
    ```
+
+1. If `docker ps` works but the Coder server still can't connect, point the
+   server at Colima's socket. Find the socket path:
+
+   ```sh
+   colima status
+   ```
+
+   Look for the `socket:` line, then set `DOCKER_HOST` to that path. For example:
+
+   ```sh
+   export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"
+   ```
+
+   Restart the Coder server in the same terminal. To keep the setting across
+   restarts, add the `export` line to your shell profile (`~/.zshrc` or
+   `~/.bashrc`).
 
 #### Linux
 
