@@ -2027,24 +2027,24 @@ func TestUserOIDC(t *testing.T) {
 			Logger:     &logger,
 		})
 
-		// Seed a user whose link records the IdP's first connection
-		// (e.g. Auth0 passwordless email).
+		// Seed a user whose link records the IdP's first connection.
 		user := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
 		})
-		originalLinkedID := fake.IssuerURL().String() + "||" + "email|first-connection"
+		originalLinkedID := fake.IssuerURL().String() + "||" + "first-connection-sub"
 		dbgen.UserLink(t, db, database.UserLink{
 			UserID:    user.ID,
 			LoginType: database.LoginTypeOIDC,
 			LinkedID:  originalLinkedID,
 		})
 
-		// Login with a different subject (e.g. Auth0 SAML SSO) but the
-		// same email. With EmailFallback enabled the email match resolves
-		// the login despite the linked_id mismatch.
+		// Login with a different subject (the broker emitted a new `sub`
+		// for the same user) but the same email. With EmailFallback
+		// enabled the email match resolves the login despite the linked_id
+		// mismatch.
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
-			"sub":   "samlp|company|first-connection",
+			"sub":   "second-connection-sub",
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode,
 			"insecure email fallback must allow login with a mismatched subject")
@@ -2095,7 +2095,7 @@ func TestUserOIDC(t *testing.T) {
 		user := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
 		})
-		const originalSub = "email|first-connection"
+		const originalSub = "first-connection-sub"
 		originalLinkedID := fake.IssuerURL().String() + "||" + originalSub
 		dbgen.UserLink(t, db, database.UserLink{
 			UserID:    user.ID,
@@ -2106,7 +2106,7 @@ func TestUserOIDC(t *testing.T) {
 		// Fallback login with a different subject.
 		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
-			"sub":   "samlp|company|first-connection",
+			"sub":   "second-connection-sub",
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 

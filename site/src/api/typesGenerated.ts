@@ -6266,9 +6266,8 @@ export interface OIDCConfig {
 	 * EmailFallback allows OIDC logins to fall back to email-based matching
 	 * when the `linked_id` (issuer+subject) does not match an existing user
 	 * link. INSECURE: this re-introduces the email-based account takeover
-	 * vector closed by the linked_id check. It exists for IdP brokers (e.g.
-	 * Auth0) that issue different subjects for the same user across
-	 * connections (e.g. SAML SSO vs passwordless email).
+	 * vector closed by the linked_id check. It exists for IdP brokers that
+	 * do not issue a stable `sub` for the same user across connections.
 	 */
 	readonly email_fallback: boolean;
 }

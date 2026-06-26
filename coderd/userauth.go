@@ -1190,8 +1190,8 @@ type OIDCConfig struct {
 	// EmailFallback, when true, allows OIDC logins to fall back to
 	// email-based user matching when the linked_id (issuer+subject) does
 	// not match an existing user link. INSECURE: re-introduces the email
-	// account-takeover vector. Used for IdP brokers (e.g. Auth0) that emit
-	// different subjects for the same user across connections.
+	// account-takeover vector. Used for IdP brokers that do not issue a
+	// stable `sub` for the same user across connections.
 	EmailFallback bool
 }
 
@@ -2202,8 +2202,8 @@ var errLinkedIDAlreadyBound = xerrors.New("user account is already linked to a d
 // check is skipped and the email fallback resolves the login even when
 // the existing link's linked_id differs from the current login's. The
 // existing linked_id is left intact (no overwrite). This is an INSECURE
-// opt-in for IdP brokers (e.g. Auth0) that emit different subjects for
-// the same user across connections.
+// opt-in for IdP brokers that do not issue a stable `sub` for the same
+// user across connections.
 //
 //nolint:revive // allowInsecureLinkedIDMismatch is intentionally a control flag; it gates an INSECURE opt-in.
 func findLinkedUser(ctx context.Context, db database.Store, linkedID string, loginType database.LoginType, allowInsecureLinkedIDMismatch bool, emails ...string) (database.User, database.UserLink, error) {
