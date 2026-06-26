@@ -4,6 +4,35 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      os:
+        description: "Runner OS for the run."
+        type: choice
+        required: false
+        default: "ubuntu-latest"
+        options:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
+      test-packages:
+        description: "Manual target: packages to test. When set, skips changed-test selection."
+        required: false
+        type: string
+        default: ""
+      run-regex:
+        description: "Manual target: go test -run regex, used with test-packages."
+        required: false
+        type: string
+        default: ""
+      test-count:
+        description: "Times to run each test (go test -count)."
+        required: false
+        type: string
+        default: "35"
+      test-shuffle:
+        description: "Go test -shuffle mode: off, on, or an integer seed."
+        required: false
+        type: string
+        default: "on"
       base_sha:
         description: "Base commit to diff against. Defaults to merge-base against origin/main."
         required: false
@@ -23,16 +52,38 @@ concurrency:
 jobs:
   flake_go:
     name: Flake Check
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || inputs.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || inputs.os || 'ubuntu-latest' }}
     # This timeout must be greater than the Go test timeout set in `make test`
     # (-timeout 20m) so we receive a goroutine trace before the runner kills
-    # the job. Mirrors the test-go-pg job in ci.yaml.
-    timeout-minutes: 25
+    # the job. PR runs keep the 25m gate; manual cross-OS runs with high
+    # counts get extra headroom.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 25 || 60 }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
+
+      # macOS indexes all new files in the background. Our Postgres tests
+      # create and destroy thousands of databases on disk, and Spotlight
+      # tries to index all of them, seriously slowing down the tests.
+      - name: Disable Spotlight Indexing
+        if: runner.os == 'macOS'
+        run: |
+          enabled=$(sudo mdutil -a -s | { grep -Fc "Indexing enabled" || true; })
+          if [ "$enabled" -eq 0 ]; then
+            echo "Spotlight indexing is already disabled"
+            exit 0
+          fi
+          sudo mdutil -a -i off
+          sudo mdutil -X /
+          sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+
+      # Set up RAM disks to speed up the rest of the job. This action is in
+      # a separate repository to allow its use before actions/checkout.
+      - name: Setup RAM Disks
+        if: runner.os == 'Windows'
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -41,6 +92,9 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Setup GNU tools (macOS)
+        uses: ./.github/actions/setup-gnu-tools
 
       - name: Set up Go
         uses: ./.github/actions/setup-mise
@@ -55,6 +109,7 @@ jobs:
 
       - name: Select changed tests
         id: selector
+        if: ${{ inputs.test-packages == '' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -64,25 +119,125 @@ jobs:
             --coalesce \
             --out-matrix "$RUNNER_TEMP/flake-matrix.json"
 
+      # Resolve the package and run regex from either the manual inputs or the
+      # changed-test selector, and decide whether there is anything to run.
+      - name: Resolve test target
+        id: target
+        shell: bash
+        env:
+          MANUAL_PACKAGES: ${{ inputs.test-packages }}
+          MANUAL_RUN_REGEX: ${{ inputs.run-regex }}
+          SELECTOR_MATRIX: ${{ steps.selector.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${MANUAL_PACKAGES}" ]]; then
+            {
+              echo "package=${MANUAL_PACKAGES}"
+              echo "run_regex=${MANUAL_RUN_REGEX}"
+              echo "should_run=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pkg=$(printf '%s' "${SELECTOR_MATRIX}" | jq -r '.include[0].package // empty')
+          rgx=$(printf '%s' "${SELECTOR_MATRIX}" | jq -r '.include[0].run_regex // empty')
+          if [[ -z "${pkg}" ]]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "No changed tests detected; nothing to run."
+            exit 0
+          fi
+          {
+            echo "package=${pkg}"
+            echo "run_regex=${rgx}"
+            echo "should_run=true"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Set up Terraform
-        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        if: ${{ steps.target.outputs.should_run == 'true' }}
         uses: ./.github/actions/setup-mise
         with:
           install-args: "terraform"
 
-      - name: Run targeted Go flake checks
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os != 'Linux' }}
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os != 'Linux' }}
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
+      - name: Setup RAM disk for Embedded Postgres (Windows)
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os == 'Windows' }}
+        shell: bash
+        run: mkdir -p "R:/temp/embedded-pg"
+
+      - name: Setup RAM disk for Embedded Postgres (macOS)
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os == 'macOS' }}
+        shell: bash
+        run: |
+          mkdir -p /tmp/tmpfs
+          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+          touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+
+      - name: Increase PTY limit (macOS)
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os == 'macOS' }}
+        shell: bash
+        run: |
+          # Default is 511; 999 is the maximum value on CI runner.
+          sudo sysctl -w kern.tty.ptmx_max=999
+
+      - name: Run targeted Go flake checks (Linux)
         id: flake_check
-        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os == 'Linux' }}
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
           test-parallelism-packages: "4"
           test-parallelism-tests: "16"
-          test-count: "35"
-          test-packages: ${{ fromJSON(steps.selector.outputs.matrix).include[0].package }}
-          run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
-          test-shuffle: "on"
+          test-count: ${{ inputs.test-count || '35' }}
+          test-packages: ${{ steps.target.outputs.package }}
+          run-regex: ${{ steps.target.outputs.run_regex }}
+          test-shuffle: ${{ inputs.test-shuffle || 'on' }}
           gotestsum-json-file: default
+
+      - name: Run targeted Go flake checks (macOS)
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os == 'macOS' }}
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          test-parallelism-packages: "4"
+          test-parallelism-tests: "16"
+          test-count: ${{ inputs.test-count || '35' }}
+          test-packages: ${{ steps.target.outputs.package }}
+          run-regex: ${{ steps.target.outputs.run_regex }}
+          test-shuffle: ${{ inputs.test-shuffle || 'on' }}
+          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
+
+      - name: Run targeted Go flake checks (Windows)
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os == 'Windows' }}
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          test-parallelism-packages: "4"
+          test-parallelism-tests: "16"
+          test-count: ${{ inputs.test-count || '35' }}
+          test-packages: ${{ steps.target.outputs.package }}
+          run-regex: ${{ steps.target.outputs.run_regex }}
+          test-shuffle: ${{ inputs.test-shuffle || 'on' }}
+          embedded-pg-path: "R:/temp/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
+
+      - name: Upload Embedded Postgres Cache
+        if: ${{ steps.target.outputs.should_run == 'true' && runner.os != 'Linux' }}
+        uses: ./.github/actions/embedded-pg-cache/upload
+        with:
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
       - name: Publish Go test failure report
         if: failure() && steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
