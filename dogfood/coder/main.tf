@@ -34,7 +34,7 @@ locals {
     "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_base_dir  = "/home/coder"
+  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 
@@ -106,6 +106,14 @@ locals {
 
     "ubuntu-latest" = "codercom/oss-dogfood:26.04"
   }
+}
+
+data "coder_parameter" "repo_base_dir" {
+  type        = "string"
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
+  mutable     = true
 }
 
 data "coder_parameter" "image_type" {
