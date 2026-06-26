@@ -190,6 +190,13 @@ networking:
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
+  # Configure network clustering. Coder Servers in the primary region form a cluster
+  # by
+  # communicating directly.
+  cluster:
+    # Hostname or (more commonly) IP to reach this replica for clustering.
+    # (default: <unset>, type: string)
+    clusterHost: ""
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s

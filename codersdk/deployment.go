@@ -1455,6 +1455,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
  Tailscale and WireGuard.`,
 			YAML: "derp",
 		}
+		deploymentGroupNetworkingCluster = serpent.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "Cluster",
+			Description: `Configure network clustering. Coder Servers in the primary region form a cluster by
+communicating directly.`,
+			YAML: "cluster",
+		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
 			Description: `Configure logging, tracing, stat collection, and metrics exporting.`,
@@ -3575,6 +3582,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",
+		},
+		{
+			Name:        "Cluster Host",
+			Description: "Hostname or (more commonly) IP to reach this replica for clustering.",
+			Flag:        "cluster-host",
+			Env:         "CODER_CLUSTER_HOST",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.Cluster.Host,
+			Group:       &deploymentGroupNetworkingCluster,
+			YAML:        "clusterHost",
 		},
 		{
 			Name:        "SCIM API Key",
