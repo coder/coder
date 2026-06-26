@@ -7,8 +7,6 @@ import AccountPage from "./AccountPage";
 const newData = {
 	username: "user",
 	name: "Mr User",
-	// The avatar is not edited by the form here, so it round-trips the value
-	// from the authenticated user.
 	avatar_url: MockUserOwner.avatar_url,
 };
 
