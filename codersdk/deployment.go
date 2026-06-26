@@ -623,7 +623,7 @@ type DeploymentValues struct {
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
-	Cluster                                 ClusterConfig                        `json:",omitempty" typescript:",notnull"`
+	Cluster                                 ClusterConfig                        `json:"cluster,omitempty" typescript:",notnull"`
 	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                                   PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
