@@ -14,6 +14,7 @@ import {
 import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -26,7 +27,6 @@ import {
 import { formatDate } from "#/utils/time";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
-import { SectionHeader } from "./components/SectionHeader";
 import {
 	PERSONAL_SKILLS_MAX_PER_USER,
 	type PersonalSkillFormValues,

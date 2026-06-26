@@ -4,6 +4,7 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import {
 	Select,
 	SelectContent,
@@ -14,7 +15,6 @@ import {
 } from "#/components/Select/Select";
 import type { ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
-import { SectionHeader } from "./SectionHeader";
 
 type PersonalOverrideContext = TypesGen.ChatPersonalModelOverrideContext;
 type PersonalOverrideMode = TypesGen.ChatPersonalModelOverrideMode;

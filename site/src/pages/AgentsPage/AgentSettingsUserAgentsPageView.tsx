@@ -3,12 +3,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	PersonalModelOverrideRow,
 	type SavePersonalOverride,
 } from "./components/PersonalModelOverrideRow";
-import { SectionHeader } from "./components/SectionHeader";
 
 export interface AgentSettingsUserAgentsPageViewProps {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;

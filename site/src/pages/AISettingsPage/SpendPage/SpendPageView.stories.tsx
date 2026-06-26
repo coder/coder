@@ -298,7 +298,9 @@ export const SpendWithLimitsAndUsers: Story = {
 		const canvas = within(canvasElement);
 
 		await canvas.findByText("Spend limits and usage");
-		await expect(canvas.getByText("Spend limit")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("switch", { name: "Spend limit" }),
+		).toBeInTheDocument();
 		await expect(canvas.getByText("Group limits")).toBeInTheDocument();
 		await expect(canvas.getByText("Usage")).toBeInTheDocument();
 
@@ -462,7 +464,7 @@ export const SpendUsersLoading: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Spend limit");
+		await canvas.findByRole("switch", { name: "Spend limit" });
 
 		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
@@ -483,7 +485,7 @@ export const SpendUsersError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Spend limit");
+		await canvas.findByRole("switch", { name: "Spend limit" });
 
 		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
@@ -506,7 +508,7 @@ export const SpendUserClickToDrillIn: Story = {
 		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 
 		const row = await canvas.findByRole("button", {
-			name: /Alice Liddell/,
+			name: /^View details for Alice Liddell/,
 		});
 		await userEvent.click(row);
 

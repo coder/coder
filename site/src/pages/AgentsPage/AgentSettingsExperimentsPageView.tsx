@@ -1,9 +1,9 @@
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { AdminChatDebugLoggingSettings } from "./components/AdminChatDebugLoggingSettings";
 import { AdvisorSettings } from "./components/AdvisorSettings";
-import { SectionHeader } from "./components/SectionHeader";
 import { VirtualDesktopSettings } from "./components/VirtualDesktopSettings";
 
 interface MutationCallbacks {

@@ -132,13 +132,16 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	};
 
 	const onDateRangeChange = (value: DateRangeValue) => {
-		setSearchParams((prev) => {
-			const next = new URLSearchParams(prev);
-			next.set(startDateSearchParam, value.startDate.toISOString());
-			next.set(endDateSearchParam, value.endDate.toISOString());
-			next.delete("page");
-			return next;
-		});
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				next.set(startDateSearchParam, value.startDate.toISOString());
+				next.set(endDateSearchParam, value.endDate.toISOString());
+				next.delete("page");
+				return next;
+			},
+			{ replace: true },
+		);
 	};
 
 	const usersQuery = usePaginatedQuery({

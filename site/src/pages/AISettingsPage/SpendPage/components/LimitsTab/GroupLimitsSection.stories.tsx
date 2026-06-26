@@ -72,6 +72,10 @@ const meta: Meta<typeof GroupLimitsSection> = {
 	component: GroupLimitsSection,
 	args: {
 		groupOverrides: mockGroupOverrides,
+		groupOrganizationNames: {
+			"group-1": "Acme",
+			"group-2": "Acme",
+		},
 		showGroupForm: false,
 		onShowGroupFormChange: fn(),
 		selectedGroup: null,
@@ -118,14 +122,14 @@ export const EditForm: Story = {
 		groupAmount: "10.00",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Save button confirms edit mode is active.
+		const body = within(canvasElement.ownerDocument.body);
+		// Update budget button confirms edit mode is active.
 		await expect(
-			canvas.getByRole("button", { name: /save/i }),
+			body.getByRole("button", { name: /update budget/i }),
 		).toBeInTheDocument();
 		// The editing group name appears in both the table row and the
 		// read-only edit form identity, confirming it was populated.
-		const nameElements = canvas.getAllByText(
+		const nameElements = body.getAllByText(
 			editingGroupOverride.group_display_name,
 		);
 		expect(nameElements.length).toBeGreaterThanOrEqual(2);

@@ -1168,7 +1168,7 @@ export const OpensAdminSubPanelOnMobile: Story = {
 	},
 };
 
-export const SettingsViewResets: Story = {
+export const SettingsViewSpendCrossLink: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},

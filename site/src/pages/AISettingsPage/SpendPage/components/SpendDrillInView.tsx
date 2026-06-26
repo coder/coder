@@ -8,10 +8,10 @@ import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { BackButton } from "./BackButton";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
-import { SectionHeader } from "./SectionHeader";
 
 interface SpendDrillInViewProps {
 	selectedUser: TypesGen.User | null;
