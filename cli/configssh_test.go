@@ -590,7 +590,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 					"# :hostname-suffix=coder",
 					"# :no-wildcard=true",
 				},
-				regexMatch: `Host [a-z0-9-]+\.coder`,
+				regexMatch: `Host [a-z0-9_-]+\.coder`,
 			},
 		},
 		{
