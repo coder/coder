@@ -270,7 +270,7 @@ export interface AIGatewayKey {
 /**
  * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
  */
-export const AIGatewayKeyHeader = "X-AI-Governance-Gateway-Key";
+export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
 // From codersdk/aiproviders.go
 /**

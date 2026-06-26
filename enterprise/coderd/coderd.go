@@ -329,7 +329,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 			)
-			r.Get("/", api.aiBridgeServe)
+			r.Get("/", api.aiGatewayServe)
 		})
 	})
 

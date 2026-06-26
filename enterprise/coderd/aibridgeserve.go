@@ -30,11 +30,11 @@ import (
 // last_used_at for its authenticating key.
 const aiGatewayKeyLastUsedInterval = 60 * time.Second
 
-// aiBridgeServe upgrades the connection to a WebSocket and serves the aibridged
-// DRPC services (Recorder, MCPConfigurator, Authorizer) to a remote standalone
-// AI Gateway replica, mirroring the embedded case. AI Gateway key
-// authentication is enforced before the WebSocket upgrade. License entitlement
-// is enforced by middleware on the route.
+// aiGatewayServe upgrades the connection to a WebSocket and serves the DRPC
+// services (Recorder, MCPConfigurator, Authorizer) to a remote standalone AI
+// Gateway replica, mirroring the embedded case. AI Gateway key authentication is
+// enforced before the WebSocket upgrade. License entitlement is enforced by
+// middleware on the route.
 //
 // @Summary AI Gateway serve
 // @ID ai-gateway-serve
@@ -42,7 +42,7 @@ const aiGatewayKeyLastUsedInterval = 60 * time.Second
 // @Tags Enterprise
 // @Success 101
 // @Router /api/v2/ai-gateway/serve [get]
-func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
+func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get(codersdk.AIGatewayKeyHeader)
 	if key == "" {
 		httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
@@ -68,36 +68,29 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 
 	clientAPIVersion := r.URL.Query().Get("version")
 	clientCoderVersion := r.Header.Get(codersdk.BuildVersionHeader)
-	logger := api.Logger.Named("aibridge-serve").With(
+	logger := api.Logger.Named("aigateway-serve").With(
 		slog.F("remote_addr", r.RemoteAddr),
-		slog.F("ai_gateway_client_api_version", clientAPIVersion),
-		slog.F("ai_gateway_client_build_version", clientCoderVersion),
-		slog.F("ai_gateway_server_api_version", aibridgedproto.CurrentVersion.String()),
-		slog.F("ai_gateway_server_build_version", buildinfo.Version),
+		slog.F("client_api_version", clientAPIVersion),
+		slog.F("client_build_version", clientCoderVersion),
+		slog.F("server_api_version", aibridgedproto.CurrentVersion.String()),
+		slog.F("server_build_version", buildinfo.Version),
 		slog.F("ai_gateway_key_id", gatewayKey.ID),
 		slog.F("ai_gateway_key_name", gatewayKey.Name),
 		slog.F("ai_gateway_key_prefix", gatewayKey.SecretPrefix),
 	)
 
-	// keyCtx has the lifetime of the authenticated session.
-	// It is canceled when the request ends or when the
-	// authenticating key is deleted (from aiGatewayTrackKeyUsage).
-	// The connection / DRPC server context derive from it,
-	// canceling keyCtx tears down the session.
+	// keyCtx bounds all work for this authenticated key. Canceling it terminates
+	// the websocket session and related background work.
 	keyCtx, keyCtxCancel := context.WithCancel(r.Context())
 	defer keyCtxCancel()
-
-	// Mark key as used as soon as the request is authenticated.
-	if _, err := aiGatewayUpdateKeyLastUsed(keyCtx, api, gatewayKey.ID); err != nil {
-		logger.Warn(keyCtx, "update ai gateway key last used", slog.Error(err))
-	}
-	go aiGatewayTrackKeyUsage(keyCtx, keyCtxCancel, api, gatewayKey.ID, logger)
 
 	if err := aibridgedproto.CurrentVersion.Validate(clientAPIVersion); err != nil {
 		httpapi.Write(keyCtx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Incompatible or unparsable version",
 			Validations: []codersdk.ValidationError{
 				{Field: "version", Detail: err.Error()},
+				{Field: "client_api_version", Detail: clientAPIVersion},
+				{Field: "server_api_version", Detail: aibridgedproto.CurrentVersion.String()},
 			},
 		})
 		return
@@ -115,7 +108,7 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
-			logger.Error(keyCtx, "accept aibridge websocket conn", slog.Error(err))
+			logger.Error(keyCtx, "websocket upgrade failed", slog.Error(err))
 		}
 		httpapi.Write(keyCtx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket connection.",
@@ -135,6 +128,11 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := aiGatewayUpdateKeyLastUsed(connCtx, api, gatewayKey.ID); err != nil {
+		logger.Warn(connCtx, "update ai gateway key last used", slog.Error(err))
+	}
+	go aiGatewayTrackKeyUsage(connCtx, keyCtxCancel, api, gatewayKey.ID, logger)
+
 	mux := drpcmux.New()
 	srv, err := aibridgedserver.NewServer(
 		connCtx,
@@ -148,13 +146,13 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
-			logger.Error(connCtx, "create aibridge server", slog.Error(err))
+			logger.Error(connCtx, "server creation failed", slog.Error(err))
 		}
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create aibridge server: %s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create ai gateway server: %s", err))
 		return
 	}
 	if err := aibridgedserver.Register(mux, srv); err != nil {
-		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("register aibridge services: %s", err))
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("register ai gateway services: %s", err))
 		return
 	}
 
@@ -175,9 +173,9 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		rl.WriteLog(connCtx, http.StatusAccepted)
 	}
 
-	logger.Info(connCtx, "opened AI Gateway connection")
+	logger.Info(connCtx, "opened connection")
 	err = server.Serve(connCtx, session)
-	logger.Info(connCtx, "closed AI Gateway connection", slog.Error(err))
+	logger.Info(connCtx, "closed connection", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
@@ -185,11 +183,13 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	_ = conn.Close(websocket.StatusGoingAway, "")
 }
 
+// aiGatewayUpdateKeyLastUsed records liveness for keyID and returns whether
+// the key is still active. On error key is assumed to not be active.
 func aiGatewayUpdateKeyLastUsed(ctx context.Context, api *API, keyID uuid.UUID) (bool, error) {
 	// nolint:gocritic // Recording AI Gateway key liveness is an internal system write.
 	rows, err := api.Database.UpdateAIGatewayKeyLastUsedAt(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
-		return true, err
+		return false, err
 	}
 	return rows > 0, nil
 }
@@ -208,6 +208,12 @@ func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, a
 		}
 
 		active, err := aiGatewayUpdateKeyLastUsed(ctx, api, keyID)
+		if err == nil && !active {
+			logger.Info(ctx, "ai gateway key no longer exists, closing connection")
+			ctxCancel()
+			return
+		}
+
 		if err != nil {
 			if xerrors.Is(err, context.Canceled) {
 				return
@@ -229,10 +235,5 @@ func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, a
 				slog.F("consecutive_failures", consecutiveFailures))
 		}
 		consecutiveFailures = 0
-		if !active {
-			logger.Info(ctx, "ai gateway key no longer exists, closing connection")
-			ctxCancel()
-			return
-		}
 	}
 }

@@ -21,11 +21,11 @@ import (
 	"github.com/coder/websocket"
 )
 
-// dialAIBridgeServe dials /api/v2/ai-gateway/serve, authenticating with the given
+// dialAIGatewayServe dials /api/v2/ai-gateway/serve, authenticating with the given
 // gateway key and API version. On a successful WebSocket upgrade it returns a
 // yamux session and http.StatusSwitchingProtocols. Otherwise it returns a nil
 // session and the HTTP status code coderd responded with.
-func dialAIBridgeServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version string) (*yamux.Session, int) {
+func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version string) (*yamux.Session, int) {
 	t.Helper()
 
 	serverURL, err := client.URL.Parse("/api/v2/ai-gateway/serve")
@@ -68,7 +68,7 @@ func dialAIBridgeServe(ctx context.Context, t *testing.T, client *codersdk.Clien
 	return session, http.StatusSwitchingProtocols
 }
 
-func TestAIBridgeServeSuccess(t *testing.T) {
+func TestAIGatewayServeSuccess(t *testing.T) {
 	t.Parallel()
 
 	client, firstUser := coderdenttest.New(t, aibridgeOpts(t))
@@ -78,7 +78,7 @@ func TestAIBridgeServeSuccess(t *testing.T) {
 	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-success"})
 	require.NoError(t, err)
 
-	session, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
+	session, status := dialAIGatewayServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
 	require.Equal(t, http.StatusSwitchingProtocols, status)
 	require.NotNil(t, session)
 
@@ -107,7 +107,7 @@ func TestAIBridgeServeSuccess(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
-func TestAIBridgeServeKeyAndVersionValidationErr(t *testing.T) {
+func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {
 	t.Parallel()
 
 	client, _ := coderdenttest.New(t, aibridgeOpts(t))
@@ -164,13 +164,13 @@ func TestAIBridgeServeKeyAndVersionValidationErr(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, status := dialAIBridgeServe(t.Context(), t, client, tc.key, tc.version)
+			_, status := dialAIGatewayServe(t.Context(), t, client, tc.key, tc.version)
 			require.Equal(t, tc.wantStatus, status)
 		})
 	}
 }
 
-func TestAIBridgeServeMissingEntitlement(t *testing.T) {
+func TestAIGatewayServeMissingEntitlement(t *testing.T) {
 	t.Parallel()
 
 	// Enable the bridge config but do not grant the FeatureAIBridge license.
@@ -184,11 +184,11 @@ func TestAIBridgeServeMissingEntitlement(t *testing.T) {
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	_, status := dialAIBridgeServe(ctx, t, client, "any-key", aibridgedproto.CurrentVersion.String())
+	_, status := dialAIGatewayServe(ctx, t, client, "any-key", aibridgedproto.CurrentVersion.String())
 	require.Equal(t, http.StatusForbidden, status)
 }
 
-func TestAIBridgeServeDeletedKeyClosesActiveSession(t *testing.T) {
+func TestAIGatewayServeDeletedKeyClosesActiveSession(t *testing.T) {
 	t.Parallel()
 
 	tick := make(chan time.Time, 1)
@@ -204,7 +204,7 @@ func TestAIBridgeServeDeletedKeyClosesActiveSession(t *testing.T) {
 	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-delete-active"})
 	require.NoError(t, err)
 
-	session, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
+	session, status := dialAIGatewayServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
 	require.Equal(t, http.StatusSwitchingProtocols, status)
 	require.NotNil(t, session)
 
