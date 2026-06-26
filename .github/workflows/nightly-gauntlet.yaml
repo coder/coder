@@ -6,6 +6,11 @@ on:
     # Every day at 4AM UTC on weekdays
     - cron: "0 4 * * 1-5"
   workflow_dispatch:
+    inputs:
+      run-regex:
+        description: "Go test name regex passed to go test -run. Empty runs all tests."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -105,6 +110,7 @@ jobs:
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           test-count: "1"
+          run-regex: ${{ inputs.run-regex }}
           embedded-pg-path: "/tmp/tmpfs/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
@@ -117,6 +123,7 @@ jobs:
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           test-count: "1"
+          run-regex: ${{ inputs.run-regex }}
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
