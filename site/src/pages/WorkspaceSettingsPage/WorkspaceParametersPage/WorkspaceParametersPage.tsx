@@ -39,6 +39,7 @@ const WorkspaceParametersPage: FC = () => {
 	}>({ open: false });
 
 	// autofill the form with the workspace build parameters from the latest build
+	//  CLEANUP(bad-vibes): raw query options
 	const {
 		data: latestBuildParameters,
 		isLoading: latestBuildParametersLoading,
@@ -121,6 +122,7 @@ const WorkspaceParametersPage: FC = () => {
 		if (!templateVersionId && !workspace.latest_build.template_version_id)
 			return;
 
+		// CLEANUP(bad-vibes): raw api call
 		const socket = API.templateVersionDynamicParameters(
 			templateVersionId ?? workspace.latest_build.template_version_id,
 			workspace.owner_id,
