@@ -835,8 +835,8 @@ func (p *Server) subagentTools(
 		fantasy.NewAgentTool(
 			"interrupt_agent",
 			"Interrupt a spawned child agent's current work. The "+
-				"agent stops working and settles into waiting; the status "+
-				"may briefly read interrupting before the worker finalizes. "+
+				"status may briefly read interrupting before transitioning "+
+				"to waiting, or running if there are queued messages. "+
 				"Resume with message_agent or leave it idle.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
