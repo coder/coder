@@ -14,6 +14,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { useIsGatewayAccount } from "./modules/dashboard/useIsGatewayAccount";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -561,6 +562,19 @@ const RedirectAIBridgeSession = () => {
 	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
 
+// DashboardIndexRedirect sends Gateway Accounts (members with no
+// workspace operations role) straight to their account page since the
+// rest of the dashboard is empty for them.
+const DashboardIndexRedirect = () => {
+	const isGatewayAccount = useIsGatewayAccount();
+	return (
+		<Navigate
+			to={isGatewayAccount ? "/settings/account" : "/workspaces"}
+			replace
+		/>
+	);
+};
+
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
 		<Route element={<GlobalLayout />} errorElement={<GlobalErrorBoundary />}>
@@ -575,7 +589,7 @@ export const router = createBrowserRouter(
 			{/* Dashboard routes */}
 			<Route element={<RequireAuth />}>
 				<Route element={<DashboardLayout />}>
-					<Route index element={<Navigate to="/workspaces" replace />} />
+					<Route index element={<DashboardIndexRedirect />} />
 
 					<Route
 						path="/external-auth/:provider"

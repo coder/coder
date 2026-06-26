@@ -30,6 +30,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useIsGatewayAccount } from "#/modules/dashboard/useIsGatewayAccount";
 import {
 	castNotificationMethod,
 	isTaskNotification,
@@ -43,6 +44,7 @@ import { pageTitle } from "#/utils/page";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
+	const isGatewayAccount = useIsGatewayAccount();
 	const [
 		disabledPreferences,
 		systemTemplatesByGroup,
@@ -125,7 +127,9 @@ const NotificationsPage: FC = () => {
 			{ready ? (
 				<div className="flex flex-col gap-8">
 					{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
-						if (!canSeeNotificationGroup(group, permissions)) {
+						if (
+							!canSeeNotificationGroup(group, permissions, isGatewayAccount)
+						) {
 							return null;
 						}
 
@@ -275,6 +279,7 @@ export default NotificationsPage;
 function canSeeNotificationGroup(
 	group: string,
 	permissions: Permissions,
+	isGatewayAccount: boolean,
 ): boolean {
 	switch (group) {
 		case "Template Events":
@@ -283,6 +288,7 @@ function canSeeNotificationGroup(
 			return permissions.createUser;
 		case "Workspace Events":
 		case "Task Events":
+			return !isGatewayAccount;
 		case "Chat Events":
 		case "Custom Events":
 			return true;

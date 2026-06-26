@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
 import { API } from "#/api/api";
@@ -35,6 +35,7 @@ interface NavbarViewProps {
 	canViewAIBridge: boolean;
 	canViewAISettings: boolean;
 	canCreateChat: boolean;
+	isGatewayAccount: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -57,6 +58,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAIBridge,
 	canViewAISettings,
 	canCreateChat,
+	isGatewayAccount,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -81,7 +83,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 							: undefined,
 			}}
 		>
-			<NavLink to="/workspaces">
+			<NavLink to={isGatewayAccount ? "/settings/account" : "/workspaces"}>
 				<ProductLogo className="h-7" />
 			</NavLink>
 
@@ -89,6 +91,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				className="ml-4 hidden md:flex"
 				user={user}
 				canCreateChat={canCreateChat}
+				isGatewayAccount={isGatewayAccount}
 			/>
 
 			{prerelease && buildInfo?.version && (
@@ -119,23 +122,25 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				))}
 
-				{proxyContextValue && (
+				{proxyContextValue && !isGatewayAccount && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
 					</div>
 				)}
 
-				<div className="hidden md:block">
-					<DeploymentDropdown
-						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewConnectionLog={canViewConnectionLog}
-						canViewAIBridge={canViewAIBridge}
-						canViewAISettings={canViewAISettings}
-						canViewHealth={canViewHealth}
-					/>
-				</div>
+				{!isGatewayAccount && (
+					<div className="hidden md:block">
+						<DeploymentDropdown
+							canViewAuditLog={canViewAuditLog}
+							canViewOrganizations={canViewOrganizations}
+							canViewDeployment={canViewDeployment}
+							canViewConnectionLog={canViewConnectionLog}
+							canViewAIBridge={canViewAIBridge}
+							canViewAISettings={canViewAISettings}
+							canViewHealth={canViewHealth}
+						/>
+					</div>
+				)}
 
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
@@ -178,43 +183,99 @@ interface NavItemsProps {
 	className?: string;
 	user: TypesGen.User;
 	canCreateChat: boolean;
+	isGatewayAccount: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
+const NavItems: FC<NavItemsProps> = ({
+	className,
+	user,
+	canCreateChat,
+	isGatewayAccount,
+}) => {
 	const location = useLocation();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
-			<NavLink
-				className={({ isActive }) => {
-					if (location.pathname.startsWith("/@")) {
-						isActive = true;
-					}
-					return cn(linkStyles.default, { [linkStyles.active]: isActive });
-				}}
+			<DisabledableNavLink
 				to="/workspaces"
+				disabled={isGatewayAccount}
+				tooltip={gatewayAccountTooltipFor("Workspaces")}
+				isActive={location.pathname.startsWith("/@")}
 			>
 				Workspaces
-			</NavLink>
-			<NavLink
-				className={({ isActive }) => {
-					return cn(linkStyles.default, { [linkStyles.active]: isActive });
-				}}
+			</DisabledableNavLink>
+			<DisabledableNavLink
 				to="/templates"
+				disabled={isGatewayAccount}
+				tooltip={gatewayAccountTooltipFor("Templates")}
 			>
 				Templates
-			</NavLink>
-			<TasksNavItem user={user} />
-			<AgentsNavItem canCreateChat={canCreateChat} />
+			</DisabledableNavLink>
+			<TasksNavItem user={user} isGatewayAccount={isGatewayAccount} />
+			<AgentsNavItem
+				canCreateChat={canCreateChat}
+				isGatewayAccount={isGatewayAccount}
+			/>
 		</nav>
+	);
+};
+
+const gatewayAccountTooltipFor = (section: string): string =>
+	`${section} aren\u2019t available on AI Gateway accounts. Contact your admin to upgrade your account.`;
+
+interface DisabledableNavLinkProps {
+	to: string;
+	disabled: boolean;
+	tooltip?: string;
+	isActive?: boolean;
+	children: ReactNode;
+}
+
+const DisabledableNavLink: FC<DisabledableNavLinkProps> = ({
+	to,
+	disabled,
+	tooltip,
+	isActive: forceActive,
+	children,
+}) => {
+	if (disabled) {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span
+						aria-disabled
+						className={cn(
+							linkStyles.default,
+							"cursor-not-allowed opacity-50 hover:text-content-secondary",
+						)}
+					>
+						{children}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent>{tooltip}</TooltipContent>
+			</Tooltip>
+		);
+	}
+
+	return (
+		<NavLink
+			className={({ isActive }) => {
+				const active = forceActive || isActive;
+				return cn(linkStyles.default, { [linkStyles.active]: active });
+			}}
+			to={to}
+		>
+			{children}
+		</NavLink>
 	);
 };
 
 type TasksNavItemProps = {
 	user: TypesGen.User;
+	isGatewayAccount: boolean;
 };
 
-const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
+const TasksNavItem: FC<TasksNavItemProps> = ({ user, isGatewayAccount }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const canSeeTasks = Boolean(
 		metadata["tasks-tab-visible"].value ||
@@ -228,7 +289,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		queryKey: ["tasks", filter],
 		queryFn: () => API.getTasks(filter),
 		refetchInterval: 1_000 * 60,
-		enabled: canSeeTasks,
+		enabled: canSeeTasks && !isGatewayAccount,
 		refetchOnWindowFocus: true,
 		initialData: [],
 		select: (data) =>
@@ -237,6 +298,18 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 
 	if (!canSeeTasks) {
 		return null;
+	}
+
+	if (isGatewayAccount) {
+		return (
+			<DisabledableNavLink
+				to="/tasks"
+				disabled
+				tooltip={gatewayAccountTooltipFor("Tasks")}
+			>
+				Tasks
+			</DisabledableNavLink>
+		);
 	}
 
 	return (
@@ -270,9 +343,24 @@ function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
 
-const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
+const AgentsNavItem: FC<{
+	canCreateChat: boolean;
+	isGatewayAccount: boolean;
+}> = ({ canCreateChat, isGatewayAccount }) => {
 	if (!canCreateChat) {
 		return null;
+	}
+
+	if (isGatewayAccount) {
+		return (
+			<DisabledableNavLink
+				to="/agents"
+				disabled
+				tooltip={gatewayAccountTooltipFor("Agents")}
+			>
+				Agents
+			</DisabledableNavLink>
+		);
 	}
 
 	return (

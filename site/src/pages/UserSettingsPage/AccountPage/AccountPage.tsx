@@ -9,14 +9,17 @@ import {
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useIsGatewayAccount } from "#/modules/dashboard/useIsGatewayAccount";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
+import { GatewayAccountWelcomeDialog } from "./GatewayAccountWelcomeDialog";
 
 const AccountPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { updateProfile, updateProfileError, isUpdatingProfile } =
 		useAuthContext();
 	const { entitlements } = useDashboard();
+	const isGatewayAccount = useIsGatewayAccount();
 
 	const hasGroupsFeature = entitlements.features.user_role_management.enabled;
 	const groupsQuery = useQuery({
@@ -26,6 +29,7 @@ const AccountPage: FC = () => {
 
 	return (
 		<div className="flex flex-col gap-12">
+			{isGatewayAccount && <GatewayAccountWelcomeDialog userID={me.id} />}
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Account</SettingsHeaderTitle>
@@ -38,6 +42,7 @@ const AccountPage: FC = () => {
 					email={me.email}
 					updateProfileError={updateProfileError}
 					isLoading={isUpdatingProfile}
+					isGatewayAccount={isGatewayAccount}
 					initialValues={{ username: me.username, name: me.name ?? "" }}
 					onSubmit={updateProfile}
 				/>
