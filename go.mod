@@ -107,14 +107,18 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // See: https://github.com/coder/fantasy/commits/2e3ddbca75dd
 replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260617050554-2e3ddbca75dd
 
-// coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
-// with performance improvements and Bedrock header cleanup.
+// coder/coder consumes a fork of charmbracelet's fork of the Anthropic Go SDK
+// via charm.land/fantasy (replaced above with coder/fantasy). This fork carries
+// performance improvements and Bedrock header cleanup.
 // See: https://github.com/coder/anthropic-sdk-go/commits/47cab198e449
+//
+// NOTE: The direct github.com/anthropics/anthropic-sdk-go dependency is
+// consolidated onto a single all-inclusive branch (see the replace at the
+// bottom of this file). This charmbracelet replace remains only because
+// charm.land/fantasy imports the charmbracelet module path; converging it onto
+// the all-inclusive branch requires a coder/fantasy change and is tracked as
+// follow-up.
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260428122333-47cab198e449
-
-// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
-// https://github.com/anthropics/anthropic-sdk-go/pull/262
-replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
 
 // SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
 // https://github.com/kylecarbs/openai-go/pull/2
@@ -509,12 +513,13 @@ require (
 	github.com/charmbracelet/x/exp/strings v0.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260601182631-00ed12fed2a6 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 )
 
 require (
 	charm.land/fantasy v0.8.1
-	github.com/anthropics/anthropic-sdk-go v1.19.0
+	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.13
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.15.0
@@ -680,3 +685,12 @@ tool (
 	mvdan.cc/gofumpt
 	storj.io/drpc/cmd/protoc-gen-go-drpc
 )
+
+// All-inclusive Coder fork of the Anthropic Go SDK, based on upstream v1.52.0
+// with every Coder customization re-applied on top: IAM AssumeRole support for
+// the aws gateway client (RoleARN + ExternalID), the appendCompact marshaler
+// optimization, Bedrock header cleanup + streaming accept headers, and the
+// Vertex client/transport fixes. Replaces the previous dannykopping appendCompact
+// fork pin.
+// See: https://github.com/coder/anthropic-sdk-go/tree/seth/aigov-492-all-inclusive-assume-role (commit bc058bf)
+replace github.com/anthropics/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260627121121-bc058bfbfdfe
