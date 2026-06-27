@@ -46,6 +46,11 @@ const (
 	// which uses request-time GitHub OAuth tokens rather than pre-shared
 	// API keys.
 	AIProviderTypeCopilot AIProviderType = "copilot"
+	// AIProviderTypeClaudePlatformAWS routes through aibridge's Anthropic
+	// client using the Claude Platform discriminator in Settings. It signs
+	// requests with the SigV4 service aws-external-anthropic (or sends a
+	// workspace API key) and adds the anthropic-workspace-id header.
+	AIProviderTypeClaudePlatformAWS AIProviderType = "claude-platform-aws"
 )
 
 // AgentsUnsupportedProviderType is an AIProviderType the Coder Agents harness
@@ -90,11 +95,15 @@ type AIProviderSettings struct {
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// ClaudePlatformAWS, when set, indicates this provider authenticates
+	// against Claude Platform for AWS. Only meaningful for
+	// AIProviderTypeClaudePlatformAWS.
+	ClaudePlatformAWS *AIProviderClaudePlatformAWSSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil
+	return s.Bedrock == nil && s.ClaudePlatformAWS == nil
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
@@ -103,6 +112,8 @@ func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
 	case s.Bedrock != nil:
 		return marshalSettings(*s.Bedrock)
+	case s.ClaudePlatformAWS != nil:
+		return marshalSettings(*s.ClaudePlatformAWS)
 	default:
 		return []byte("null"), nil
 	}
@@ -136,6 +147,19 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
 		s.Bedrock = &b
+		return nil
+	case AIProviderSettingsTypeClaudePlatformAWS:
+		// TODO: handle multiple versions; this will be implemented
+		// once needed.
+		if header.Version != AIProviderClaudePlatformAWSSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderClaudePlatformAWSSettingsVersion)
+		}
+		var c AIProviderClaudePlatformAWSSettings
+		if err := json.Unmarshal(data, &c); err != nil {
+			return xerrors.Errorf("decode claude platform aws settings: %w", err)
+		}
+		s.ClaudePlatformAWS = &c
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -239,6 +263,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeAnthropic,
 		AIProviderTypeAzure,
 		AIProviderTypeBedrock,
+		AIProviderTypeClaudePlatformAWS,
 		AIProviderTypeCopilot,
 		AIProviderTypeGoogle,
 		AIProviderTypeOpenAICompat,
@@ -286,6 +311,31 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		}
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings.ClaudePlatformAWS != nil && req.Type != AIProviderTypeClaudePlatformAWS {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "claude_platform_aws settings are only valid for type=claude-platform-aws",
+		})
+	}
+	if req.Type == AIProviderTypeClaudePlatformAWS {
+		if req.Settings.ClaudePlatformAWS == nil {
+			validations = append(validations, ValidationError{
+				Field:  "settings",
+				Detail: "type=claude-platform-aws requires claude_platform_aws settings",
+			})
+		} else {
+			validations = append(validations, validateClaudePlatformAWSSettings(*req.Settings.ClaudePlatformAWS)...)
+		}
+		if len(req.APIKeys) > 0 {
+			validations = append(validations, ValidationError{
+				Field:  "api_keys",
+				Detail: "type=claude-platform-aws does not accept api_keys",
+			})
+		}
+	}
+	if req.Settings.ClaudePlatformAWS != nil {
+		validations = append(validations, validateAIProviderRoleARN(req.Settings.ClaudePlatformAWS.RoleARN)...)
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
@@ -347,6 +397,9 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings != nil && req.Settings.ClaudePlatformAWS != nil {
+		validations = append(validations, validateAIProviderRoleARN(req.Settings.ClaudePlatformAWS.RoleARN)...)
 	}
 	return validations
 }
@@ -414,6 +467,28 @@ func validateAIProviderBedrockModels(b AIProviderBedrockSettings) []ValidationEr
 		validations = append(validations, ValidationError{
 			Field:  "settings.small_fast_model",
 			Detail: "small_fast_model is required for the invoke-model protocol",
+		})
+	}
+	return validations
+}
+
+// validateClaudePlatformAWSSettings checks the required fields for a
+// Claude Platform for AWS provider. WorkspaceID is mandatory because
+// every data plane request must carry the anthropic-workspace-id header,
+// and Region is mandatory because it is the SigV4 signing region and is
+// used to construct the regional endpoint.
+func validateClaudePlatformAWSSettings(s AIProviderClaudePlatformAWSSettings) []ValidationError {
+	var validations []ValidationError
+	if s.WorkspaceID == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.workspace_id",
+			Detail: "workspace_id is required for type=claude-platform-aws",
+		})
+	}
+	if s.Region == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.region",
+			Detail: "region is required for type=claude-platform-aws",
 		})
 	}
 	return validations

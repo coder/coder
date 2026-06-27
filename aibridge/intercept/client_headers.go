@@ -36,6 +36,11 @@ var authHeaders = []string{
 	"X-Api-Key",
 }
 
+// workspaceIDHeader is the Claude Platform for AWS workspace header. The SDK
+// sets it from provider configuration; BuildUpstreamHeaders preserves it so it
+// survives the client-header rebuild and is covered by the SigV4 signature.
+const workspaceIDHeader = "Anthropic-Workspace-Id"
+
 // proxyHeaders describe the path the inbound request took to reach
 // aibridge. On bridge routes aibridge acts as a client, not a proxy,
 // so these headers are not meaningful on the outbound request.
@@ -87,6 +92,14 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 	// Preserve the auth header set by the SDK from the provider configuration.
 	if v := sdkHeader.Get(authHeaderName); v != "" {
 		headers.Set(authHeaderName, v)
+	}
+
+	// Preserve the Anthropic workspace ID set by the SDK from provider
+	// configuration (Claude Platform for AWS). It is required on every data
+	// plane request and, in SigV4 mode, is covered by the signature computed
+	// after this rebuild. Harmless for providers that never set it.
+	if v := sdkHeader.Get(workspaceIDHeader); v != "" {
+		headers.Set(workspaceIDHeader, v)
 	}
 
 	// Preserve actor headers injected by aibridge as per-request SDK options.

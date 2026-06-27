@@ -1,0 +1,2 @@
+-- No-op: Postgres does not allow removing enum values safely.
+-- Matches the precedent in 000506_ai_provider_type_copilot_value.down.sql.

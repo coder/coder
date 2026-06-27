@@ -196,9 +196,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if reqPayload.Stream() {
-			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, nil, r.Header, tracer)
 		} else {
-			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, nil, r.Header, tracer)
 		}
 
 	default:

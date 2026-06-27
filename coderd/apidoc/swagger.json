@@ -14687,7 +14687,8 @@
 				"openrouter",
 				"vercel",
 				"bedrock",
-				"copilot"
+				"copilot",
+				"claude-platform-aws"
 			],
 			"x-enum-varnames": [
 				"AIProviderTypeOpenAI",
@@ -14698,7 +14699,8 @@
 				"AIProviderTypeOpenrouter",
 				"AIProviderTypeVercel",
 				"AIProviderTypeBedrock",
-				"AIProviderTypeCopilot"
+				"AIProviderTypeCopilot",
+				"AIProviderTypeClaudePlatformAWS"
 			]
 		},
 		"codersdk.APIAllowListTarget": {

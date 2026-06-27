@@ -109,9 +109,13 @@ replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260812122040-833
 // See: https://github.com/coder/anthropic-sdk-go/commits/47cab198e449
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-sdk-go v0.0.0-20260428122333-47cab198e449
 
-// Replace sdks with our own optimized forks until relevant upstream PRs are merged.
-// https://github.com/anthropics/anthropic-sdk-go/pull/262
-replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
+// coder/anthropic-sdk-go is rebuilt on upstream v1.52.0 with the coder patches
+// re-applied (DirectEncoder perf, Bedrock header/streaming cleanup, Vertex fixes)
+// and adds the `aws` package for Claude Platform for AWS (SigV4 service
+// aws-external-anthropic, anthropic-workspace-id, IAM assume-role with
+// RoleARN/ExternalID).
+// See: https://github.com/coder/anthropic-sdk-go/tree/seth/aigov-492-all-inclusive-assume-role
+replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/coder/anthropic-sdk-go v0.0.0-20260627122427-f006ef626a1e
 
 // Fork of openai-go (rebased onto upstream v3.50.0) with deferred request
 // body serialization and a fix preserving WithJSONSet across it. The SSE
@@ -519,6 +523,7 @@ require (
 	github.com/petermattis/goid v0.0.0-20260226131333-17d1149c6ac6 // indirect
 	github.com/q-uint/parser v0.3.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
+	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/trailofbits/go-mutexasserts v0.0.0-20250514102930-c1f3d2e37561 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/collector/featuregate v1.51.1-0.20260205185216-81bc641f26c0 // indirect

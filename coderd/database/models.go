@@ -150,15 +150,16 @@ func AllAIModelPriceSourceValues() []AIModelPriceSource {
 type AIProviderType string
 
 const (
-	AIProviderTypeOpenai       AIProviderType = "openai"
-	AIProviderTypeAnthropic    AIProviderType = "anthropic"
-	AIProviderTypeAzure        AIProviderType = "azure"
-	AIProviderTypeBedrock      AIProviderType = "bedrock"
-	AIProviderTypeGoogle       AIProviderType = "google"
-	AIProviderTypeOpenaiCompat AIProviderType = "openai-compat"
-	AIProviderTypeOpenrouter   AIProviderType = "openrouter"
-	AIProviderTypeVercel       AIProviderType = "vercel"
-	AIProviderTypeCopilot      AIProviderType = "copilot"
+	AIProviderTypeOpenai            AIProviderType = "openai"
+	AIProviderTypeAnthropic         AIProviderType = "anthropic"
+	AIProviderTypeAzure             AIProviderType = "azure"
+	AIProviderTypeBedrock           AIProviderType = "bedrock"
+	AIProviderTypeGoogle            AIProviderType = "google"
+	AIProviderTypeOpenaiCompat      AIProviderType = "openai-compat"
+	AIProviderTypeOpenrouter        AIProviderType = "openrouter"
+	AIProviderTypeVercel            AIProviderType = "vercel"
+	AIProviderTypeCopilot           AIProviderType = "copilot"
+	AIProviderTypeClaudePlatformAws AIProviderType = "claude-platform-aws"
 )
 
 func (e *AIProviderType) Scan(src interface{}) error {
@@ -206,7 +207,8 @@ func (e AIProviderType) Valid() bool {
 		AIProviderTypeOpenaiCompat,
 		AIProviderTypeOpenrouter,
 		AIProviderTypeVercel,
-		AIProviderTypeCopilot:
+		AIProviderTypeCopilot,
+		AIProviderTypeClaudePlatformAws:
 		return true
 	}
 	return false
@@ -223,6 +225,7 @@ func AllAIProviderTypeValues() []AIProviderType {
 		AIProviderTypeOpenrouter,
 		AIProviderTypeVercel,
 		AIProviderTypeCopilot,
+		AIProviderTypeClaudePlatformAws,
 	}
 }
 

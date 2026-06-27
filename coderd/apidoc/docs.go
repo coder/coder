@@ -16429,7 +16429,8 @@ const docTemplate = `{
                 "openrouter",
                 "vercel",
                 "bedrock",
-                "copilot"
+                "copilot",
+                "claude-platform-aws"
             ],
             "x-enum-varnames": [
                 "AIProviderTypeOpenAI",
@@ -16440,7 +16441,8 @@ const docTemplate = `{
                 "AIProviderTypeOpenrouter",
                 "AIProviderTypeVercel",
                 "AIProviderTypeBedrock",
-                "AIProviderTypeCopilot"
+                "AIProviderTypeCopilot",
+                "AIProviderTypeClaudePlatformAWS"
             ]
         },
         "codersdk.APIAllowListTarget": {

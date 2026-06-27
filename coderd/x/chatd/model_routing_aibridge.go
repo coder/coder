@@ -218,7 +218,7 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 	var fantasyProvider string
 	baseURL := aibridgeLocalBaseURL + "/v1"
 	switch providerType {
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock, database.AIProviderTypeClaudePlatformAws:
 		fantasyProvider = fantasyanthropic.Name
 		baseURL = aibridgeLocalBaseURL
 	case database.AIProviderTypeOpenai:
@@ -241,7 +241,7 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 
 func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType) aiGatewayRequestFormat {
 	switch providerType {
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock, database.AIProviderTypeClaudePlatformAws:
 		return aiGatewayRequestFormatAnthropic
 	default:
 		return aiGatewayRequestFormatOpenAI
