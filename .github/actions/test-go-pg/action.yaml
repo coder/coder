@@ -35,7 +35,7 @@ inputs:
     required: false
     default: ""
   gotestsum-json-file:
-    description: "Optional Linux path for gotestsum --jsonfile output. Use default for RUNNER_TEMP/go-test.json."
+    description: "Optional path for gotestsum --jsonfile output. Use default for RUNNER_TEMP/go-test.json."
     required: false
     default: ""
   embedded-pg-path:
