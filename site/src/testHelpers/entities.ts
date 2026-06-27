@@ -3635,6 +3635,16 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
 		display_name: "GitHub",
 	};
 
+export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExternalAuth =
+	{
+		id: "azure",
+		type: "azure",
+		authenticate_url: "https://example.com/external-auth/azure",
+		authenticated: false,
+		display_icon: "/icon/azure.svg",
+		display_name: "Azure",
+	};
+
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	aggregated_from: "2023-03-06T19:08:55.211625Z",
 	collected_at: "2023-03-06T19:12:55.211625Z",

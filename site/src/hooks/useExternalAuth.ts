@@ -5,12 +5,15 @@ import { templateVersionExternalAuth } from "#/api/queries/templates";
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 export const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
+	const [pollingState, setPollingState] = useState<
+		Record<string, ExternalAuthPollingState>
+	>({});
 
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
+	const startPollingExternalAuth = useCallback((providerId: string) => {
+		setPollingState((prev) => ({ ...prev, [providerId]: "polling" }));
 	}, []);
+
+	const isAnyPolling = Object.values(pollingState).some((s) => s === "polling");
 
 	const {
 		data: externalAuth,
@@ -19,37 +22,58 @@ export const useExternalAuth = (versionId: string | undefined) => {
 	} = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
 		enabled: Boolean(versionId),
-		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+		refetchInterval: isAnyPolling ? 1000 : false,
 	});
 
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
+	// Stop polling individual providers once they authenticate.
 	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
+		if (!externalAuth) {
+			return;
+		}
+		setPollingState((prev) => {
+			let changed = false;
+			const next = { ...prev };
+			for (const auth of externalAuth) {
+				if (auth.authenticated && next[auth.id] === "polling") {
+					next[auth.id] = "idle";
+					changed = true;
+				}
+			}
+			return changed ? next : prev;
+		});
+	}, [externalAuth]);
+
+	// Per-provider 60-second timeout.
+	useEffect(() => {
+		const pollingIds = Object.entries(pollingState)
+			.filter(([, authPollingState]) => authPollingState === "polling")
+			.map(([id]) => id);
+
+		if (pollingIds.length === 0) {
 			return;
 		}
 
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
-
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
+		const timers = pollingIds.map((id) =>
+			setTimeout(() => {
+				setPollingState((prev) =>
+					prev[id] === "polling" ? { ...prev, [id]: "abandoned" } : prev,
+				);
+			}, 60_000),
 		);
+
 		return () => {
-			clearTimeout(quitPolling);
+			for (const t of timers) {
+				clearTimeout(t);
+			}
 		};
-	}, [externalAuthPollingState, allSignedIn]);
+	}, [pollingState]);
 
 	return {
 		startPollingExternalAuth,
 		externalAuth,
-		externalAuthPollingState,
+		externalAuthPollingState: pollingState,
 		isLoadingExternalAuth,
 		externalAuthError: error,
-		isPollingExternalAuth: externalAuthPollingState === "polling",
+		isPollingExternalAuth: isAnyPolling,
 	};
 };
