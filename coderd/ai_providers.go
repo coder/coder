@@ -178,6 +178,15 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Claude Platform for AWS providers authenticate via the settings blob
+	// (SigV4 credentials or a workspace API key), not via the api_keys pool.
+	if req.Settings.ClaudePlatformAWS != nil && len(req.APIKeys) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform for AWS providers do not accept api_keys; configure credentials via settings.",
+		})
+		return
+	}
+
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
 		api.Logger.Error(ctx, "encode AI provider settings", slog.Error(err))
@@ -329,6 +338,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		// Claude Platform settings are only meaningful for
+		// claude-platform-aws-typed providers.
+		if existing.ClaudePlatformAWS != nil &&
+			old.Type != database.AIProviderTypeClaudePlatformAws {
+			return errAIProviderClaudePlatformAWSTypeMismatch
+		}
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -338,6 +353,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// row is Bedrock or the patch would make it so).
 		if req.APIKeys != nil && existing.Bedrock != nil && len(*req.APIKeys) > 0 {
 			return errBedrockRejectsAPIKeys
+		}
+
+		// Reject keys against Claude Platform for AWS providers, which
+		// authenticate via settings (SigV4 credentials or a workspace
+		// API key) rather than the api_keys pool.
+		if req.APIKeys != nil && existing.ClaudePlatformAWS != nil && len(*req.APIKeys) > 0 {
+			return errClaudePlatformAWSRejectsAPIKeys
 		}
 
 		if req.APIKeys != nil && old.Type == database.AIProviderTypeCopilot && len(*req.APIKeys) > 0 {
@@ -388,6 +410,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errors.Is(err, errClaudePlatformAWSRejectsAPIKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform for AWS providers do not accept api_keys; configure credentials via settings.",
+		})
+		return
+	}
 	if errors.Is(err, errCopilotRejectsAPIKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Copilot providers do not accept api_keys; they authenticate via request-time GitHub OAuth tokens.",
@@ -397,6 +425,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderClaudePlatformAWSTypeMismatch) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Claude Platform for AWS settings are only valid for type=claude-platform-aws.",
 		})
 		return
 	}
@@ -505,6 +539,18 @@ var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_
 // Bedrock block but the provider is not anthropic- or bedrock-typed;
 // the outer handler translates it into a 400.
 var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
+
+// errClaudePlatformAWSRejectsAPIKeys is the sentinel returned from
+// inside the update transaction when a caller attempts to attach
+// api_keys to a Claude Platform for AWS provider; the outer handler
+// translates it into a 400. These providers authenticate via settings.
+var errClaudePlatformAWSRejectsAPIKeys = xerrors.New("claude platform aws providers do not accept api_keys")
+
+// errAIProviderClaudePlatformAWSTypeMismatch is the sentinel returned
+// from inside the update transaction when the post-merge settings carry
+// a Claude Platform block but the provider is not claude-platform-aws-typed;
+// the outer handler translates it into a 400.
+var errAIProviderClaudePlatformAWSTypeMismatch = xerrors.New("claude_platform_aws settings are only valid for type=claude-platform-aws")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.
@@ -760,18 +806,34 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 // admin migrates from static AWS credentials to IAM role-based auth
 // in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.Bedrock == nil {
+	switch {
+	case patch.Bedrock != nil:
+		merged := *patch.Bedrock
+		if existing.Bedrock != nil {
+			if merged.AccessKey == nil {
+				merged.AccessKey = existing.Bedrock.AccessKey
+			}
+			if merged.AccessKeySecret == nil {
+				merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
+			}
+		}
+		return codersdk.AIProviderSettings{Bedrock: &merged}
+	case patch.ClaudePlatformAWS != nil:
+		merged := *patch.ClaudePlatformAWS
+		if existing.ClaudePlatformAWS != nil {
+			if merged.AccessKey == nil {
+				merged.AccessKey = existing.ClaudePlatformAWS.AccessKey
+			}
+			if merged.AccessKeySecret == nil {
+				merged.AccessKeySecret = existing.ClaudePlatformAWS.AccessKeySecret
+			}
+			if merged.APIKey == nil {
+				merged.APIKey = existing.ClaudePlatformAWS.APIKey
+			}
+		}
+		return codersdk.AIProviderSettings{ClaudePlatformAWS: &merged}
+	default:
 		// Patch carries no type-specific data; treat as a clear.
 		return codersdk.AIProviderSettings{}
 	}
-	merged := *patch.Bedrock
-	if existing.Bedrock != nil {
-		if merged.AccessKey == nil {
-			merged.AccessKey = existing.Bedrock.AccessKey
-		}
-		if merged.AccessKeySecret == nil {
-			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
-		}
-	}
-	return codersdk.AIProviderSettings{Bedrock: &merged}
 }

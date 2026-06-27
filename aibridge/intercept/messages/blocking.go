@@ -36,17 +36,19 @@ func NewBlockingInterceptor(
 	cfg intercept.Config,
 	cred intercept.Credential,
 	bedrock *BedrockRuntime,
+	claudePlatform *ClaudePlatformAWSRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
 	return &BlockingInterception{interceptionBase: interceptionBase{
-		id:            id,
-		reqPayload:    reqPayload,
-		cfg:           cfg,
-		cred:          cred,
-		bedrock:       bedrock,
-		clientHeaders: clientHeaders,
-		tracer:        tracer,
+		id:             id,
+		reqPayload:     reqPayload,
+		cfg:            cfg,
+		cred:           cred,
+		bedrock:        bedrock,
+		claudePlatform: claudePlatform,
+		clientHeaders:  clientHeaders,
+		tracer:         tracer,
 	}}
 }
 

@@ -41,17 +41,19 @@ func NewStreamingInterceptor(
 	cfg intercept.Config,
 	cred intercept.Credential,
 	bedrock *BedrockRuntime,
+	claudePlatform *ClaudePlatformAWSRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
-		id:            id,
-		reqPayload:    reqPayload,
-		cfg:           cfg,
-		cred:          cred,
-		bedrock:       bedrock,
-		clientHeaders: clientHeaders,
-		tracer:        tracer,
+		id:             id,
+		reqPayload:     reqPayload,
+		cfg:            cfg,
+		cred:           cred,
+		bedrock:        bedrock,
+		claudePlatform: claudePlatform,
+		clientHeaders:  clientHeaders,
+		tracer:         tracer,
 	}}
 }
 
@@ -146,6 +148,15 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Accumulate usage across the entire streaming interaction (including tool reinvocations).
 	var cumulativeUsage anthropic.Usage
 
+	// relayedBlocks counts the content blocks already relayed to the client
+	// across all stitched upstream messages; it is the next client-facing
+	// content block index to assign. The bridge presents multiple upstream
+	// messages (one per agentic tool round) as a single client message, but
+	// each upstream message restarts its content block indices at 0. Without
+	// re-indexing, the client would see a non-monotonic index sequence (e.g.
+	// 0 then 0 again), which a spec-compliant accumulator rejects.
+	var relayedBlocks int64
+
 	var lastErr error
 	var interceptionErr error
 
@@ -212,6 +223,12 @@ newStream:
 
 		var message anthropic.Message
 		var lastToolName string
+
+		// clientBlockIndex maps this upstream message's content block indices to
+		// the contiguous client-facing indices assigned as blocks are relayed. It
+		// resets each iteration because every upstream message restarts its own
+		// indices at 0.
+		clientBlockIndex := make(map[int64]int64)
 
 		pendingToolCalls := make(map[string]string)
 
@@ -511,7 +528,10 @@ newStream:
 			}
 
 			// Overwrite response identifier since proxy obscures injected tool call invocations.
-			payload, err := i.marshalEvent(event)
+			// Re-index relayed content blocks so the stitched client stream stays
+			// contiguous and monotonic across agentic tool rounds.
+			indexOverride := i.clientContentBlockIndex(event, clientBlockIndex, &relayedBlocks)
+			payload, err := i.marshalEvent(event, indexOverride)
 			if err != nil {
 				logger.Warn(ctx, "failed to marshal event", slog.Error(err), slog.F("event", event.RawJSON()))
 				lastErr = xerrors.Errorf("marshal event: %w", err)
@@ -636,7 +656,7 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 	return nil
 }
 
-func (i *StreamingInterception) marshalEvent(event anthropic.MessageStreamEventUnion) ([]byte, error) {
+func (i *StreamingInterception) marshalEvent(event anthropic.MessageStreamEventUnion, indexOverride *int64) ([]byte, error) {
 	sj, err := sjson.Set(event.RawJSON(), "message.id", i.ID().String())
 	if err != nil {
 		return nil, xerrors.Errorf("marshal event id failed: %w", err)
@@ -647,7 +667,43 @@ func (i *StreamingInterception) marshalEvent(event anthropic.MessageStreamEventU
 		return nil, xerrors.Errorf("marshal event usage failed: %w", err)
 	}
 
+	// Rewrite the content block index for content_block_* events so the
+	// client-facing stream presents a single coherent message even though the
+	// bridge stitches multiple upstream messages together.
+	if indexOverride != nil {
+		sj, err = sjson.Set(sj, "index", *indexOverride)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal event index failed: %w", err)
+		}
+	}
+
 	return i.encodeForStream([]byte(sj), event.Type), nil
+}
+
+// clientContentBlockIndex returns the client-facing content block index to use
+// when relaying event, or nil for events that carry no content block index.
+//
+// The bridge presents multiple upstream messages (one per agentic tool round)
+// as a single client message. Each upstream message restarts its content block
+// indices at 0, and injected tool blocks are dropped from the relayed stream,
+// so the indices must be remapped to a contiguous, monotonic client sequence.
+// A content_block_start is assigned the next free client index; the matching
+// content_block_delta and content_block_stop reuse that mapping.
+func (*StreamingInterception) clientContentBlockIndex(event anthropic.MessageStreamEventUnion, clientBlockIndex map[int64]int64, relayedBlocks *int64) *int64 {
+	switch event.Type {
+	case string(constant.ValueOf[constant.ContentBlockStart]()):
+		clientIdx := *relayedBlocks
+		clientBlockIndex[event.Index] = clientIdx
+		*relayedBlocks++
+		return &clientIdx
+	case string(constant.ValueOf[constant.ContentBlockDelta]()), string(constant.ValueOf[constant.ContentBlockStop]()):
+		if clientIdx, ok := clientBlockIndex[event.Index]; ok {
+			return &clientIdx
+		}
+		return nil
+	default:
+		return nil
+	}
 }
 
 func (i *StreamingInterception) marshal(payload any) ([]byte, error) {

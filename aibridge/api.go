@@ -16,9 +16,10 @@ import (
 
 // Const + Type + function aliases for backwards compatibility.
 const (
-	ProviderAnthropic = config.ProviderAnthropic
-	ProviderOpenAI    = config.ProviderOpenAI
-	ProviderCopilot   = config.ProviderCopilot
+	ProviderAnthropic         = config.ProviderAnthropic
+	ProviderOpenAI            = config.ProviderOpenAI
+	ProviderCopilot           = config.ProviderCopilot
+	ProviderClaudePlatformAWS = config.ProviderClaudePlatformAWS
 )
 
 type (
@@ -35,10 +36,11 @@ type (
 	Recorder                = recorder.Recorder
 	Metadata                = recorder.Metadata
 
-	AnthropicConfig  = config.Anthropic
-	AWSBedrockConfig = config.AWSBedrock
-	OpenAIConfig     = config.OpenAI
-	CopilotConfig    = config.Copilot
+	AnthropicConfig         = config.Anthropic
+	AWSBedrockConfig        = config.AWSBedrock
+	AWSClaudePlatformConfig = config.AWSClaudePlatform
+	OpenAIConfig            = config.OpenAI
+	CopilotConfig           = config.Copilot
 )
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
@@ -46,7 +48,15 @@ func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) co
 }
 
 func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
-	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
+	return provider.NewAnthropic(ctx, cfg, bedrockCfg, nil)
+}
+
+// NewClaudePlatformAWSProvider builds an Anthropic provider variant that targets
+// Claude Platform for AWS. It shares the Anthropic provider's /v1/messages route
+// and interceptors, signing requests with SigV4 (service aws-external-anthropic)
+// or a workspace API key. Model IDs pass through unchanged.
+func NewClaudePlatformAWSProvider(ctx context.Context, cfg config.Anthropic, claudePlatformCfg *config.AWSClaudePlatform) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg, nil, claudePlatformCfg)
 }
 
 func NewOpenAIProvider(cfg config.OpenAI) provider.Provider {

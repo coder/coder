@@ -213,6 +213,18 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.RoleARN = b.GetRoleArn()
 		spec.Bedrock = ptr.Ref(bedrock)
 	}
+	if cp := pp.GetClaudePlatform(); cp != nil {
+		claudePlatform := codersdk.NewAIProviderClaudePlatformAWSSettings(
+			cp.GetRegion(),
+			cp.GetWorkspaceId(),
+			cp.GetAccessKey(),
+			cp.GetAccessKeySecret(),
+			cp.GetRoleArn(),
+			cp.GetExternalId(),
+			cp.GetApiKey(),
+		)
+		spec.ClaudePlatformAWS = ptr.Ref(claudePlatform)
+	}
 	return spec
 }
 
@@ -230,6 +242,10 @@ type aiProviderSpec struct {
 	// Bedrock holds Bedrock-specific settings when the provider targets
 	// AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
+	// ClaudePlatformAWS holds Claude Platform for AWS settings when the
+	// provider targets Claude Platform for AWS (type=claude-platform-aws);
+	// nil otherwise.
+	ClaudePlatformAWS *codersdk.AIProviderClaudePlatformAWSSettings
 }
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
@@ -308,6 +324,23 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			SendActorHeaders: sendActorHeaders,
 		}, bedrock)
 
+	case database.AIProviderTypeClaudePlatformAws:
+		claudePlatform := claudePlatformConfig(spec.BaseURL, spec.ClaudePlatformAWS)
+		// A Claude Platform for AWS spec authenticates exclusively via
+		// settings (SigV4 or a workspace API key); without populated
+		// settings it cannot make upstream calls, so refuse rather than
+		// falling back to an unsigned Anthropic client.
+		if claudePlatform == nil {
+			return nil, xerrors.New("claude-platform-aws provider has no claude platform settings configured")
+		}
+		return aibridge.NewClaudePlatformAWSProvider(ctx, aibridge.AnthropicConfig{
+			Name:             spec.Name,
+			BaseURL:          spec.BaseURL,
+			APIDumpDir:       dumpDir,
+			CircuitBreaker:   cbCfg,
+			SendActorHeaders: sendActorHeaders,
+		}, claudePlatform)
+
 	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each
 		// request via the Authorization header, so no keypool is built.
@@ -352,6 +385,32 @@ func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) 
 		Model:           bedrockSettings.Model,
 		SmallFastModel:  bedrockSettings.SmallFastModel,
 		RoleARN:         bedrockSettings.RoleARN,
+	}
+}
+
+// claudePlatformConfig returns nil when the settings have no Claude
+// Platform for AWS data or when its fields are not actually configured.
+// The provider's BaseURL is the generic upstream endpoint and is always
+// non-empty, so it cannot serve as a detection signal; gate on the
+// settings alone via
+// [codersdk.AIProviderClaudePlatformAWSSettings.IsConfigured].
+func claudePlatformConfig(baseURL string, claudePlatform *codersdk.AIProviderClaudePlatformAWSSettings) *aibridge.AWSClaudePlatformConfig {
+	if claudePlatform == nil {
+		return nil
+	}
+	cpSettings := *claudePlatform
+	if !cpSettings.IsConfigured() {
+		return nil
+	}
+	return &aibridge.AWSClaudePlatformConfig{
+		BaseURL:         baseURL,
+		Region:          cpSettings.Region,
+		WorkspaceID:     cpSettings.WorkspaceID,
+		AccessKey:       ptr.NilToEmpty(cpSettings.AccessKey),
+		AccessKeySecret: ptr.NilToEmpty(cpSettings.AccessKeySecret),
+		RoleARN:         cpSettings.RoleARN,
+		ExternalID:      cpSettings.ExternalID,
+		APIKey:          ptr.NilToEmpty(cpSettings.APIKey),
 	}
 }
 

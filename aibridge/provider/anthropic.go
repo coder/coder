@@ -29,6 +29,8 @@ type Anthropic struct {
 	cfg config.Anthropic
 	// bedrock is nil for non-Bedrock providers.
 	bedrock *messages.BedrockRuntime
+	// claudePlatform is nil for non-Claude-Platform providers.
+	claudePlatform *messages.ClaudePlatformAWSRuntime
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -45,7 +47,7 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
+func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock, claudePlatformCfg *config.AWSClaudePlatform) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
@@ -76,9 +78,23 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
 	}
 
+	// Resolve the Claude Platform for AWS request options once. Like Bedrock,
+	// this wires up the provider chain and signing middleware without making a
+	// network call, so it is cheap to run at construction and is reused across
+	// all requests.
+	var claudePlatform *messages.ClaudePlatformAWSRuntime
+	if claudePlatformCfg != nil {
+		opts, err := buildClaudePlatformAWSOptions(ctx, *claudePlatformCfg)
+		if err != nil {
+			return nil, xerrors.Errorf("build claude platform for aws options: %w", err)
+		}
+		claudePlatform = &messages.ClaudePlatformAWSRuntime{Cfg: *claudePlatformCfg, Options: opts}
+	}
+
 	return &Anthropic{
-		cfg:     cfg,
-		bedrock: bedrock,
+		cfg:            cfg,
+		bedrock:        bedrock,
+		claudePlatform: claudePlatform,
 	}, nil
 }
 
@@ -144,9 +160,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, p.claudePlatform, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, p.claudePlatform, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
@@ -176,6 +192,12 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	}
 	if p.bedrock != nil {
 		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+	}
+	if p.claudePlatform != nil {
+		return intercept.ClaudePlatformAWS{
+			APIKey:    p.claudePlatform.Cfg.APIKey,
+			AccessKey: p.claudePlatform.Cfg.AccessKey,
+		}, nil
 	}
 	return nil, ErrNoCredential
 }

@@ -114,6 +114,14 @@ func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProvider
 		b.AccessKeySecret = nil
 		out.Bedrock = &b
 	}
+	if out.ClaudePlatformAWS != nil {
+		// Deep-copy so we don't mutate the caller's struct.
+		c := *out.ClaudePlatformAWS
+		c.AccessKey = nil
+		c.AccessKeySecret = nil
+		c.APIKey = nil
+		out.ClaudePlatformAWS = &c
+	}
 	return out
 }
 

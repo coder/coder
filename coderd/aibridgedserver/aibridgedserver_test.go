@@ -2452,6 +2452,27 @@ func TestGetAIProviders(t *testing.T) {
 		Settings: sql.NullString{String: string(bedrockSettings), Valid: true},
 	})
 
+	// Enabled Claude Platform for AWS with typed settings.
+	claudePlatformSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:          "us-west-2",
+			WorkspaceID:     "wrkspc-123",
+			AccessKey:       ptr.Ref("AKID"),
+			AccessKeySecret: ptr.Ref("secret"),
+			RoleARN:         "arn:aws:iam::123456789012:role/claude-platform",
+			ExternalID:      "ext-1",
+			APIKey:          ptr.Ref("sk-workspace"),
+		},
+	})
+	require.NoError(t, err)
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Type:     database.AIProviderTypeClaudePlatformAws,
+		Name:     "claude-platform",
+		Enabled:  true,
+		BaseUrl:  "https://aws-external-anthropic.us-west-2.api.aws",
+		Settings: sql.NullString{String: string(claudePlatformSettings), Valid: true},
+	})
+
 	// Enabled Copilot, which is keyless (BYOK per request).
 	dbgen.AIProvider(t, db, database.AIProvider{
 		Type:    database.AIProviderTypeCopilot,
@@ -2490,7 +2511,7 @@ func TestGetAIProviders(t *testing.T) {
 	for _, p := range resp.GetProviders() {
 		byName[p.GetName()] = p
 	}
-	require.Len(t, byName, 4)
+	require.Len(t, byName, 5)
 	assert.NotContains(t, byName, "broken-settings", "provider with undecodable settings must be skipped")
 
 	gotOpenAI := byName["openai"]
@@ -2512,6 +2533,19 @@ func TestGetAIProviders(t *testing.T) {
 	assert.Equal(t, "secret", gotBedrock.GetBedrock().GetAccessKeySecret())
 	assert.Equal(t, "arn:aws:iam::123456789012:role/bedrock", gotBedrock.GetBedrock().GetRoleArn())
 
+	gotClaudePlatform := byName["claude-platform"]
+	require.NotNil(t, gotClaudePlatform)
+	assert.True(t, gotClaudePlatform.GetEnabled())
+	assert.Equal(t, string(database.AIProviderTypeClaudePlatformAws), gotClaudePlatform.GetType())
+	require.NotNil(t, gotClaudePlatform.GetClaudePlatform())
+	assert.Equal(t, "us-west-2", gotClaudePlatform.GetClaudePlatform().GetRegion())
+	assert.Equal(t, "wrkspc-123", gotClaudePlatform.GetClaudePlatform().GetWorkspaceId())
+	assert.Equal(t, "AKID", gotClaudePlatform.GetClaudePlatform().GetAccessKey())
+	assert.Equal(t, "secret", gotClaudePlatform.GetClaudePlatform().GetAccessKeySecret())
+	assert.Equal(t, "arn:aws:iam::123456789012:role/claude-platform", gotClaudePlatform.GetClaudePlatform().GetRoleArn())
+	assert.Equal(t, "ext-1", gotClaudePlatform.GetClaudePlatform().GetExternalId())
+	assert.Equal(t, "sk-workspace", gotClaudePlatform.GetClaudePlatform().GetApiKey())
+
 	gotCopilot := byName["copilot"]
 	require.NotNil(t, gotCopilot)
 	assert.True(t, gotCopilot.GetEnabled())
@@ -2522,6 +2556,7 @@ func TestGetAIProviders(t *testing.T) {
 	assert.False(t, gotDisabled.GetEnabled())
 	assert.Empty(t, gotDisabled.GetKeys(), "keys must be withheld for disabled providers")
 	assert.Nil(t, gotDisabled.GetBedrock())
+	assert.Nil(t, gotDisabled.GetClaudePlatform())
 }
 
 // TestGetAIProvidersBlocksOnSeedLock asserts that GetAIProviders serializes on

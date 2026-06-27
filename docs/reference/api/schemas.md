@@ -1121,9 +1121,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                |
-|---------------------------------------------------------------------------------------------------------|
-| `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
+| Value(s)                                                                                                                       |
+|--------------------------------------------------------------------------------------------------------------------------------|
+| `anthropic`, `azure`, `bedrock`, `claude-platform-aws`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 ## codersdk.APIAllowListTarget
 

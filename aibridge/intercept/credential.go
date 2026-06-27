@@ -75,6 +75,52 @@ func (b Bedrock) Hint() string {
 	return utils.MaskSecret(b.AccessKey)
 }
 
+// ClaudePlatformAWS authenticates against Claude Platform for AWS. In SigV4
+// mode requests are signed (so there is no static auth header) using static
+// credentials, the AWS default credential chain, or an assumed role. In
+// API-key mode the workspace key is sent as x-api-key. There is no key pool or
+// failover.
+type ClaudePlatformAWS struct {
+	// APIKey is set when authenticating with a workspace API key (x-api-key
+	// mode). When empty, requests are SigV4-signed and carry no static auth
+	// header.
+	APIKey string
+	// AccessKey is the static AWS access key, if configured. Used only for the
+	// masked hint.
+	AccessKey string
+}
+
+func (ClaudePlatformAWS) Kind() CredentialKind { return CredentialKindCentralized }
+
+// AuthHeader reports the header carrying this request's credential. In API-key
+// mode the SDK sets x-api-key and it must be preserved when rebuilding the
+// upstream headers; in SigV4 mode the credential lives in the signed
+// Authorization header injected after header rebuilding, so there is no static
+// header to preserve.
+func (c ClaudePlatformAWS) AuthHeader() string {
+	if c.APIKey != "" {
+		return AuthHeaderXAPIKey
+	}
+	return ""
+}
+
+func (c ClaudePlatformAWS) Length() int {
+	if c.APIKey != "" {
+		return len(c.APIKey)
+	}
+	return len(c.AccessKey)
+}
+
+func (c ClaudePlatformAWS) Hint() string {
+	if c.APIKey != "" {
+		return utils.MaskSecret(c.APIKey)
+	}
+	if c.AccessKey == "" {
+		return hintBedrockChainKey
+	}
+	return utils.MaskSecret(c.AccessKey)
+}
+
 // CentralizedPool authenticates with a provider-managed key pool and fails over
 // across keys.
 type CentralizedPool struct {
@@ -115,6 +161,7 @@ func (c *CentralizedPool) NextKey(w *keypool.Walker) (*keypool.Key, *keypool.Err
 var (
 	_ Credential = BYOK{}
 	_ Credential = Bedrock{}
+	_ Credential = ClaudePlatformAWS{}
 	_ Credential = &CentralizedPool{}
 )
 

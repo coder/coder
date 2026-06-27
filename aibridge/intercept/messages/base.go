@@ -71,6 +71,17 @@ type BedrockRuntime struct {
 	Creds aws.CredentialsProvider
 }
 
+// ClaudePlatformAWSRuntime carries everything a Claude Platform for AWS
+// interception needs: the static config plus the SDK request options resolved
+// once at provider construction. Options carry the regional base URL, the
+// anthropic-workspace-id header, and either the SigV4 signing middleware
+// (service aws-external-anthropic) or the x-api-key auth, depending on the
+// configured credentials.
+type ClaudePlatformAWSRuntime struct {
+	Cfg     aibconfig.AWSClaudePlatform
+	Options []option.RequestOption
+}
+
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
@@ -79,6 +90,8 @@ type interceptionBase struct {
 	cred intercept.Credential
 	// bedrock is nil for non-Bedrock providers.
 	bedrock *BedrockRuntime
+	// claudePlatform is nil for non-Claude-Platform providers.
+	claudePlatform *ClaudePlatformAWSRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -254,6 +267,16 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		}
 		opts = append(opts, bedrockOpts...)
 		i.augmentRequestForBedrock()
+	}
+
+	// Claude Platform for AWS: append the SDK options resolved at provider
+	// construction (regional base URL, anthropic-workspace-id header, and
+	// either SigV4 signing or x-api-key auth). These are appended last so the
+	// SigV4 signing middleware runs closest to the wire, after the client
+	// header rebuild, exactly like the Bedrock path. Model IDs pass through
+	// unchanged.
+	if i.claudePlatform != nil {
+		opts = append(opts, i.claudePlatform.Options...)
 	}
 
 	return anthropic.NewMessageService(opts...), nil

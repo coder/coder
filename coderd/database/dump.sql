@@ -19,7 +19,8 @@ CREATE TYPE ai_provider_type AS ENUM (
     'openai-compat',
     'openrouter',
     'vercel',
-    'copilot'
+    'copilot',
+    'claude-platform-aws'
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (

@@ -43,17 +43,18 @@ AI Gateway speaks two upstream API formats: the **OpenAI** format
 (Chat Completions and Responses) and the **Anthropic** format
 (Messages). Every provider type maps to one of these.
 
-| Type            | API format | Setup notes                                                       |
-|-----------------|------------|-------------------------------------------------------------------|
-| `openai`        | OpenAI     | Native OpenAI, or any OpenAI-compatible endpoint via the base URL |
-| `anthropic`     | Anthropic  | Native Anthropic, or an Anthropic-compatible broker               |
-| `bedrock`       | Anthropic  | Anthropic models hosted on AWS Bedrock; authenticates via AWS     |
-| `copilot`       | OpenAI     | GitHub Copilot; authenticates via each user's GitHub OAuth token  |
-| `azure`         | OpenAI     | OpenAI-compatible endpoint only                                   |
-| `google`        | OpenAI     | OpenAI-compatible endpoint only                                   |
-| `openrouter`    | OpenAI     | OpenAI-compatible endpoint only                                   |
-| `vercel`        | OpenAI     | OpenAI-compatible endpoint only                                   |
-| `openai-compat` | OpenAI     | Generic OpenAI-compatible endpoint                                |
+| Type                  | API format | Setup notes                                                                                        |
+|-----------------------|------------|----------------------------------------------------------------------------------------------------|
+| `openai`              | OpenAI     | Native OpenAI, or any OpenAI-compatible endpoint via the base URL                                  |
+| `anthropic`           | Anthropic  | Native Anthropic, or an Anthropic-compatible broker                                                |
+| `bedrock`             | Anthropic  | Anthropic models hosted on AWS Bedrock; authenticates via AWS                                      |
+| `claude-platform-aws` | Anthropic  | Claude Platform for AWS; native Anthropic API on AWS, authenticates via AWS or a workspace API key |
+| `copilot`             | OpenAI     | GitHub Copilot; authenticates via each user's GitHub OAuth token                                   |
+| `azure`               | OpenAI     | OpenAI-compatible endpoint only                                                                    |
+| `google`              | OpenAI     | OpenAI-compatible endpoint only                                                                    |
+| `openrouter`          | OpenAI     | OpenAI-compatible endpoint only                                                                    |
+| `vercel`              | OpenAI     | OpenAI-compatible endpoint only                                                                    |
+| `openai-compat`       | OpenAI     | Generic OpenAI-compatible endpoint                                                                 |
 
 `azure`, `google`, `openrouter`, `vercel`, and `openai-compat` are
 supported only as OpenAI-compatible endpoints: AI Gateway sends them
@@ -163,6 +164,49 @@ To use role assumption:
 Each provider assumes a single role. To use several roles, configure one
 provider per role.
 
+### Claude Platform for AWS
+
+Claude Platform for AWS serves Anthropic's native Messages API from AWS
+infrastructure at `https://aws-external-anthropic.<region>.api.aws`. Unlike
+Amazon Bedrock, it uses standard Anthropic model IDs and the native Messages
+API, so AI Gateway forwards requests and model IDs unchanged. Requests are
+signed with the AWS SigV4 service name `aws-external-anthropic` and always
+carry the `anthropic-workspace-id` header.
+
+Configure a `claude-platform-aws` provider with:
+
+- A **region** used both for SigV4 signing and to construct the regional
+  endpoint. It must match the region in the base URL.
+- A **workspace ID**, sent in the `anthropic-workspace-id` header on every
+  request. This is required.
+- A **base URL**. Set it to
+  `https://aws-external-anthropic.<region>.api.aws`, or to a proxy endpoint
+  when routing through one.
+
+Do not attach API keys to a Claude Platform for AWS provider; it authenticates
+via the settings described below.
+
+AI Gateway authenticates one of these ways, in precedence order:
+
+- **Workspace API key.** Provide a Claude Platform workspace API key. It is
+  sent as the `x-api-key` header and takes precedence over AWS credentials.
+- **AWS SDK default credential chain (recommended for SigV4).** When no
+  explicit credentials are configured, the AWS SDK resolves them from the
+  environment: IAM Roles (instance profiles, IRSA, ECS task roles), shared
+  config files, environment variables, SSO, and more.
+- **Static credentials.** Provide an AWS access key and secret for SigV4
+  signing.
+- **Assumed IAM role.** Set a **Role ARN** (and optionally an **External ID**)
+  to have the gateway assume that role before signing requests. This works on
+  top of either the default chain or static credentials, and supports
+  cross-account access. It signs an STS `AssumeRole` call with the base
+  identity, then signs requests with the resulting temporary credentials.
+
+Access key, secret access key, and workspace API key are write-only: the API
+never echoes them back after they are saved. Omit them on an update to leave
+them unchanged, or send an empty value to clear them, for example when
+migrating from static credentials to an IAM role.
+
 ### GitHub Copilot
 
 GitHub Copilot offers three plans: Individual, Business, and Enterprise,
@@ -252,7 +296,8 @@ is transparent to end users, and clients see no difference in behavior or need
 any configuration changes.
 
 Key failover is supported for **OpenAI** and **Anthropic** providers. Amazon
-Bedrock and GitHub Copilot do not support key failover.
+Bedrock, Claude Platform for AWS, and GitHub Copilot do not support key
+failover.
 
 Multiple keys can be added per provider through the
 [AI Providers API](../../reference/api/aiproviders.md). Each provider supports

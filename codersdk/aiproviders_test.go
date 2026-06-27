@@ -56,6 +56,50 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 			"region": "us-east-1"
 		}`, string(got))
 	})
+
+	t.Run("ClaudePlatformAWSEmitsDiscriminator", func(t *testing.T) {
+		t.Parallel()
+		got, err := json.Marshal(codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:          "us-east-1",
+				WorkspaceID:     "wrkspc_123",
+				AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // fixture
+				AccessKeySecret: ptr.Ref("secret"),
+				RoleARN:         "arn:aws:iam::123456789012:role/cp",
+				ExternalID:      "ext-id",
+				APIKey:          ptr.Ref("sk-ant-test"), //nolint:gosec // fixture
+			},
+		})
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+			"_type": "claude-platform-aws",
+			"_version": 1,
+			"region": "us-east-1",
+			"workspace_id": "wrkspc_123",
+			"access_key": "AKIA-test",
+			"access_key_secret": "secret",
+			"role_arn": "arn:aws:iam::123456789012:role/cp",
+			"external_id": "ext-id",
+			"api_key": "sk-ant-test"
+		}`, string(got))
+	})
+
+	t.Run("ClaudePlatformAWSOmitsEmptyFields", func(t *testing.T) {
+		t.Parallel()
+		got, err := json.Marshal(codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:      "us-east-1",
+				WorkspaceID: "wrkspc_123",
+			},
+		})
+		require.NoError(t, err)
+		require.JSONEq(t, `{
+			"_type": "claude-platform-aws",
+			"_version": 1,
+			"region": "us-east-1",
+			"workspace_id": "wrkspc_123"
+		}`, string(got))
+	})
 }
 
 func TestAIProviderSettings_Unmarshal(t *testing.T) {
@@ -137,6 +181,32 @@ func TestAIProviderSettings_Unmarshal(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(`null`), &s))
 		require.True(t, s.IsZero())
 	})
+
+	t.Run("ClaudePlatformAWSSupportedVersion", func(t *testing.T) {
+		t.Parallel()
+		var s codersdk.AIProviderSettings
+		require.NoError(t, json.Unmarshal([]byte(`{
+			"_type":        "claude-platform-aws",
+			"_version":     1,
+			"region":       "us-east-1",
+			"workspace_id": "wrkspc_123",
+			"api_key":      "sk-ant-test"
+		}`), &s))
+		require.Nil(t, s.Bedrock)
+		require.NotNil(t, s.ClaudePlatformAWS)
+		require.Equal(t, "us-east-1", s.ClaudePlatformAWS.Region)
+		require.Equal(t, "wrkspc_123", s.ClaudePlatformAWS.WorkspaceID)
+		require.NotNil(t, s.ClaudePlatformAWS.APIKey)
+		require.Equal(t, "sk-ant-test", *s.ClaudePlatformAWS.APIKey)
+	})
+
+	t.Run("ClaudePlatformAWSUnsupportedVersion", func(t *testing.T) {
+		t.Parallel()
+		var s codersdk.AIProviderSettings
+		err := json.Unmarshal([]byte(`{"_type":"claude-platform-aws","_version":99}`), &s)
+		require.ErrorContains(t, err, `unsupported "claude-platform-aws" settings version 99`)
+		require.ErrorContains(t, err, "expected 1")
+	})
 }
 
 func TestAIProviderSettings_Roundtrip(t *testing.T) {
@@ -211,4 +281,116 @@ func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 			require.Equal(t, tc.wantErr, hasRoleARNError(update.Validate()))
 		})
 	}
+}
+
+func TestAIProviderSettings_ClaudePlatformAWSRoundtrip(t *testing.T) {
+	t.Parallel()
+	orig := codersdk.AIProviderSettings{
+		ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:          "us-west-2",
+			WorkspaceID:     "wrkspc_roundtrip",
+			AccessKey:       ptr.Ref("AKIA-roundtrip"), //nolint:gosec // fixture
+			AccessKeySecret: ptr.Ref("secret-roundtrip"),
+			RoleARN:         "arn:aws:iam::123456789012:role/cp",
+			ExternalID:      "ext-roundtrip",
+			APIKey:          ptr.Ref("sk-ant-roundtrip"), //nolint:gosec // fixture
+		},
+	}
+	encoded, err := json.Marshal(orig)
+	require.NoError(t, err)
+	require.True(t, strings.Contains(string(encoded), `"_type":"claude-platform-aws"`))
+
+	var got codersdk.AIProviderSettings
+	require.NoError(t, json.Unmarshal(encoded, &got))
+	require.Equal(t, orig, got)
+}
+
+func TestAIProviderRequest_ValidateClaudePlatformAWS(t *testing.T) {
+	t.Parallel()
+
+	hasFieldError := func(vs []codersdk.ValidationError, field string) bool {
+		for _, v := range vs {
+			if v.Field == field {
+				return true
+			}
+		}
+		return false
+	}
+
+	baseURL := "https://aws-external-anthropic.us-east-1.api.aws"
+
+	t.Run("ValidCreate", func(t *testing.T) {
+		t.Parallel()
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "cp",
+			BaseURL: baseURL,
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-east-1",
+					WorkspaceID: "wrkspc_123",
+				},
+			},
+		}
+		require.Empty(t, req.Validate())
+	})
+
+	t.Run("RequiresSettings", func(t *testing.T) {
+		t.Parallel()
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "cp",
+			BaseURL: baseURL,
+		}
+		require.True(t, hasFieldError(req.Validate(), "settings"))
+	})
+
+	t.Run("RequiresWorkspaceIDAndRegion", func(t *testing.T) {
+		t.Parallel()
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "cp",
+			BaseURL: baseURL,
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{},
+			},
+		}
+		vs := req.Validate()
+		require.True(t, hasFieldError(vs, "settings.workspace_id"))
+		require.True(t, hasFieldError(vs, "settings.region"))
+	})
+
+	t.Run("RejectsAPIKeys", func(t *testing.T) {
+		t.Parallel()
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "cp",
+			BaseURL: baseURL,
+			APIKeys: []string{"sk-ant-test"},
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-east-1",
+					WorkspaceID: "wrkspc_123",
+				},
+			},
+		}
+		require.True(t, hasFieldError(req.Validate(), "api_keys"))
+	})
+
+	t.Run("SettingsOnlyForType", func(t *testing.T) {
+		t.Parallel()
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "anthropic",
+			BaseURL: "https://api.anthropic.com",
+			APIKeys: []string{"sk-ant-test"},
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-east-1",
+					WorkspaceID: "wrkspc_123",
+				},
+			},
+		}
+		require.True(t, hasFieldError(req.Validate(), "settings"))
+	})
 }

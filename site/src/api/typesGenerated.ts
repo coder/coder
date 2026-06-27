@@ -344,6 +344,72 @@ export interface AIProviderBedrockSettings {
  */
 export const AIProviderBedrockSettingsVersion = 1;
 
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderClaudePlatformAWSSettings configures providers that authenticate
+ * against Claude Platform for AWS (https://aws-external-anthropic.<region>.api.aws).
+ *
+ * Unlike Amazon Bedrock, Claude Platform for AWS is Anthropic's native Messages
+ * API hosted on AWS infrastructure: it uses standard Anthropic model IDs, signs
+ * requests with the SigV4 service name "aws-external-anthropic", and requires
+ * the anthropic-workspace-id header on every request. Authentication is either
+ * AWS SigV4 (static keys, the AWS default credential chain, or an assumed IAM
+ * role) or a workspace API key sent as x-api-key.
+ *
+ * AccessKey, AccessKeySecret, and APIKey are write-only: servers strip them
+ * from GET and list responses. They use pointers so a PATCH can distinguish
+ * "leave untouched" (omitted) from "explicitly clear" (empty string), e.g. when
+ * migrating from static credentials to an IAM role or API key.
+ */
+export interface AIProviderClaudePlatformAWSSettings {
+	/**
+	 * Region is the AWS region used both to construct the Claude Platform
+	 * endpoint (when BaseURL is not set on the parent provider) and as the
+	 * SigV4 signing region. It must match the region in the endpoint URL.
+	 */
+	readonly region?: string;
+	/**
+	 * WorkspaceID is the Claude Platform workspace ID sent in the
+	 * anthropic-workspace-id header on every request. Required.
+	 */
+	readonly workspace_id?: string;
+	/**
+	 * AccessKey is the AWS access key ID used for SigV4 authentication.
+	 * Write-only.
+	 */
+	readonly access_key?: string;
+	/**
+	 * AccessKeySecret is the AWS secret access key paired with AccessKey.
+	 * Write-only.
+	 */
+	readonly access_key_secret?: string;
+	/**
+	 * RoleARN, when set, is the IAM role assumed via STS before signing
+	 * requests. The base identity (static keys or the AWS default credential
+	 * chain, e.g. IRSA / EKS Pod Identity / EC2 Instance Profile) signs the
+	 * AssumeRole call, and the resulting temporary credentials sign requests.
+	 */
+	readonly role_arn?: string;
+	/**
+	 * ExternalID is the STS external ID passed when assuming RoleARN. It
+	 * mitigates the confused-deputy problem for cross-account role assumption
+	 * and is only meaningful when RoleARN is set.
+	 */
+	readonly external_id?: string;
+	/**
+	 * APIKey is a Claude Platform workspace API key sent as x-api-key. When
+	 * set, it takes precedence over SigV4 credentials. Write-only.
+	 */
+	readonly api_key?: string;
+}
+
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderClaudePlatformAWSSettingsVersion is the current schema version of
+ * AIProviderClaudePlatformAWSSettings.
+ */
+export const AIProviderClaudePlatformAWSSettingsVersion = 1;
+
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
@@ -424,6 +490,13 @@ export interface AIProviderSettings {}
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderSettingsTypeClaudePlatformAWS is the _type discriminator value for
+ * AIProviderClaudePlatformAWSSettings.
+ */
+export const AIProviderSettingsTypeClaudePlatformAWS = "claude-platform-aws";
+
 // From codersdk/chats.go
 /**
  * AIProviderSummary is provider metadata embedded in other API responses.
@@ -442,6 +515,7 @@ export type AIProviderType =
 	| "anthropic"
 	| "azure"
 	| "bedrock"
+	| "claude-platform-aws"
 	| "copilot"
 	| "google"
 	| "openai"
@@ -453,6 +527,7 @@ export const AIProviderTypes: AIProviderType[] = [
 	"anthropic",
 	"azure",
 	"bedrock",
+	"claude-platform-aws",
 	"copilot",
 	"google",
 	"openai",

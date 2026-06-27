@@ -24,7 +24,7 @@ import (
 // would create an import cycle.
 func newTestAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
 	t.Helper()
-	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
+	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg, nil)
 	require.NoError(t, err)
 	return p
 }

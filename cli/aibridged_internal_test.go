@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -329,6 +331,66 @@ func TestBuildProviders(t *testing.T) {
 		}
 		assert.Nil(t, bedrockConfig(row.BaseUrl, settings.Bedrock))
 	})
+
+	t.Run("ClaudePlatformSettingsPresent", func(t *testing.T) {
+		t.Parallel()
+		accessKey := "AKID"
+		secret := "secret"
+		apiKey := "sk-ant-workspace" //nolint:gosec // test fixture, not a real credential
+		row := database.AIProvider{
+			Type:    database.AIProviderTypeClaudePlatformAws,
+			Name:    "claude-platform",
+			BaseUrl: "https://aws-external-anthropic.us-west-2.api.aws",
+		}
+		roleARN := "arn:aws:iam::123456789012:role/ClaudePlatformRole"
+		settings := codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:          "us-west-2",
+				WorkspaceID:     "wrkspc_123",
+				AccessKey:       &accessKey,
+				AccessKeySecret: &secret,
+				RoleARN:         roleARN,
+				ExternalID:      "ext-id",
+				APIKey:          &apiKey,
+			},
+		}
+		got := claudePlatformConfig(row.BaseUrl, settings.ClaudePlatformAWS)
+		require.NotNil(t, got)
+		assert.Equal(t, row.BaseUrl, got.BaseURL)
+		assert.Equal(t, "us-west-2", got.Region)
+		assert.Equal(t, "wrkspc_123", got.WorkspaceID)
+		assert.Equal(t, accessKey, got.AccessKey)
+		assert.Equal(t, secret, got.AccessKeySecret)
+		assert.Equal(t, roleARN, got.RoleARN)
+		assert.Equal(t, "ext-id", got.ExternalID)
+		assert.Equal(t, apiKey, got.APIKey)
+	})
+
+	t.Run("ClaudePlatformSettingsEmpty", func(t *testing.T) {
+		t.Parallel()
+		// A non-nil but zero-valued Claude Platform settings blob should not
+		// produce a config; the provider's generic BaseUrl is not a detection
+		// signal.
+		row := database.AIProvider{
+			Type:    database.AIProviderTypeClaudePlatformAws,
+			Name:    "claude-platform-empty",
+			BaseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+		}
+		settings := codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{},
+		}
+		assert.Nil(t, claudePlatformConfig(row.BaseUrl, settings.ClaudePlatformAWS))
+	})
+
+	t.Run("ClaudePlatformSettingsNil", func(t *testing.T) {
+		t.Parallel()
+		row := database.AIProvider{
+			Type:    database.AIProviderTypeClaudePlatformAws,
+			Name:    "claude-platform-nil",
+			BaseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+		}
+		assert.Nil(t, claudePlatformConfig(row.BaseUrl, codersdk.AIProviderSettings{}.ClaudePlatformAWS))
+	})
 }
 
 // TestBuildProvidersSkipsBadRows exercises the skip-and-continue path
@@ -385,6 +447,29 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		assert.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
 	})
 
+	t.Run("ClaudePlatformEnabledButNoSettings", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		// Claude Platform for AWS authenticates exclusively via its settings
+		// blob; an enabled row without settings cannot make upstream calls and
+		// must be classified as error.
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:    database.AIProviderTypeClaudePlatformAws,
+			Name:    "claude-platform-nosettings",
+			BaseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+		})
+
+		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
+		require.NoError(t, err)
+		assert.Empty(t, providers)
+		require.Len(t, outcomes, 1)
+		assert.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
+		assert.Error(t, outcomes[0].Err)
+	})
+
 	t.Run("BadRowDoesNotBlockGoodRow", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -422,6 +507,42 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		assert.Equal(t, aibridged.ProviderStatusEnabled, byName["openai-good"].Status)
 	})
 
+	t.Run("ClaudePlatformConfiguredRowBuilds", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := slogtest.Make(t, nil)
+
+		// A configured, enabled Claude Platform for AWS row must build into a
+		// runtime provider through the full DB -> proto -> spec -> provider
+		// path (aiProviderToProto carries the settings over the wire and
+		// protoToProviderSpec maps them back).
+		settings, err := json.Marshal(codersdk.AIProviderSettings{
+			ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:          "us-west-2",
+				WorkspaceID:     "wrkspc-123",
+				AccessKey:       ptr.Ref("AKID"),
+				AccessKeySecret: ptr.Ref("secret"),
+			},
+		})
+		require.NoError(t, err)
+		dbgen.AIProvider(t, db, database.AIProvider{
+			Type:     database.AIProviderTypeClaudePlatformAws,
+			Name:     "claude-platform-good",
+			BaseUrl:  "https://aws-external-anthropic.us-west-2.api.aws",
+			Settings: sql.NullString{String: string(settings), Valid: true},
+		})
+
+		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
+		require.NoError(t, err)
+		require.Len(t, providers, 1)
+		assert.Equal(t, "claude-platform-good", providers[0].Name())
+		assert.True(t, providers[0].Enabled())
+		require.Len(t, outcomes, 1)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, outcomes[0].Status)
+		assert.NoError(t, outcomes[0].Err)
+	})
+
 	t.Run("DisabledRowClassifiedAsDisabled", func(t *testing.T) {
 		t.Parallel()
 
@@ -454,6 +575,17 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 					Type:    database.AIProviderTypeBedrock,
 					Name:    "bedrock-off",
 					BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				},
+			},
+			{
+				// Claude Platform for AWS, like Bedrock, rejects enabled rows
+				// without settings; the disabled short-circuit must reach it
+				// before that check.
+				name: "ClaudePlatformAWS",
+				row: database.AIProvider{
+					Type:    database.AIProviderTypeClaudePlatformAws,
+					Name:    "claude-platform-off",
+					BaseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
 				},
 			},
 		} {

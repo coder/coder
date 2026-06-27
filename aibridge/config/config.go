@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	ProviderAnthropic = "anthropic"
-	ProviderOpenAI    = "openai"
-	ProviderCopilot   = "copilot"
+	ProviderAnthropic         = "anthropic"
+	ProviderOpenAI            = "openai"
+	ProviderCopilot           = "copilot"
+	ProviderClaudePlatformAWS = "claude-platform-aws"
 )
 
 // Anthropic carries configuration for an Anthropic provider.
@@ -38,6 +39,37 @@ type AWSBedrock struct {
 	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
 	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string
+}
+
+// AWSClaudePlatform carries configuration for a Claude Platform for AWS
+// provider. Unlike AWSBedrock, this targets Anthropic's native Messages API
+// hosted on AWS (https://aws-external-anthropic.<region>.api.aws), signed with
+// the SigV4 service name "aws-external-anthropic" and carrying the
+// anthropic-workspace-id header. Model IDs are standard Anthropic IDs and pass
+// through unchanged.
+type AWSClaudePlatform struct {
+	// Region is the AWS region used for SigV4 signing and, when BaseURL is not
+	// set, to construct the regional endpoint.
+	Region string
+	// WorkspaceID is sent in the anthropic-workspace-id header on every
+	// request. Required.
+	WorkspaceID string
+	// AccessKey and AccessKeySecret are static AWS credentials for SigV4. When
+	// unset, credentials resolve via the AWS default credential chain.
+	AccessKey, AccessKeySecret string
+	// RoleARN, when set, is assumed via STS before signing requests. The base
+	// identity (static keys or the AWS default credential chain) signs the
+	// AssumeRole call, and the resulting temporary credentials sign requests.
+	RoleARN string
+	// ExternalID is the STS external ID passed when assuming RoleARN. Only
+	// meaningful when RoleARN is set.
+	ExternalID string
+	// APIKey, when set, authenticates with a Claude Platform workspace API key
+	// sent as x-api-key, taking precedence over SigV4.
+	APIKey string
+	// BaseURL overrides the default regional endpoint. Useful for routing
+	// through a proxy or for testing.
+	BaseURL string
 }
 
 // OpenAI carries configuration for an OpenAI provider.

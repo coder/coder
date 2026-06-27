@@ -184,6 +184,9 @@ message AIProvider {
   // bedrock is populated when the provider's settings include Bedrock
   // credentials (regardless of provider type).
   AIProviderKindBedrock bedrock = 6;
+  // claude_platform is populated when the provider's settings include
+  // Claude Platform for AWS credentials (type=claude-platform-aws).
+  AIProviderKindClaudePlatformAWS claude_platform = 7;
 }
 
 message AIProviderKindBedrock {
@@ -193,4 +196,14 @@ message AIProviderKindBedrock {
   string model = 4;
   string small_fast_model = 5;
   string role_arn = 6;
+}
+
+message AIProviderKindClaudePlatformAWS {
+  string region = 1;
+  string workspace_id = 2;
+  string access_key = 3;
+  string access_key_secret = 4;
+  string role_arn = 5;
+  string external_id = 6;
+  string api_key = 7;
 }

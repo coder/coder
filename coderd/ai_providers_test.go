@@ -625,6 +625,91 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotContains(t, body, `"access_key"`)
 		require.NotContains(t, body, `"access_key_secret"`)
 	})
+
+	t.Run("ClaudePlatformAWSCreateGetUpdate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "claude-platform",
+			Enabled: true,
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws",
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:          "us-east-1",
+					WorkspaceID:     "wrkspc_123",
+					AccessKey:       ptr.Ref("AKIA-fixture"),   //nolint:gosec // test fixture
+					AccessKeySecret: ptr.Ref("secret-fixture"), //nolint:gosec // test fixture
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIProviderTypeClaudePlatformAWS, created.Type)
+		require.NotNil(t, created.Settings.ClaudePlatformAWS)
+		require.Equal(t, "us-east-1", created.Settings.ClaudePlatformAWS.Region)
+		require.Equal(t, "wrkspc_123", created.Settings.ClaudePlatformAWS.WorkspaceID)
+		// Write-only credentials are never echoed back.
+		require.Nil(t, created.Settings.ClaudePlatformAWS.AccessKey)
+		require.Nil(t, created.Settings.ClaudePlatformAWS.AccessKeySecret)
+
+		// Update the workspace ID and region; the omitted access key + secret
+		// must be preserved from the existing settings (write-only merge).
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-west-2",
+					WorkspaceID: "wrkspc_456",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.ClaudePlatformAWS)
+		require.Equal(t, "us-west-2", updated.Settings.ClaudePlatformAWS.Region)
+		require.Equal(t, "wrkspc_456", updated.Settings.ClaudePlatformAWS.WorkspaceID)
+	})
+
+	t.Run("ClaudePlatformAWSSecretsHidden", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "claude-platform-leak",
+			Enabled: true,
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws",
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:          "us-east-1",
+					WorkspaceID:     "wrkspc_123",
+					AccessKey:       ptr.Ref("AKIA-cp-leak"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("cp-supersecret"),
+					APIKey:          ptr.Ref("sk-ant-cp-leak"), //nolint:gosec // test fixture, not a real credential
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai/providers/claude-platform-leak", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		bodyBytes, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(bodyBytes)
+		require.NotContains(t, body, "AKIA-cp-leak")
+		require.NotContains(t, body, "cp-supersecret")
+		require.NotContains(t, body, "sk-ant-cp-leak")
+		require.NotContains(t, body, `"access_key"`)
+		require.NotContains(t, body, `"access_key_secret"`)
+		require.NotContains(t, body, `"api_key"`)
+	})
 }
 
 func TestAIProvidersKeyManagement(t *testing.T) {
@@ -922,6 +1007,72 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
+	})
+
+	t.Run("ClaudePlatformAWSRejectsCreateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Claude Platform for AWS providers authenticate via the settings
+		// blob (SigV4 credentials or a workspace API key), so an api_keys
+		// list would be silently unused.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "keys-cp-create",
+			Enabled: true,
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws",
+			APIKeys: []string{"sk-should-be-rejected"}, //nolint:gosec // test fixture, not a real credential
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-east-1",
+					WorkspaceID: "wrkspc_123",
+				},
+			},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		// The dedicated type is rejected during request validation, before
+		// the handler-level settings check.
+		require.Contains(t, err.Error(), "type=claude-platform-aws does not accept api_keys")
+	})
+
+	t.Run("ClaudePlatformAWSRejectsUpdateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "keys-cp-update",
+			Enabled: true,
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws",
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:      "us-east-1",
+					WorkspaceID: "wrkspc_123",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		rejected := []codersdk.AIProviderKeyMutation{
+			{APIKey: ptr.Ref("sk-cp-no")}, //nolint:gosec // test fixture, not a real credential
+		}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &rejected,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Claude Platform for AWS providers do not accept api_keys")
 	})
 
 	t.Run("CopilotCreateWithoutKeys", func(t *testing.T) {

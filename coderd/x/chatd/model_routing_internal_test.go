@@ -88,6 +88,7 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
 		{name: "Bedrock", providerType: database.AIProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "ClaudePlatformAWS", providerType: database.AIProviderTypeClaudePlatformAws, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
 		{name: "Google", providerType: database.AIProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 	}
 	for _, tt := range tests {
