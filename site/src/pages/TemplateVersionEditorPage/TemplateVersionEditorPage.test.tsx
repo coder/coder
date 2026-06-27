@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
@@ -344,11 +350,10 @@ test("Renaming a file does not throw and opens the new path", async () => {
 	}
 	const originalContent = editor.value;
 
-	// Open the file actions menu for the active file and click Rename.
-	const fileActions = await screen.findByRole("button", {
-		name: "File actions",
-	});
-	await user.click(fileActions);
+	// Open the context menu for the active file and click Rename. The file
+	// tree exposes file actions through a right-click context menu.
+	const fileTree = await screen.findByRole("tree", { name: "Files" });
+	fireEvent.contextMenu(within(fileTree).getByText("example.tf"));
 	await user.click(await screen.findByRole("menuitem", { name: /rename/i }));
 
 	const dialog = await screen.findByTestId("dialog");
