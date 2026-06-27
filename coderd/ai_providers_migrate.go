@@ -97,7 +97,10 @@ func SeedAIProvidersFromEnv(
 		}
 
 		for _, dp := range desired {
-			settings, err := encodeAIProviderSettings(codersdk.AIProviderSettings{Bedrock: dp.Bedrock})
+			settings, err := encodeAIProviderSettings(codersdk.AIProviderSettings{
+				Bedrock:           dp.Bedrock,
+				ClaudePlatformAWS: dp.ClaudePlatformAWS,
+			})
 			if err != nil {
 				return xerrors.Errorf("encode settings for %q: %w", dp.Name, err)
 			}
@@ -134,10 +137,11 @@ func SeedAIProvidersFromEnv(
 					existingType = database.AIProviderTypeBedrock
 				}
 				existingDP := desiredAIProvider{
-					Type:    existingType,
-					BaseURL: existing.BaseUrl,
-					Bedrock: existingSettings.Bedrock,
-					Keys:    existingKeys,
+					Type:              existingType,
+					BaseURL:           existing.BaseUrl,
+					Bedrock:           existingSettings.Bedrock,
+					ClaudePlatformAWS: existingSettings.ClaudePlatformAWS,
+					Keys:              existingKeys,
 				}
 				existingHash := computeProviderHash(existingDP.canonical())
 				if existingHash == dp.Hash {
@@ -219,10 +223,12 @@ func SeedAIProvidersFromEnv(
 // Model and SmallFastModel are excluded: they're tunables, and their
 // serpent defaults shift across releases.
 type canonicalAIProvider struct {
-	Type          string `json:"type"`
-	BaseURL       string `json:"base_url"`
-	BedrockRegion string `json:"bedrock_region"`
-	KeysHash      string `json:"keys_hash"`
+	Type                      string `json:"type"`
+	BaseURL                   string `json:"base_url"`
+	BedrockRegion             string `json:"bedrock_region"`
+	ClaudePlatformRegion      string `json:"claude_platform_region"`
+	ClaudePlatformWorkspaceID string `json:"claude_platform_workspace_id"`
+	KeysHash                  string `json:"keys_hash"`
 }
 
 // desiredAIProvider is a normalized provider description sourced from
@@ -239,7 +245,10 @@ type desiredAIProvider struct {
 	// Bedrock holds the Bedrock-specific settings when the provider
 	// targets AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
-	Hash    string
+	// ClaudePlatformAWS holds the Claude Platform for AWS settings when
+	// the provider targets Claude Platform for AWS; nil otherwise.
+	ClaudePlatformAWS *codersdk.AIProviderClaudePlatformAWSSettings
+	Hash              string
 }
 
 func (d desiredAIProvider) canonical() canonicalAIProvider {
@@ -250,13 +259,18 @@ func (d desiredAIProvider) canonical() canonicalAIProvider {
 	if d.Bedrock != nil {
 		c.BedrockRegion = d.Bedrock.Region
 	}
-	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock)
+	if d.ClaudePlatformAWS != nil {
+		c.ClaudePlatformRegion = d.ClaudePlatformAWS.Region
+		c.ClaudePlatformWorkspaceID = d.ClaudePlatformAWS.WorkspaceID
+	}
+	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock, d.ClaudePlatformAWS)
 	return c
 }
 
 // computeKeysHash produces a deterministic hash over the bearer API
-// keys and, for Bedrock providers, the access key and secret.
-func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSettings) string {
+// keys and, for Bedrock and Claude Platform for AWS providers, the
+// type-specific write-only credentials.
+func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSettings, claudePlatform *codersdk.AIProviderClaudePlatformAWSSettings) string {
 	// Collect all credential material in a deterministic order.
 	// Bearer keys are sorted so reordering in env vars does not
 	// trigger a false-positive drift.
@@ -277,6 +291,20 @@ func computeKeysHash(bearerKeys []string, bedrock *codersdk.AIProviderBedrockSet
 		_, _ = h.Write([]byte{0})
 		if bedrock.AccessKeySecret != nil {
 			_, _ = h.Write([]byte(*bedrock.AccessKeySecret))
+		}
+		_, _ = h.Write([]byte{0})
+	}
+	if claudePlatform != nil {
+		if claudePlatform.AccessKey != nil {
+			_, _ = h.Write([]byte(*claudePlatform.AccessKey))
+		}
+		_, _ = h.Write([]byte{0})
+		if claudePlatform.AccessKeySecret != nil {
+			_, _ = h.Write([]byte(*claudePlatform.AccessKeySecret))
+		}
+		_, _ = h.Write([]byte{0})
+		if claudePlatform.APIKey != nil {
+			_, _ = h.Write([]byte(*claudePlatform.APIKey))
 		}
 		_, _ = h.Write([]byte{0})
 	}
@@ -413,6 +441,24 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 				dp.BaseURL = p.BedrockBaseURL
 			}
 		}
+		// Claude Platform for AWS is a dedicated type whose credentials
+		// live in the settings blob. The generic BASE_URL (already set
+		// above) is the upstream endpoint.
+		isClaudePlatform := dp.Type == database.AIProviderTypeClaudePlatformAws
+		if isClaudePlatform {
+			cp := codersdk.NewAIProviderClaudePlatformAWSSettings(
+				p.ClaudePlatformRegion,
+				p.ClaudePlatformWorkspaceID,
+				p.ClaudePlatformAccessKey,
+				p.ClaudePlatformAccessKeySecret,
+				p.ClaudePlatformRoleARN,
+				p.ClaudePlatformExternalID,
+				p.ClaudePlatformAPIKey,
+			)
+			if cp.IsConfigured() {
+				dp.ClaudePlatformAWS = &cp
+			}
+		}
 		// Non-Bedrock, non-Copilot providers carry their bearer keys in
 		// ai_provider_keys. Bedrock providers authenticate via the
 		// settings blob; Copilot providers use request-time GitHub
@@ -422,6 +468,13 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 		case isBedrock:
 			if len(p.Keys) > 0 {
 				logger.Warn(ctx, "ignoring bearer keys configured on Bedrock AI provider; Bedrock authenticates via access keys or credential chain",
+					slog.F("name", name),
+					slog.F("ignored_key_count", len(p.Keys)),
+				)
+			}
+		case isClaudePlatform:
+			if len(p.Keys) > 0 {
+				logger.Warn(ctx, "ignoring bearer keys configured on Claude Platform for AWS provider; it authenticates via settings (SigV4 or a workspace API key)",
 					slog.F("name", name),
 					slog.F("ignored_key_count", len(p.Keys)),
 				)

@@ -4913,6 +4913,21 @@ type AIProviderConfig struct {
 	BedrockAccessKeySecrets []string `json:"-"`
 	BedrockModel            string   `json:"bedrock_model,omitempty"`
 	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
+
+	// Claude Platform for AWS fields (only applicable when
+	// Type == "claude-platform-aws"). Region and WorkspaceID are
+	// required for that type; the remaining fields select the
+	// authentication mode (static keys, an assumed role, or a
+	// workspace API key). The write-only credential fields are
+	// excluded from JSON so they are never echoed back by the
+	// deployment config endpoint.
+	ClaudePlatformRegion          string `json:"claude_platform_region,omitempty"`
+	ClaudePlatformWorkspaceID     string `json:"claude_platform_workspace_id,omitempty"`
+	ClaudePlatformAccessKey       string `json:"-"`
+	ClaudePlatformAccessKeySecret string `json:"-"`
+	ClaudePlatformRoleARN         string `json:"claude_platform_role_arn,omitempty"`
+	ClaudePlatformExternalID      string `json:"claude_platform_external_id,omitempty"`
+	ClaudePlatformAPIKey          string `json:"-"`
 }
 
 type AIBridgeProxyConfig struct {

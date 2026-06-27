@@ -214,6 +214,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
+            "claude_platform_external_id": "string",
+            "claude_platform_region": "string",
+            "claude_platform_role_arn": "string",
+            "claude_platform_workspace_id": "string",
             "name": "string",
             "type": "string"
           }

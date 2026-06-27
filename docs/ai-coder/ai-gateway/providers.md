@@ -207,6 +207,18 @@ never echoes them back after they are saved. Omit them on an update to leave
 them unchanged, or send an empty value to clear them, for example when
 migrating from static credentials to an IAM role.
 
+As with other provider types, a Claude Platform for AWS provider can be
+seeded from the environment on first startup using indexed variables. Set
+`CODER_AI_GATEWAY_PROVIDER_<N>_TYPE=claude-platform-aws` together with
+`CLAUDE_PLATFORM_REGION` and `CLAUDE_PLATFORM_WORKSPACE_ID` (both required),
+and optionally `CLAUDE_PLATFORM_ACCESS_KEY`,
+`CLAUDE_PLATFORM_ACCESS_KEY_SECRET`, `CLAUDE_PLATFORM_ROLE_ARN`,
+`CLAUDE_PLATFORM_EXTERNAL_ID`, and `CLAUDE_PLATFORM_API_KEY`. The workspace
+API key is supplied through `CLAUDE_PLATFORM_API_KEY`, not the bearer
+`KEY`/`KEYS` variables, which this type rejects. See
+[Database management of providers](#database-management-of-providers) for how
+seeding behaves after the first startup.
+
 ### GitHub Copilot
 
 GitHub Copilot offers three plans: Individual, Business, and Enterprise,

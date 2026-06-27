@@ -3172,6 +3172,37 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 				i, p.Type)
 		}
 
+		// Claude Platform for AWS is a dedicated type with its own
+		// settings. CLAUDE_PLATFORM_* fields are only valid there;
+		// REGION and WORKSPACE_ID are required; KEY/KEYS are rejected
+		// (the workspace key goes in CLAUDE_PLATFORM_API_KEY); and the
+		// static access key pair must be supplied together.
+		cpSettings := codersdk.NewAIProviderClaudePlatformAWSSettings(
+			p.ClaudePlatformRegion, p.ClaudePlatformWorkspaceID,
+			p.ClaudePlatformAccessKey, p.ClaudePlatformAccessKeySecret,
+			p.ClaudePlatformRoleARN, p.ClaudePlatformExternalID,
+			p.ClaudePlatformAPIKey,
+		)
+		isClaudePlatformType := providerType == database.AIProviderTypeClaudePlatformAws
+		if !isClaudePlatformType && cpSettings.IsConfigured() {
+			return nil, xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_* fields are only supported with TYPE %q",
+				i, p.Type, database.AIProviderTypeClaudePlatformAws)
+		}
+		if isClaudePlatformType {
+			if p.ClaudePlatformRegion == "" || p.ClaudePlatformWorkspaceID == "" {
+				return nil, xerrors.Errorf("provider %d (%s): TYPE %q requires CLAUDE_PLATFORM_REGION and CLAUDE_PLATFORM_WORKSPACE_ID",
+					i, p.Type, database.AIProviderTypeClaudePlatformAws)
+			}
+			if len(p.Keys) > 0 {
+				return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q (use CLAUDE_PLATFORM_API_KEY)",
+					i, p.Type, database.AIProviderTypeClaudePlatformAws)
+			}
+			if (p.ClaudePlatformAccessKey == "") != (p.ClaudePlatformAccessKeySecret == "") {
+				return nil, xerrors.Errorf("provider %d (%s): CLAUDE_PLATFORM_ACCESS_KEY and CLAUDE_PLATFORM_ACCESS_KEY_SECRET must be set together",
+					i, p.Type)
+			}
+		}
+
 		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
 			return nil, err
 		}
@@ -3298,6 +3329,20 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
+		case "CLAUDE_PLATFORM_REGION":
+			provider.ClaudePlatformRegion = v.Value
+		case "CLAUDE_PLATFORM_WORKSPACE_ID":
+			provider.ClaudePlatformWorkspaceID = v.Value
+		case "CLAUDE_PLATFORM_ACCESS_KEY":
+			provider.ClaudePlatformAccessKey = v.Value
+		case "CLAUDE_PLATFORM_ACCESS_KEY_SECRET":
+			provider.ClaudePlatformAccessKeySecret = v.Value
+		case "CLAUDE_PLATFORM_ROLE_ARN":
+			provider.ClaudePlatformRoleARN = v.Value
+		case "CLAUDE_PLATFORM_EXTERNAL_ID":
+			provider.ClaudePlatformExternalID = v.Value
+		case "CLAUDE_PLATFORM_API_KEY":
+			provider.ClaudePlatformAPIKey = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
 				slog.F("env", fullName),

@@ -13687,6 +13687,19 @@
 				"bedrock_small_fast_model": {
 					"type": "string"
 				},
+				"claude_platform_external_id": {
+					"type": "string"
+				},
+				"claude_platform_region": {
+					"description": "Claude Platform for AWS fields (only applicable when\nType == \"claude-platform-aws\"). Region and WorkspaceID are\nrequired for that type; the remaining fields select the\nauthentication mode (static keys, an assumed role, or a\nworkspace API key). The write-only credential fields are\nexcluded from JSON so they are never echoed back by the\ndeployment config endpoint.",
+					"type": "string"
+				},
+				"claude_platform_role_arn": {
+					"type": "string"
+				},
+				"claude_platform_workspace_id": {
+					"type": "string"
+				},
 				"name": {
 					"description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
 					"type": "string"

@@ -436,6 +436,19 @@ export interface AIProviderConfig {
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
+	/**
+	 * Claude Platform for AWS fields (only applicable when
+	 * Type == "claude-platform-aws"). Region and WorkspaceID are
+	 * required for that type; the remaining fields select the
+	 * authentication mode (static keys, an assumed role, or a
+	 * workspace API key). The write-only credential fields are
+	 * excluded from JSON so they are never echoed back by the
+	 * deployment config endpoint.
+	 */
+	readonly claude_platform_region?: string;
+	readonly claude_platform_workspace_id?: string;
+	readonly claude_platform_role_arn?: string;
+	readonly claude_platform_external_id?: string;
 }
 
 // From codersdk/aiproviders.go
