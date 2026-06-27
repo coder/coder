@@ -113,13 +113,13 @@ var blockedIPRanges = func() []net.IPNet {
 //   - decrypting requests using the configured MITM CA certificate
 //   - forwarding requests to aibridged for processing
 type Server struct {
-	ctx                      context.Context
-	logger                   slog.Logger
-	proxy                    *goproxy.ProxyHttpServer
-	httpServer               *http.Server
-	listener                 net.Listener
-	tlsEnabled               bool
-	coderAccessURL           *url.URL
+	ctx            context.Context
+	logger         slog.Logger
+	proxy          *goproxy.ProxyHttpServer
+	httpServer     *http.Server
+	listener       net.Listener
+	tlsEnabled     bool
+	coderAccessURL *url.URL
 	// coderAccessPort is the resolved port for the Coder access URL.
 	coderAccessPort          string
 	aibridgeProviderFromHost func(host string) string
