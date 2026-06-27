@@ -794,3 +794,157 @@ func insertChatMessagesForPlan(ctx context.Context, t testing.TB, db database.St
 	require.NoError(t, err)
 	return messageCount
 }
+
+// -----------------------------------------------------------------------------
+// Recency-only benchmark.
+//
+// BenchmarkChatMessageSearchIndexRecency reflects the Phase 1 PRD direction:
+//   - expression GIN index over searchable rows only,
+//   - no stored tsvector column, no trigger, no row-level backfill,
+//   - results ordered by chat recency, not ts_rank.
+//
+// It reuses the scaled dev-shape plan generator so child chats, archived
+// chats, and per-chat message size mirror the dev deployment. The benchmark
+// uses a regular CREATE INDEX (not CONCURRENTLY) because the test DB has no
+// other writers; production wraps this in a runtime maintenance task that
+// uses CREATE INDEX CONCURRENTLY outside any transaction.
+func BenchmarkChatMessageSearchIndexRecency(b *testing.B) {
+	ctx := b.Context()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(b)
+
+	createChatMessageSearchTextFunction(ctx, b, sqlDB)
+
+	userCount := benchEnvInt(b, "CODER_CHAT_SEARCH_BENCH_SCALED_USERS", 10)
+	require.Positive(b, userCount, "recency benchmark requires at least one user")
+	faker := gofakeit.New(uint64(benchEnvInt(b, "CODER_CHAT_SEARCH_BENCH_SCALED_SEED", 1)))
+
+	plan := planScaledBenchmark(faker, userCount)
+	b.Logf("recency distribution: users=%d active_chats=%d archived_chats=%d child_chats=%d",
+		userCount, plan.ActiveChats, plan.ArchivedChats, plan.ChildChats)
+
+	seedStart := time.Now()
+	stats := seedScaledChatMessageSearchCorpus(ctx, b, db, plan)
+	seedDuration := time.Since(seedStart)
+	b.Logf("seed: root_messages=%d child_messages=%d duration=%s",
+		stats.RootMessages, stats.ChildMessages, seedDuration)
+
+	indexStart := time.Now()
+	createChatMessageSearchExpressionIndex(ctx, b, sqlDB)
+	indexDuration := time.Since(indexStart)
+	b.Logf("create index duration: %s", indexDuration)
+	logChatMessageSearchNamedIndexSize(ctx, b, sqlDB, "idx_chat_messages_search_fts", "after create index")
+
+	analyzeChatMessageSearchTables(ctx, b, sqlDB)
+	runChatMessageSearchRecencyQueries(ctx, b, sqlDB)
+}
+
+// logChatMessageSearchNamedIndexSize is a parametric variant used by
+// benchmarks that create indexes with non-default names.
+func logChatMessageSearchNamedIndexSize(ctx context.Context, t testing.TB, sqlDB *sql.DB, indexName, label string) {
+	t.Helper()
+
+	var pretty string
+	var bytes int64
+	err := sqlDB.QueryRowContext(ctx, `
+SELECT
+	pg_size_pretty(pg_relation_size($1::regclass)),
+	pg_relation_size($1::regclass);
+`, indexName).Scan(&pretty, &bytes)
+	require.NoError(t, err)
+
+	t.Logf("%s: index=%s size=%s bytes=%d", label, indexName, pretty, bytes)
+}
+
+// createChatMessageSearchTextFunction creates the IMMUTABLE extraction
+// function used by both the expression GIN index and the at-query-time
+// matching predicate. The function is the only chat-search artifact the
+// schema migration adds in the Phase 1 design.
+func createChatMessageSearchTextFunction(ctx context.Context, t testing.TB, sqlDB *sql.DB) {
+	t.Helper()
+
+	_, err := sqlDB.ExecContext(ctx, `
+CREATE OR REPLACE FUNCTION chat_message_search_text(content jsonb)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+	SELECT string_agg(part->>'text', ' ' ORDER BY ord)
+	FROM jsonb_array_elements(
+		CASE WHEN jsonb_typeof(content) = 'array' THEN content ELSE '[]'::jsonb END
+	) WITH ORDINALITY AS t(part, ord)
+	WHERE part->>'type' = 'text'
+$$;
+`)
+	require.NoError(t, err)
+}
+
+// createChatMessageSearchExpressionIndex builds the partial expression GIN
+// index used by Phase 1. The predicate matches only searchable rows on the
+// chat_messages table; archived state lives on chats and is applied at query
+// time.
+func createChatMessageSearchExpressionIndex(ctx context.Context, t testing.TB, sqlDB *sql.DB) {
+	t.Helper()
+
+	_, err := sqlDB.ExecContext(ctx, `
+CREATE INDEX idx_chat_messages_search_fts
+ON chat_messages USING GIN (
+	to_tsvector('simple', chat_message_search_text(content))
+)
+WHERE deleted = false
+  AND visibility IN ('user', 'both')
+  AND role IN ('user', 'assistant');
+`)
+	require.NoError(t, err)
+}
+
+// runChatMessageSearchRecencyQueries runs the Phase 1 recency-ordered chat
+// search query for several keywords and logs the duration. The query matches
+// chat_messages via the expression GIN index, joins chats to apply
+// non-message filters, and orders by chat updated_at.
+func runChatMessageSearchRecencyQueries(ctx context.Context, t testing.TB, sqlDB *sql.DB) {
+	t.Helper()
+
+	queries := []string{
+		"authentication",
+		"permission denied",
+		"CODAGT-517",
+		"database migration",
+		"workspace timeout",
+	}
+
+	for _, query := range queries {
+		queryStart := time.Now()
+		rows, err := sqlDB.QueryContext(ctx, `
+WITH search_query AS (
+	SELECT websearch_to_tsquery('simple', $1) AS query
+)
+SELECT DISTINCT ON (cm.chat_id)
+	cm.chat_id,
+	c.updated_at
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+CROSS JOIN search_query
+WHERE c.parent_chat_id IS NULL
+  AND c.archived = false
+  AND cm.deleted = false
+  AND cm.visibility IN ('user', 'both')
+  AND cm.role IN ('user', 'assistant')
+  AND to_tsvector('simple', chat_message_search_text(cm.content)) @@ search_query.query
+ORDER BY cm.chat_id, c.updated_at DESC, cm.id DESC
+LIMIT 50;
+`, query)
+		require.NoError(t, err)
+
+		var count int
+		for rows.Next() {
+			var chatID uuid.UUID
+			var updatedAt time.Time
+			require.NoError(t, rows.Scan(&chatID, &updatedAt))
+			count++
+		}
+		require.NoError(t, rows.Err())
+		require.NoError(t, rows.Close())
+
+		t.Logf("recency query=%q count=%d duration=%s", query, count, time.Since(queryStart))
+	}
+}
