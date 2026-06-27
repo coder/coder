@@ -93,6 +93,16 @@ style.
   Inline the happy path; link out for depth, not for required steps.
 - **Mirror parallel paths.** If the product has a UI and a CLI, show both for
   each step in a consistent structure so neither audience is stranded.
+- **Show the truth in its lowest-maintenance form.** When two correct
+  presentations exist, prefer the one that ages best. A hard-coded line number
+  or a screenshot of text reads fine today and rots when the source changes. A
+  screenshot still earns its place when a UI step genuinely needs to be seen;
+  weigh the upkeep, and if you cannot capture one, flag the gap rather than
+  omit it silently or treat "no screenshot" as a policy.
+- **Orient the reader inside a series.** A multi-page series must say where the
+  reader is and what comes next. End each page with a consistent next step (and
+  Previous/Next where the engine supports it); never ship a page that
+  dead-ends.
 
 ## What not to write
 
@@ -127,6 +137,8 @@ notes the canonical rules do not spell out:
 - A correct but heavy-handed example that belongs in a different doc.
 - Spoiling a discovery-based lesson by explaining the mechanism first.
 - Telling the reader their tool is wrong when it merely needs configuration.
+- Brittle references that rot: hard-coded line numbers, or a screenshot
+  standing in for text the reader could copy.
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
@@ -145,6 +157,7 @@ notes the canonical rules do not spell out:
       markdownlint, and Vale pass.
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
 - [ ] Premium pages carry the title suffix and manifest state.
+- [ ] Series pages orient the reader and link the next step; no dead-ends.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 
