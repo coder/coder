@@ -56,6 +56,20 @@ func (m *MockAgentConn) EXPECT() *MockAgentConnMockRecorder {
 	return m.recorder
 }
 
+// AppHTTPClient mocks base method.
+func (m *MockAgentConn) AppHTTPClient() *http.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppHTTPClient")
+	ret0, _ := ret[0].(*http.Client)
+	return ret0
+}
+
+// AppHTTPClient indicates an expected call of AppHTTPClient.
+func (mr *MockAgentConnMockRecorder) AppHTTPClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppHTTPClient", reflect.TypeOf((*MockAgentConn)(nil).AppHTTPClient))
+}
+
 // AwaitReachable mocks base method.
 func (m *MockAgentConn) AwaitReachable(ctx context.Context) bool {
 	m.ctrl.T.Helper()
