@@ -127,6 +127,15 @@ notes the canonical rules do not spell out:
 - Keep the redirect PR in `coder/coder.com` in sync with the rename PR so the
   old public path never 404s between merges.
 
+## Keep PRs reviewable
+
+Large diffs get worse reviews. A reviewer who cannot hold the whole change in
+their head will either rubber-stamp it or bounce it, and both cost more cycles
+than splitting up front. Keep each docs PR focused, ideally under ~1,000 lines
+changed whenever possible. For a multi-page series, prefer one page (or one
+tightly scoped change) per PR, and stack or sequence them rather than shipping
+the whole series as a single review.
+
 ## Anti-patterns observed in real review cycles
 
 - Describing behavior you did not verify (guessed error strings, assumed auth
@@ -158,6 +167,9 @@ notes the canonical rules do not spell out:
 - [ ] Inbound links resolve; renames have redirects in `coder/coder.com`.
 - [ ] Premium pages carry the title suffix and manifest state.
 - [ ] Series pages orient the reader and link the next step; no dead-ends.
+- [ ] The change is scoped for review: large or multi-page work is split into
+      focused PRs (aim for under ~1,000 lines changed; one page per PR for a
+      series).
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 
