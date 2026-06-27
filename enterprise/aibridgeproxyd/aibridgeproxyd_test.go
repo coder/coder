@@ -622,8 +622,7 @@ func TestNew(t *testing.T) {
 			MITMKeyFile:    mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
-		require.Equal(t, "80", srv.CoderAccessURL().Port())
+		require.Equal(t, "localhost", srv.CoderAccessURL().Host)
 	})
 
 	t.Run("CoderAccessURLDefaultHTTPSPort", func(t *testing.T) {
@@ -639,8 +638,7 @@ func TestNew(t *testing.T) {
 			MITMKeyFile:    mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
-		require.Equal(t, "443", srv.CoderAccessURL().Port())
+		require.Equal(t, "localhost", srv.CoderAccessURL().Host)
 	})
 
 	t.Run("CoderAccessURLExplicitPort", func(t *testing.T) {
@@ -948,6 +946,45 @@ func TestNew(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
+	})
+
+	t.Run("CoderAccessURLHostPreserved", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:          "127.0.0.1:0",
+			CoderAccessURL:      "https://coder.example.com",
+			MITMCertFile:        mitmCertFile,
+			MITMKeyFile:         mitmKeyFile,
+			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
+
+		require.Equal(t, "coder.example.com", srv.CoderAccessURL().Host,
+			"Host must not have :443 appended")
+	})
+
+	t.Run("CoderAccessURLExplicitPortPreserved", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:          "127.0.0.1:0",
+			CoderAccessURL:      "https://coder.example.com:8443",
+			MITMCertFile:        mitmCertFile,
+			MITMKeyFile:         mitmKeyFile,
+			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
+
+		require.Equal(t, "coder.example.com:8443", srv.CoderAccessURL().Host)
 	})
 }
 
