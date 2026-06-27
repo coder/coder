@@ -407,6 +407,83 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 			errContains: "too many keys (6), maximum is 5",
 		},
+		{
+			name: "ClaudePlatformHappyPath",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=claude-platform-aws",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=claude-platform",
+				"CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://aws-external-anthropic.us-east-1.api.aws",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc-123",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY=AKID",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY_SECRET=secret",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_ROLE_ARN=arn:aws:iam::123456789012:role/CP",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_EXTERNAL_ID=ext-1",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_API_KEY=sk-workspace",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                          string(database.AIProviderTypeClaudePlatformAws),
+					Name:                          "claude-platform",
+					BaseURL:                       "https://aws-external-anthropic.us-east-1.api.aws",
+					ClaudePlatformRegion:          "us-east-1",
+					ClaudePlatformWorkspaceID:     "wrkspc-123",
+					ClaudePlatformAccessKey:       "AKID",
+					ClaudePlatformAccessKeySecret: "secret",
+					ClaudePlatformRoleARN:         "arn:aws:iam::123456789012:role/CP",
+					ClaudePlatformExternalID:      "ext-1",
+					ClaudePlatformAPIKey:          "sk-workspace",
+				},
+			},
+		},
+		{
+			// Region + workspace ID alone is valid; credentials resolve
+			// from the AWS default chain.
+			name: "ClaudePlatformDefaultChain",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=claude-platform-aws",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc-123",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                      string(database.AIProviderTypeClaudePlatformAws),
+					Name:                      string(database.AIProviderTypeClaudePlatformAws),
+					ClaudePlatformRegion:      "us-east-1",
+					ClaudePlatformWorkspaceID: "wrkspc-123",
+				},
+			},
+		},
+		{
+			name:        "ClaudePlatformFieldsOnNonClaudePlatformType",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai", "CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1"},
+			errContains: "CLAUDE_PLATFORM_* fields are only supported with TYPE",
+		},
+		{
+			name:        "ClaudePlatformMissingRequiredFields",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=claude-platform-aws", "CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1"},
+			errContains: "requires CLAUDE_PLATFORM_REGION and CLAUDE_PLATFORM_WORKSPACE_ID",
+		},
+		{
+			name: "ClaudePlatformRejectsKey",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=claude-platform-aws",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc-123",
+				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-nope",
+			},
+			errContains: "KEY/KEYS are not supported for TYPE",
+		},
+		{
+			name: "ClaudePlatformHalfCredentialPair",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=claude-platform-aws",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc-123",
+				"CODER_AIBRIDGE_PROVIDER_0_CLAUDE_PLATFORM_ACCESS_KEY=AKID",
+			},
+			errContains: "CLAUDE_PLATFORM_ACCESS_KEY and CLAUDE_PLATFORM_ACCESS_KEY_SECRET must be set together",
+		},
 	}
 
 	for _, tt := range tests {

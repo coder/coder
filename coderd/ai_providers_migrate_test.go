@@ -380,6 +380,83 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, keys, "Bedrock providers must not seed bearer keys")
 	})
 
+	t.Run("IndexedClaudePlatformProvider", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:                          string(database.AIProviderTypeClaudePlatformAws),
+					Name:                          "claude-platform",
+					BaseURL:                       "https://aws-external-anthropic.us-east-1.api.aws",
+					ClaudePlatformRegion:          "us-east-1",
+					ClaudePlatformWorkspaceID:     "wrkspc-123",
+					ClaudePlatformAccessKey:       "AKIA-indexed",
+					ClaudePlatformAccessKeySecret: "indexed-secret",
+					ClaudePlatformAPIKey:          "sk-workspace",
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		row, err := db.GetAIProviderByName(ctx, "claude-platform")
+		require.NoError(t, err)
+		require.Equal(t, database.AIProviderTypeClaudePlatformAws, row.Type)
+		require.Equal(t, "https://aws-external-anthropic.us-east-1.api.aws", row.BaseUrl)
+		require.Contains(t, row.Settings.String, "us-east-1")
+		require.Contains(t, row.Settings.String, "wrkspc-123")
+		require.Contains(t, row.Settings.String, "AKIA-indexed")
+		require.Contains(t, row.Settings.String, "indexed-secret")
+		require.Contains(t, row.Settings.String, "sk-workspace")
+		// Claude Platform providers authenticate via settings, never
+		// via bearer keys in ai_provider_keys.
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys, "Claude Platform providers must not seed bearer keys")
+
+		// Re-running with the same config is a no-op (no drift).
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+	})
+
+	t.Run("ClaudePlatformCredentialChangeIsDrift", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:                          string(database.AIProviderTypeClaudePlatformAws),
+					Name:                          "claude-platform",
+					BaseURL:                       "https://aws-external-anthropic.us-east-1.api.aws",
+					ClaudePlatformRegion:          "us-east-1",
+					ClaudePlatformWorkspaceID:     "wrkspc-123",
+					ClaudePlatformAccessKey:       "AKIA-original",
+					ClaudePlatformAccessKeySecret: "secret-original",
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		// Rotating the access key in env trips the drift check so
+		// operators know the change did not take effect.
+		cfg.Providers[0].ClaudePlatformAccessKey = "AKIA-rotated"
+		cfg.Providers[0].ClaudePlatformAccessKeySecret = "secret-rotated"
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+
+		// Changing the workspace ID is also real drift.
+		cfg.Providers[0].ClaudePlatformAccessKey = "AKIA-original"
+		cfg.Providers[0].ClaudePlatformAccessKeySecret = "secret-original"
+		cfg.Providers[0].ClaudePlatformWorkspaceID = "wrkspc-changed"
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+	})
+
 	t.Run("LegacyAndIndexedSameNameConflict", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

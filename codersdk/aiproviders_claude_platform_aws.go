@@ -83,3 +83,27 @@ func (AIProviderClaudePlatformAWSSettings) settingsType() string {
 func (AIProviderClaudePlatformAWSSettings) settingsVersion() int {
 	return AIProviderClaudePlatformAWSSettingsVersion
 }
+
+// NewAIProviderClaudePlatformAWSSettings builds an
+// AIProviderClaudePlatformAWSSettings, promoting non-empty write-only
+// credential strings to pointers so callers don't have to repeat the "set
+// field iff non-empty" boilerplate. Empty credentials are left nil, matching
+// the PATCH-omit semantics of the pointer-typed fields.
+func NewAIProviderClaudePlatformAWSSettings(region, workspaceID, accessKey, accessKeySecret, roleARN, externalID, apiKey string) AIProviderClaudePlatformAWSSettings {
+	s := AIProviderClaudePlatformAWSSettings{
+		Region:      region,
+		WorkspaceID: workspaceID,
+		RoleARN:     roleARN,
+		ExternalID:  externalID,
+	}
+	if accessKey != "" {
+		s.AccessKey = &accessKey
+	}
+	if accessKeySecret != "" {
+		s.AccessKeySecret = &accessKeySecret
+	}
+	if apiKey != "" {
+		s.APIKey = &apiKey
+	}
+	return s
+}
