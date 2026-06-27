@@ -293,6 +293,109 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 };
 
+export const AddClaudePlatformAWS: Story = {
+	args: {
+		initialValues: { type: "claude-platform-aws" },
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		// The CP form prefills the default endpoint and surfaces the explicit
+		// Region and Workspace ID fields, both required.
+		const endpoint = await canvas.findByLabelText(/endpoint/i);
+		expect(endpoint).toHaveValue(
+			"https://aws-external-anthropic.us-east-1.api.aws",
+		);
+		const region = await canvas.findByLabelText(/^region\s*\*?$/i);
+		const workspaceId = await canvas.findByLabelText(/workspace id/i);
+
+		// Required fields gate submission until they are filled.
+		const submitButton = canvas.getByRole("button", {
+			name: /add provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+
+		await userEvent.type(region, "us-east-1");
+		await userEvent.type(workspaceId, "wrkspc-1234567890");
+
+		// Default credential chain: leave the access keys and API key blank.
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "claude-platform-aws",
+					region: "us-east-1",
+					workspaceId: "wrkspc-1234567890",
+					accessKey: "",
+					accessKeySecret: "",
+					apiKey: "",
+				}),
+			),
+		);
+	},
+};
+
+// A half-typed access key pair is blocked at the form layer: the backend
+// treats access_key and access_key_secret as a pair.
+export const AddClaudePlatformAWSHalfCredentialPairBlocked: Story = {
+	args: {
+		initialValues: {
+			type: "claude-platform-aws",
+			name: "claude-platform-aws",
+			displayName: "Claude Platform for AWS",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			region: "us-east-1",
+			workspaceId: "wrkspc-1234567890",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const accessKey = await canvas.findByLabelText(/^access key\s*$/i);
+		await userEvent.type(accessKey, "AKIAIOSFODNN7EXAMPLE");
+
+		const submitButton = canvas.getByRole("button", {
+			name: /add provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		expect(args.onSubmit).not.toHaveBeenCalled();
+	},
+};
+
+export const EditClaudePlatformAWS: Story = {
+	args: {
+		editing: true,
+		initialValues: {
+			type: "claude-platform-aws",
+			name: "claude-platform-aws",
+			displayName: "Claude Platform for AWS",
+			baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+			region: "us-east-1",
+			workspaceId: "wrkspc-1234567890",
+			accessKey: "",
+			accessKeySecret: "",
+			roleArn: "",
+			externalId: "",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Name is immutable when editing. Unlike Bedrock, CP secrets seed blank
+		// (no mask): the API cannot reveal which credential path is configured.
+		const name = await canvas.findByLabelText(/^name/i);
+		expect(name).toBeDisabled();
+		expect(await canvas.findByLabelText(/^region\s*\*?$/i)).toHaveValue(
+			"us-east-1",
+		);
+		expect(await canvas.findByLabelText(/workspace id/i)).toHaveValue(
+			"wrkspc-1234567890",
+		);
+		expect(await canvas.findByLabelText(/^access key\s*$/i)).toHaveValue("");
+	},
+};
+
 export const AddCopilot: Story = {
 	args: {
 		// The real add flow passes only the type; the form fills name and

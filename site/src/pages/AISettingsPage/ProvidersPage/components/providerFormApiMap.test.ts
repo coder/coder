@@ -3,6 +3,7 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
@@ -30,6 +31,9 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
+	region: "",
+	workspaceId: "",
+	externalId: "",
 	apiKey: "sk-test",
 	enabled: true,
 };
@@ -44,6 +48,9 @@ const baseBedrockFormValues: ProviderFormValues = {
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
 	roleArn: "",
+	region: "",
+	workspaceId: "",
+	externalId: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -58,6 +65,26 @@ const baseCopilotFormValues: ProviderFormValues = {
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
+	region: "",
+	workspaceId: "",
+	externalId: "",
+	apiKey: "",
+	enabled: true,
+};
+
+const baseClaudePlatformFormValues: ProviderFormValues = {
+	type: "claude-platform-aws",
+	name: "primary-claude-platform",
+	displayName: "Primary Claude Platform",
+	baseUrl: "https://aws-external-anthropic.us-east-1.api.aws",
+	model: "",
+	smallFastModel: "",
+	accessKey: "AKIA-test",
+	accessKeySecret: "secret",
+	roleArn: "",
+	region: "us-east-1",
+	workspaceId: "wrkspc-1234567890",
+	externalId: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -204,6 +231,12 @@ describe("getProviderDisplayType", () => {
 
 	it("returns copilot for a Copilot provider", () => {
 		expect(getProviderDisplayType(MockAIProviderCopilot)).toBe("copilot");
+	});
+
+	it("returns claude-platform-aws for a Claude Platform provider", () => {
+		expect(getProviderDisplayType(MockAIProviderClaudePlatformAWS)).toBe(
+			"claude-platform-aws",
+		);
 	});
 
 	it.each([
@@ -464,6 +497,91 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.display_name).toBeUndefined();
 		});
 	});
+
+	describe("Claude Platform for AWS", () => {
+		it("maps to the dedicated claude-platform-aws wire type", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			expect(req.type).toBe("claude-platform-aws");
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s._type).toBe("claude-platform-aws");
+			expect(s._version).toBe(1);
+		});
+
+		it("sends region and workspace_id from the explicit fields", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.region).toBe("us-east-1");
+			expect(s.workspace_id).toBe("wrkspc-1234567890");
+		});
+
+		it("trims whitespace around region and workspace ID", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				region: "  us-west-2  ",
+				workspaceId: "  wrkspc-abc  ",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.region).toBe("us-west-2");
+			expect(s.workspace_id).toBe("wrkspc-abc");
+		});
+
+		it("includes access_key and access_key_secret when provided", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.access_key).toBe("AKIA-test");
+			expect(s.access_key_secret).toBe("secret");
+		});
+
+		it("omits the access fields when both are blank (default chain)", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				accessKey: "",
+				accessKeySecret: "",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+			// Region and workspace_id must survive so the backend accepts it.
+			expect(s.region).toBe("us-east-1");
+			expect(s.workspace_id).toBe("wrkspc-1234567890");
+		});
+
+		it("includes role_arn and external_id when provided", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				roleArn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
+				externalId: "external-1234",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBe(
+				"arn:aws:iam::123456789012:role/ClaudePlatformRole",
+			);
+			expect(s.external_id).toBe("external-1234");
+		});
+
+		it("omits role_arn and external_id when blank", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBeUndefined();
+			expect(s.external_id).toBeUndefined();
+		});
+
+		it("sends the workspace api key in settings, never in api_keys", () => {
+			const req = providerFormValuesToCreate({
+				...baseClaudePlatformFormValues,
+				apiKey: "sk-workspace-key",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.api_key).toBe("sk-workspace-key");
+			expect(req.api_keys).toBeUndefined();
+		});
+
+		it("omits the api key when the field is blank", () => {
+			const req = providerFormValuesToCreate(baseClaudePlatformFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.api_key).toBeUndefined();
+		});
+	});
 });
 
 describe("providerFormValuesToUpdate", () => {
@@ -629,6 +747,110 @@ describe("providerFormValuesToUpdate", () => {
 			expect(req.base_url).toBe("https://api.business.githubcopilot.com");
 		});
 	});
+
+	describe("Claude Platform for AWS", () => {
+		it("writes settings and never sends api_keys", () => {
+			const req = providerFormValuesToUpdate(
+				baseClaudePlatformFormValues,
+				MockAIProviderClaudePlatformAWS,
+			);
+			expect(req.api_keys).toBeUndefined();
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s._type).toBe("claude-platform-aws");
+			expect(s.region).toBe("us-east-1");
+			expect(s.workspace_id).toBe("wrkspc-1234567890");
+		});
+
+		it("sends new access keys when both were typed", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					accessKey: "AKIA-rotate",
+					accessKeySecret: "rotated-secret",
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.access_key).toBe("AKIA-rotate");
+			expect(s.access_key_secret).toBe("rotated-secret");
+		});
+
+		it("omits access keys when both were left blank (empty = keep)", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					accessKey: "",
+					accessKeySecret: "",
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+		});
+
+		it('treats a half-rotated credential pair as "do not rotate"', () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					accessKey: "AKIA-rotate",
+					accessKeySecret: "",
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+		});
+
+		it("sends the api key when typed and omits it when blank", () => {
+			const withKey = providerFormValuesToUpdate(
+				{ ...baseClaudePlatformFormValues, apiKey: "sk-workspace-new" },
+				MockAIProviderClaudePlatformAWS,
+			);
+			expect(
+				(withKey.settings as unknown as Record<string, unknown>).api_key,
+			).toBe("sk-workspace-new");
+
+			const withoutKey = providerFormValuesToUpdate(
+				baseClaudePlatformFormValues,
+				MockAIProviderClaudePlatformAWS,
+			);
+			expect(
+				(withoutKey.settings as unknown as Record<string, unknown>).api_key,
+			).toBeUndefined();
+		});
+
+		it("round-trips role_arn and external_id, omitting them when cleared", () => {
+			const withRole = providerFormValuesToUpdate(
+				{
+					...baseClaudePlatformFormValues,
+					roleArn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
+					externalId: "external-1234",
+				},
+				MockAIProviderClaudePlatformAWS,
+			);
+			const withRoleSettings = withRole.settings as unknown as Record<
+				string,
+				unknown
+			>;
+			expect(withRoleSettings.role_arn).toBe(
+				"arn:aws:iam::123456789012:role/ClaudePlatformRole",
+			);
+			expect(withRoleSettings.external_id).toBe("external-1234");
+
+			const cleared = providerFormValuesToUpdate(
+				{ ...baseClaudePlatformFormValues, roleArn: "", externalId: "" },
+				MockAIProviderClaudePlatformAWS,
+			);
+			const clearedSettings = cleared.settings as unknown as Record<
+				string,
+				unknown
+			>;
+			expect(clearedSettings.role_arn).toBeUndefined();
+			expect(clearedSettings.external_id).toBeUndefined();
+		});
+	});
 });
 
 describe("aiProviderToFormValues", () => {
@@ -715,6 +937,55 @@ describe("aiProviderToFormValues", () => {
 		expect(values.name).toBe(MockAIProviderCopilot.name);
 		expect(values.baseUrl).toBe(MockAIProviderCopilot.base_url);
 		expect(values.apiKey).toBeUndefined();
+	});
+
+	it("seeds Claude Platform form values from settings", () => {
+		const values = aiProviderToFormValues(MockAIProviderClaudePlatformAWS);
+		expect(values.type).toBe("claude-platform-aws");
+		expect(values.name).toBe(MockAIProviderClaudePlatformAWS.name);
+		expect(values.baseUrl).toBe(MockAIProviderClaudePlatformAWS.base_url);
+		expect(values.region).toBe("us-east-1");
+		expect(values.workspaceId).toBe("wrkspc-1234567890");
+	});
+
+	it("never round-trips Claude Platform secrets back to the form", () => {
+		// AccessKey, AccessKeySecret, and APIKey are write-only; the API
+		// strips them, so the form must seed them as empty.
+		const values = aiProviderToFormValues(MockAIProviderClaudePlatformAWS);
+		expect(values.accessKey).toBe("");
+		expect(values.accessKeySecret).toBe("");
+		expect(values.apiKey).toBe("");
+	});
+
+	it("round-trips Claude Platform role_arn and external_id into the form", () => {
+		const provider: AIProvider = {
+			...MockAIProviderClaudePlatformAWS,
+			settings: settings({
+				_type: "claude-platform-aws",
+				region: "us-west-2",
+				workspace_id: "wrkspc-west",
+				role_arn: "arn:aws:iam::123456789012:role/ClaudePlatformRole",
+				external_id: "external-1234",
+			}),
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.roleArn).toBe(
+			"arn:aws:iam::123456789012:role/ClaudePlatformRole",
+		);
+		expect(values.externalId).toBe("external-1234");
+	});
+
+	it("seeds empty Claude Platform fields when settings are null", () => {
+		const provider: AIProvider = {
+			...MockAIProviderClaudePlatformAWS,
+			settings: null as unknown as AIProvider["settings"],
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.type).toBe("claude-platform-aws");
+		expect(values.region).toBe("");
+		expect(values.workspaceId).toBe("");
+		expect(values.roleArn).toBe("");
+		expect(values.externalId).toBe("");
 	});
 
 	it("falls back to the slug when display_name is empty", () => {

@@ -13,6 +13,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/anthropic.svg";
 		case "bedrock":
 			return "/icon/aws.svg";
+		case "claude-platform-aws":
+			return "/icon/aws.svg";
 		case "azure":
 			return "/icon/azure.svg";
 		case "copilot":
@@ -34,6 +36,8 @@ const getProviderName = (provider: string): string => {
 			return "Anthropic";
 		case "bedrock":
 			return "AWS Bedrock";
+		case "claude-platform-aws":
+			return "Claude Platform for AWS";
 		case "azure":
 			return "Azure OpenAI";
 		case "copilot":

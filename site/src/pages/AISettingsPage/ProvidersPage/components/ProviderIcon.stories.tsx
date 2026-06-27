@@ -27,6 +27,12 @@ export const Bedrock: Story = {
 	},
 };
 
+export const ClaudePlatformAWS: Story = {
+	args: {
+		provider: "claude-platform-aws",
+	},
+};
+
 export const Copilot: Story = {
 	args: {
 		provider: "copilot",

@@ -62,3 +62,13 @@ export const AddCopilot: Story = {
 		await canvas.findByText("Add a GitHub Copilot provider");
 	},
 };
+
+export const AddClaudePlatformAWS: Story = {
+	args: {
+		provider: addableProviders.find((p) => p.value === "claude-platform-aws")!,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Add a Claude Platform for AWS provider");
+	},
+};

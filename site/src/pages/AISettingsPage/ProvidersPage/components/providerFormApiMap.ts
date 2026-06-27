@@ -1,6 +1,7 @@
 import type {
 	AIProvider,
 	AIProviderBedrockSettings,
+	AIProviderClaudePlatformAWSSettings,
 	AIProviderKeyMutation,
 	AIProviderSettings,
 	AIProviderType,
@@ -33,13 +34,22 @@ const sanitizeCredential = (
 const BEDROCK_SETTINGS_TYPE = "bedrock";
 const BEDROCK_SETTINGS_VERSION = 1;
 
+const CLAUDE_PLATFORM_AWS_SETTINGS_TYPE = "claude-platform-aws";
+const CLAUDE_PLATFORM_AWS_SETTINGS_VERSION = 1;
+
 type BedrockSettingsWire = AIProviderBedrockSettings & {
 	_type: typeof BEDROCK_SETTINGS_TYPE;
 	_version: typeof BEDROCK_SETTINGS_VERSION;
 };
 
+type ClaudePlatformAWSSettingsWire = AIProviderClaudePlatformAWSSettings & {
+	_type: typeof CLAUDE_PLATFORM_AWS_SETTINGS_TYPE;
+	_version: typeof CLAUDE_PLATFORM_AWS_SETTINGS_VERSION;
+};
+
 type SettingsWire = AIProviderSettings &
-	Partial<AIProviderBedrockSettings> & {
+	Partial<AIProviderBedrockSettings> &
+	Partial<AIProviderClaudePlatformAWSSettings> & {
 		_type?: string;
 		_version?: number;
 	};
@@ -121,6 +131,30 @@ const buildBedrockSettings = (
 	...(roleArn ? { role_arn: roleArn } : {}),
 });
 
+// Claude Platform for AWS credentials live in `settings`. Region and
+// workspace_id are always sent when present (the backend requires them);
+// the write-only secrets are spread only when supplied so an omitted field
+// follows the server's "empty = keep" contract.
+const buildClaudePlatformAWSSettings = (
+	region: string,
+	workspaceId: string,
+	accessKey: string,
+	accessKeySecret: string,
+	roleArn: string,
+	externalId: string,
+	apiKey: string,
+): ClaudePlatformAWSSettingsWire => ({
+	_type: CLAUDE_PLATFORM_AWS_SETTINGS_TYPE,
+	_version: CLAUDE_PLATFORM_AWS_SETTINGS_VERSION,
+	...(region ? { region } : {}),
+	...(workspaceId ? { workspace_id: workspaceId } : {}),
+	...(accessKey ? { access_key: accessKey } : {}),
+	...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
+	...(roleArn ? { role_arn: roleArn } : {}),
+	...(externalId ? { external_id: externalId } : {}),
+	...(apiKey ? { api_key: apiKey } : {}),
+});
+
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
 // `api_keys`. `display_name` is omitted when blank so the server stores
 // NULL and the UI falls back to `name`.
@@ -147,6 +181,23 @@ export const providerFormValuesToCreate = (
 		);
 		return {
 			type: "bedrock",
+			...base,
+			settings: settings as AIProviderSettings,
+		};
+	}
+
+	if (values.type === "claude-platform-aws") {
+		const settings = buildClaudePlatformAWSSettings(
+			values.region.trim(),
+			values.workspaceId.trim(),
+			sanitizeCredential(values.accessKey),
+			sanitizeCredential(values.accessKeySecret),
+			values.roleArn.trim(),
+			values.externalId.trim(),
+			sanitizeCredential(values.apiKey),
+		);
+		return {
+			type: "claude-platform-aws",
 			...base,
 			settings: settings as AIProviderSettings,
 		};
@@ -185,6 +236,24 @@ export const providerFormValuesToUpdate = (
 
 	if (values.type === "copilot") {
 		return base;
+	}
+
+	if (values.type === "claude-platform-aws") {
+		const newAccessKey = sanitizeCredential(values.accessKey);
+		const newAccessKeySecret = sanitizeCredential(values.accessKeySecret);
+		// Yup enforces "both keys together"; rotating requires both to survive
+		// the mask filter. A blank pair leaves the saved credentials untouched.
+		const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
+		const settings = buildClaudePlatformAWSSettings(
+			values.region.trim(),
+			values.workspaceId.trim(),
+			credentialsChanged ? newAccessKey : "",
+			credentialsChanged ? newAccessKeySecret : "",
+			values.roleArn.trim(),
+			values.externalId.trim(),
+			sanitizeCredential(values.apiKey),
+		);
+		return { ...base, settings: settings as AIProviderSettings };
 	}
 
 	if (values.type !== "bedrock") {
@@ -253,6 +322,25 @@ export const aiProviderToFormValues = (
 			name: provider.name,
 			displayName,
 			baseUrl: provider.base_url,
+			enabled: provider.enabled,
+		};
+	}
+
+	if (provider.type === "claude-platform-aws") {
+		const s = (provider.settings as SettingsWire | null) ?? {};
+		return {
+			type: "claude-platform-aws",
+			name: provider.name,
+			displayName,
+			baseUrl: provider.base_url,
+			region: s.region ?? "",
+			workspaceId: s.workspace_id ?? "",
+			roleArn: s.role_arn ?? "",
+			externalId: s.external_id ?? "",
+			// Secrets are write-only; seed blank so an untouched submit keeps them.
+			accessKey: "",
+			accessKeySecret: "",
+			apiKey: "",
 			enabled: provider.enabled,
 		};
 	}

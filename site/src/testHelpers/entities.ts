@@ -5611,11 +5611,36 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	updated_at: "2026-05-14T10:00:00Z",
 };
 
+/**
+ * Claude Platform for AWS providers come over the wire with the dedicated
+ * `type: "claude-platform-aws"` and a `settings._type` discriminator. The
+ * write-only credentials (access keys, api key) are stripped from GET and
+ * list responses, so only region/workspace_id/role_arn surface here.
+ */
+export const MockAIProviderClaudePlatformAWS: TypesGen.AIProvider = {
+	id: "d4a8f6b2-7c1e-4e83-9b6a-3f2c1d9e8a41",
+	type: "claude-platform-aws",
+	name: "claude-platform-aws",
+	display_name: "Claude Platform for AWS",
+	base_url: "https://aws-external-anthropic.us-east-1.api.aws",
+	enabled: true,
+	api_keys: [],
+	settings: {
+		_type: "claude-platform-aws",
+		_version: 1,
+		region: "us-east-1",
+		workspace_id: "wrkspc-1234567890",
+	} as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
 	MockAIProviderCopilot,
+	MockAIProviderClaudePlatformAWS,
 ];
 
 export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [

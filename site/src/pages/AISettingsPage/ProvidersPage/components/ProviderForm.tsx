@@ -26,6 +26,9 @@ export type ProviderFormValues = {
 	accessKey: string;
 	accessKeySecret: string;
 	roleArn: string;
+	region: string;
+	workspaceId: string;
+	externalId: string;
 	apiKey: string;
 	enabled: boolean;
 };
@@ -68,6 +71,9 @@ const defaultInitialValues: ProviderFormValues = {
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
+	region: "",
+	workspaceId: "",
+	externalId: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -82,6 +88,11 @@ const BEDROCK_DEFAULT_SMALL_FAST_MODEL =
 	"global.anthropic.claude-haiku-4-5-20251001-v1:0";
 const BEDROCK_MODEL_CARDS_URL =
 	"https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html";
+
+// Default Claude Platform for AWS endpoint. Region defaults to us-east-1;
+// operators adjust the region in the URL and the dedicated Region field.
+const CLAUDE_PLATFORM_DEFAULT_BASE_URL =
+	"https://aws-external-anthropic.us-east-1.api.aws";
 
 const providerDefaults: Partial<
 	Record<AIProviderType, Partial<ProviderFormValues>>
@@ -101,6 +112,10 @@ const providerDefaults: Partial<
 	copilot: {
 		name: "copilot",
 		baseUrl: "https://api.business.githubcopilot.com",
+	},
+	"claude-platform-aws": {
+		name: "claude-platform-aws",
+		baseUrl: CLAUDE_PLATFORM_DEFAULT_BASE_URL,
 	},
 	google: {
 		name: "google",
@@ -204,6 +219,50 @@ const makeCopilotSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
+const CLAUDE_PLATFORM_ACCESS_KEY_PAIRED_MESSAGE =
+	"Enter both access key and secret, or leave both blank to use the AWS default credential chain or a workspace API key.";
+
+// Claude Platform for AWS always needs a region and workspace ID. Unlike
+// Bedrock, the region is an explicit field (not parsed from the URL) so
+// operators can route through a proxy base URL while still signing for the
+// correct AWS region. Access keys remain optional but must be supplied as a
+// pair, matching the backend's static-credential contract.
+const makeClaudePlatformSchema = (editing: boolean) =>
+	Yup.object({
+		type: Yup.string()
+			.oneOf(["claude-platform-aws"] as const)
+			.required(),
+		name: makeNameSchema(editing),
+		displayName: makeDisplayNameSchema(editing),
+		baseUrl: Yup.string()
+			.url("Endpoint must be a valid URL")
+			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
+			.required("Endpoint is required"),
+		region: Yup.string().required("Region is required"),
+		workspaceId: Yup.string().required("Workspace ID is required"),
+		accessKey: Yup.string().test(
+			"access-key-paired",
+			CLAUDE_PLATFORM_ACCESS_KEY_PAIRED_MESSAGE,
+			function (value) {
+				const secret = (this.parent as { accessKeySecret?: string })
+					.accessKeySecret;
+				return !(credentialFilled(secret) && !credentialFilled(value));
+			},
+		),
+		accessKeySecret: Yup.string().test(
+			"access-key-secret-paired",
+			CLAUDE_PLATFORM_ACCESS_KEY_PAIRED_MESSAGE,
+			function (value) {
+				const accessKey = (this.parent as { accessKey?: string }).accessKey;
+				return !(credentialFilled(accessKey) && !credentialFilled(value));
+			},
+		),
+		roleArn: Yup.string(),
+		externalId: Yup.string(),
+		apiKey: Yup.string(),
+		enabled: Yup.boolean(),
+	});
+
 const getProviderFormSchema = (editing: boolean) =>
 	Yup.lazy((value: { type?: AIProviderType } | undefined) => {
 		switch (value?.type) {
@@ -219,6 +278,8 @@ const getProviderFormSchema = (editing: boolean) =>
 				return makeBedrockSchema(editing);
 			case "copilot":
 				return makeCopilotSchema(editing);
+			case "claude-platform-aws":
+				return makeClaudePlatformSchema(editing);
 			default:
 				return Yup.object({
 					type: Yup.string()
@@ -228,6 +289,7 @@ const getProviderFormSchema = (editing: boolean) =>
 							"bedrock",
 							"azure",
 							"copilot",
+							"claude-platform-aws",
 							"google",
 							"openai-compat",
 							"openrouter",
@@ -379,64 +441,66 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
 				{Boolean(submitError) && <ErrorAlert error={submitError} />}
-				{typeSelectValue !== "" && typeSelectValue !== "bedrock" && (
-					<>
-						<div className="grid grid-cols-2 items-start gap-4">
+				{typeSelectValue !== "" &&
+					typeSelectValue !== "bedrock" &&
+					typeSelectValue !== "claude-platform-aws" && (
+						<>
+							<div className="grid grid-cols-2 items-start gap-4">
+								<FormField
+									required
+									field={getFieldHelpers("name")}
+									label="Name"
+									description="Unique identifier (used in urls, can't be changed)"
+									className="w-full"
+									placeholder={namePlaceholder(form.values.type)}
+									disabled={editing}
+								/>
+								<FormField
+									field={getFieldHelpers("displayName")}
+									label="Display name"
+									description="Friendly name. Defaults to name if blank."
+									className="w-full"
+								/>
+							</div>
 							<FormField
 								required
-								field={getFieldHelpers("name")}
-								label="Name"
-								description="Unique identifier (used in urls, can't be changed)"
+								field={getFieldHelpers("baseUrl")}
+								label="Endpoint"
+								description={
+									typeSelectValue === "copilot" ? (
+										<>
+											The base URL for your Copilot tier:{" "}
+											<code>https://api.individual.githubcopilot.com</code>,{" "}
+											<code>https://api.business.githubcopilot.com</code>, or{" "}
+											<code>https://api.enterprise.githubcopilot.com</code>.
+										</>
+									) : (
+										"The base URL where the provider's API is hosted."
+									)
+								}
 								className="w-full"
-								placeholder={namePlaceholder(form.values.type)}
-								disabled={editing}
+								placeholder={baseUrlPlaceholder(form.values.type)}
 							/>
-							<FormField
-								field={getFieldHelpers("displayName")}
-								label="Display name"
-								description="Friendly name. Defaults to name if blank."
-								className="w-full"
-							/>
-						</div>
-						<FormField
-							required
-							field={getFieldHelpers("baseUrl")}
-							label="Endpoint"
-							description={
-								typeSelectValue === "copilot" ? (
-									<>
-										The base URL for your Copilot tier:{" "}
-										<code>https://api.individual.githubcopilot.com</code>,{" "}
-										<code>https://api.business.githubcopilot.com</code>, or{" "}
-										<code>https://api.enterprise.githubcopilot.com</code>.
-									</>
-								) : (
-									"The base URL where the provider's API is hosted."
-								)
-							}
-							className="w-full"
-							placeholder={baseUrlPlaceholder(form.values.type)}
-						/>
-						{typeSelectValue === "copilot" ? (
-							<p className="text-sm text-content-secondary m-0">
-								Copilot authenticates with each user's GitHub OAuth token at
-								request time, so there is no API key to configure here. This
-								requires a GitHub external authentication provider to be
-								configured.
-							</p>
-						) : (
-							<CredentialField
-								required
-								label="API key"
-								helpers={getFieldHelpers("apiKey")}
-								onBlur={() => handleCredentialBlur("apiKey")}
-								onFocus={() => handleCredentialFocus("apiKey")}
-								autoComplete="new-password"
-								placeholder={apiKeyPlaceholder(form.values.type)}
-							/>
-						)}
-					</>
-				)}
+							{typeSelectValue === "copilot" ? (
+								<p className="text-sm text-content-secondary m-0">
+									Copilot authenticates with each user's GitHub OAuth token at
+									request time, so there is no API key to configure here. This
+									requires a GitHub external authentication provider to be
+									configured.
+								</p>
+							) : (
+								<CredentialField
+									required
+									label="API key"
+									helpers={getFieldHelpers("apiKey")}
+									onBlur={() => handleCredentialBlur("apiKey")}
+									onFocus={() => handleCredentialFocus("apiKey")}
+									autoComplete="new-password"
+									placeholder={apiKeyPlaceholder(form.values.type)}
+								/>
+							)}
+						</>
+					)}
 
 				{typeSelectValue === "bedrock" && (
 					<>
@@ -537,6 +601,122 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						<p className="text-xs text-content-secondary m-0">
 							Optional. When a role ARN is set, the gateway assumes that role
 							(using the base identity) before calling Bedrock.
+						</p>
+					</>
+				)}
+
+				{typeSelectValue === "claude-platform-aws" && (
+					<>
+						<div className="grid grid-cols-2 items-start gap-4">
+							<FormField
+								required
+								field={getFieldHelpers("name")}
+								label="Name"
+								description="Unique identifier (used in urls, can't be changed)"
+								className="w-full"
+								placeholder={namePlaceholder(form.values.type)}
+								disabled={editing}
+							/>
+							<FormField
+								field={getFieldHelpers("displayName")}
+								label="Display name"
+								description="Friendly name. Defaults to name if blank."
+								className="w-full"
+							/>
+						</div>
+						<FormField
+							required
+							field={getFieldHelpers("baseUrl")}
+							label="Endpoint"
+							description={
+								<>
+									In the format of{" "}
+									<code>
+										{"https://aws-external-anthropic.{region}.api.aws"}
+									</code>
+									, or a proxy endpoint.
+								</>
+							}
+							className="w-full"
+							placeholder={baseUrlPlaceholder(form.values.type)}
+						/>
+						<div className="grid grid-cols-2 items-start gap-4">
+							<FormField
+								required
+								field={getFieldHelpers("region")}
+								label="Region"
+								description="AWS region for SigV4 signing. Must match the endpoint."
+								className="w-full"
+								placeholder="us-east-1"
+							/>
+							<FormField
+								required
+								field={getFieldHelpers("workspaceId")}
+								label="Workspace ID"
+								description="Sent as the anthropic-workspace-id header."
+								className="w-full"
+							/>
+						</div>
+						<div className="grid grid-cols-2 items-start gap-4">
+							<CredentialField
+								label="Access key"
+								helpers={getFieldHelpers("accessKey")}
+								onBlur={() => handleCredentialBlur("accessKey")}
+								onFocus={() => handleCredentialFocus("accessKey")}
+								autoComplete="new-password"
+							/>
+							<CredentialField
+								label="Access key secret"
+								helpers={getFieldHelpers("accessKeySecret")}
+								onBlur={() => handleCredentialBlur("accessKeySecret")}
+								onFocus={() => handleCredentialFocus("accessKeySecret")}
+								autoComplete="new-password"
+							/>
+						</div>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. Leave both blank to use the AWS default credential chain
+							(IAM role, instance profile, AWS_PROFILE). When editing, leave
+							blank to keep saved credentials.{" "}
+							<DocsLink
+								size="sm"
+								href={docs(
+									"/ai-coder/ai-gateway/providers#claude-platform-for-aws",
+								)}
+								target="_blank"
+								rel="noreferrer"
+							>
+								View docs
+							</DocsLink>
+						</p>
+						<div className="grid grid-cols-2 items-start gap-4">
+							<FormField
+								field={getFieldHelpers("roleArn")}
+								label="Role ARN"
+								className="w-full"
+								placeholder="arn:aws:iam::123456789012:role/ClaudePlatformRole"
+							/>
+							<FormField
+								field={getFieldHelpers("externalId")}
+								label="External ID"
+								className="w-full"
+							/>
+						</div>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. When a role ARN is set, the gateway assumes that role
+							(using the base identity) before calling Claude Platform. External
+							ID is passed when assuming the role.
+						</p>
+						<CredentialField
+							label="API key"
+							helpers={getFieldHelpers("apiKey")}
+							onBlur={() => handleCredentialBlur("apiKey")}
+							onFocus={() => handleCredentialFocus("apiKey")}
+							autoComplete="new-password"
+						/>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. A Claude Platform workspace API key, sent as x-api-key.
+							It takes precedence over AWS credentials. When editing, leave
+							blank to keep the saved key.
 						</p>
 					</>
 				)}
