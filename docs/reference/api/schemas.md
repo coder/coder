@@ -7680,6 +7680,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `refresh`            | integer | false    |              |             |
 | `threshold_database` | integer | false    |              |             |
 
+## codersdk.ImportUserSecretsRequest
+
+```json
+{
+  "content": "string",
+  "format": "env"
+}
+```
+
+### Properties
+
+| Name      | Type                                                     | Required | Restrictions | Description |
+|-----------|----------------------------------------------------------|----------|--------------|-------------|
+| `content` | string                                                   | false    |              |             |
+| `format`  | [codersdk.SecretsFileFormat](#codersdksecretsfileformat) | false    |              |             |
+
 ## codersdk.InboxNotification
 
 ```json
@@ -11093,6 +11109,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
+
+## codersdk.SecretsFileFormat
+
+```json
+"env"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `env`, `json`, `yaml` |
 
 ## codersdk.ServerSentEvent
 
