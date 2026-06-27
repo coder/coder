@@ -368,8 +368,8 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			httpapi.Forbidden(rw)
 			return
 		}
-		//nolint:gocritic // Authorized as create-workspace-for-owner above; reads the owner's external auth link status.
-		readCtx = dbauthz.AsSystemRestricted(ctx)
+		//nolint:gocritic // Authorized as create-workspace-for-owner above; the checker only reads/refreshes the owner's external auth links.
+		readCtx = dbauthz.AsExternalAuthChecker(ctx)
 	}
 
 	providers, err := api.templateVersionExternalAuthForUser(readCtx, templateVersion, ownerID)

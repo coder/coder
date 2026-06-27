@@ -7323,3 +7323,48 @@ func TestAsChatd(t *testing.T) {
 		require.Error(t, err, "provisioner daemon read should be denied")
 	})
 }
+
+func TestAsExternalAuthChecker(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.AsExternalAuthChecker(context.Background())
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	t.Run("AllowedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// Reading and refreshing a user's external auth link requires personal
+		// read and update on the user resource.
+		for _, action := range []policy.Action{
+			policy.ActionReadPersonal, policy.ActionUpdatePersonal,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			require.NoError(t, err, "user %s should be allowed", action)
+		}
+	})
+
+	t.Run("DeniedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// No general user read/write, only personal external auth access.
+		for _, action := range []policy.Action{
+			policy.ActionRead, policy.ActionCreate,
+			policy.ActionUpdate, policy.ActionDelete,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
+			require.Error(t, err, "user %s should be denied", action)
+		}
+
+		// Unlike AsSystemRestricted, this actor cannot read other resources.
+		for _, res := range []rbac.Object{
+			rbac.ResourceWorkspace, rbac.ResourceTemplate,
+			rbac.ResourceApiKey, rbac.ResourceOrganization,
+		} {
+			err := auth.Authorize(ctx, actor, policy.ActionRead, res)
+			require.Error(t, err, "%s read should be denied", res.Type)
+		}
+	})
+}

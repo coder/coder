@@ -86,6 +86,7 @@ const (
 	SubjectTypeChatd                        SubjectType = "chatd"
 	SubjectTypeAIProviderMetadataReader     SubjectType = "ai_provider_metadata_reader"
 	SubjectTypeSCIMProvisioner              SubjectType = "scim_provisioner"
+	SubjectTypeExternalAuthChecker          SubjectType = "external_auth_checker"
 )
 
 const (
