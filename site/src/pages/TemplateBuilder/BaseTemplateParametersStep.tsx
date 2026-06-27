@@ -11,6 +11,7 @@ import {
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
+import { defaultPlaceholder } from "./defaultPlaceholder";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
 interface BaseTemplateParametersStepProps {
@@ -53,7 +54,9 @@ function variableToField(
 		label: variable.name,
 		description: variable.description || undefined,
 		required: variable.required,
-		placeholder: variable.required ? "Required" : "Optional",
+		placeholder:
+			defaultPlaceholder(variable.default) ??
+			(variable.required ? "Required" : "Optional"),
 		field: {
 			name: variable.name,
 			id,
