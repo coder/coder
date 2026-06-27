@@ -5,6 +5,7 @@ import type { AIProvider } from "#/api/typesGenerated";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderClaudePlatformAWS,
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
@@ -57,6 +58,27 @@ export const Bedrock: Story = {
 			`/ai/settings/providers/${MockAIProviderBedrock.name}`,
 		),
 		...seed(MockAIProviderBedrock),
+	},
+};
+
+// Claude Platform for AWS keeps its secrets in settings, so the edit form
+// shows the Region and Workspace ID fields with blank credential inputs and
+// no api_keys UI.
+export const ClaudePlatformAWS: Story = {
+	parameters: {
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderClaudePlatformAWS.name}`,
+		),
+		...seed(MockAIProviderClaudePlatformAWS),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByLabelText(/^region\s*\*?$/i)).toHaveValue(
+			"us-east-1",
+		);
+		expect(await canvas.findByLabelText(/workspace id/i)).toHaveValue(
+			"wrkspc-1234567890",
+		);
 	},
 };
 

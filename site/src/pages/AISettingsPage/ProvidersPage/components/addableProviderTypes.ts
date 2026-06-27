@@ -9,6 +9,7 @@ export const addableProviders: readonly AddableProvider[] = [
 	{ value: "anthropic", label: "Anthropic" },
 	{ value: "bedrock", label: "AWS Bedrock" },
 	{ value: "azure", label: "Azure OpenAI" },
+	{ value: "claude-platform-aws", label: "Claude Platform for AWS" },
 	{ value: "copilot", label: "GitHub Copilot" },
 	{ value: "google", label: "Google" },
 	{ value: "openai", label: "OpenAI" },

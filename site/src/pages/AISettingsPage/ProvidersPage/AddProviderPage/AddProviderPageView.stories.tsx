@@ -65,6 +65,16 @@ export const AddCopilot: Story = {
 	},
 };
 
+export const AddClaudePlatformAWS: Story = {
+	args: {
+		provider: addableProviders.find((p) => p.value === "claude-platform-aws")!,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Add a Claude Platform for AWS provider");
+	},
+};
+
 // Server base_url errors must render inline on the Endpoint input, not only in the top-of-form ErrorAlert.
 export const WithBaseUrlValidationError: Story = {
 	args: {

@@ -45,12 +45,14 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	// Copilot has no stored credential, and Bedrock keeps its secrets in
-	// settings, so only the remaining types surface the api_keys UI.
+	// Copilot has no stored credential, and Bedrock and Claude Platform for
+	// AWS keep their secrets in settings, so only the remaining types surface
+	// the api_keys UI.
 	const providerUsesApiKeys =
 		provider !== undefined &&
 		!isBedrockProvider(provider) &&
-		provider.type !== "copilot";
+		provider.type !== "copilot" &&
+		provider.type !== "claude-platform-aws";
 
 	const updateMutation = useMutation(
 		updateAIProviderMutation(queryClient, providerId ?? ""),
