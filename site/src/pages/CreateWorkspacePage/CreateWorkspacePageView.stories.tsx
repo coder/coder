@@ -16,7 +16,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		defaultName: "",
 		defaultOwner: MockUserOwner,
 		externalAuth: [],
-		externalAuthPollingState: "idle",
+		externalAuthPollingState: {},
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
 		parameters: [],
