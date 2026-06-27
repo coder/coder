@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: Authoring workflow and guardrails for writing or editing Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews changes for documentation needs.
+description: Authoring workflow and guardrails for writing, moving, or restructuring Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews changes for documentation needs.
 ---
 
 # Documentation Authoring Skill
