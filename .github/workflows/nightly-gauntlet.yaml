@@ -84,17 +84,10 @@ jobs:
           key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
           cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
 
-      - name: Setup RAM disk for Embedded Postgres (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: mkdir -p "R:/temp/embedded-pg"
-
-      - name: Setup RAM disk for Embedded Postgres (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p /tmp/tmpfs
-          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+      - name: Setup Embedded Postgres runtime (macOS/Windows)
+        id: embedded-pg-runtime
+        if: runner.os != 'Linux'
+        uses: ./.github/actions/setup-embedded-pg-runtime
 
       - name: Test with PostgreSQL Database (macOS)
         if: runner.os == 'macOS'
@@ -105,7 +98,7 @@ jobs:
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           test-count: "1"
-          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
+          embedded-pg-path: ${{ steps.embedded-pg-runtime.outputs.embedded-pg-path }}
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Test with PostgreSQL Database (Windows)
@@ -117,7 +110,7 @@ jobs:
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
           test-count: "1"
-          embedded-pg-path: "R:/temp/embedded-pg"
+          embedded-pg-path: ${{ steps.embedded-pg-runtime.outputs.embedded-pg-path }}
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Upload Embedded Postgres Cache

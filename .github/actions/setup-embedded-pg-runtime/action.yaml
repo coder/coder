@@ -1,0 +1,51 @@
+name: "Setup Embedded Postgres runtime"
+description: >-
+  macOS and Windows RAM disk and PTY setup for embedded Postgres test jobs,
+  plus the resolved embedded Postgres data path. Intended for non-Linux
+  runners; Linux uses a Docker Postgres container instead.
+
+outputs:
+  embedded-pg-path:
+    description: "Filesystem path for embedded Postgres data (empty on Linux)."
+    value: ${{ steps.pg-path.outputs.path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup RAM disk for Embedded Postgres (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      # The default C: drive is extremely slow:
+      # https://github.com/actions/runner-images/issues/8755
+      run: mkdir -p "R:/temp/embedded-pg"
+
+    - name: Setup RAM disk for Embedded Postgres (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # Postgres runs faster on a ramdisk on macOS.
+        mkdir -p /tmp/tmpfs
+        sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+
+        # macOS will output "The default interactive shell is now zsh" intermittently in CI.
+        touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+
+    - name: Increase PTY limit (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # Increase PTY limit to avoid exhaustion during tests.
+        # Default is 511; 999 is the maximum value on CI runner.
+        sudo sysctl -w kern.tty.ptmx_max=999
+
+    - name: Resolve embedded Postgres path
+      id: pg-path
+      shell: bash
+      run: |
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+          echo "path=R:/temp/embedded-pg" >> "$GITHUB_OUTPUT"
+        elif [[ "${RUNNER_OS}" == "macOS" ]]; then
+          echo "path=/tmp/tmpfs/embedded-pg" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=" >> "$GITHUB_OUTPUT"
+        fi
