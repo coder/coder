@@ -13,6 +13,7 @@ import (
 	context "context"
 	io "io"
 	net "net"
+	http "net/http"
 	reflect "reflect"
 	time "time"
 
@@ -51,6 +52,20 @@ func NewMockAgentConn(ctrl *gomock.Controller) *MockAgentConn {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockAgentConn) EXPECT() *MockAgentConnMockRecorder {
 	return m.recorder
+}
+
+// AppHTTPClient mocks base method.
+func (m *MockAgentConn) AppHTTPClient() *http.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppHTTPClient")
+	ret0, _ := ret[0].(*http.Client)
+	return ret0
+}
+
+// AppHTTPClient indicates an expected call of AppHTTPClient.
+func (mr *MockAgentConnMockRecorder) AppHTTPClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppHTTPClient", reflect.TypeOf((*MockAgentConn)(nil).AppHTTPClient))
 }
 
 // AwaitReachable mocks base method.

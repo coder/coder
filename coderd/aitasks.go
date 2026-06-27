@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -945,12 +944,6 @@ func (api *API) authAndDoWithTaskAppClient(
 	}
 	defer release()
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return agentConn.DialContext(ctx, network, addr)
-			},
-		},
-	}
+	client := agentConn.AppHTTPClient()
 	return do(ctx, client, parsedURL)
 }
