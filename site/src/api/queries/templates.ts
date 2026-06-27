@@ -206,16 +206,16 @@ export const templaceACLAvailable = (
 	};
 };
 
-const templateVersionExternalAuthKey = (versionId: string, userId?: string) => [
+const templateVersionExternalAuthKey = (versionId: string, userId = "me") => [
 	templateVersionRoot,
 	versionId,
-	userId ?? "me",
+	userId,
 	"externalAuth",
 ];
 
 export const templateVersionExternalAuth = (
 	versionId: string,
-	userId?: string,
+	userId = "me",
 ) => {
 	return {
 		queryKey: templateVersionExternalAuthKey(versionId, userId),

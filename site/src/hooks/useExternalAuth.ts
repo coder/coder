@@ -6,7 +6,7 @@ export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 export const useExternalAuth = (
 	versionId: string | undefined,
-	userId?: string,
+	userId: string,
 ) => {
 	const [pollingState, setPollingState] = useState<
 		Record<string, ExternalAuthPollingState>
