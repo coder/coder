@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -80,6 +81,10 @@ type RequestBridge struct {
 	inflightCtx    context.Context
 	inflightCancel func()
 
+	// clock is used only to provide a deterministic trap point in tests;
+	// in production it is a real clock and the Now() call is discarded.
+	clock quartz.Clock
+
 	shutdownOnce sync.Once
 	closed       chan struct{}
 }
@@ -114,7 +119,7 @@ func validateProviders(providers []provider.Provider) error {
 //
 // Circuit breaker configuration is obtained from each provider's CircuitBreakerConfig() method.
 // Providers returning nil will not have circuit breaker protection.
-func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer) (*RequestBridge, error) {
+func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec recorder.Recorder, mcpProxy mcp.ServerProxier, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, opts ...RequestBridgeOption) (*RequestBridge, error) {
 	if err := validateProviders(providers); err != nil {
 		return nil, err
 	}
@@ -193,15 +198,29 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	})
 
 	inflightCtx, cancel := context.WithCancel(context.Background())
-	return &RequestBridge{
+	b := &RequestBridge{
 		mux:            mux,
 		logger:         logger,
 		mcpProxy:       mcpProxy,
 		inflightCtx:    inflightCtx,
 		inflightCancel: cancel,
+		clock:          quartz.NewReal(),
 
 		closed: make(chan struct{}, 1),
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(b)
+	}
+	return b, nil
+}
+
+// RequestBridgeOption configures a [RequestBridge].
+type RequestBridgeOption func(*RequestBridge)
+
+// WithClock overrides the bridge clock. Tests inject a mock to trap request
+// admission deterministically; production uses the default real clock.
+func WithClock(clock quartz.Clock) RequestBridgeOption {
+	return func(b *RequestBridge) { b.clock = clock }
 }
 
 // disabledProviderHandler returns 503 with a body containing
@@ -367,6 +386,9 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	default:
 	}
+
+	// Trap point for deterministic race tests; discarded in production.
+	b.clock.Now("serve_admission")
 
 	b.inflightReqs.Add(1)
 	b.inflightWG.Add(1)

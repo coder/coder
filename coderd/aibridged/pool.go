@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -48,6 +49,9 @@ type PoolMetrics interface {
 type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
+	// Clock sources the provider-reload version stamp. Defaults to a real
+	// clock; tests inject a mock to trap ReplaceProviders deterministically.
+	Clock quartz.Clock
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
@@ -56,6 +60,7 @@ var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
 	cache *ristretto.Cache[string, *aibridge.RequestBridge]
+	clock quartz.Clock
 	// providers is the live provider set used by new RequestBridge
 	// instances. Includes disabled providers.
 	providers       atomic.Pointer[[]aibridge.Provider]
@@ -108,8 +113,14 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		return nil, xerrors.Errorf("create cache: %w", err)
 	}
 
+	clk := options.Clock
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+
 	pool := &CachedBridgePool{
 		cache:   cache,
+		clock:   clk,
 		options: options,
 		metrics: metrics,
 		tracer:  tracer,
@@ -141,7 +152,7 @@ func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
 
 	snapshot := slices.Clone(providers)
 	p.providers.Store(&snapshot)
-	version := time.Now().UnixNano()
+	version := p.clock.Now("provider_reload_version").UnixNano()
 	p.providerVersion.Store(version)
 	// Clear evicts every cached bridge; OnEvict shuts each one down in
 	// the background. Wait for buffered writes to drain so a replacement
@@ -254,7 +265,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer)
+		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer, aibridge.WithClock(p.clock))
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
