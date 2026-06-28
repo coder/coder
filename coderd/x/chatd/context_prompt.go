@@ -72,11 +72,19 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	}
 	prefix := server + mcpToolNameSeparator
 	out := make([]codersdk.ChatContextTool, 0, len(tools))
+	seen := make(map[string]struct{}, len(tools))
 	for _, t := range tools {
 		name := strings.TrimPrefix(t.GetName(), prefix)
 		if name == "" {
 			continue
 		}
+		// A server that lists the same tool twice would otherwise report it
+		// twice; keep the first occurrence so the reported tool set matches
+		// the deduplicated set the turn assembles.
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
 		out = append(out, codersdk.ChatContextTool{
 			Name:        name,
 			Description: t.GetDescription(),

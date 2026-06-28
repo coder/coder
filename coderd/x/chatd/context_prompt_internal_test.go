@@ -829,3 +829,35 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		require.Empty(t, tools)
 	})
 }
+
+func TestMCPToolsFromServerBody(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DedupsRepeatedToolNames", func(t *testing.T) {
+		t.Parallel()
+
+		// A server that lists the same tool name twice must report it once so
+		// the reported set matches the deduplicated set the turn assembles.
+		body := mustMarshalContextBody(t, &agentproto.MCPServerBody{
+			ServerName: "github",
+			Tools: []*agentproto.MCPTool{
+				{Name: "create_issue", Description: "first wins"},
+				{Name: "create_issue", Description: "dropped duplicate"},
+				{Name: "search", Description: "search code"},
+			},
+		})
+
+		tools := mcpToolsFromServerBody("github", body)
+		require.Len(t, tools, 2)
+		require.Equal(t, "create_issue", tools[0].Name)
+		require.Equal(t, "first wins", tools[0].Description)
+		require.Equal(t, "search", tools[1].Name)
+	})
+
+	t.Run("NoToolsYieldsNil", func(t *testing.T) {
+		t.Parallel()
+
+		body := mustMarshalContextBody(t, &agentproto.MCPServerBody{ServerName: "github"})
+		require.Nil(t, mcpToolsFromServerBody("github", body))
+	})
+}

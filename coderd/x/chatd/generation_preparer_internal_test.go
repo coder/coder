@@ -1,10 +1,12 @@
 package chatd //nolint:testpackage // Exercises unexported re-derivation helpers.
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -16,7 +18,9 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func mustMarshalText(t *testing.T, parts ...string) pqtype.NullRawMessage {
@@ -38,6 +42,43 @@ func textMessage(t *testing.T, id int64, role database.ChatMessageRole, parts ..
 		Content:        mustMarshalText(t, parts...),
 		ContentVersion: chatprompt.CurrentContentVersion,
 	}
+}
+
+func TestDedupeToolsByName(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// getConn is nil: dedup inspects only Info().Name and never runs a tool.
+	namedTool := func(name string) fantasy.AgentTool {
+		return chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: name}, nil, nil)
+	}
+
+	t.Run("KeepsFirstOccurrence", func(t *testing.T) {
+		t.Parallel()
+		// Two servers expose "github__create_issue"; the first wins and the
+		// duplicate is dropped so it never reaches the provider request.
+		tools := []fantasy.AgentTool{
+			namedTool("read_file"),
+			namedTool("github__create_issue"),
+			namedTool("github__create_issue"),
+			namedTool("search"),
+		}
+		got := dedupeToolsByName(context.Background(), logger, tools)
+		names := make([]string, 0, len(got))
+		for _, tool := range got {
+			names = append(names, tool.Info().Name)
+		}
+		require.Equal(t, []string{"read_file", "github__create_issue", "search"}, names)
+	})
+
+	t.Run("NoDuplicatesPreservesOrder", func(t *testing.T) {
+		t.Parallel()
+		tools := []fantasy.AgentTool{namedTool("a"), namedTool("b"), namedTool("c")}
+		got := dedupeToolsByName(context.Background(), logger, tools)
+		require.Len(t, got, 3)
+		require.Equal(t, "a", got[0].Info().Name)
+		require.Equal(t, "c", got[2].Info().Name)
+	})
 }
 
 func TestLatestAssistantText(t *testing.T) {
