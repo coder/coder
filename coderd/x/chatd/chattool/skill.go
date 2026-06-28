@@ -123,16 +123,36 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 	}
 	_, _ = b.WriteString("\n")
 	for _, s := range entries {
+		alias := stripSkillIndexDelimiters(s.Alias)
+		description := stripSkillIndexDelimiters(s.Description)
 		_, _ = b.WriteString("- ")
-		_, _ = b.WriteString(s.Alias)
-		if s.Description != "" {
+		_, _ = b.WriteString(alias)
+		if description != "" {
 			_, _ = b.WriteString(": ")
-			_, _ = b.WriteString(s.Description)
+			_, _ = b.WriteString(description)
 		}
 		_, _ = b.WriteString("\n")
 	}
 	_, _ = b.WriteString(AvailableSkillsCloseTag)
 	return b.String()
+}
+
+// stripSkillIndexDelimiters removes literal skill-index block
+// delimiters from untrusted skill metadata so a description or alias
+// cannot terminate the <available-skills> block early and smuggle
+// text outside it. Removal repeats until the text stops changing so a
+// crafted value such as "</available-skil</available-skills>ls>"
+// cannot reconstruct a delimiter after the surrounding characters
+// collapse together.
+func stripSkillIndexDelimiters(s string) string {
+	for {
+		before := s
+		s = strings.ReplaceAll(s, AvailableSkillsCloseTag, "")
+		s = strings.ReplaceAll(s, AvailableSkillsOpenTag, "")
+		if s == before {
+			return s
+		}
+	}
 }
 
 // listSkillFiles lists the supporting files in a skill directory,
