@@ -38,8 +38,9 @@ func ReadModifyUpdate(db Store, f func(tx Store) error,
 		})
 		var pqe *pq.Error
 		if xerrors.As(err, &pqe) {
-			if pqe.Code == "40001" {
-				// serialization error, retry
+			// Retry transient conflicts that resolve on a fresh attempt:
+			// serialization_failure (40001) and deadlock_detected (40P01).
+			if pqe.Code == "40001" || pqe.Code == "40P01" {
 				continue
 			}
 		}
