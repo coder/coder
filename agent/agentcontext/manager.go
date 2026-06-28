@@ -596,7 +596,7 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		if err != nil {
 			continue
 		}
-		out = append(out, ScanRoot{Path: canonical})
+		out = append(out, ScanRoot{Path: canonical, Builtin: true})
 	}
 	// Re-validate user sources at scan time. A source keeps its
 	// lexical (unresolved) identity for stable CRUD, but the

@@ -396,6 +396,106 @@ func TestResolver_SkillsOnlyFromFixedContainers(t *testing.T) {
 		[]string{"water-plants", "make-coffee", "fold-laundry", "walk-dog"}, names)
 }
 
+// TestResolver_SymlinkedSkillDirectoryFollowed verifies a skill
+// directory reached through a symlink inside a recognized container is
+// discovered. DirEntry.IsDir reports false for a symlink, so the naive
+// scan would silently drop it. The resolved directory stays inside the
+// scan root, so it is followed and read.
+func TestResolver_SymlinkedSkillDirectoryFollowed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	// The real skill lives elsewhere inside the scan root, reached only
+	// through a symlink in the .agents/skills container.
+	realSkill := filepath.Join(root, "shared", "make-coffee")
+	require.NoError(t, os.MkdirAll(realSkill, 0o755))
+	mustWriteFile(t, filepath.Join(realSkill, "SKILL.md"),
+		"---\nname: make-coffee\ndescription: Coffee skill\n---\nBrew it.")
+	container := filepath.Join(root, ".agents", "skills")
+	require.NoError(t, os.MkdirAll(container, 0o755))
+	require.NoError(t, os.Symlink(realSkill, filepath.Join(container, "make-coffee")))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: root}})
+
+	var skills []agentcontext.Resource
+	for _, res := range snap.Resources {
+		if res.Kind == agentcontext.KindSkill {
+			skills = append(skills, res)
+		}
+	}
+	require.Len(t, skills, 1)
+	require.Equal(t, agentcontext.StatusOK, skills[0].Status)
+	require.Equal(t, "make-coffee", skills[0].Name)
+	require.Equal(t, "Coffee skill", skills[0].Description)
+}
+
+// TestResolver_SymlinkedSkillDirectoryEscapingRejected guards the skill
+// directory boundary. A symlinked skill directory whose target resolves
+// to a sensitive location outside the scan root is rejected as
+// StatusInvalid and ships no payload or usable name.
+func TestResolver_SymlinkedSkillDirectoryEscapingRejected(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	// A sensitive directory outside the scan root.
+	outside := testutil.TempDirResolved(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(outside, "make-coffee"), 0o755))
+	mustWriteFile(t, filepath.Join(outside, "make-coffee", "SKILL.md"),
+		"---\nname: make-coffee\ndescription: outside\n---\nbody")
+	container := filepath.Join(root, ".agents", "skills")
+	require.NoError(t, os.MkdirAll(container, 0o755))
+	require.NoError(t, os.Symlink(
+		filepath.Join(outside, "make-coffee"),
+		filepath.Join(container, "make-coffee")))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: root}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindSkill, got.Kind)
+	require.Equal(t, agentcontext.StatusInvalid, got.Status)
+	require.Empty(t, got.Payload, "escaping skill target must not be shipped")
+	require.Empty(t, got.Name, "escaping skill must not be usable")
+	require.Contains(t, got.Error, "escapes scan root")
+}
+
+// TestResolver_SameNamedSkillsBuiltinWins verifies two skill directories
+// resolving to the same front-matter Name collapse to one deterministic
+// winner, and that builtin/home roots outrank project roots regardless of
+// walk order.
+func TestResolver_SameNamedSkillsBuiltinWins(t *testing.T) {
+	t.Parallel()
+	builtinRoot := t.TempDir()
+	projectRoot := t.TempDir()
+	mustWriteSkill(t, filepath.Join(builtinRoot, ".agents", "skills"), "shared", "from builtin")
+	mustWriteSkill(t, filepath.Join(projectRoot, ".agents", "skills"), "shared", "from project")
+
+	r := &agentcontext.Resolver{}
+	// Project root is listed first to prove precedence is by root type,
+	// not walk order.
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: projectRoot},
+		{Path: builtinRoot, Builtin: true},
+	})
+
+	var skills []agentcontext.Resource
+	for _, res := range snap.Resources {
+		if res.Kind == agentcontext.KindSkill {
+			skills = append(skills, res)
+		}
+	}
+	require.Len(t, skills, 1, "same-named skills must collapse to one")
+	require.Equal(t, "shared", skills[0].Name)
+	require.Equal(t, "from builtin", skills[0].Description,
+		"builtin/home root must win the name conflict")
+}
+
 func TestResolver_UserSourceAttribution(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
