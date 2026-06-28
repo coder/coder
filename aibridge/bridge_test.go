@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,13 +26,11 @@ import (
 var bridgeTestTracer = otel.Tracer("bridge_test")
 
 // TestRequestBridgeShutdownAdmissionRace deterministically interleaves request
-// admission with Shutdown via a quartz trap (no -race-only stress loop, no
-// require.Eventually). With the admitMu fix the Add happens-before close, so
-// it is clean under -race; without the fix inflightWG.Add races Wait.
+// admission with Shutdown using the `serve_admission` quartz trap.
 func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 

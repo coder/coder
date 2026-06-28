@@ -356,12 +356,9 @@ func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
 	return &mockMCPFactory{proxy: proxy}
 }
 
-// TestPoolShutdownReplaceProvidersQuartzBarrier is a deterministic variant of
-// the cache-race coverage: a quartz trap parks ReplaceProviders exactly at its
-// cache op (replacing require.Eventually), then Shutdown runs with no
-// synchronization between them. The fix's opsWG adds the happens-before edge
-// that makes this clean under -race; without it, cache.Wait races cache.Close.
-func TestPoolShutdownReplaceProvidersQuartzBarrier(t *testing.T) {
+// TestPoolShutdownReplaceProviders ensures that concurrent
+// pool shutdown does not race with provider replacement.
+func TestPoolShutdownReplaceProviders(t *testing.T) {
 	t.Parallel()
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

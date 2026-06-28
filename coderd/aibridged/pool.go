@@ -76,11 +76,8 @@ type CachedBridgePool struct {
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
 
-	// opsMu + opsWG order cache use against Shutdown: Acquire and
-	// ReplaceProviders hold opsMu (read) across the shuttingDownCh check
-	// and opsWG.Add; Shutdown holds it (write) around
-	// close(shuttingDownCh), then waits on opsWG before cache.Close, so
-	// cache use never races Close (which closes ristretto's channels).
+	// opsMu + opsWG order cache use against Shutdown. Without it,
+	// (*ristretto.Cache).Close may race against cache usage.
 	opsMu sync.RWMutex
 	opsWG sync.WaitGroup
 }

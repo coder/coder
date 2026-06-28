@@ -74,15 +74,13 @@ type RequestBridge struct {
 	inflightReqs atomic.Int32
 	inflightWG   sync.WaitGroup // For graceful shutdown.
 
-	// admitMu orders inflightWG.Add (ServeHTTP, read-held) before
+	// inflightMu orders inflightWG.Add (ServeHTTP, read-held) before
 	// close(b.closed) (Shutdown, write-held), so Add never races Wait.
-	admitMu sync.RWMutex
+	inflightMu sync.RWMutex
 
 	inflightCtx    context.Context
 	inflightCancel func()
 
-	// clock is used only to provide a deterministic trap point in tests;
-	// in production it is a real clock and the Now() call is discarded.
 	clock quartz.Clock
 
 	shutdownOnce sync.Once
@@ -214,11 +212,8 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	return b, nil
 }
 
-// RequestBridgeOption configures a [RequestBridge].
 type RequestBridgeOption func(*RequestBridge)
 
-// WithClock overrides the bridge clock. Tests inject a mock to trap request
-// admission deterministically; production uses the default real clock.
 func WithClock(clock quartz.Clock) RequestBridgeOption {
 	return func(b *RequestBridge) { b.clock = clock }
 }
@@ -378,21 +373,21 @@ func writeRequestBodyTooLarge(w http.ResponseWriter) {
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	b.admitMu.RLock()
+	b.inflightMu.RLock()
 	select {
 	case <-b.closed:
-		b.admitMu.RUnlock()
+		b.inflightMu.RUnlock()
 		http.Error(rw, "server closed", http.StatusInternalServerError)
 		return
 	default:
 	}
 
-	// Trap point for deterministic race tests; discarded in production.
-	b.clock.Now("serve_admission")
+	// Trap point for deterministic race tests.
+	_ = b.clock.Now("serve_admission")
 
 	b.inflightReqs.Add(1)
 	b.inflightWG.Add(1)
-	b.admitMu.RUnlock()
+	b.inflightMu.RUnlock()
 	defer func() {
 		b.inflightReqs.Add(-1)
 		b.inflightWG.Done()
@@ -415,10 +410,10 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {
-		// Close under admitMu so no ServeHTTP sits mid-admission (see admitMu).
-		b.admitMu.Lock()
+		// Close under inflightMu so no ServeHTTP sits mid-admission (see inflightMu).
+		b.inflightMu.Lock()
 		close(b.closed)
-		b.admitMu.Unlock()
+		b.inflightMu.Unlock()
 
 		// Wait for inflight requests to complete or context cancellation.
 		done := make(chan struct{})
