@@ -861,3 +861,37 @@ func TestMCPToolsFromServerBody(t *testing.T) {
 		require.Nil(t, mcpToolsFromServerBody("github", body))
 	})
 }
+
+func TestNonOKResourceStatusFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CountsPerNonOKStatusInFixedOrder", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			instructionResource(t, "/a", "ok", database.WorkspaceAgentContextResourceStatusOk),
+			instructionResource(t, "/b", "", database.WorkspaceAgentContextResourceStatusInvalid),
+			instructionResource(t, "/c", "", database.WorkspaceAgentContextResourceStatusOversize),
+			instructionResource(t, "/d", "", database.WorkspaceAgentContextResourceStatusOversize),
+			skillResource(t, "/e", "x", "y", database.WorkspaceAgentContextResourceStatusExcluded),
+		}
+
+		// Fixed order is oversize, unreadable, invalid, excluded; unreadable is
+		// absent so it is omitted.
+		fields := nonOKResourceStatusFields(resources)
+		require.Equal(t, []slog.Field{
+			slog.F("oversize", 2),
+			slog.F("invalid", 1),
+			slog.F("excluded", 1),
+		}, fields)
+	})
+
+	t.Run("AllOKReturnsNil", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			instructionResource(t, "/a", "ok", database.WorkspaceAgentContextResourceStatusOk),
+		}
+		require.Nil(t, nonOKResourceStatusFields(resources))
+	})
+}

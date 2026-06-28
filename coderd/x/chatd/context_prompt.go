@@ -221,6 +221,17 @@ func (server *Server) pinnedWorkspaceContext(
 			slog.F("resource_count", len(resources)),
 		)
 	}
+	// Non-OK resources (oversize, unreadable, invalid, excluded) are dropped
+	// from the prompt without an error. Emit one aggregated debug line with
+	// the per-status counts so a "missing context" report is diagnosable
+	// without dumping every pinned row.
+	if statusFields := nonOKResourceStatusFields(resources); len(statusFields) > 0 {
+		server.logger.Debug(ctx, "skipped non-ok pinned chat context resources",
+			slog.F("chat_id", chat.ID),
+			slog.F("resource_count", len(resources)),
+			slog.F("status_counts", slog.M(statusFields...)),
+		)
+	}
 	server.logger.Debug(ctx, "built prompt context from pinned chat resources",
 		slog.F("chat_id", chat.ID),
 		slog.F("resource_count", len(resources)),
@@ -228,6 +239,34 @@ func (server *Server) pinnedWorkspaceContext(
 		slog.F("has_instruction", instruction != ""),
 	)
 	return instruction, skills, nil
+}
+
+// nonOKResourceStatusFields tallies pinned resources whose status is not OK
+// and returns one log field per non-OK status present, in a fixed order so the
+// emitted log is deterministic. These statuses (oversize, unreadable, invalid,
+// excluded) are exactly the bodies contextResourcesToPrompt drops from the
+// prompt, so the counts explain a "missing context" report without dumping
+// every row. Returns nil when every resource is OK.
+func nonOKResourceStatusFields(resources []database.ChatContextResource) []slog.Field {
+	counts := map[database.WorkspaceAgentContextResourceStatus]int{}
+	for _, r := range resources {
+		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			counts[r.Status]++
+		}
+	}
+	ordered := []database.WorkspaceAgentContextResourceStatus{
+		database.WorkspaceAgentContextResourceStatusOversize,
+		database.WorkspaceAgentContextResourceStatusUnreadable,
+		database.WorkspaceAgentContextResourceStatusInvalid,
+		database.WorkspaceAgentContextResourceStatusExcluded,
+	}
+	var fields []slog.Field
+	for _, status := range ordered {
+		if n := counts[status]; n > 0 {
+			fields = append(fields, slog.F(string(status), n))
+		}
+	}
+	return fields
 }
 
 // resolveTurnWorkspaceContext selects the instruction block and workspace
