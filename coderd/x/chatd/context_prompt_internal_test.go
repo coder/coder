@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -61,6 +63,19 @@ func skillResource(t *testing.T, source, name, description string, status databa
 func mcpServerResource(t *testing.T, source string, body *agentproto.MCPServerBody, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
 	t.Helper()
 	return database.ChatContextResource{
+		Source:   source,
+		BodyKind: database.WorkspaceAgentContextBodyKindMcpServer,
+		Body:     mustMarshalContextBody(t, body),
+		Status:   status,
+	}
+}
+
+// agentMCPServerResource builds an agent-side mcp_server context row
+// (workspace_agent_context_resources), the live counterpart to
+// mcpServerResource's pinned chat row.
+func agentMCPServerResource(t *testing.T, source string, body *agentproto.MCPServerBody, status database.WorkspaceAgentContextResourceStatus) database.WorkspaceAgentContextResource {
+	t.Helper()
+	return database.WorkspaceAgentContextResource{
 		Source:   source,
 		BodyKind: database.WorkspaceAgentContextBodyKindMcpServer,
 		Body:     mustMarshalContextBody(t, body),
@@ -893,5 +908,144 @@ func TestNonOKResourceStatusFields(t *testing.T) {
 			instructionResource(t, "/a", "ok", database.WorkspaceAgentContextResourceStatusOk),
 		}
 		require.Nil(t, nonOKResourceStatusFields(resources))
+	})
+}
+
+func mcpToolNames(tools []fantasy.AgentTool) []string {
+	out := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		out = append(out, tool.Info().Name)
+	}
+	return out
+}
+
+func TestMergeWorkspaceMCPToolsByServer(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// getConn is nil-returning: the merge only wraps infos, it never dials.
+	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
+		return nil, xerrors.New("not dialed in this test")
+	}
+	mcpTool := func(server, tool string) fantasy.AgentTool {
+		return chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{
+			ServerName: server,
+			Name:       server + "__" + tool,
+		}, getConn, nil)
+	}
+
+	t.Run("LiveWinsPerServerAndRetainsPinnedOnly", func(t *testing.T) {
+		t.Parallel()
+
+		pinned := []fantasy.AgentTool{
+			mcpTool("jira", "list_issues"),  // server absent from live: retained
+			mcpTool("github", "stale_tool"), // server present in live: replaced
+		}
+		liveInfos := []workspacesdk.MCPToolInfo{
+			{ServerName: "github", Name: "github__create_issue"},
+			{ServerName: "github", Name: "github__search"},
+		}
+
+		merged := mergeWorkspaceMCPToolsByServer(context.Background(), logger, pinned, liveInfos, getConn)
+		require.ElementsMatch(t, []string{
+			"jira__list_issues",
+			"github__create_issue",
+			"github__search",
+		}, mcpToolNames(merged))
+	})
+
+	t.Run("EmptyPinnedYieldsLiveOnly", func(t *testing.T) {
+		t.Parallel()
+
+		liveInfos := []workspacesdk.MCPToolInfo{
+			{ServerName: "github", Name: "github__create_issue"},
+		}
+		merged := mergeWorkspaceMCPToolsByServer(context.Background(), logger, nil, liveInfos, getConn)
+		require.Equal(t, []string{"github__create_issue"}, mcpToolNames(merged))
+	})
+}
+
+func TestOverlayLiveWorkspaceMCPTools(t *testing.T) {
+	t.Parallel()
+
+	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
+		return nil, xerrors.New("not dialed in this test")
+	}
+	pinnedGithubTool := func() fantasy.AgentTool {
+		return chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{
+			ServerName: "github",
+			Name:       "github__create_issue",
+		}, getConn, nil)
+	}
+	liveGithub := func() []database.WorkspaceAgentContextResource {
+		return []database.WorkspaceAgentContextResource{
+			agentMCPServerResource(t, "github", &agentproto.MCPServerBody{
+				ServerName: "github",
+				Tools: []*agentproto.MCPTool{
+					{Name: "create_issue", Description: "Create an issue"},
+					{Name: "search", Description: "Search code"},
+				},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+		}
+	}
+	newServer := func(t *testing.T, agentID uuid.UUID, resources []database.WorkspaceAgentContextResource, err error) *Server {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agentID).
+			Return(resources, err)
+		return newPinServer(t, db)
+	}
+
+	t.Run("PinnedParentAndLaterChildConvergeOnLiveSet", func(t *testing.T) {
+		t.Parallel()
+
+		agentID := uuid.New()
+
+		// Parent was pinned before the MCP server connected: empty MCP
+		// baseline. The live overlay supplies the server.
+		parent := newServer(t, agentID, liveGithub(), nil)
+		parentTools := parent.overlayLiveWorkspaceMCPTools(
+			context.Background(), parent.logger, uuid.New(), agentID, nil, getConn)
+
+		// A child created after the server connected carries the server in its
+		// pinned baseline. Live wins per server, so it resolves the same set.
+		child := newServer(t, agentID, liveGithub(), nil)
+		childTools := child.overlayLiveWorkspaceMCPTools(
+			context.Background(), child.logger, uuid.New(), agentID,
+			[]fantasy.AgentTool{pinnedGithubTool()}, getConn)
+
+		require.ElementsMatch(t, []string{"github__create_issue", "github__search"}, mcpToolNames(parentTools))
+		require.ElementsMatch(t, mcpToolNames(parentTools), mcpToolNames(childTools))
+	})
+
+	t.Run("LiveReadErrorKeepsPin", func(t *testing.T) {
+		t.Parallel()
+
+		agentID := uuid.New()
+		server := newServer(t, agentID, nil, xerrors.New("boom"))
+		got := server.overlayLiveWorkspaceMCPTools(
+			context.Background(), server.logger, uuid.New(), agentID,
+			[]fantasy.AgentTool{pinnedGithubTool()}, getConn)
+		require.Equal(t, []string{"github__create_issue"}, mcpToolNames(got))
+	})
+
+	t.Run("EmptyLiveMCPSetKeepsPin", func(t *testing.T) {
+		t.Parallel()
+
+		// The agent has a snapshot but advertises no mcp_server rows (a
+		// transient disconnect, or a workspace that never had MCP servers):
+		// keep the pin rather than stripping its tools mid-turn.
+		agentID := uuid.New()
+		nonMCP := []database.WorkspaceAgentContextResource{{
+			Source:   "/home/coder/AGENTS.md",
+			BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+			Status:   database.WorkspaceAgentContextResourceStatusOk,
+		}}
+		server := newServer(t, agentID, nonMCP, nil)
+		got := server.overlayLiveWorkspaceMCPTools(
+			context.Background(), server.logger, uuid.New(), agentID,
+			[]fantasy.AgentTool{pinnedGithubTool()}, getConn)
+		require.Equal(t, []string{"github__create_issue"}, mcpToolNames(got))
 	})
 }

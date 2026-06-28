@@ -284,7 +284,7 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
+			workspaceMCPTools = server.resolveWorkspaceMCPToolsConverged(ctx, logger, chat, &workspaceCtx)
 			return nil
 		})
 	}
