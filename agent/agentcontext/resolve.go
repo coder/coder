@@ -265,22 +265,30 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 // top-level instruction files and .mcp.json plus skills from the
 // fixed container locations under it. The walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
-	info, err := os.Stat(root.Path)
+	// Stat follows symlinks to decide whether the root is a
+	// directory to walk shallowly, so a symlinked directory source
+	// remains a valid directory root.
+	if info, err := os.Stat(root.Path); err == nil && info.IsDir() {
+		r.discoverTopLevelFiles(root, out, seenID)
+		for _, container := range skillContainersFor(root.Path) {
+			r.emitSkillsFromContainer(container, root, out, seenID)
+		}
+		return
+	}
+	// Lstat (not Stat) so a symlinked file source keeps its symlink
+	// bit and is routed through resolveReadTarget's boundary check
+	// rather than being silently stat-resolved, which would let a
+	// CLAUDE.md -> ~/.ssh/id_rsa style link skip the check. Mirrors
+	// the deliberate Lstat in emitSkillsFromContainer.
+	info, err := os.Lstat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
 		// added a path that does not exist yet or removed it
 		// later; the watcher surfaces re-creation as a change.
 		return
 	}
-	if !info.IsDir() {
-		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
-			appendResource(out, seenID, res)
-		}
-		return
-	}
-	r.discoverTopLevelFiles(root, out, seenID)
-	for _, container := range skillContainersFor(root.Path) {
-		r.emitSkillsFromContainer(container, root, out, seenID)
+	if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
+		appendResource(out, seenID, res)
 	}
 }
 

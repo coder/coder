@@ -107,14 +107,18 @@ func ValidateSourcePath(canonical string, allowedRoots []string) error {
 
 // pathHasPrefix reports whether path is equal to or a
 // descendant of prefix. Both arguments must already be clean,
-// absolute paths.
+// absolute paths. The check is component-aware: it relies on
+// filepath.Rel and rejects any relative result that escapes the
+// prefix with a leading "..", so a sibling such as /home/u2 is
+// never treated as contained by /home/u even though the raw
+// bytes share a prefix.
 func pathHasPrefix(path, prefix string) bool {
-	if path == prefix {
-		return true
+	rel, err := filepath.Rel(prefix, path)
+	if err != nil {
+		return false
 	}
-	withSep := prefix
-	if !strings.HasSuffix(withSep, string(os.PathSeparator)) {
-		withSep += string(os.PathSeparator)
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return false
 	}
-	return strings.HasPrefix(path, withSep)
+	return true
 }

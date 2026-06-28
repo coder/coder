@@ -90,7 +90,7 @@ func (a *API) handleListSources(rw http.ResponseWriter, r *http.Request) {
 	sources := a.manager.Sources()
 	out := make([]SourceResponse, 0, len(sources))
 	for _, s := range sources {
-		out = append(out, SourceResponse(s))
+		out = append(out, SourceResponse{Path: s.Path})
 	}
 	httpapi.Write(r.Context(), rw, http.StatusOK, out)
 }
@@ -100,7 +100,7 @@ func (a *API) handleAddSource(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(r.Context(), rw, r, &req) {
 		return
 	}
-	s, err := a.manager.AddSource(Source(req))
+	s, err := a.manager.AddSource(Source{Path: req.Path})
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Could not add context source.",
@@ -108,7 +108,7 @@ func (a *API) handleAddSource(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(r.Context(), rw, http.StatusCreated, SourceResponse(s))
+	httpapi.Write(r.Context(), rw, http.StatusCreated, SourceResponse{Path: s.Path})
 }
 
 func (a *API) handleGetSource(rw http.ResponseWriter, r *http.Request) {

@@ -187,6 +187,9 @@ func TestManager_AddSourceIsIdempotent(t *testing.T) {
 // TestManager_SourceIdentityIsLexicalAndStable verifies the same configured
 // source added before and after its symlink target exists collapses to one
 // source keyed by the lexical (configured) path, not the resolved target.
+// The lexical path is the stable CRUD identity, while the resolver walks the
+// re-validated RESOLVED target: an in-bounds symlinked source still resolves
+// and is scanned.
 func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -216,6 +219,119 @@ func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 		"expected the source identity to stay the lexical link path")
 
 	require.Len(t, m.Sources(), 1)
+
+	// The resolved target stays inside the allowed root, so the source
+	// is scanned via its resolved path and attributed to the lexical
+	// identity. This proves scanning re-validates and follows the
+	// resolved target rather than blindly trusting the lexical path.
+	mustWriteFile(t, filepath.Join(target, "AGENTS.md"), "shared guidance")
+	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	var found bool
+	for _, r := range snap.Resources {
+		if r.Kind == agentcontext.KindInstructionFile && r.SourcePath == link {
+			found = true
+		}
+	}
+	require.True(t, found,
+		"in-bounds symlinked source must be scanned via its resolved target")
+}
+
+// TestManager_DefaultAllowedRootsExcludeBareHome verifies the default
+// allow-list no longer contains bare ~. A path directly under home but
+// outside the Coder/Claude config subtrees is rejected, while the Coder
+// subtree itself stays allowed.
+//
+//nolint:paralleltest,tparallel // Uses t.Setenv via switchHomeEnv.
+func TestManager_DefaultAllowedRootsExcludeBareHome(t *testing.T) {
+	home := testutil.TempDirResolved(t)
+	switchHomeEnv(t, home)
+	wd := testutil.TempDirResolved(t)
+
+	// No AllowedRoots: the Manager falls back to the default policy
+	// ([~/.coder, ~/.claude] plus the working dir).
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return wd },
+	})
+
+	// A secret-bearing path under home but outside the config subtrees
+	// is rejected now that bare ~ is gone.
+	_, err := m.AddSource(agentcontext.Source{Path: filepath.Join(home, ".ssh")})
+	require.Error(t, err)
+
+	// The Coder subtree under home is still allowed.
+	coderDir := filepath.Join(home, ".coder", "skills")
+	require.NoError(t, os.MkdirAll(coderDir, 0o755))
+	_, err = m.AddSource(agentcontext.Source{Path: coderDir})
+	require.NoError(t, err)
+}
+
+// TestManager_SymlinkSourceResolvingOutsideRootRejected verifies AddSource
+// validates the RESOLVED target, not the lexical link path: a file source
+// placed under an allowed root that symlinks to a secret outside the root
+// is rejected.
+func TestManager_SymlinkSourceResolvingOutsideRootRejected(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	root := testutil.TempDirResolved(t)
+	outside := testutil.TempDirResolved(t)
+	secret := filepath.Join(outside, "id_rsa")
+	mustWriteFile(t, secret, "-----BEGIN OPENSSH PRIVATE KEY-----")
+	link := filepath.Join(root, "CLAUDE.md")
+	require.NoError(t, os.Symlink(secret, link))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return root },
+		AllowedRoots: []string{root},
+	})
+
+	_, err := m.AddSource(agentcontext.Source{Path: link})
+	require.Error(t, err)
+	require.Empty(t, m.Sources())
+}
+
+// TestManager_RepointedSymlinkDroppedOnResync guards the time-of-check to
+// time-of-use window. A source added while its link is dangling validates
+// against its in-bounds lexical path, but once the link is repointed
+// outside the allowed roots the scan-time re-validation drops it, so the
+// resolver never reads the out-of-bounds target.
+func TestManager_RepointedSymlinkDroppedOnResync(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	wd := testutil.TempDirResolved(t)
+	root := testutil.TempDirResolved(t)
+	outside := testutil.TempDirResolved(t)
+	secret := filepath.Join(outside, "CLAUDE.md")
+	mustWriteFile(t, secret, "secret outside content")
+
+	// Add a dangling link under an allowed root. It fails soft to its
+	// in-bounds lexical path at add time, so it validates.
+	link := filepath.Join(root, "CLAUDE.md")
+	require.NoError(t, os.Symlink(filepath.Join(root, "missing"), link))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return wd },
+		AllowedRoots: []string{wd, root},
+	})
+	_, err := m.AddSource(agentcontext.Source{Path: link})
+	require.NoError(t, err)
+
+	// Repoint the link outside the allowed roots.
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, os.Symlink(secret, link))
+
+	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	for _, r := range snap.Resources {
+		require.NotEqual(t, secret, r.Source,
+			"repointed out-of-bounds source must be dropped")
+		require.NotContains(t, string(r.Payload), "secret outside content",
+			"out-of-bounds payload must never ship")
+	}
 }
 
 func TestManager_RemoveSource(t *testing.T) {

@@ -22,11 +22,13 @@ func defaultBuiltinRoots() []string {
 
 // defaultAllowedRoots returns the allow-list applied to runtime
 // AddSource calls when ManagerOptions.AllowedRoots is empty.
-// The set matches the RFC's authorization section: the home
-// directory's Coder and Claude config trees. The Manager
+// The set is the home directory's Coder and Claude config
+// subtrees only. Bare ~ is deliberately excluded: allowing it
+// would make the entire home directory (including ~/.ssh and
+// other secret-bearing files) a valid source root. The Manager
 // appends the working directory lazily on every check, which
 // picks up the workspace's resolved path even when the manifest
 // is loaded after agent init.
 func defaultAllowedRoots() []string {
-	return []string{"~", "~/.coder", "~/.claude"}
+	return []string{"~/.coder", "~/.claude"}
 }

@@ -429,6 +429,32 @@ func TestResolver_SingleFileRootClassified(t *testing.T) {
 	require.Equal(t, agentcontext.KindInstructionFile, snap.Resources[0].Kind)
 }
 
+// TestResolver_SymlinkedFileRootClassified verifies a scan root that is
+// itself a symlinked instruction file is detected as a symlink (via Lstat)
+// and routed through resolveReadTarget, then followed and read when the
+// target is in bounds. This guards the discoverIn Lstat change against
+// regressing single-file symlink sources.
+func TestResolver_SymlinkedFileRootClassified(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	t.Parallel()
+	dir := testutil.TempDirResolved(t)
+	target := filepath.Join(dir, "real-AGENTS.md")
+	mustWriteFile(t, target, "linked instructions")
+	link := filepath.Join(dir, "AGENTS.md")
+	require.NoError(t, os.Symlink(target, link))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: link}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindInstructionFile, got.Kind)
+	require.Equal(t, agentcontext.StatusOK, got.Status)
+	require.Equal(t, "linked instructions", string(got.Payload))
+}
+
 func TestResolver_DuplicateRootsDeduplicated(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

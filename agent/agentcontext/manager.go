@@ -30,7 +30,7 @@ type ManagerOptions struct {
 	InitialSources []Source
 	// AllowedRoots restricts which paths may be added as
 	// sources at runtime. When empty the package falls back
-	// to [~, ~/.coder, ~/.claude] plus the working directory.
+	// to [~/.coder, ~/.claude] plus the working directory.
 	// Tests override this to exercise the validation logic
 	// directly; production callers leave it unset.
 	AllowedRoots []string
@@ -56,6 +56,12 @@ type Source struct {
 	// Path is the canonical absolute path (symlinks resolved,
 	// ~ expanded). Empty means the zero value.
 	Path string
+	// trusted marks sources seeded from the trusted boot path
+	// (ManagerOptions.InitialSources or SeedSources). Trusted
+	// sources bypass the AllowedRoots re-validation that
+	// scanRootsLocked applies to user-added sources, matching
+	// SeedSources' deliberate validation bypass.
+	trusted bool
 }
 
 // Manager orchestrates source CRUD, resolution, watching, and
@@ -172,7 +178,7 @@ func NewManager(opts ManagerOptions) *Manager {
 				slog.Error(err))
 			continue
 		}
-		m.addSourceLocked(identity)
+		m.addSourceLocked(identity, true)
 	}
 
 	// Start gated: m.snapshot stays the zero value (version 0) until
@@ -344,7 +350,7 @@ func (m *Manager) SeedSources(sources []Source) {
 				slog.Error(err))
 			continue
 		}
-		if m.addSourceLocked(identity) {
+		if m.addSourceLocked(identity, true) {
 			changed = true
 		}
 	}
@@ -386,13 +392,14 @@ func (m *Manager) RemoveSource(path string) error {
 }
 
 // addSourceLocked registers identity unless already present,
-// reporting whether it was added. m.mu must be held.
-func (m *Manager) addSourceLocked(identity string) bool {
+// reporting whether it was added. Trusted sources skip the
+// scan-time AllowedRoots re-validation. m.mu must be held.
+func (m *Manager) addSourceLocked(identity string, trusted bool) bool {
 	if _, ok := m.sourceIndex[identity]; ok {
 		return false
 	}
 	m.sourceIndex[identity] = len(m.sources)
-	m.sources = append(m.sources, Source{Path: identity})
+	m.sources = append(m.sources, Source{Path: identity, trusted: trusted})
 	return true
 }
 
@@ -591,8 +598,35 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		}
 		out = append(out, ScanRoot{Path: canonical})
 	}
+	// Re-validate user sources at scan time. A source keeps its
+	// lexical (unresolved) identity for stable CRUD, but the
+	// resolver must only ever walk a path whose RESOLVED target is
+	// still inside the allowed roots. Re-canonicalizing here closes
+	// the window where a symlink that validated at AddSource time is
+	// later repointed outside the boundary, and it hands the
+	// resolved path to the resolver so the walk never re-follows the
+	// link. Trusted (seeded) sources bypass the allow-list, matching
+	// SeedSources.
+	allowed := m.effectiveAllowedRoots()
 	for _, s := range m.sources {
-		out = append(out, ScanRoot{Path: s.Path, UserSource: s.Path})
+		resolved, err := CanonicalizePath(s.Path)
+		if err != nil {
+			m.logger.Debug(context.Background(),
+				"dropping context source that failed to canonicalize",
+				slog.F("source", s.Path), slog.Error(err))
+			continue
+		}
+		if !s.trusted {
+			if err := ValidateSourcePath(resolved, allowed); err != nil {
+				m.logger.Debug(context.Background(),
+					"dropping context source resolving outside allowed roots",
+					slog.F("source", s.Path),
+					slog.F("resolved", resolved),
+					slog.Error(err))
+				continue
+			}
+		}
+		out = append(out, ScanRoot{Path: resolved, UserSource: s.Path})
 	}
 	return out
 }
@@ -602,7 +636,7 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 // evaluated on every call so it picks up the workspace's
 // resolved path after the agent's manifest finishes loading.
 // When AllowedRoots is empty the package falls back to its
-// default policy ([~, ~/.coder, ~/.claude]).
+// default policy ([~/.coder, ~/.claude]).
 func (m *Manager) effectiveAllowedRoots() []string {
 	var roots []string
 	if len(m.allowedRoots) > 0 {
