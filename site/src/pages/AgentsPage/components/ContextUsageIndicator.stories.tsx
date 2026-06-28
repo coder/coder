@@ -228,3 +228,301 @@ export const SnapshotError: Story = {
 		).toBeVisible();
 	},
 };
+
+// Keyboard access: the focusable trigger button itself carries the Radix popup
+// semantics, and Tab focus (no pointer) opens the popover so keyboard and
+// screen-reader users get the same affordance as hover.
+export const KeyboardFocusOpensPopover: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextClean,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		// The popup semantics live on the focusable element, not a wrapper.
+		expect(button).toHaveAttribute("aria-haspopup", "dialog");
+		expect(button).toHaveAttribute("aria-expanded", "false");
+
+		// Tabbing to the trigger opens the popover and flips aria-expanded.
+		await userEvent.tab();
+		expect(button).toHaveFocus();
+		await waitFor(() =>
+			expect(button).toHaveAttribute("aria-expanded", "true"),
+		);
+		const body = within(document.body);
+		await waitFor(() => expect(body.getByText("Context files")).toBeVisible());
+	},
+};
+
+// Every non-ok resource is surfaced as an issue with its error instead of being
+// silently dropped, across kinds (file, MCP config, MCP server, skill) and
+// statuses (oversize, unreadable, excluded, invalid).
+export const Issues: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "/home/coder/big/CLAUDE.md",
+						kind: "instruction_file",
+						size_bytes: 70_000,
+						status: "oversize",
+						error: "file exceeds the 64KiB instruction limit",
+					},
+					{
+						source: "/home/coder/secret/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 0,
+						status: "unreadable",
+						error: "permission denied",
+					},
+					{
+						source: "/home/coder/.coder/skills/legacy",
+						kind: "skill",
+						size_bytes: 0,
+						status: "excluded",
+						skill_name: "legacy",
+						error: "excluded by .coderignore",
+					},
+					{
+						source: "/home/coder/.mcp.json",
+						kind: "mcp_config",
+						size_bytes: 0,
+						status: "unreadable",
+						error: "invalid JSON at line 3",
+					},
+					{
+						source: "broken-server",
+						kind: "mcp_server",
+						size_bytes: 0,
+						status: "invalid",
+						error: "failed to start MCP server",
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() => expect(body.getByText("Issues")).toBeVisible());
+		// Each non-ok resource shows its name and error.
+		expect(body.getByText("CLAUDE.md")).toBeVisible();
+		expect(
+			body.getByText("file exceeds the 64KiB instruction limit"),
+		).toBeVisible();
+		expect(body.getByText("permission denied")).toBeVisible();
+		expect(body.getByText("legacy")).toBeVisible();
+		expect(body.getByText("excluded by .coderignore")).toBeVisible();
+		expect(body.getByText("invalid JSON at line 3")).toBeVisible();
+		expect(body.getByText("broken-server")).toBeVisible();
+		expect(body.getByText("failed to start MCP server")).toBeVisible();
+		// The kind label and status accompany the name (leaf span exact match).
+		expect(
+			body.getAllByText((_, el) => el?.textContent === "(file: oversize)")
+				.length,
+		).toBeGreaterThan(0);
+	},
+};
+
+// No usage data: the trigger still announces itself and the popover reports
+// that usage is unavailable rather than rendering a broken percentage.
+export const UsageUnavailable: Story = {
+	args: {
+		usage: null,
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		expect(button.getAttribute("aria-label")).toBe("Context usage");
+		await userEvent.hover(button);
+		const dialog = await within(document.body).findByRole("dialog");
+		await waitFor(() =>
+			expect(
+				within(dialog).getByText("Context usage unavailable"),
+			).toBeVisible(),
+		);
+	},
+};
+
+// Empty pinned context: the usage line renders, but with no resources none of
+// the resource sections appear.
+export const EmptyResources: Story = {
+	args: {
+		usage: {
+			usedTokens: 8_000,
+			contextLimitTokens: 200_000,
+			context: {
+				dirty: false,
+				resources: [],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const dialog = await within(document.body).findByRole("dialog");
+		const panel = within(dialog);
+		await waitFor(() => expect(panel.getByText(/context used/)).toBeVisible());
+		expect(panel.queryByText("Context files")).toBeNull();
+		expect(panel.queryByText("Skills")).toBeNull();
+		expect(panel.queryByText("MCP")).toBeNull();
+		expect(panel.queryByText("Issues")).toBeNull();
+	},
+};
+
+// Skill and MCP tool descriptions surface as side tooltips on hover.
+export const ResourceTooltips: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: MockChatContextClean,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() => expect(body.getByText("Skills")).toBeVisible());
+
+		// Hovering a skill row reveals its description. Radix renders a
+		// visually-hidden copy of the text for assistive tech, so scope the
+		// assertion to the visible tooltip role.
+		await userEvent.hover(body.getByText("deploy"));
+		await waitFor(() =>
+			expect(
+				body
+					.getAllByRole("tooltip")
+					.some((tip) =>
+						tip.textContent?.includes("Deploy the app to staging."),
+					),
+			).toBe(true),
+		);
+
+		// Hovering an MCP tool row reveals the tool description.
+		await userEvent.hover(body.getByText("search_issues"));
+		await waitFor(() =>
+			expect(
+				body
+					.getAllByRole("tooltip")
+					.some((tip) =>
+						tip.textContent?.includes("Search issues and pull requests."),
+					),
+			).toBe(true),
+		);
+	},
+};
+
+// Duplicate MCP tool names (two tools collide after the "<server>__" prefix is
+// stripped) are deduped so a duplicate cannot render twice or produce a
+// duplicate React key.
+export const DuplicateMcpToolNames: Story = {
+	args: {
+		usage: {
+			usedTokens: 20_000,
+			contextLimitTokens: 200_000,
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "github",
+						kind: "mcp_server",
+						size_bytes: 512,
+						status: "ok",
+						tools: [
+							{ name: "search", description: "First search tool." },
+							{ name: "search", description: "Duplicate after prefix strip." },
+							{ name: "create", description: "Create something." },
+						],
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() => expect(body.getByText("MCP")).toBeVisible());
+		// The duplicate name renders exactly once.
+		expect(body.getAllByText("search")).toHaveLength(1);
+		expect(body.getByText("create")).toBeVisible();
+	},
+};
+
+// Whitespace-only or empty resource names are dropped so a nameless resource
+// never renders as a blank row. Only the valid file survives; the
+// whitespace-named skill, MCP, and issue entries leave no section behind.
+export const DropsEmptyNames: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "/home/coder/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 100,
+						status: "ok",
+					},
+					{
+						source: "   ",
+						kind: "instruction_file",
+						size_bytes: 0,
+						status: "ok",
+					},
+					{
+						source: "   ",
+						kind: "skill",
+						size_bytes: 0,
+						status: "ok",
+						skill_name: "   ",
+					},
+					{
+						source: "   ",
+						kind: "mcp_config",
+						size_bytes: 0,
+						status: "ok",
+					},
+					{
+						source: "   ",
+						kind: "mcp_server",
+						size_bytes: 0,
+						status: "ok",
+						tools: [],
+					},
+					{
+						source: "   ",
+						kind: "skill",
+						size_bytes: 0,
+						status: "invalid",
+						skill_name: "   ",
+						error: "should be dropped",
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const dialog = await within(document.body).findByRole("dialog");
+		const panel = within(dialog);
+		// The single valid file renders.
+		await waitFor(() => expect(panel.getByText("AGENTS.md")).toBeVisible());
+		// Whitespace-only entries produce neither a section nor a blank row.
+		expect(panel.queryByText("Skills")).toBeNull();
+		expect(panel.queryByText("MCP")).toBeNull();
+		expect(panel.queryByText("Issues")).toBeNull();
+		expect(panel.queryByText("should be dropped")).toBeNull();
+	},
+};
