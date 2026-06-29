@@ -238,6 +238,31 @@ export const StreamingReplyHasNoExtraTopMargin: Story = {
 	},
 };
 
+// Native browser scroll anchoring (overflow-anchor: auto) adjusts scrollTop on
+// its own when rows mount above the fold, which double-corrects against the
+// scroller's manual preserveScrollOnPrepend restoration and surfaces as a
+// phantom jump. The viewport must opt out so the library is the sole authority
+// over scroll position. Asserting the computed value catches a class removal,
+// which a prepend-position test cannot: the anchoring heuristic is async and
+// will not reproduce the over-correction within a single play frame.
+export const ViewportDisablesNativeScrollAnchoring: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages(buildLongConversation(8));
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const content = canvas.getByTestId("conversation-timeline");
+		const viewport = content.parentElement as HTMLElement;
+
+		expect(getComputedStyle(viewport).getPropertyValue("overflow-anchor")).toBe(
+			"none",
+		);
+	},
+};
+
 export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
 		const store = createChatStore();

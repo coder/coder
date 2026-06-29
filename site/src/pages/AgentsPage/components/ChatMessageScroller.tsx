@@ -49,7 +49,7 @@ export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 			scrollPreviousItemPeek={64}
 		>
 			<MessageScroller.Root className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-				<MessageScroller.Viewport className="size-full min-h-0 overflow-y-auto overscroll-contain [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<MessageScroller.Viewport className="size-full min-h-0 overflow-y-auto overscroll-contain [overflow-anchor:none] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<MessageScroller.Content
 						data-testid="conversation-timeline"
 						aria-busy={isFetchingMoreMessages || undefined}
