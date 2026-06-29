@@ -1,4 +1,5 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	SettingsHeader,
@@ -9,10 +10,12 @@ import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
 } from "./components/AdminPersonalModelOverridesSettings";
+import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,
 } from "./components/SubagentModelOverrideSettings";
+import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 
 type SaveModelOverride = (
 	req: { readonly model_config_id: string },
@@ -33,6 +36,7 @@ export interface CoderAgentsPageViewProps {
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
+	isFetchingModelConfigs: boolean;
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
@@ -42,6 +46,39 @@ export interface CoderAgentsPageViewProps {
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
+	showAdvisorSettings: boolean;
+	advisorConfigData: TypesGen.AdvisorConfig | undefined;
+	isAdvisorConfigLoading: boolean;
+	isAdvisorConfigFetching: boolean;
+	isAdvisorConfigLoadError: boolean;
+	onSaveAdvisorConfig: (
+		req: TypesGen.UpdateAdvisorConfigRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingAdvisorConfig: boolean;
+	isSaveAdvisorConfigError: boolean;
+	saveAdvisorConfigError: unknown;
+	showVirtualDesktopSettings: boolean;
+	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
+	isLoadingDesktopEnabled: boolean;
+	onSaveDesktopEnabled: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatDesktopEnabledRequest,
+		unknown
+	>;
+	isSavingDesktopEnabled: boolean;
+	isSaveDesktopEnabledError: boolean;
+	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
+	isLoadingComputerUseProvider: boolean;
+	onSaveComputerUseProvider: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatComputerUseProviderRequest,
+		unknown
+	>;
+	isSavingComputerUseProvider: boolean;
+	computerUseProviderSaveError: Error | null;
 }
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
@@ -58,6 +95,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	modelConfigsData,
 	modelConfigsError,
 	isLoadingModelConfigs,
+	isFetchingModelConfigs,
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
@@ -67,6 +105,26 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
+	showAdvisorSettings,
+	advisorConfigData,
+	isAdvisorConfigLoading,
+	isAdvisorConfigFetching,
+	isAdvisorConfigLoadError,
+	onSaveAdvisorConfig,
+	isSavingAdvisorConfig,
+	isSaveAdvisorConfigError,
+	saveAdvisorConfigError,
+	showVirtualDesktopSettings,
+	desktopEnabledData,
+	isLoadingDesktopEnabled,
+	onSaveDesktopEnabled,
+	isSavingDesktopEnabled,
+	isSaveDesktopEnabledError,
+	computerUseProviderData,
+	isLoadingComputerUseProvider,
+	onSaveComputerUseProvider,
+	isSavingComputerUseProvider,
+	computerUseProviderSaveError,
 }) => {
 	const enabledModelConfigs = (modelConfigsData ?? []).filter(
 		(modelConfig) => modelConfig.enabled,
@@ -136,7 +194,37 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					isSaveError={isSaveExploreModelOverrideError}
 					saveErrorMessage="Failed to save Explore model override."
 				/>
+					{showVirtualDesktopSettings && (
+						<VirtualDesktopSettings
+							desktopEnabledData={desktopEnabledData}
+							isLoadingDesktopEnabled={isLoadingDesktopEnabled}
+							onSaveDesktopEnabled={onSaveDesktopEnabled}
+							isSavingDesktopEnabled={isSavingDesktopEnabled}
+							isSaveDesktopEnabledError={isSaveDesktopEnabledError}
+							computerUseProviderData={computerUseProviderData}
+							isLoadingComputerUseProvider={isLoadingComputerUseProvider}
+							onSaveComputerUseProvider={onSaveComputerUseProvider}
+							isSavingComputerUseProvider={isSavingComputerUseProvider}
+							computerUseProviderSaveError={computerUseProviderSaveError}
+						/>
+					)}
+					{showAdvisorSettings && (
+						<AdvisorSettings
+							advisorConfigData={advisorConfigData}
+							isAdvisorConfigLoading={isAdvisorConfigLoading}
+							isAdvisorConfigFetching={isAdvisorConfigFetching}
+							isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+							modelConfigs={modelConfigsData ?? []}
+							modelConfigsError={modelConfigsError}
+							isLoadingModelConfigs={isLoadingModelConfigs}
+							isFetchingModelConfigs={isFetchingModelConfigs}
+							onSaveAdvisorConfig={onSaveAdvisorConfig}
+							isSavingAdvisorConfig={isSavingAdvisorConfig}
+							isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+							saveAdvisorConfigError={saveAdvisorConfigError}
+						/>
+					)}
+				</div>
 			</div>
-		</div>
 	);
 };

@@ -123,6 +123,7 @@ func newInternalTestServer(
 		// does not interfere with test assertions.
 		PendingChatAcquireInterval: testutil.WaitLong,
 		ProviderAPIKeys:            keys,
+		Experiments:                codersdk.ExperimentsKnown,
 	})
 	if cfg.startWorker {
 		server.Start()

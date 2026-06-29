@@ -58,6 +58,20 @@ const (
 	missingCentralKeyMessage    = "API key is required when central API key is enabled."
 )
 
+func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	t.Helper()
+
+	values := coderdtest.DeploymentValues(t)
+	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
+	// Enable experiment-gated chat endpoints in tests.
+	values.Experiments = serpent.StringArray{
+		string(codersdk.ExperimentChatAdvisor),
+		string(codersdk.ExperimentChatVirtualDesktop),
+	}
+	return values
+}
+
+
 // newChatTestOptions builds coderdtest options for chat runtime tests. Unless
 // a test sets ChatProviderAPIKeys explicitly, it installs a fake
 // OpenAI-compatible provider before coderd starts so background chat work stays

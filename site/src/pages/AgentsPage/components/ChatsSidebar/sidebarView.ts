@@ -4,12 +4,7 @@ type SidebarView =
 	| { panel: "settings-admin"; section: string | undefined }
 	| { panel: "analytics" };
 
-const ADMIN_SETTINGS_SECTIONS = new Set([
-	"agents",
-	"mcp-servers",
-	"spend",
-	"experiments",
-]);
+const ADMIN_SETTINGS_SECTIONS = new Set(["agents", "mcp-servers", "spend"]);
 
 /**
  * Derive the current sidebar view from the URL pathname.

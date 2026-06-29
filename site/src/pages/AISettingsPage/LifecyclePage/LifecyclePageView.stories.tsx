@@ -30,6 +30,11 @@ const baseArgs: LifecyclePageViewProps = {
 	onSaveAutoArchiveDays: fn(),
 	isSavingAutoArchiveDays: false,
 	isSaveAutoArchiveDaysError: false,
+	debugLoggingData: undefined,
+	isDebugLoggingLoading: false,
+	onSaveDebugLogging: fn(),
+	isSavingDebugLogging: false,
+	isSaveDebugLoggingError: false,
 };
 
 const meta = {

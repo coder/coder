@@ -31,7 +31,6 @@ import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgen
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
@@ -183,12 +182,33 @@ const AgentsRouteElement = () => (
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		isFetchingModelConfigs={false}
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
+		showAdvisorSettings={false}
+		advisorConfigData={undefined}
+		isAdvisorConfigLoading={false}
+		isAdvisorConfigFetching={false}
+		isAdvisorConfigLoadError={false}
+		onSaveAdvisorConfig={fn()}
+		isSavingAdvisorConfig={false}
+		isSaveAdvisorConfigError={false}
+		saveAdvisorConfigError={undefined}
+		showVirtualDesktopSettings={false}
+		desktopEnabledData={undefined}
+		isLoadingDesktopEnabled={false}
+		onSaveDesktopEnabled={fn()}
+		isSavingDesktopEnabled={false}
+		isSaveDesktopEnabledError={false}
+		computerUseProviderData={undefined}
+		isLoadingComputerUseProvider={false}
+		onSaveComputerUseProvider={fn()}
+		isSavingComputerUseProvider={false}
+		computerUseProviderSaveError={null}
 	/>
 );
 
@@ -207,7 +227,6 @@ const agentsRouting = {
 					path: "instructions",
 					element: <Navigate to="/ai/settings/instructions" replace />,
 				},
-				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{
 					path: "lifecycle",
 					element: <Navigate to="/ai/settings/lifecycle" replace />,

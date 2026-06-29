@@ -144,12 +144,16 @@ for details.
 
 ### Experiments
 
-Administrators can opt in to experimental features under **Agents** >
-**Settings** > **Manage Agents** > **Experiments**. Behavior, configuration
-surface, and APIs may change between releases.
+Administrators enable experimental features using the `--experiments` flag on
+`coder server` (or the `CODER_EXPERIMENTS` environment variable). Once enabled,
+runtime configuration for those features is available under **Agents** >
+**Settings** > **Manage Agents** > **Agents**.
 
-See [Experiments](./experiments.md) for the current list of experiments, how
-to enable them, and the relevant API endpoints.
+See the following pages for experiment-gated features:
+
+- [Advisor](./advisor.md) (`--experiments=chat-advisor`)
+- [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
+- [Chat debug logging](./chat-debug-logging.md)
 
 ## Where we are headed
 

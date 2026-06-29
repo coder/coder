@@ -115,6 +115,9 @@ type listAgentsArgs struct {
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
+	if !p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
+		return false
+	}
 	enabled, err := p.db.GetChatDesktopEnabled(ctx)
 	if err != nil {
 		return false

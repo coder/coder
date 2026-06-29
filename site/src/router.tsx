@@ -372,9 +372,6 @@ const AgentSettingsCompactionPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
 );
 
-const AgentSettingsExperimentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
-);
 const AISettingsLifecyclePage = lazy(
 	() => import("./pages/AISettingsPage/LifecyclePage/LifecyclePage"),
 );
@@ -863,10 +860,6 @@ export const router = createBrowserRouter(
 						<Route
 							path="instructions"
 							element={<Navigate to="/ai/settings/instructions" replace />}
-						/>
-						<Route
-							path="experiments"
-							element={<AgentSettingsExperimentsPage />}
 						/>
 						<Route
 							path="lifecycle"

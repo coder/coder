@@ -118,6 +118,12 @@ func (server *Server) prepareGeneration(
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 	advisorCfg := server.loadAdvisorConfig(ctx, logger)
+	// The advisor is gated behind the chat-advisor experiment. A stale
+	// DB value with enabled=true must not attach the tool when the
+	// experiment is off.
+	if !server.experiments.Enabled(codersdk.ExperimentChatAdvisor) {
+		advisorCfg.Enabled = false
+	}
 
 	var advisorRuntime *chatadvisor.Runtime
 	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
