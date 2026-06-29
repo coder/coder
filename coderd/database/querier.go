@@ -383,8 +383,10 @@ type sqlcQuerier interface {
 	// Cumulative cost for a single chat, rolled up across its root + child
 	// (subagent) chats. Only counts assistant-role messages. Mirrors
 	// GetChatCostPerChat's root rollup but scoped to one chat and with no date
-	// range. Always returns exactly one row (zero totals when the chat has no
-	// priced messages). priced/unpriced counts let callers flag a partial total.
+	// range. Returns exactly one row when the chat exists (zero totals when it has
+	// no priced messages); the dbauthz wrapper resolves the chat first, so the
+	// empty-family case is unreachable in practice. priced/unpriced counts let
+	// callers flag a partial total.
 	GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatCostByChatIDRow, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
 	// Groups by root_chat_id so forked chats roll up under their root.

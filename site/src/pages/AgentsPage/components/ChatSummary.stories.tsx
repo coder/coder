@@ -70,3 +70,22 @@ export const SubCentCost: Story = {
 		await expect(canvas.getByText("$0.0050")).toBeInTheDocument();
 	},
 };
+
+export const CostError: Story = {
+	args: { costMicros: undefined, costError: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
+		await expect(canvas.getByText("Unavailable")).toBeInTheDocument();
+	},
+};
+
+export const PartialCost: Story = {
+	args: { costMicros: 0, unpricedMessageCount: 3 },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Excludes 3 messages without model pricing."),
+		).toBeInTheDocument();
+	},
+};

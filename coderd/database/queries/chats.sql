@@ -2402,8 +2402,10 @@ ORDER BY cc.total_cost_micros DESC;
 -- Cumulative cost for a single chat, rolled up across its root + child
 -- (subagent) chats. Only counts assistant-role messages. Mirrors
 -- GetChatCostPerChat's root rollup but scoped to one chat and with no date
--- range. Always returns exactly one row (zero totals when the chat has no
--- priced messages). priced/unpriced counts let callers flag a partial total.
+-- range. Returns exactly one row when the chat exists (zero totals when it has
+-- no priced messages); the dbauthz wrapper resolves the chat first, so the
+-- empty-family case is unreachable in practice. priced/unpriced counts let
+-- callers flag a partial total.
 WITH target AS (
     SELECT COALESCE(root_chat_id, id) AS root_chat_id
     FROM chats
@@ -2426,7 +2428,12 @@ WITH target AS (
         )::bigint AS unpriced_message_count
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
-    WHERE COALESCE(c.root_chat_id, c.id) = (SELECT root_chat_id FROM target)
+    -- Match the family by indexed columns (the root itself plus its children)
+    -- instead of COALESCE(root_chat_id, id), which would force a full scan.
+    WHERE (
+        c.id = (SELECT root_chat_id FROM target)
+        OR c.root_chat_id = (SELECT root_chat_id FROM target)
+    )
         AND cm.role = 'assistant'
 )
 SELECT

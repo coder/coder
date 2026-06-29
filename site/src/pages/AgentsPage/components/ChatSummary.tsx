@@ -17,6 +17,14 @@ interface ChatSummaryProps {
 	/** Cumulative chat cost in microdollars (1 USD = 1,000,000 micros). */
 	costMicros?: number | null;
 	isCostLoading?: boolean;
+	/** True when the cost request failed; the row shows a placeholder instead of "-". */
+	costError?: boolean;
+	/**
+	 * Number of assistant messages with no model pricing. When greater than zero
+	 * the cost is a partial total, so the component surfaces a note to avoid
+	 * reading "$0.00" as "free".
+	 */
+	unpricedMessageCount?: number;
 }
 
 /**
@@ -30,8 +38,16 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	updatedAt,
 	costMicros,
 	isCostLoading,
+	costError,
+	unpricedMessageCount,
 }) => {
 	const trimmedSummary = summary?.trim();
+	const hasUnpricedMessages =
+		!isCostLoading &&
+		!costError &&
+		costMicros != null &&
+		unpricedMessageCount != null &&
+		unpricedMessageCount > 0;
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -59,6 +75,8 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 				<ChatSummaryRow label="Cost:">
 					{isCostLoading ? (
 						<Skeleton aria-label="Loading cost" className="h-4 w-16" />
+					) : costError ? (
+						<span className="text-content-secondary">Unavailable</span>
 					) : costMicros != null ? (
 						formatCostMicros(costMicros)
 					) : (
@@ -66,6 +84,13 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 					)}
 				</ChatSummaryRow>
 			</dl>
+
+			{hasUnpricedMessages && (
+				<p className="m-0 text-xs italic text-content-secondary">
+					Excludes {unpricedMessageCount} message
+					{unpricedMessageCount === 1 ? "" : "s"} without model pricing.
+				</p>
+			)}
 		</div>
 	);
 };
