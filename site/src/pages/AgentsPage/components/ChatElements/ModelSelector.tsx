@@ -149,11 +149,14 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					disabled={isDisabled}
 					onTouchStart={onTriggerTouchStart}
 					className={cn(
-						// Matches the previous SelectTrigger base so this PR is
-						// only about the dropdown panel, not the trigger.
-						"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors",
+						"inline-flex h-7 min-w-0 shrink items-center gap-1 rounded-md px-2 text-xs font-medium md:shrink-0 md:w-auto",
+						"border-0 bg-transparent text-content-primary",
+						"transition-colors hover:bg-surface-secondary",
+						"data-[state=open]:bg-surface-secondary",
+						"focus:outline-none focus:ring-0",
 						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-						"disabled:cursor-not-allowed disabled:opacity-50",
+						"disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+						"[&>span]:truncate",
 						className,
 					)}
 				>
