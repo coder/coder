@@ -74,21 +74,21 @@ const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 // in this order. Unlisted modules appear after, in their original order.
 const MODULE_PRIORITY: readonly string[] = [
 	"claude-code",
-	// "codex",
+	"codex",
 	"cursor",
 	"vscode-desktop",
 	"code-server",
 	"jetbrains",
 	"vscode-web",
 	"zed",
-	// "antigravity",
+	"antigravity",
 	"windsurf",
 	"git-clone",
 	"dotfiles",
 	"git-config",
 	"personalize",
 	"filebrowser",
-	// "kasmvnc",
+	"kasmvnc",
 ];
 
 function sortByPriority<T extends { id: string }>(
