@@ -1285,6 +1285,13 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 
 		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
 
+		// Wake the orchestrator before the workspace event publish
+		// below, which returns on error, so a failed UI event cannot
+		// skip the wake.
+		if err := wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub); err != nil {
+			s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake", slog.Error(err))
+		}
+
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,
 			WorkspaceID: workspace.ID,
@@ -1295,10 +1302,6 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
-		}
-		err = wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub)
-		if err != nil {
-			s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake", slog.Error(err))
 		}
 
 		// Publish workspace build update to the all builds channel if the experiment is enabled.
@@ -2536,6 +2539,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 	}
 
+	// Wake the orchestrator before the workspace event publish below,
+	// which returns on error, so a failed UI event cannot skip the
+	// wake.
+	if err := wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub); err != nil {
+		s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake",
+			slog.Error(err),
+		)
+	}
+
 	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
@@ -2546,12 +2558,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 	err = s.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		return xerrors.Errorf("update workspace: %w", err)
-	}
-	err = wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub)
-	if err != nil {
-		s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake",
-			slog.Error(err),
-		)
 	}
 
 	// Publish workspace build update to the all builds channel if the experiment is enabled.
