@@ -190,6 +190,7 @@ export const AllOverridesUnset: Story = {
 			"Enable users to define their personal overrides",
 			"General model",
 			"Title generation model",
+			"Summary generation model",
 			"Explore subagent model",
 		]);
 		await canvas.findByText(
@@ -201,6 +202,10 @@ export const AllOverridesUnset: Story = {
 			{
 				headingName: "Title generation model",
 				placeholder: "Use title default",
+			},
+			{
+				headingName: "Summary generation model",
+				placeholder: "Use chat model",
 			},
 			{
 				headingName: "Explore subagent model",
