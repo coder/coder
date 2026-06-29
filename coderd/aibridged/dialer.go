@@ -52,8 +52,7 @@ func NewWebsocketDialer(client *codersdk.Client, key string) Dialer {
 		}
 		// nolint:bodyclose // ReadBodyAsError closes the body; success path hands off to the websocket conn.
 		conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-			HTTPClient: httpClient,
-			// Need to disable compression to avoid a data-race.
+			HTTPClient:      httpClient,
 			CompressionMode: websocket.CompressionDisabled,
 			HTTPHeader:      headers,
 		})
@@ -63,14 +62,12 @@ func NewWebsocketDialer(client *codersdk.Client, key string) Dialer {
 			}
 			return nil, codersdk.ReadBodyAsError(res)
 		}
-		// Align with yamux's default stream window size.
-		conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
-
 		config := yamux.DefaultConfig()
 		config.LogOutput = io.Discard
 		// Use a background context because the caller closes the client
 		// (and thus the multiplexed session) explicitly.
 		_, wsNetConn := codersdk.WebsocketNetConn(context.Background(), conn, websocket.MessageBinary)
+		conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 		session, err := yamux.Client(wsNetConn, config)
 		if err != nil {
 			_ = conn.Close(websocket.StatusGoingAway, "")

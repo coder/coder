@@ -7,9 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -21,11 +24,11 @@ import (
 	"github.com/coder/websocket"
 )
 
-// dialAIGatewayServe dials /api/v2/ai-gateway/serve, authenticating with the given
+// manualDialAIGatewayServe dials /api/v2/ai-gateway/serve, authenticating with the given
 // gateway key and API version. On a successful WebSocket upgrade it returns a
 // yamux session and http.StatusSwitchingProtocols. Otherwise it returns a nil
 // session and the HTTP status code coderd responded with.
-func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version string) (*yamux.Session, int) {
+func manualDialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version string) (*yamux.Session, int) {
 	t.Helper()
 
 	serverURL, err := client.URL.Parse("/api/v2/ai-gateway/serve")
@@ -68,6 +71,53 @@ func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Clie
 	return session, http.StatusSwitchingProtocols
 }
 
+// dialAIGatewayServe connects to /api/v2/ai-gateway/serve using the production NewWebsocketDialer.
+func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string) (aibridged.DRPCClient, error) {
+	t.Helper()
+
+	dc, err := aibridged.NewWebsocketDialer(client, key)(ctx)
+	if err != nil {
+		return nil, err
+	}
+	t.Cleanup(func() {
+		_ = dc.DRPCConn().Close()
+	})
+	return dc, nil
+}
+
+func requireAuthorizerServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient, sessionToken, wantOwnerID string) {
+	t.Helper()
+	resp, err := dc.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{Key: sessionToken})
+	require.NoError(t, err)
+	require.Equal(t, wantOwnerID, resp.GetOwnerId())
+}
+
+func requireProviderConfiguratorServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient) {
+	t.Helper()
+
+	_, err := dc.GetAIProviders(ctx, &aibridgedproto.GetAIProvidersRequest{})
+	require.NoError(t, err)
+}
+
+func requireMCPConfiguratorServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient, userID string) {
+	t.Helper()
+	_, err := dc.GetMCPServerConfigs(ctx, &aibridgedproto.GetMCPServerConfigsRequest{UserId: userID})
+	require.NoError(t, err)
+}
+
+func requireRecorderServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient, initiatorID string) {
+	t.Helper()
+	_, err := dc.RecordInterception(ctx, &aibridgedproto.RecordInterceptionRequest{
+		Id:          uuid.NewString(),
+		InitiatorId: initiatorID,
+		ApiKeyId:    "serve-success-key",
+		Provider:    "openai",
+		Model:       "gpt-4",
+		StartedAt:   timestamppb.Now(),
+	})
+	require.NoError(t, err)
+}
+
 func TestAIGatewayServeSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -78,18 +128,17 @@ func TestAIGatewayServeSuccess(t *testing.T) {
 	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-success"})
 	require.NoError(t, err)
 
-	session, status := dialAIGatewayServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
-	require.Equal(t, http.StatusSwitchingProtocols, status)
-	require.NotNil(t, session)
-
-	// The Authorizer service should be served and authorize the owner's
-	// session token, exercising a full DRPC round trip over the WebSocket.
-	authorizer := aibridgedproto.NewDRPCAuthorizerClient(drpcsdk.MultiplexedConn(session))
-	resp, err := authorizer.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{
-		Key: client.SessionToken(),
-	})
+	// Dial with the production NewWebsocketDialer the standalone gateway uses;
+	// a successful return implies the WebSocket upgrade succeeded.
+	dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
 	require.NoError(t, err)
-	require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
+
+	// Exercise one RPC from each service in the DRPCClient union to verify the
+	// dialer wires every service and the serve mux registers them all.
+	requireAuthorizerServed(ctx, t, dc, client.SessionToken(), firstUser.UserID.String())
+	requireProviderConfiguratorServed(ctx, t, dc)
+	requireMCPConfiguratorServed(ctx, t, dc, firstUser.UserID.String())
+	requireRecorderServed(ctx, t, dc, firstUser.UserID.String())
 
 	// The session records liveness for the authenticating key.
 	require.Eventually(t, func() bool {
@@ -164,7 +213,7 @@ func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, status := dialAIGatewayServe(t.Context(), t, client, tc.key, tc.version)
+			_, status := manualDialAIGatewayServe(t.Context(), t, client, tc.key, tc.version)
 			require.Equal(t, tc.wantStatus, status)
 		})
 	}
@@ -184,8 +233,13 @@ func TestAIGatewayServeMissingEntitlement(t *testing.T) {
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	_, status := dialAIGatewayServe(ctx, t, client, "any-key", aibridgedproto.CurrentVersion.String())
-	require.Equal(t, http.StatusForbidden, status)
+	// The production dialer must surface the upgrade failure as a
+	// *codersdk.Error so the standalone gateway's connect loop can detect the
+	// 403 and stop retrying instead of looping forever.
+	_, err := dialAIGatewayServe(ctx, t, client, "any-key")
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
 
 func TestAIGatewayServeDeletedKeyClosesActiveSession(t *testing.T) {
@@ -204,9 +258,8 @@ func TestAIGatewayServeDeletedKeyClosesActiveSession(t *testing.T) {
 	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-delete-active"})
 	require.NoError(t, err)
 
-	session, status := dialAIGatewayServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
-	require.Equal(t, http.StatusSwitchingProtocols, status)
-	require.NotNil(t, session)
+	dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
+	require.NoError(t, err)
 
 	//nolint:gocritic // Owner role is needed for gateway key management.
 	require.NoError(t, client.DeleteAIGatewayKey(ctx, created.ID))
@@ -214,7 +267,7 @@ func TestAIGatewayServeDeletedKeyClosesActiveSession(t *testing.T) {
 	tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
 	require.Eventually(t, func() bool {
 		select {
-		case <-session.CloseChan():
+		case <-dc.DRPCConn().Closed():
 			return true
 		default:
 			return false
