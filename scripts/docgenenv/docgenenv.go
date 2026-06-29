@@ -1,5 +1,5 @@
-// Package docgenenv normalizes the process environment so the documentation
-// generators produce identical output regardless of the host they run on.
+// Package docgenenv normalizes the process environment so documentation
+// generators produce host-independent output.
 package docgenenv
 
 import (
@@ -8,8 +8,8 @@ import (
 )
 
 // Prepare clears CODER_* variables and pins the cache, config, and temp
-// directories. Without this, defaults derived from os.UserCacheDir and the
-// config directory embed the generating host's home directory in the docs.
+// directories so generated docs don't embed the generating host's home
+// directory.
 func Prepare() {
 	for _, env := range os.Environ() {
 		if !strings.HasPrefix(env, "CODER_") {
