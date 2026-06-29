@@ -18,9 +18,8 @@ ALTER TABLE chat_messages
 --
 -- Recreate the AFTER STATEMENT history triggers so only rows with
 -- cost_source IS NULL (ordinary turn history) advance history_version.
--- snapshot_version still advances for every change, so history_version
--- correctly trails behind it after an accounting-only write and catches up on
--- the next real message.
+-- The accounting insert does not bump snapshot_version, so an accounting-only
+-- write leaves both snapshot_version and history_version unchanged.
 CREATE OR REPLACE FUNCTION update_chat_history_after_message_insert()
 RETURNS trigger AS $$
 BEGIN

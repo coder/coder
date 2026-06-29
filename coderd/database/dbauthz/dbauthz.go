@@ -5856,7 +5856,15 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 }
 
 func (q *querier) InsertChatAccountingMessage(ctx context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
-	panic("not implemented")
+	// Authorize update on the parent chat, like the other chat-message writes.
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.InsertChatAccountingMessage(ctx, arg)
 }
 
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
