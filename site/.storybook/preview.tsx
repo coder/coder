@@ -1,6 +1,5 @@
 import "../src/index.css";
 import "../src/theme/globalFonts";
-import { isPixel } from "@coder/pixel-storybook";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
@@ -8,7 +7,7 @@ import {
 	StyledEngineProvider,
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
-import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
+import type { Decorator, Parameters } from "@storybook/react-vite";
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
@@ -127,12 +126,3 @@ const withTheme: Decorator = (Story, context) => {
 };
 
 export const decorators: Decorator[] = [withRouter, withQuery, withTheme];
-
-// Try to fix storybook rendering fonts inconsistently
-// https://www.chromatic.com/docs/font-loading/#solution-c-check-fonts-have-loaded-in-a-loader
-const fontLoader = async () => ({
-	fonts: await document.fonts.ready,
-});
-
-export const loaders: Loader[] =
-	isPixel() && document.fonts ? [fontLoader] : [];
