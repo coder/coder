@@ -4713,8 +4713,9 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
+	finalizeCtx, stopFinalizeCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
-		finalizeCtx := context.WithoutCancel(ctx)
+		defer stopFinalizeCtx()
 		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
 		logger.Debug(finalizeCtx, "generated chat turn status label",
 			slog.F("chat_id", chat.ID),
@@ -4726,6 +4727,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 
 		afterFinalize(finalizeCtx, statusLabel)
 	}); err != nil {
+		stopFinalizeCtx()
 		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat turn status finalization",
 			slog.F("chat_id", chat.ID),
 			slog.F("status", status),
@@ -4813,9 +4815,12 @@ func (p *Server) setLastTurnSummaryAsync(
 	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
 		return
 	}
+	updateCtx, stopUpdateCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
-		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.HistoryVersion, summary, logger)
+		defer stopUpdateCtx()
+		p.updateLastTurnSummary(updateCtx, chat, chat.HistoryVersion, summary, logger)
 	}); err != nil {
+		stopUpdateCtx()
 		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat turn summary update",
 			slog.F("chat_id", chat.ID),
 			slog.F("expected_history_version", chat.HistoryVersion),
@@ -4830,9 +4835,12 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
+	clearCtx, stopClearCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
-		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.HistoryVersion, "", logger)
+		defer stopClearCtx()
+		p.updateLastTurnSummary(clearCtx, chat, chat.HistoryVersion, "", logger)
 	}); err != nil {
+		stopClearCtx()
 		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat turn summary clear",
 			slog.F("chat_id", chat.ID),
 			slog.F("expected_history_version", chat.HistoryVersion),
@@ -4940,6 +4948,21 @@ func (p *Server) Close() error {
 	p.wg.Wait()
 	p.drainInflight()
 	return nil
+}
+
+// inflightContext returns a context for an in-flight goroutine launched
+// via goInflight. It is detached from reqCtx's cancellation so the work
+// can outlive the originating request, while preserving its values for
+// auth, routing, and tracing. The context is bound to the server
+// lifetime via p.ctx so Close cancels it promptly. The returned stop
+// must be called once the work completes to release the shutdown hook.
+func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	stop := context.AfterFunc(p.ctx, cancel)
+	return ctx, func() {
+		stop()
+		cancel()
+	}
 }
 
 func (p *Server) goInflight(f func()) error {

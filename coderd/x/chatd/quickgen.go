@@ -141,9 +141,11 @@ type generatedTurnStatusLabel struct {
 // chat-creation endpoint right after the chat and its initial user
 // message are persisted.
 //
-// The work runs in a tracked goroutine with a detached context so it
-// neither blocks the HTTP response nor is canceled when the request
-// completes. It resolves the chat's model and provider keys, then
+// The work runs in a tracked goroutine with a context detached from the
+// request but bound to the server: it neither blocks the HTTP response
+// nor is canceled when the request completes, and Close cancels it
+// instead of blocking on the title timeout while a provider is
+// unreachable. It resolves the chat's model and provider keys, then
 // delegates to maybeGenerateChatTitle, which only acts on the first user
 // turn (see titleInput) and is otherwise a no-op. Errors are logged and
 // swallowed.
@@ -166,11 +168,8 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	if _, ok := titleInput(chat, messages); !ok {
 		return
 	}
-	// Detach from the request lifetime so title generation can finish
-	// even after the create response is written, but stay bound to the
-	// server lifetime so Close cancels it instead of blocking on the
-	// title timeout while a provider is unreachable.
-	titleCtx, stopTitleCtx := p.titleGenerationContext(ctx)
+	// Detach from request; bind to server so Close cancels it.
+	titleCtx, stopTitleCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
 		defer stopTitleCtx()
 		modelOpts := modelBuildOptionsFromMessages(messages)
@@ -203,21 +202,6 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			slog.F("owner_id", chat.OwnerID),
 			slog.Error(err),
 		)
-	}
-}
-
-// titleGenerationContext returns the context for asynchronous title
-// generation. It is detached from reqCtx's cancellation so the work can
-// outlive the originating request, while preserving its values for auth
-// and routing. The context is bound to the server lifetime via p.ctx so
-// Close cancels it promptly. The returned stop must be called once the
-// work completes to release the shutdown hook.
-func (p *Server) titleGenerationContext(reqCtx context.Context) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
-	stop := context.AfterFunc(p.ctx, cancel)
-	return ctx, func() {
-		stop()
-		cancel()
 	}
 }
 

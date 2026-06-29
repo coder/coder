@@ -76,12 +76,18 @@ func (p *Server) scheduleDebugCleanup(
 		return
 	}
 
+	cleanupCtx, stopCleanupCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
-		cleanupCtx := context.WithoutCancel(ctx)
+		defer stopCleanupCtx()
 		for attempt := 0; attempt < debugCleanupAttempts; attempt++ {
 			if attempt > 0 {
 				timer := p.clock.NewTimer(debugCleanupRetryDelay, "chatd", "debug_cleanup")
-				<-timer.C
+				select {
+				case <-timer.C:
+				case <-cleanupCtx.Done():
+					timer.Stop()
+					return
+				}
 			}
 
 			passCtx, cancel := context.WithTimeout(cleanupCtx, debugCleanupTimeout)
@@ -99,6 +105,7 @@ func (p *Server) scheduleDebugCleanup(
 			p.logger.Warn(cleanupCtx, logMessage, logFields...)
 		}
 	}); err != nil {
+		stopCleanupCtx()
 		logFields := append([]slog.Field{slog.F("cleanup", logMessage)}, fields...)
 		logFields = append(logFields, slog.Error(err))
 		p.logger.Error(context.WithoutCancel(ctx), "failed to schedule chat debug cleanup", logFields...)
