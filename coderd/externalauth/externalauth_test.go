@@ -1081,7 +1081,7 @@ func TestValidateToken(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, valid, "429 should be treated as optimistically valid")
 		assert.Nil(t, user)
-		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "http_429")
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
 	})
 
 	// Confirmed: a 200 means the provider confirmed the token. It logs no
