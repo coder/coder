@@ -38,7 +38,7 @@ const mockOverrides = [
 ];
 
 const meta: Meta<typeof UserOverridesSection> = {
-	title: "pages/AgentsPage/LimitsTab/UserOverridesSection",
+	title: "pages/AISettingsPage/SpendPage/LimitsTab/UserOverridesSection",
 	component: UserOverridesSection,
 	args: {
 		overrides: mockOverrides,
@@ -97,14 +97,14 @@ export const EditForm: Story = {
 		userOverrideAmount: "5.00",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Save button confirms edit mode is active.
+		const body = within(canvasElement.ownerDocument.body);
+		// Update budget button confirms edit mode is active.
 		await expect(
-			canvas.getByRole("button", { name: /save/i }),
+			body.getByRole("button", { name: /update budget/i }),
 		).toBeInTheDocument();
 		// The editing user name appears in both the table row and the
 		// read-only edit form identity, confirming it was populated.
-		const nameElements = canvas.getAllByText("Alice Johnson");
+		const nameElements = body.getAllByText("Alice Johnson");
 		expect(nameElements.length).toBeGreaterThanOrEqual(2);
 	},
 };
@@ -113,11 +113,13 @@ export const DeleteUserOverride: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click the Delete button for the first user override.
-		const deleteButtons = await body.findAllByRole("button", {
-			name: "Delete",
+		const actionButtons = await body.findAllByRole("button", {
+			name: /actions for/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(actionButtons[0]);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: /remove override/i }),
+		);
 
 		// The confirmation dialog should appear.
 		const dialog = await body.findByRole("dialog");
@@ -132,11 +134,13 @@ export const DeleteUserOverrideCancelled: Story = {
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click the Delete button for the first user override.
-		const deleteButtons = await body.findAllByRole("button", {
-			name: "Delete",
+		const actionButtons = await body.findAllByRole("button", {
+			name: /actions for/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(actionButtons[0]);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: /remove override/i }),
+		);
 
 		// Cancel the dialog.
 		await body.findByRole("dialog");

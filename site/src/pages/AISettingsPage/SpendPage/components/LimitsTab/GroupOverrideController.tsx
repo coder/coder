@@ -37,7 +37,6 @@ type GroupOverrideChildProps = {
 	existingGroupIds: Set<string>;
 	availableGroups: Group[];
 	groupAutocompleteNoOptionsText: string;
-	groupOrganizationNames: Record<string, string>;
 };
 
 interface GroupOverrideControllerProps {
@@ -68,10 +67,6 @@ export const GroupOverrideController: FC<GroupOverrideControllerProps> = ({
 	// Derived values.
 	const existingGroupIds = new Set(groupOverrides.map((g) => g.group_id));
 	const availableGroups = groups.filter((g) => !existingGroupIds.has(g.id));
-	const groupOrganizationNames: Record<string, string> = {};
-	for (const g of groups) {
-		groupOrganizationNames[g.id] = g.organization_name;
-	}
 	const groupAutocompleteNoOptionsText = isLoadingGroups
 		? "Loading groups..."
 		: groups.length === 0
@@ -142,6 +137,5 @@ export const GroupOverrideController: FC<GroupOverrideControllerProps> = ({
 		existingGroupIds,
 		availableGroups,
 		groupAutocompleteNoOptionsText,
-		groupOrganizationNames,
 	});
 };
