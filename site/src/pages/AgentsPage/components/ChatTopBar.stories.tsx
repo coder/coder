@@ -109,6 +109,12 @@ export const NoTitle: Story = {
 	args: {
 		chatTitle: undefined,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByLabelText("Open agent actions"),
+		).not.toBeInTheDocument();
+	},
 };
 
 export const WithOpenPR: Story = {

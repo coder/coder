@@ -166,7 +166,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
-		handleRegenerateTitle: fn(),
 		scrollContainerRef:
 			overrides.scrollContainerRef ?? defaultScrollContainerRef,
 		scrollToBottomRef: overrides.scrollToBottomRef ?? defaultScrollToBottomRef,
