@@ -1,3 +1,4 @@
+import { MessageScroller } from "@shadcn/react/message-scroller";
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -28,6 +29,20 @@ const shouldRenderStreamingSection = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "reconnecting" ||
 	liveStatus.hasAccumulatedOutput;
 
+// Why this gate matters: the scroller looks for newly appended anchor rows only
+// at the tail of its child list. A permanently mounted live-tail row would sit
+// after every committed turn, so each new user message lands before it and is
+// never detected as the new anchor, which stops it from scrolling to the top.
+// Returning false here unmounts the row while idle so appended turns stay at the
+// tail where the scroller can anchor them.
+const hasLiveStreamTailContent = (
+	liveStatus: LiveStatusModel,
+	isTranscriptEmpty: boolean,
+): boolean =>
+	(isTranscriptEmpty && liveStatus.phase === "idle") ||
+	shouldRenderStreamingSection(liveStatus) ||
+	liveStatus.phase === "failed";
+
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 interface LiveStreamTailContentProps {
@@ -53,20 +68,16 @@ export const LiveStreamTailContent = ({
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailContentProps) => {
+	if (!hasLiveStreamTailContent(liveStatus, isTranscriptEmpty)) {
+		return null;
+	}
+
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
 	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
 	const usageLimitStatus =
 		terminalStatus?.kind === "usage_limit" ? terminalStatus : null;
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
-
-	if (
-		!shouldRenderEmptyState &&
-		!shouldRenderStreamSection &&
-		!terminalStatus
-	) {
-		return null;
-	}
 
 	return (
 		<div
@@ -155,17 +166,26 @@ export const LiveStreamTail = ({
 		isAwaitingFirstStreamChunk,
 	});
 
+	// The row owns its MessageScroller.Item so an idle tail leaves no trailing
+	// placeholder. It carries no scrollAnchor, so the preceding user turn stays
+	// anchored while the reply streams in below it.
+	if (!hasLiveStreamTailContent(liveStatus, isTranscriptEmpty)) {
+		return null;
+	}
+
 	return (
-		<LiveStreamTailContent
-			isTranscriptEmpty={isTranscriptEmpty}
-			streamState={streamState}
-			streamTools={streamTools}
-			liveStatus={liveStatus}
-			subagentTitles={subagentTitles}
-			subagentVariants={subagentVariants}
-			subagentStatusOverrides={subagentStatusOverrides}
-			urlTransform={urlTransform}
-			mcpServers={mcpServers}
-		/>
+		<MessageScroller.Item messageId="__live_stream__">
+			<LiveStreamTailContent
+				isTranscriptEmpty={isTranscriptEmpty}
+				streamState={streamState}
+				streamTools={streamTools}
+				liveStatus={liveStatus}
+				subagentTitles={subagentTitles}
+				subagentVariants={subagentVariants}
+				subagentStatusOverrides={subagentStatusOverrides}
+				urlTransform={urlTransform}
+				mcpServers={mcpServers}
+			/>
+		</MessageScroller.Item>
 	);
 };

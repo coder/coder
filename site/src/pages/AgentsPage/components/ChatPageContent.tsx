@@ -5,9 +5,7 @@ import type { UrlTransform } from "streamdown";
 import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
-import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
@@ -71,7 +69,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	urlTransform,
 	mcpServers,
 }) => {
-	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -105,43 +102,39 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 
 	return (
 		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<div
-				data-testid="chat-timeline-wrapper"
-				className={cn(
-					"mx-auto flex w-full flex-col py-6",
-					chatWidthClass(chatFullWidth),
-				)}
-			>
-				{/* VNC sessions for completed agents may already be
-					   terminated, so inline desktop previews are disabled
-					   via showDesktopPreviews={false} to avoid a perpetual
-					   "disconnected" state. The MonitorIcon variant still
-					   renders correctly. */}
-				<ConversationTimeline
-					parsedMessages={parsedMessages}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					onEditUserMessage={onEditUserMessage}
-					editingMessageId={editingMessageId}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					hasActiveStream={hasStream}
-					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-					showDesktopPreviews={false}
-				/>
-				<LiveStreamTail
-					store={store}
-					persistedError={persistedError}
-					isTranscriptEmpty={parsedMessages.length === 0}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-				/>
-			</div>
+			{/* VNC sessions for completed agents may already be
+				   terminated, so inline desktop previews are disabled
+				   via showDesktopPreviews={false} to avoid a perpetual
+				   "disconnected" state. The MonitorIcon variant still
+				   renders correctly. */}
+			<ConversationTimeline
+				parsedMessages={parsedMessages}
+				subagentTitles={subagentTitles}
+				subagentVariants={subagentVariants}
+				onEditUserMessage={onEditUserMessage}
+				editingMessageId={editingMessageId}
+				onImplementPlan={onImplementPlan}
+				onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+				isChatCompleted={isChatCompleted}
+				hasActiveStream={hasStream}
+				isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+				urlTransform={urlTransform}
+				mcpServers={mcpServers}
+				showDesktopPreviews={false}
+			/>
+			{/* The live stream is one transient transcript row that owns its own
+			    MessageScroller.Item. It renders nothing while idle so the
+			    transcript keeps no trailing placeholder row between turns, which
+			    would otherwise prevent newly sent user turns from anchoring. */}
+			<LiveStreamTail
+				store={store}
+				persistedError={persistedError}
+				isTranscriptEmpty={parsedMessages.length === 0}
+				subagentTitles={subagentTitles}
+				subagentVariants={subagentVariants}
+				urlTransform={urlTransform}
+				mcpServers={mcpServers}
+			/>
 		</Profiler>
 	);
 };

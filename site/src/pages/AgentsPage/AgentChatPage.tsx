@@ -213,10 +213,9 @@ export const runPromoteQueuedMessage = async (params: {
 	}
 };
 
-export async function submitEditAndScroll({
+export async function submitEdit({
 	editMessage,
 	editArgs,
-	scrollToBottom,
 	onError,
 }: {
 	editMessage: (args: {
@@ -229,7 +228,6 @@ export async function submitEditAndScroll({
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	};
-	scrollToBottom: (() => void) | null | undefined;
 	onError: (error: unknown) => void;
 }): Promise<void> {
 	try {
@@ -238,13 +236,6 @@ export async function submitEditAndScroll({
 		onError(error);
 		throw error;
 	}
-	// Scroll after the mutation resolves so the optimistic
-	// truncation and server reconciliation have already been
-	// applied to the DOM. Scrolling before this point causes
-	// the sticky user message to cycle through prior messages
-	// as the IntersectionObserver reacts to rapid layout
-	// shifts between the old and truncated content.
-	scrollToBottom?.();
 }
 
 /** @internal Exported for testing. */
@@ -709,14 +700,12 @@ const AgentChatPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
-		scrollContainerRef,
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
-	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		agentId
@@ -1437,14 +1426,13 @@ const AgentChatPage: FC = () => {
 				store.setChatStatus("running");
 				store.clearStreamState();
 			});
-			await submitEditAndScroll({
+			await submitEdit({
 				editMessage,
 				editArgs: {
 					messageId: editedMessageID,
 					optimisticMessage,
 					req: request,
 				},
-				scrollToBottom: scrollToBottomRef.current,
 				onError: (error) => {
 					restoreOptimisticRequestSnapshot(store, previousSnapshot);
 					handleUsageLimitError(error);
@@ -1476,7 +1464,6 @@ const AgentChatPage: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
-		scrollToBottomRef.current?.();
 
 		// Don't clear stream state before the POST completes.
 		// For queued sends the WebSocket status events handle
@@ -1662,12 +1649,9 @@ const AgentChatPage: FC = () => {
 			isRegeneratingTitle={isRegeneratingThisChat}
 			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
 			desktopChatId={desktopEnabled ? agentId : undefined}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={effectiveMCPServerIds}

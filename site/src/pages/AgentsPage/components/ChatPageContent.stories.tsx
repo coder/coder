@@ -1,13 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
+import { withMessageScroller } from "./ChatConversation/messageScrollerStoryHarness";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageTimeline } from "./ChatPageContent";
 
 const meta = {
 	title: "pages/AgentsPage/ChatPageContent",
+	decorators: [withMessageScroller],
 } satisfies Meta;
 
 export default meta;
@@ -26,6 +28,26 @@ const buildMessage = (
 	role,
 	content,
 });
+
+const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let id = 1; id <= count; id++) {
+		const role: TypesGen.ChatMessageRole = id % 2 === 1 ? "user" : "assistant";
+		messages.push(
+			buildMessage(id, role, [
+				{
+					type: "text",
+					text:
+						role === "user"
+							? `Question ${id}: walk me through how the scroller keeps its place.`
+							: `Answer ${id}: the viewport owns the scroll, the content overflows it, ` +
+								"and autoScroll follows the latest anchored turn as new rows mount.",
+				},
+			]),
+		);
+	}
+	return messages;
+};
 
 const buildThinkingSpacerStore = () => {
 	const store = createChatStore();
@@ -85,6 +107,91 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
 		expect(canvas.queryByText("Created workspace")).toBeNull();
 		expect(canvas.getByText("Loading build logs…")).toBeInTheDocument();
+	},
+};
+
+// Regression guard for the autoScroll wiring. A flex-child Content shrinks to
+// the viewport height instead of overflowing, which silently disables
+// scrolling and leaves autoScroll nothing to follow. A long transcript must
+// overflow the fixed-height viewport, and last-anchor autoScroll must move the
+// scroll position off the top edge. An idle transcript must also leave no
+// trailing live-stream placeholder row.
+export const LongTranscriptOverflowsAndAutoScrolls: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages(buildLongConversation(40));
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const content = canvas.getByTestId("conversation-timeline");
+		const viewport = content.parentElement;
+		expect(viewport).not.toBeNull();
+
+		await waitFor(() => {
+			const el = viewport as HTMLElement;
+			// Content overflows the fixed-height viewport, so it is scrollable.
+			expect(el.scrollHeight).toBeGreaterThan(el.clientHeight);
+			// last-anchor autoScroll positioned the viewport below the top edge.
+			expect(el.scrollTop).toBeGreaterThan(0);
+		});
+
+		// The idle live tail must not mount a trailing placeholder item, which
+		// would shift appended turns off the tail where the scroller anchors them.
+		expect(
+			canvasElement.querySelector('[data-message-id="__live_stream__"]'),
+		).toBeNull();
+	},
+};
+
+// A freshly sent user turn must scroll to the top, the way a new prompt jumps up
+// while its reply streams in below. This broke when a permanently mounted
+// live-stream row sat at the tail: each appended turn landed before it, so the
+// scroller never detected the new anchor. The store is module scoped so the
+// play function can append to the same instance the render mounted.
+const anchorOnAppendStore = createChatStore();
+const anchorOnAppendBase = buildLongConversation(30);
+anchorOnAppendStore.replaceMessages(anchorOnAppendBase);
+const appendedUserMessageId = 31;
+
+export const NewUserTurnAnchorsToTop: Story = {
+	render: () => (
+		<ChatPageTimeline store={anchorOnAppendStore} persistedError={undefined} />
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const content = canvas.getByTestId("conversation-timeline");
+		const viewport = content.parentElement as HTMLElement;
+
+		// Reset to the base transcript so the test always exercises the append
+		// path, even if a prior run left the appended turn in this shared store.
+		anchorOnAppendStore.replaceMessages(anchorOnAppendBase);
+
+		// Let the initial last-anchor scroll settle before appending.
+		await waitFor(() => {
+			expect(viewport.scrollHeight).toBeGreaterThan(viewport.clientHeight);
+		});
+
+		anchorOnAppendStore.replaceMessages([
+			...anchorOnAppendBase,
+			buildMessage(appendedUserMessageId, "user", [
+				{ type: "text", text: "One more: does the new turn jump to the top?" },
+			]),
+		]);
+
+		await waitFor(() => {
+			const row = canvasElement.querySelector(
+				`[data-message-id="${appendedUserMessageId}"]`,
+			);
+			expect(row).not.toBeNull();
+			const viewportRect = viewport.getBoundingClientRect();
+			const offset =
+				(row as HTMLElement).getBoundingClientRect().top - viewportRect.top;
+			// Anchored near the top, not pinned to the bottom edge.
+			expect(offset).toBeGreaterThanOrEqual(0);
+			expect(offset).toBeLessThan(viewportRect.height / 2);
+		});
 	},
 };
 

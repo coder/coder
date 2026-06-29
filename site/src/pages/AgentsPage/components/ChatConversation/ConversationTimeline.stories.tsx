@@ -14,6 +14,7 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import { withMessageScroller } from "./messageScrollerStoryHarness";
 import type { ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
@@ -396,6 +397,7 @@ const defaultArgs: Omit<
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
+	decorators: [withMessageScroller],
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
@@ -1279,7 +1281,7 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 	},
 };
 
-export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
+export const MetadataOnlyUserMessageIsHidden: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: buildMessages([
@@ -1312,104 +1314,22 @@ export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Before hidden metadata.")).toBeVisible();
 		expect(canvas.getByText("After hidden metadata.")).toBeVisible();
-		expect(canvasElement.querySelectorAll("[data-user-sentinel]")).toHaveLength(
+		// A metadata-only user message has nothing to render, so no user
+		// row appears between the two assistant turns.
+		expect(canvasElement.querySelectorAll('[data-role="user"]')).toHaveLength(
 			0,
 		);
 	},
 };
 
 /**
- * Verifies the structural requirements for sticky user messages
- * in the flat (section-less) message list:
- * - Each user message renders a data-user-sentinel marker so
- *   the push-up logic can find the next user message via DOM
- *   traversal.
- * - The user message container gets position:sticky.
- * - Sentinels appear in the correct order (matching user
- *   message order).
- */
-export const StickyUserMessageStructure: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "First prompt" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "First response" }],
-			},
-			{
-				...baseMessage,
-				id: 3,
-				role: "user",
-				content: [{ type: "text", text: "Second prompt" }],
-			},
-			{
-				...baseMessage,
-				id: 4,
-				role: "assistant",
-				content: [{ type: "text", text: "Second response" }],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Each user message should produce a data-user-sentinel
-		// marker that the push-up scroll logic relies on.
-		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
-		expect(sentinels.length).toBe(2);
-
-		// Each sentinel should be immediately followed by a sticky
-		// container (the user message itself).
-		for (const sentinel of sentinels) {
-			const container = sentinel.nextElementSibling;
-			expect(container).not.toBeNull();
-			const style = window.getComputedStyle(container!);
-			expect(style.position).toBe("sticky");
-		}
-
-		// Sentinels must appear in DOM order matching the message
-		// order so nextElementSibling traversal finds the correct
-		// next user message.
-		const allElements = Array.from(
-			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
-		);
-		const sentinelIndices = Array.from(sentinels).map((s) =>
-			allElements.indexOf(s),
-		);
-		// Sentinels should be in ascending DOM order.
-		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
-
-		// Both user messages should be visible.
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("First prompt")).toBeVisible();
-		expect(canvas.getByText("Second prompt")).toBeVisible();
-	},
-};
-
-/**
  * Each user message exposes left/right chevron buttons in its
  * action row so users can jump the transcript between user prompts.
- * Disabled at the ends of the conversation; otherwise the click
- * smooth-scrolls the bubble's `data-user-sentinel` to the top of
- * the scroller.
+ * The buttons are disabled at the ends of the conversation; clicking
+ * an enabled button jumps the scroller to the neighbouring prompt
+ * through the MessageScroller `scrollToMessage` command.
  */
 export const UserMessageJumpArrows: Story = {
-	decorators: [
-		(Story) => (
-			<div
-				className="overflow-y-auto mx-auto w-full max-w-3xl"
-				style={{ height: 320 }}
-			>
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		...defaultArgs,
 		parsedMessages: buildMessages([
@@ -1491,23 +1411,11 @@ export const UserMessageJumpArrows: Story = {
 		expect(prevButtons[2]).toBeEnabled();
 		expect(nextButtons[2]).toBeDisabled();
 
-		// Clicking Next on the first prompt scrolls the second user
-		// prompt's sentinel into view via its registered ref.
-		const sentinels = Array.from(
-			canvasElement.querySelectorAll<HTMLElement>("[data-user-sentinel]"),
-		);
-		expect(sentinels).toHaveLength(3);
-		const targetSpy = spyOn(sentinels[1], "scrollIntoView");
-
+		// Clicking an enabled arrow drives the jump through the
+		// MessageScroller scrollToMessage command. The scroll itself is
+		// owned and covered by the library, so this only confirms the
+		// wired control runs without error.
 		await userEvent.click(nextButtons[0]);
-
-		await waitFor(() => {
-			expect(targetSpy).toHaveBeenCalledTimes(1);
-		});
-		expect(targetSpy).toHaveBeenCalledWith({
-			behavior: "smooth",
-			block: "start",
-		});
 	},
 };
 
