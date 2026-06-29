@@ -34,5 +34,9 @@ ignorePatterns:
   - pattern: "platform.openai.com"
   - pattern: "api.openai.com"
   - pattern: "openai.com"
+  # merriam-webster.com returns 403 from GitHub runner IPs
+  - pattern: "merriam-webster.com"
+  # Intentional directory link resolved to GitHub README by docs site
+  - pattern: "examples/templates/gcp-linux"
 aliveStatusCodes:
   - 200
