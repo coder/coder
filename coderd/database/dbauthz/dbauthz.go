@@ -486,6 +486,7 @@ var (
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChat.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIProvider.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIGatewayKey.Type:           {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -2751,6 +2752,16 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 		return nil, err
 	}
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
+}
+
+// Authenticates a standalone AI Gateway replica by its hashed key secret, returning the matched key.
+func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor reading the AI Gateway key it authenticates against.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayKey); err != nil {
+		return database.AIGatewayKey{}, err
+	}
+	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
 }
 
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
@@ -7027,6 +7038,16 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 		return database.AIBridgeInterception{}, err
 	}
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
+}
+
+// Records heartbeat liveness for a key used in active DRPC session between coderd and standalone AI Gateway.
+func (q *querier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor recording connection liveness on the AI Gateway key.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayKey); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
 }
 
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {

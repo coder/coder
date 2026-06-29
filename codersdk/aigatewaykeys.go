@@ -14,11 +14,11 @@ import (
 // AIGatewayKey is a shared secret used by a standalone AI Gateway
 // to authenticate into coderd.
 type AIGatewayKey struct {
-	ID         uuid.UUID  `json:"id" table:"id" format:"uuid"`
-	Name       string     `json:"name" table:"name,default_sort"`
-	KeyPrefix  string     `json:"key_prefix" table:"key prefix"`
-	CreatedAt  time.Time  `json:"created_at" table:"created at" format:"date-time"`
-	LastUsedAt *time.Time `json:"last_used_at,omitempty" table:"last used at" format:"date-time"`
+	ID              uuid.UUID  `json:"id" table:"id" format:"uuid"`
+	Name            string     `json:"name" table:"name,default_sort"`
+	KeyPrefix       string     `json:"key_prefix" table:"key prefix"`
+	CreatedAt       time.Time  `json:"created_at" table:"created at" format:"date-time"`
+	LastHeartbeatAt *time.Time `json:"last_heartbeat_at,omitempty" table:"last heartbeat at" format:"date-time"`
 }
 
 // CreateAIGatewayKeyRequest requests a new AI Gateway key.
