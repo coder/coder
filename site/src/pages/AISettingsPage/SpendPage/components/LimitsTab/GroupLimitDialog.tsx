@@ -18,7 +18,7 @@ import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getGroupSubtitle } from "#/modules/groups";
 import { isPositiveFiniteDollarAmount } from "#/utils/currency";
-import type { GroupLimitOverrideGroup } from "./groupLimits";
+import type { GroupLimitOverrideGroup } from "./GroupLimitsSection";
 
 interface GroupLimitDialogProps {
 	open: boolean;

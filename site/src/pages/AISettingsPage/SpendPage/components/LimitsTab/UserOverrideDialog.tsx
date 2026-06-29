@@ -16,7 +16,7 @@ import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { UserAutocomplete } from "#/components/UserAutocomplete/UserAutocomplete";
 import { isPositiveFiniteDollarAmount } from "#/utils/currency";
-import type { UserOverrideUser } from "./userOverrides";
+import type { UserOverrideUser } from "./UserOverridesSection";
 
 interface UserOverrideDialogProps {
 	open: boolean;

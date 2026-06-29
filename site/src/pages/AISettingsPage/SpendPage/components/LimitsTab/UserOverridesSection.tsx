@@ -8,12 +8,21 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import { paginateItems } from "#/utils/paginateItems";
 import { SpendSectionHeader } from "../SpendSectionHeader";
 import { UserOverrideDialog } from "./UserOverrideDialog";
-import { UserOverridesTable } from "./UserOverridesTable";
 import {
 	USER_OVERRIDES_PAGE_SIZE,
-	type UserOverride,
-	type UserOverrideUser,
-} from "./userOverrides";
+	UserOverridesTable,
+} from "./UserOverridesTable";
+
+export interface UserOverrideUser {
+	user_id: string;
+	name: string;
+	username: string;
+	avatar_url: string;
+}
+
+export interface UserOverride extends UserOverrideUser {
+	spend_limit_micros: number | null;
+}
 
 interface UserOverridesSectionProps {
 	hideHeader?: boolean;

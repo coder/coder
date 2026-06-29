@@ -19,7 +19,9 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { formatCostMicros } from "#/utils/currency";
-import { USER_OVERRIDES_PAGE_SIZE, type UserOverride } from "./userOverrides";
+import type { UserOverride } from "./UserOverridesSection";
+
+export const USER_OVERRIDES_PAGE_SIZE = 10;
 
 interface UserOverridesTableProps {
 	pagedOverrides: readonly UserOverride[];

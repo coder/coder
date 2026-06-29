@@ -1,19 +1,24 @@
 import { PlusIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
-import type { Group } from "#/api/typesGenerated";
+import type { ChatUsageLimitGroupOverride, Group } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { paginateItems } from "#/utils/paginateItems";
 import { SpendSectionHeader } from "../SpendSectionHeader";
 import { GroupLimitDialog } from "./GroupLimitDialog";
-import { GroupLimitsTable } from "./GroupLimitsTable";
-import {
-	GROUP_LIMITS_PAGE_SIZE,
-	type GroupLimitOverride,
-	type GroupLimitOverrideGroup,
-} from "./groupLimits";
+import { GROUP_LIMITS_PAGE_SIZE, GroupLimitsTable } from "./GroupLimitsTable";
+
+export interface GroupLimitOverrideGroup {
+	group_id: string;
+	group_display_name: string;
+	group_name: string;
+	group_avatar_url: string;
+	member_count: number;
+}
+
+export type GroupLimitOverride = ChatUsageLimitGroupOverride;
 
 interface GroupLimitsSectionProps {
 	hideHeader?: boolean;

@@ -20,7 +20,9 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { formatCostMicros } from "#/utils/currency";
-import { GROUP_LIMITS_PAGE_SIZE, type GroupLimitOverride } from "./groupLimits";
+import type { GroupLimitOverride } from "./GroupLimitsSection";
+
+export const GROUP_LIMITS_PAGE_SIZE = 10;
 
 interface GroupLimitsTableProps {
 	pagedOverrides: readonly GroupLimitOverride[];
