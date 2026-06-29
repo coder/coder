@@ -283,7 +283,7 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 	return (
 		<TableRow key={secret.id} data-testid={`secret-${secret.id}`}>
 			<TableCell>*****{secret.client_secret_truncated}</TableCell>
-			<TableCell data-chromatic="ignore">
+			<TableCell data-pixel="ignore">
 				{secret.last_used_at ? createDayString(secret.last_used_at) : "never"}
 			</TableCell>
 			<TableCell>

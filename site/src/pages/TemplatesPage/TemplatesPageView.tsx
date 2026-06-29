@@ -176,7 +176,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				{formatTemplateBuildTime(template.build_time_stats.start.P50)}
 			</TableCell>
 
-			<TableCell data-chromatic="ignore" className="text-content-secondary">
+			<TableCell data-pixel="ignore" className="text-content-secondary">
 				{createDayString(template.updated_at)}
 			</TableCell>
 
