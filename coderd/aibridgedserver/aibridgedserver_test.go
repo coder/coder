@@ -2692,6 +2692,46 @@ func TestWatchAIProvidersSignalsOnDeliveryError(t *testing.T) {
 	require.NoError(t, testutil.TryReceive(ctx, t, watchErr))
 }
 
+// TestWatchAIProvidersStopsOnLifecycleCancel asserts the handler returns when
+// the server lifecycle context is canceled even though the stream context
+// remains open, so a stream that outlives the server does not leak a goroutine
+// on shutdown.
+func TestWatchAIProvidersStopsOnLifecycleCancel(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil)
+	ps := pubsub.NewInMemory()
+
+	// The lifecycle context is independent of the stream context so it can be
+	// canceled while the stream stays open.
+	lifecycleCtx, lifecycleCancel := context.WithCancel(ctx)
+	defer lifecycleCancel()
+	srv, err := aibridgedserver.NewServer(lifecycleCtx, db, ps, logger, "/", codersdk.AIBridgeConfig{}, nil, nil, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	defer streamCancel()
+	stream := &fakeWatchProvidersStream{ctx: streamCtx, sent: make(chan struct{}, 16)}
+
+	watchErr := make(chan error, 1)
+	go func() {
+		watchErr <- srv.WatchAIProviders(&proto.WatchAIProvidersRequest{}, stream)
+	}()
+
+	// Drain the initial subscribe signal to confirm the handler is running
+	// before the lifecycle is canceled.
+	testutil.TryReceive(ctx, t, stream.sent)
+
+	// Canceling only the lifecycle context must stop the handler even though
+	// the stream context is still open.
+	lifecycleCancel()
+	require.NoError(t, testutil.TryReceive(ctx, t, watchErr))
+}
+
+var _ pubsub.Pubsub = (*captureListenerPubsub)(nil)
+
 // captureListenerPubsub captures the ListenerWithErr registered via
 // SubscribeWithErr so a test can drive delivery (including errors) directly.
 type captureListenerPubsub struct {
