@@ -20,6 +20,7 @@ import {
 	BaseTemplateParametersStep,
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
+import { BuildingTemplateLoader } from "./BuildingTemplateLoader";
 import { ModuleSelectStep } from "./ModuleSelectStep";
 import {
 	ModuleSettingsStep,
@@ -103,6 +104,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		});
 	};
 
+	if (isCreating) {
+		return <BuildingTemplateLoader />;
+	}
+
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
@@ -143,12 +148,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue || isCreating}>
-							{isCreating
-								? "Creating..."
-								: isLastStep
-									? "Create Template"
-									: "Continue"}
+						<Button onClick={handleNext} disabled={!canContinue}>
+							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
 				</div>
