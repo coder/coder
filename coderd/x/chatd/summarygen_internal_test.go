@@ -221,3 +221,19 @@ func TestValidateGeneratedChatSummary(t *testing.T) {
 	require.Error(t, validateGeneratedChatSummary("One. Two. Three. Four. Five. Six. Seven."))
 	require.NoError(t, validateGeneratedChatSummary("Implemented the summary feature. Added tests."))
 }
+
+func TestCountSentenceTerminators(t *testing.T) {
+	t.Parallel()
+
+	// Only terminators followed by whitespace or end-of-text count, so periods
+	// inside dotted identifiers are not treated as sentence boundaries.
+	require.Equal(t, 2, countSentenceTerminators("Fixed pkg.cmd.server in file.go. Added a test."))
+	require.Equal(t, 3, countSentenceTerminators("One. Two! Three?"))
+	require.Equal(t, 0, countSentenceTerminators("auth.rbac.Policy"))
+
+	// A summary dense with dotted identifiers stays under summaryMaxSentences
+	// and is accepted, where naive per-period counting would reject it.
+	require.NoError(t, validateGeneratedChatSummary(
+		"Refactored pkg.cmd.server and auth.rbac.Policy in main.go and util.go. Added coverage in foo_test.go.",
+	))
+}
