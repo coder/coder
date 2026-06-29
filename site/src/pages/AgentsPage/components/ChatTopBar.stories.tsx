@@ -269,10 +269,15 @@ export const RenameChatItem: Story = {
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
 			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -284,6 +289,8 @@ export const PinAgentItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		});
 	},
@@ -300,6 +307,8 @@ export const UnpinAgentItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Unpin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
 			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		});
 	},
@@ -316,10 +325,27 @@ export const ChildChatHidesPinAction: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+	},
+};
+
+export const ArchiveAndDeleteWorkspaceItem: Story = {
+	args: {
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
+		});
 	},
 };
 
