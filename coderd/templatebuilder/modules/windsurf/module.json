@@ -35,7 +35,7 @@
     {
       "name": "mcp",
       "type": "string",
-      "description": "JSON-encoded string to configure MCP servers for Windsurf. When set, writes ~/.codeium/windsurf/mcp_config.json.",
+      "description": "JSON-encoded MCP server configurations for Windsurf.",
       "default": "",
       "required": false,
       "sensitive": false,
@@ -44,7 +44,7 @@
     {
       "name": "open_recent",
       "type": "bool",
-      "description": "Open the most recent workspace or folder. Falls back to the folder if there is no recent workspace or folder to open.",
+      "description": "Open the most recent workspace or folder.",
       "default": false,
       "required": false,
       "sensitive": false,

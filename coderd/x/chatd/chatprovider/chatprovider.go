@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	neturl "net/url"
 	"sort"
@@ -73,6 +74,50 @@ func InlineImageCapBytes(provider string) (int, bool) {
 		return codersdk.AnthropicInlineImageCapBytes, true
 	default:
 		return 0, false
+	}
+}
+
+// AcceptsFilePartMediaType reports whether provider accepts mediaType
+// as a file content part rather than silently dropping it. modelID
+// distinguishes API paths within a provider (e.g. OpenAI Responses vs
+// Chat Completions). Unknown providers return false so callers convert
+// text-family content to text and guarantee the model still sees it.
+func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
+	baseType := mediaType
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		baseType = parsed
+	}
+	isImage := strings.HasPrefix(baseType, "image/")
+	isText := strings.HasPrefix(baseType, "text/")
+	// Audio types are included for matrix completeness but are not
+	// currently reachable: no audio type is in the storable attachment
+	// allowlist (codersdk.AllChatAttachmentMediaTypes).
+	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
+	isPDF := baseType == "application/pdf"
+
+	switch NormalizeProvider(provider) {
+	case fantasygoogle.Name:
+		// Google passes any file part through unfiltered.
+		return true
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		// Bedrock wraps the anthropic client, so it shares the same
+		// file-part acceptance, including text/* as native documents.
+		return isImage || isText || isPDF
+	case fantasyopenai.Name, fantasyazure.Name:
+		// chatd configures both with WithUseResponsesAPI, but only
+		// Responses-capable models actually use it. Non-Responses models
+		// fall through to the Chat Completions path, which accepts
+		// text/* and audio as native file parts (same as openaicompat).
+		if fantasyopenai.IsResponsesModel(modelID) {
+			return isImage || isPDF
+		}
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenaicompat.Name:
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		return isImage || isAudio || isPDF
+	default:
+		return false
 	}
 }
 

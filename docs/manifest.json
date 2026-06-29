@@ -1521,8 +1521,8 @@
 							"path": "./reference/api/general.md"
 						},
 						{
-							"title": "AI Bridge",
-							"path": "./reference/api/aibridge.md"
+							"title": "AI Gateway",
+							"path": "./reference/api/aigateway.md"
 						},
 						{
 							"title": "AI Providers",

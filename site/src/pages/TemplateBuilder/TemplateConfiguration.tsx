@@ -1,16 +1,18 @@
+import type { PropsWithChildren } from "react";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
+	ConfigurationFieldContainer,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
-type TemplateConfigurationProps = {
+type TemplateConfigurationProps = PropsWithChildren<{
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
 	fields?: ConfigurationFieldDefinition[];
-};
+}>;
 
 export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	name,
@@ -18,6 +20,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	iconUrl,
 	detailsUrl,
 	fields,
+	children,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -34,17 +37,18 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 					)}
 				</figure>
 				<div>
-					<h3 className="text-md font-semibold text-content-primary">{name}</h3>
-					<p className="text-sm font-normal text-content-secondary inline">
+					<h3 className="mb-0 text-sm font-semibold text-content-primary">
+						{name}
+					</h3>
+					<p className="text-xs font-normal text-content-secondary inline">
 						{description}
 					</p>
 					{detailsUrl && (
 						<Link
 							href={detailsUrl}
 							target="_blank"
-							rel="noreferrer"
 							size="sm"
-							className="text-sm font-normal ml-1"
+							className="text-xs font-normal ml-1"
 						>
 							View details
 						</Link>
@@ -53,12 +57,13 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="space-y-6">
+				<ConfigurationFieldContainer>
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
-				</div>
+				</ConfigurationFieldContainer>
 			)}
+			{children}
 		</section>
 	);
 };

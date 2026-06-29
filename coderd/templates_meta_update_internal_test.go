@@ -31,6 +31,7 @@ func baselineTemplate() database.Template {
 		RequireActiveVersion:          true,
 		DefaultTTL:                    int64(60 * 60 * 1000 * 1000 * 1000),  // 1 hour in ns
 		ActivityBump:                  int64(30 * 60 * 1000 * 1000 * 1000),  // 30 minutes in ns
+		TimeTilAutostopNotify:         int64(10 * 60 * 1000 * 1000 * 1000),  // 10 minutes in ns
 		FailureTTL:                    int64(120 * 60 * 1000 * 1000 * 1000), // 2 hours in ns
 		TimeTilDormant:                int64(240 * 60 * 1000 * 1000 * 1000), // 4 hours in ns
 		TimeTilDormantAutoDelete:      int64(480 * 60 * 1000 * 1000 * 1000), // 8 hours in ns
@@ -73,6 +74,7 @@ func baselineResolved() templateMetaUpdate {
 		icon:                                 tpl.Icon,
 		defaultTTLMillis:                     tpl.DefaultTTL / 1e6,
 		activityBumpMillis:                   tpl.ActivityBump / 1e6,
+		timeTilAutostopNotifyMillis:          tpl.TimeTilAutostopNotify / 1e6,
 		failureTTLMillis:                     tpl.FailureTTL / 1e6,
 		timeTilDormantMillis:                 tpl.TimeTilDormant / 1e6,
 		timeTilDormantAutoDeleteMillis:       tpl.TimeTilDormantAutoDelete / 1e6,
@@ -174,6 +176,20 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 			req:  codersdk.UpdateTemplateMeta{ActivityBumpMillis: ptr.Ref(int64(900_000))},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.activityBumpMillis = 900_000
+			}},
+		},
+		{
+			name: "TimeTilAutostopNotifyMillis",
+			req:  codersdk.UpdateTemplateMeta{TimeTilAutostopNotifyMillis: ptr.Ref(int64(300_000))},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.timeTilAutostopNotifyMillis = 300_000
+			}},
+		},
+		{
+			name: "TimeTilAutostopNotifyMillisZeroExplicit",
+			req:  codersdk.UpdateTemplateMeta{TimeTilAutostopNotifyMillis: ptr.Ref(int64(0))},
+			expected: expected{override: func(r *templateMetaUpdate) {
+				r.timeTilAutostopNotifyMillis = 0
 			}},
 		},
 		{

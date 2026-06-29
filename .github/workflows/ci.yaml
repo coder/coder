@@ -183,7 +183,7 @@ jobs:
       # `**.md` (not `docs/**.md`) because the action's globber collapses a
       # `**` adjacent to `.md` to a single path segment, so `docs/**.md`
       # only matches top-level docs/*.md and misses nested pages such as
-      # docs/.style/style-guide.md. The prose step below re-filters to
+      # docs/.style/style-guide/README.md. The prose step below re-filters to
       # docs/ paths.
       # Cache split into restore + conditional save to avoid letting PR
       # runs populate a cache that other branches restore from (the
@@ -234,9 +234,25 @@ jobs:
             echo "No changed Markdown files under docs/ on disk; skipping Vale."
             exit 0
           fi
-          echo "::add-matcher::.github/vale-problem-matcher.json"
-          printf '%s\n' "$files" | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=line
-          echo "::remove-matcher owner=vale::"
+          # Vale's --output=line strips per-finding severity, so the
+          # previous problem-matcher approach collapsed every finding to
+          # a single hard-coded severity. Use --output=JSON instead and
+          # emit GitHub workflow commands directly so error/warning/
+          # suggestion render with their actual Vale severities. URL-
+          # encode message bodies for `%`, `\r`, and `\n` per the
+          # GitHub Actions workflow command spec. See DOCS-426.
+          printf '%s\n' "$files" \
+            | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=JSON \
+            | jq -r '
+                to_entries[]
+                | .key as $file
+                | .value[]
+                | (if .Severity == "suggestion" then "notice"
+                   elif .Severity == "warning" then "warning"
+                   else "error" end) as $level
+                | (.Message | gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A")) as $msg
+                | "::\($level) file=\($file),line=\(.Line),col=\(.Span[0]),title=\(.Check)::\($msg)"
+              '
 
       - name: Save Vale styles
         # Only the default branch is trusted to write the cache, so PR
@@ -302,7 +318,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 1
+          # Depth 2 makes the PR merge commit's first parent (the base
+          # branch tip) available so lint/emdash can diff against HEAD^
+          # without fetching the base branch at runtime.
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Set up mise tools

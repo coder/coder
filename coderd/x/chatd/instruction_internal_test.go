@@ -1,15 +1,12 @@
 package chatd
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"charm.land/fantasy"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -133,6 +130,15 @@ func TestDefaultSystemPromptContainsVersionControlSafety(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "use an explicit refspec")
 	require.Contains(t, DefaultSystemPrompt, "create and switch to a feature branch first")
 	require.Contains(t, DefaultSystemPrompt, "Never treat the original request as confirmation")
+}
+
+func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, DefaultSystemPrompt, "<subagent-orchestration>")
+	require.Contains(t, DefaultSystemPrompt, "</subagent-orchestration>")
+	require.Contains(t, DefaultSystemPrompt, "An error status is often recoverable")
+	require.Contains(t, DefaultSystemPrompt, "call list_agents to recover them")
 }
 
 func TestWorkspaceAwarenessDelaysWorkspaceCreation(t *testing.T) {
@@ -288,57 +294,5 @@ func TestFormatSystemInstructions(t *testing.T) {
 		})
 		require.NotContains(t, got, "Source: /empty")
 		require.Contains(t, got, "Source: /real/AGENTS.md")
-	})
-}
-
-func TestInstructionFromContextFiles(t *testing.T) {
-	t.Parallel()
-
-	makeMsg := func(parts []codersdk.ChatMessagePart) database.ChatMessage {
-		raw, _ := json.Marshal(parts)
-		return database.ChatMessage{
-			Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true},
-		}
-	}
-
-	t.Run("EmptyMessages", func(t *testing.T) {
-		t.Parallel()
-		got := instructionFromContextFiles(nil)
-		require.Empty(t, got)
-	})
-
-	t.Run("NoContextFileParts", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			makeMsg([]codersdk.ChatMessagePart{
-				{
-					Type:             codersdk.ChatMessagePartTypeSkill,
-					SkillName:        "test",
-					SkillDescription: "test skill",
-				},
-			}),
-		}
-		got := instructionFromContextFiles(msgs)
-		require.Empty(t, got)
-	})
-
-	t.Run("ReconstructsFromContextFileParts", func(t *testing.T) {
-		t.Parallel()
-		msgs := []database.ChatMessage{
-			makeMsg([]codersdk.ChatMessagePart{
-				{
-					Type:                 codersdk.ChatMessagePartTypeContextFile,
-					ContextFileOS:        "linux",
-					ContextFileDirectory: "/home/coder/project",
-					ContextFileContent:   "project rules",
-					ContextFilePath:      "/home/coder/project/AGENTS.md",
-				},
-			}),
-		}
-		got := instructionFromContextFiles(msgs)
-		require.Contains(t, got, "Operating System: linux")
-		require.Contains(t, got, "Working Directory: /home/coder/project")
-		require.Contains(t, got, "Source: /home/coder/project/AGENTS.md")
-		require.Contains(t, got, "project rules")
 	})
 }

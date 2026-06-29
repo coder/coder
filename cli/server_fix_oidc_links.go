@@ -21,10 +21,11 @@ import (
 
 func (r *RootCmd) newFixOIDCLinksCommand() *serpent.Command {
 	var (
-		pgURL     string
-		pgAuth    string
-		issuerURL string
-		dryRun    bool
+		pgURL         string
+		pgAuth        string
+		issuerURL     string
+		dryRun        bool
+		forceResetAll bool
 	)
 	fixOIDCLinksCmd := &serpent.Command{
 		Use:   "fix-oidc-links",
@@ -40,17 +41,29 @@ func (r *RootCmd) newFixOIDCLinksCommand() *serpent.Command {
 			defer cancel()
 
 			issuerURL = strings.TrimSpace(issuerURL)
-			if issuerURL == "" {
+			if forceResetAll && issuerURL != "" {
+				return xerrors.New("--force-reset-all and --issuer-url are mutually exclusive")
+			}
+			if !forceResetAll && issuerURL == "" {
 				return xerrors.Errorf("the --%s flag is required, set it to the OIDC issuer URL (e.g. https://accounts.google.com)", "issuer-url")
 			}
-			// Resolve the canonical issuer from OIDC discovery.
-			cliui.Infof(inv.Stdout, "Resolving OIDC issuer from %q...", issuerURL)
-			// TODO: The default client might not be configured with the right certs to make this request.
-			issuer, err := authlink.ResolveIssuer(ctx, http.DefaultClient, issuerURL)
-			if err != nil {
-				return xerrors.Errorf("resolve issuer: %w", err)
+
+			var issuer string
+			if forceResetAll {
+				// Use an unmatchable issuer so the existing analysis shows
+				// all links as "mismatched" and the reset clears everything.
+				issuer = authlink.UnmatchableIssuer
+			} else {
+				// Resolve the canonical issuer from OIDC discovery.
+				cliui.Infof(inv.Stdout, "Resolving OIDC issuer from %q...", issuerURL)
+				// TODO: The default client might not be configured with the right certs to make this request.
+				resolved, err := authlink.ResolveIssuer(ctx, http.DefaultClient, issuerURL)
+				if err != nil {
+					return xerrors.Errorf("resolve issuer: %w", err)
+				}
+				issuer = resolved
+				_, _ = fmt.Fprintf(inv.Stdout, "Resolved OIDC issuer: %q\n\n", issuer)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Resolved OIDC issuer: %q\n\n", issuer)
 
 			// Connect to the database.
 			if pgURL == "" {
@@ -59,6 +72,7 @@ func (r *RootCmd) newFixOIDCLinksCommand() *serpent.Command {
 
 			sqlDriver := "postgres"
 			if codersdk.PostgresAuth(pgAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				var err error
 				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("register aws rds iam auth: %w", err)
@@ -149,6 +163,12 @@ func (r *RootCmd) newFixOIDCLinksCommand() *serpent.Command {
 			Env:           "CODER_FIX_OIDC_LINKS_DRY_RUN",
 			Description:   "Print analysis only, do not modify the database.",
 			Value:         serpent.BoolOf(&dryRun),
+		},
+		serpent.Option{
+			Flag:        "force-reset-all",
+			Env:         "CODER_FIX_OIDC_LINKS_FORCE_RESET_ALL",
+			Description: "Reset all OIDC linked IDs, not just those with a mismatched issuer. Mutually exclusive with --issuer-url.",
+			Value:       serpent.BoolOf(&forceResetAll),
 		},
 	)
 

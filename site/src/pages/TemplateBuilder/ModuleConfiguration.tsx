@@ -1,8 +1,10 @@
 import { TrashIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
+import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
+	ConfigurationFieldContainer,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
@@ -13,6 +15,7 @@ type ModuleConfigurationProps = {
 	detailsUrl?: string;
 	onRemove?: () => void;
 	fields?: ConfigurationFieldDefinition[];
+	optionalFields?: ConfigurationFieldDefinition[];
 };
 
 export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
@@ -22,6 +25,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	detailsUrl,
 	onRemove,
 	fields,
+	optionalFields,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -49,7 +53,6 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 							<Link
 								href={detailsUrl}
 								target="_blank"
-								rel="noreferrer"
 								size="sm"
 								className="text-xs font-normal ml-1"
 							>
@@ -71,11 +74,21 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+				<ConfigurationFieldContainer>
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
-				</div>
+				</ConfigurationFieldContainer>
+			)}
+
+			{optionalFields && optionalFields.length > 0 && (
+				<CollapsibleSummary label="Advanced settings" className="mt-4">
+					<ConfigurationFieldContainer>
+						{optionalFields.map((f) => (
+							<ConfigurationField key={f.id} field={f} />
+						))}
+					</ConfigurationFieldContainer>
+				</CollapsibleSummary>
 			)}
 		</section>
 	);

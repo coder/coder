@@ -4,6 +4,7 @@ import {
 	moduleHasConfigurableVars,
 	type TemplateBuilderWizardState,
 	toComposeRequest,
+	toCreateTemplateRequest,
 	type WizardAction,
 	wizardReducer,
 } from "./wizardState";
@@ -25,6 +26,7 @@ describe("wizardReducer", () => {
 						id: "docker",
 						name: "Docker",
 						hasParameters: false,
+						hasPrerequisites: false,
 					},
 				},
 			]);
@@ -36,7 +38,12 @@ describe("wizardReducer", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 				{
 					type: "SET_BASE_VARIABLES",
@@ -44,7 +51,12 @@ describe("wizardReducer", () => {
 				},
 				{
 					type: "SET_BASE",
-					base: { id: "aws-linux", name: "AWS Linux", hasParameters: true },
+					base: {
+						id: "aws-linux",
+						name: "AWS Linux",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 			]);
 			expect(state.baseTemplateId).toBe("aws-linux");
@@ -55,7 +67,12 @@ describe("wizardReducer", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 				{
 					type: "SET_BASE_VARIABLES",
@@ -63,7 +80,12 @@ describe("wizardReducer", () => {
 				},
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 			]);
 			expect(state.baseVariableValues).toEqual({ image: "ubuntu" });
@@ -253,7 +275,12 @@ describe("wizardReducer", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 				{
 					type: "SET_CUSTOMIZATION",
@@ -368,5 +395,40 @@ describe("toComposeRequest", () => {
 			namespace: "default",
 			use_kubeconfig: "false",
 		});
+	});
+});
+
+describe("toCreateTemplateRequest", () => {
+	it("produces the correct API request shape", () => {
+		const state: TemplateBuilderWizardState = {
+			...initialWizardState,
+			baseTemplateId: "docker",
+			organizationId: "org-123",
+			name: "my-template",
+			displayName: "My Template",
+			description: "A test template",
+			icon: "/icon/docker.svg",
+			modules: [{ id: "code-server" }],
+		};
+		const request = toCreateTemplateRequest(state);
+		expect(request.base_template_id).toBe("docker");
+		expect(request.organization_id).toBe("org-123");
+		expect(request.name).toBe("my-template");
+		expect(request.display_name).toBe("My Template");
+		expect(request.description).toBe("A test template");
+		expect(request.icon).toBe("/icon/docker.svg");
+		expect(request.modules).toEqual([{ id: "code-server" }]);
+	});
+
+	it("omits empty optional fields", () => {
+		const state: TemplateBuilderWizardState = {
+			...initialWizardState,
+			baseTemplateId: "docker",
+			name: "my-template",
+		};
+		const request = toCreateTemplateRequest(state);
+		expect(request.display_name).toBeUndefined();
+		expect(request.description).toBeUndefined();
+		expect(request.icon).toBeUndefined();
 	});
 });

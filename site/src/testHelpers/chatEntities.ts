@@ -3,7 +3,6 @@ import type {
 	ChatContext,
 	ChatContextResource,
 	ChatMessage,
-	ChatMessagePart,
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
@@ -89,13 +88,6 @@ export const MockChatContextDirty: ChatContext = {
 	dirty_since: "2024-01-02T00:00:00Z",
 	resources: MockChatContextResources,
 };
-
-// Injected-context fallback whose only context-file marker has no path. The
-// agent emits this empty placeholder for skill-only additions; the context
-// indicator must skip it rather than render a nameless "Context files" row.
-export const MockLastInjectedContextEmptyFile: readonly ChatMessagePart[] = [
-	{ type: "context-file", context_file_path: "" },
-];
 
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",

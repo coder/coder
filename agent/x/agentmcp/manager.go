@@ -43,10 +43,6 @@ const connectTimeout = 30 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
-// toolsReloadTimeout bounds how long Tools waits for a
-// post-startup reload to settle.
-const toolsReloadTimeout = 35 * time.Second
-
 var (
 	// ErrInvalidToolName is returned when the tool name format
 	// is not "server__tool".
@@ -85,20 +81,20 @@ type Manager struct {
 	clock     quartz.Clock
 	closed    bool
 	servers   map[string]*serverEntry
-	tools     []workspacesdk.MCPToolInfo
+	catalog   []ServerStatus
 	snapshot  map[string]fileSnapshot
 	serverGen uint64
 	sf        tailscalesingleflight.Group[string, struct{}]
 
-	// startupSettled is closed once startup scripts reach a terminal
-	// state. Before that, missing MCP config files are unknown
-	// because startup scripts may still create them.
-	startupSettled chan struct{}
-	startupOnce    sync.Once
+	// onChange, when non-nil, is invoked (outside the cache lock)
+	// after a reload changes the per-server catalog, so the
+	// agentcontext manager can re-resolve and re-push the updated
+	// KindMCPServer resources.
+	onChange func()
 
 	// firstSyncSettled records that a reload body reached a
-	// terminal result, successful or not. It gates whether callers
-	// may receive cached tools after reload errors.
+	// terminal result, successful or not. It gates whether the
+	// SnapshotChanged short-circuit may skip a reload.
 	firstSyncSettled bool
 
 	// closedCh is closed by Close to unblock waiters that do not
@@ -148,17 +144,16 @@ func NewManager(
 ) *Manager {
 	managerCtx, cancel := context.WithCancel(ctx)
 	return &Manager{
-		ctx:            managerCtx,
-		cancel:         cancel,
-		logger:         logger,
-		clock:          quartz.NewReal(),
-		execer:         execer,
-		updateEnv:      updateEnv,
-		servers:        make(map[string]*serverEntry),
-		snapshot:       make(map[string]fileSnapshot),
-		startupSettled: make(chan struct{}),
-		closedCh:       make(chan struct{}),
-		watchDebounce:  defaultWatchDebounce,
+		ctx:           managerCtx,
+		cancel:        cancel,
+		logger:        logger,
+		clock:         quartz.NewReal(),
+		execer:        execer,
+		updateEnv:     updateEnv,
+		servers:       make(map[string]*serverEntry),
+		snapshot:      make(map[string]fileSnapshot),
+		closedCh:      make(chan struct{}),
+		watchDebounce: defaultWatchDebounce,
 	}
 }
 
@@ -182,80 +177,15 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 	return m.waitReload(ctx, ch, 0)
 }
 
-// MarkStartupSettled marks startup scripts as terminal for MCP
-// config purposes. Missing config files after this point are a real
-// empty config, not an unknown startup state.
-func (m *Manager) MarkStartupSettled() {
-	m.startupOnce.Do(func() { close(m.startupSettled) })
-}
-
-// Tools returns the current MCP tool cache after startup-safe config
-// synchronization.
-//
-// Before startup has settled via MarkStartupSettled, Tools blocks until
-// settlement or ctx cancels. After settlement, it drives a config reload
-// bounded by toolsReloadTimeout.
-//
-// On error before the first sync settles, Tools returns nil tools and
-// the error. On error after a prior sync, it returns cached tools and
-// the error so callers can degrade gracefully.
-func (m *Manager) Tools(ctx context.Context, paths []string) ([]workspacesdk.MCPToolInfo, error) {
-	if err := m.waitForStartupSettled(ctx); err != nil {
-		return nil, err
-	}
-
-	ch, started, err := m.startReloadIfNeeded(paths)
-	if err != nil {
-		return m.toolsAfterReloadError(err)
-	}
-	if !started {
-		return normalizeTools(m.cachedTools()), nil
-	}
-
-	if err := m.waitReload(ctx, ch, toolsReloadTimeout); err != nil {
-		return m.toolsAfterReloadError(err)
-	}
-	return normalizeTools(m.cachedTools()), nil
-}
-
-func (m *Manager) waitForStartupSettled(ctx context.Context) error {
-	select {
-	case <-m.startupSettled:
-		return nil
-	default:
-	}
-
-	select {
-	case <-m.startupSettled:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-m.ctx.Done():
-		if err := m.closeErr(); err != nil {
-			return err
-		}
-		return m.ctx.Err()
-	case <-m.closedCh:
-		return ErrManagerClosed
-	}
-}
-
-func (m *Manager) toolsAfterReloadError(err error) ([]workspacesdk.MCPToolInfo, error) {
-	m.mu.RLock()
-	firstSyncSettled := m.firstSyncSettled
-	tools := slices.Clone(m.tools)
-	m.mu.RUnlock()
-	if !firstSyncSettled {
-		return nil, err
-	}
-	return normalizeTools(tools), err
-}
-
-func normalizeTools(tools []workspacesdk.MCPToolInfo) []workspacesdk.MCPToolInfo {
-	if tools == nil {
-		return []workspacesdk.MCPToolInfo{}
-	}
-	return tools
+// SetOnReload registers a callback fired (outside the cache lock) after
+// a reload changes the per-server catalog. The agent wires this to the
+// agentcontext manager's Trigger so discovery re-resolves and re-pushes
+// the updated KindMCPServer resources. It must be called before the
+// first Reload.
+func (m *Manager) SetOnReload(fn func()) {
+	m.mu.Lock()
+	m.onChange = fn
+	m.mu.Unlock()
 }
 
 // startReloadIfNeeded registers the reload with the singleflight group
@@ -528,11 +458,12 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 		_ = entry.client.Close()
 	}
 
-	// Refresh tools outside the lock to avoid blocking
-	// concurrent reads during network I/O.
-	if err := m.RefreshTools(ctx); err != nil {
-		logger := m.logger.With(agentchat.Fields(ctx)...)
-		logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
+	// Rebuild the per-server catalog outside the lock to avoid
+	// blocking concurrent reads during network I/O, then notify the
+	// agentcontext manager when it changed so it re-resolves and
+	// re-pushes the KindMCPServer resources.
+	if m.refreshCatalog(ctx, wanted) {
+		m.fireOnChange()
 	}
 	return nil
 }
@@ -728,12 +659,24 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 	return snap
 }
 
-// cachedTools returns the cached tool list. Thread-safe.
-func (m *Manager) cachedTools() []workspacesdk.MCPToolInfo {
+// Catalog returns a deep copy of the current per-server MCP snapshot. It
+// never blocks on I/O: the agentcontext resolver calls it on every
+// re-resolve to build KindMCPServer resources.
+func (m *Manager) Catalog() []ServerStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return cloneServerStatuses(m.catalog)
+}
 
-	return slices.Clone(m.tools)
+// fireOnChange invokes the registered reload callback, if any, without
+// holding the cache lock.
+func (m *Manager) fireOnChange() {
+	m.mu.RLock()
+	fn := m.onChange
+	m.mu.RUnlock()
+	if fn != nil {
+		fn()
+	}
 }
 
 // CallTool proxies a tool call to the appropriate MCP server.
@@ -767,15 +710,17 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	return convertResult(result), nil
 }
 
-// RefreshTools re-fetches tool lists from all connected servers
-// in parallel and rebuilds the cache. On partial failure, tools
-// from servers that responded successfully are merged with the
-// existing cached tools for servers that failed, so a single
-// dead server doesn't block updates from healthy ones.
-func (m *Manager) RefreshTools(ctx context.Context) error {
+// refreshCatalog re-lists tools from the connected servers and rebuilds
+// the per-server catalog the agentcontext resolver consumes. Every
+// declared server in wanted appears in the result: a server with a live
+// client contributes its listed tools (or its list error), and a server
+// that never connected appears as an unreadable entry so it surfaces in
+// the snapshot instead of vanishing. It returns whether the catalog
+// changed so the caller can fire the reload callback.
+func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerConfig) bool {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
-	// Snapshot servers under read lock.
+	// Snapshot the connected servers under the read lock.
 	m.mu.RLock()
 	servers := make(map[string]*serverEntry, len(m.servers))
 	for k, v := range m.servers {
@@ -784,16 +729,15 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	gen := m.serverGen
 	m.mu.RUnlock()
 
-	// Fetch tool lists in parallel without holding any lock.
-	type serverTools struct {
-		name  string
-		tools []workspacesdk.MCPToolInfo
+	// List tools from every connected server in parallel, without
+	// holding any lock.
+	type listResult struct {
+		tools []ToolInfo
+		err   error
 	}
 	var (
 		mu      sync.Mutex
-		results []serverTools
-		failed  []string
-		errs    []error
+		results = make(map[string]listResult, len(servers))
 	)
 	var eg errgroup.Group
 	for name, entry := range servers {
@@ -807,63 +751,58 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 					slog.Error(err),
 				)
 				mu.Lock()
-				errs = append(errs, xerrors.Errorf("list tools from %q: %w", name, err))
-				failed = append(failed, name)
+				results[name] = listResult{err: err}
 				mu.Unlock()
 				return nil
 			}
-			var tools []workspacesdk.MCPToolInfo
+			tools := make([]ToolInfo, 0, len(result.Tools))
 			for _, tool := range result.Tools {
-				tools = append(tools, workspacesdk.MCPToolInfo{
-					ServerName:  name,
-					Name:        name + ToolNameSep + tool.Name,
+				tools = append(tools, ToolInfo{
+					Name:        tool.Name,
 					Description: tool.Description,
-					Schema:      tool.InputSchema.Properties,
-					Required:    tool.InputSchema.Required,
+					InputSchema: toolInputSchemaMap(tool.InputSchema),
 				})
 			}
 			mu.Lock()
-			results = append(results, serverTools{name: name, tools: tools})
+			results[name] = listResult{tools: tools}
 			mu.Unlock()
 			return nil
 		})
 	}
 	_ = eg.Wait()
 
-	// Build the new tool list. For servers that failed, preserve
-	// their tools from the existing cache so a single dead server
-	// doesn't remove healthy tools.
-	var merged []workspacesdk.MCPToolInfo
-	for _, st := range results {
-		merged = append(merged, st.tools...)
-	}
-	if len(failed) > 0 {
-		failedSet := make(map[string]struct{}, len(failed))
-		for _, f := range failed {
-			failedSet[f] = struct{}{}
+	// Build one status per declared server so a server that never
+	// connected surfaces as an unreadable entry rather than vanishing.
+	catalog := make([]ServerStatus, 0, len(wanted))
+	for name := range wanted {
+		st := ServerStatus{Name: name}
+		switch res, ok := results[name]; {
+		case ok && res.err == nil:
+			st.Connected = true
+			st.Tools = res.tools
+		case ok:
+			st.Err = res.err.Error()
+		default:
+			st.Err = "failed to connect"
 		}
-		m.mu.RLock()
-		for _, t := range m.tools {
-			if _, ok := failedSet[t.ServerName]; ok {
-				merged = append(merged, t)
-			}
-		}
-		m.mu.RUnlock()
+		catalog = append(catalog, st)
 	}
-	slices.SortFunc(merged, func(a, b workspacesdk.MCPToolInfo) int {
+	slices.SortFunc(catalog, func(a, b ServerStatus) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 
 	m.mu.Lock()
-	// Skip the write if the server map changed since the
-	// snapshot. A doReload that bumped the generation will
-	// produce a correct tool list; this write would be stale.
-	if m.serverGen == gen {
-		m.tools = merged
+	defer m.mu.Unlock()
+	// Skip the write if the server map changed since the snapshot. A
+	// doReload that bumped the generation will rebuild the catalog.
+	if m.serverGen != gen {
+		return false
 	}
-	m.mu.Unlock()
-
-	return errors.Join(errs...)
+	if reflect.DeepEqual(m.catalog, catalog) {
+		return false
+	}
+	m.catalog = catalog
+	return true
 }
 
 // Close terminates all MCP server connections and child
@@ -908,10 +847,10 @@ func (m *Manager) Close() error {
 		}
 	}
 	m.servers = make(map[string]*serverEntry)
-	// Prevent an in-flight RefreshTools from repopulating tools
-	// after Close clears the cache.
+	// Prevent an in-flight refreshCatalog from repopulating the
+	// catalog after Close clears it.
 	m.serverGen++
-	m.tools = nil
+	m.catalog = nil
 
 	// Cancel while holding the lock so waiters that observe
 	// m.ctx.Done also observe m.closed when checking closeErr.
@@ -1093,4 +1032,65 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 		Content: content,
 		IsError: result.IsError,
 	}
+}
+
+// ServerStatus is a point-in-time view of one MCP server's connection
+// state and tools, used by the agentcontext resolver to build
+// KindMCPServer resources. Tool names are exactly as the server
+// reported them (no server prefix); the resource carries the server
+// name separately.
+type ServerStatus struct {
+	Name      string
+	Connected bool
+	Err       string
+	Tools     []ToolInfo
+}
+
+// ToolInfo is one tool exposed by an MCP server. InputSchema is the
+// JSON-Schema-shaped object the server reported for the tool's
+// arguments, or nil when the schema is empty.
+type ToolInfo struct {
+	Name        string
+	Description string
+	InputSchema map[string]any
+}
+
+// toolInputSchemaMap converts an mcp-go tool input schema into the
+// JSON-Schema-shaped map ToolInfo carries. Required is converted to
+// []any so the downstream protobuf/structpb encoding accepts it. An
+// empty schema yields nil so the tool ships with InputSchema unset.
+func toolInputSchemaMap(s mcp.ToolInputSchema) map[string]any {
+	out := map[string]any{}
+	if s.Type != "" {
+		out["type"] = s.Type
+	}
+	if len(s.Properties) > 0 {
+		out["properties"] = s.Properties
+	}
+	if len(s.Required) > 0 {
+		required := make([]any, len(s.Required))
+		for i, req := range s.Required {
+			required[i] = req
+		}
+		out["required"] = required
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// cloneServerStatuses deep-copies a catalog so callers cannot mutate the
+// Manager's cache. Tool input schemas are treated as immutable and
+// shared by reference.
+func cloneServerStatuses(in []ServerStatus) []ServerStatus {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ServerStatus, len(in))
+	for i, s := range in {
+		s.Tools = slices.Clone(s.Tools)
+		out[i] = s
+	}
+	return out
 }

@@ -190,6 +190,13 @@ networking:
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
+  # Configure network clustering. Coder Servers in the primary region form a cluster
+  # by
+  # communicating directly.
+  cluster:
+    # Hostname or (more commonly) IP to reach this replica for clustering.
+    # (default: <unset>, type: string)
+    clusterHost: ""
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
@@ -434,6 +441,13 @@ oidc:
   # next login.
   # (default: true, type: bool)
   oidc-repair-links: true
+  # INSECURE: Allow OIDC logins to fall back to email-based matching when the
+  # linked_id (issuer+subject) does not match an existing user link. Required for
+  # IdP brokers that do not issue a stable 'sub' for the same user across
+  # connections. The existing user_link's linked_id is preserved on fallback. Only
+  # enable if you understand and accept the risk.
+  # (default: <unset>, type: bool)
+  dangerousOidcEmailFallback: false
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
@@ -958,7 +972,7 @@ ai_gateway:
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
   send_actor_headers: false
-  # Base directory for dumping AI Bridge request/response pairs to disk for
+  # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.
   # (default: <unset>, type: string)
@@ -1145,5 +1159,5 @@ templateBuilder:
   disabled: false
   # The base URL of the module registry used by the template builder for module
   # source paths.
-  # (default: https://registry.coder.com, type: string)
-  registryURL: https://registry.coder.com
+  # (default: registry.coder.com, type: string)
+  registryURL: registry.coder.com

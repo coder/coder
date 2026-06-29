@@ -280,6 +280,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:       vals.OIDC.EmailFallback.Value(),
 	}, nil
 }
 
@@ -821,7 +822,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Use NATS for pubsub if the experiment is enabled.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
-				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
 				})
 				if err != nil {
@@ -829,6 +830,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
+
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(natsps)
+				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
@@ -984,6 +989,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,
 				DeploymentConfig: deploymentConfigWithoutSecrets,
+				// SCIMAPIKey is a secret and is scrubbed by WithoutSecrets above,
+				// so we derive SCIMEnabled from vals (pre-scrub) instead.
+				SCIMEnabled:   vals.SCIMAPIKey != "",
+				SCIMUseLegacy: vals.UseLegacySCIM.Value(),
 				ParseLicenseJWT: func(lic *telemetry.License) error {
 					// This will be nil when running in AGPL-only mode.
 					if options.ParseLicenseClaims == nil {
@@ -1114,7 +1123,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
-			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
 			// in AGPL builds it does not exist at all. The daemon starts here
 			// unconditionally when the bridge feature is enabled by config so
@@ -1125,12 +1134,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
 				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
-				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
-				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
-				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}

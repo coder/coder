@@ -39,8 +39,8 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	};
 	return (
 		<div>
-			<h2 className="font-semibold">Selection</h2>
-			<div>
+			<h2 className="text-xl font-semibold">Selection</h2>
+			<div className="text-sm">
 				<VariantContext.Provider value={variant(1)}>
 					<StepIndicator step={1}>Base Template</StepIndicator>
 					{selectedTemplate ? (
@@ -69,13 +69,13 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 };
 
 const stepCircleVariants = cva(
-	"rounded-full w-8 h-8 border border-solid flex items-center justify-center",
+	"rounded-full size-6 border border-solid flex items-center justify-center text-xs",
 	{
 		variants: {
 			variant: {
 				complete: "border-border-success bg-surface-green",
 				current: "border-border-success",
-				upcoming: "border-border text-content-secondary",
+				upcoming: "border-border text-content-disabled",
 			},
 		},
 	},
@@ -86,7 +86,7 @@ const stepLabelVariants = cva("font-normal mr-2", {
 		variant: {
 			complete: "text-content-primary",
 			current: "text-content-primary",
-			upcoming: "text-content-secondary",
+			upcoming: "text-content-disabled",
 		},
 	},
 });
@@ -154,7 +154,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 					alt={`${template.name} icon`}
 					className="w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
 				/>
-				<span className="ml-2">{template.name}</span>
+				<span className="ml-2 text-content-secondary">{template.name}</span>
 			</div>
 		</StepDivider>
 	);
@@ -183,7 +183,9 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 							className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
 						/>
 					</div>
-					<span className="flex-1 ml-2">{module.name}</span>
+					<span className="flex-1 ml-2 text-content-secondary">
+						{module.name}
+					</span>
 					<div className="h-[1lh] content-center">
 						<Button
 							size="xs"

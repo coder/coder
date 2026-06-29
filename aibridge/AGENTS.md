@@ -13,7 +13,7 @@
 
 ## Architecture Overview
 
-AI Bridge is a smart gateway that sits between AI clients (Claude Code,
+AI Gateway is a smart gateway that sits between AI clients (Claude Code,
 Cursor, etc.) and upstream providers (Anthropic, OpenAI). It intercepts
 all AI traffic to provide centralized authn/z, auditing, token
 attribution, and MCP tool administration. It runs as part of `coderd`

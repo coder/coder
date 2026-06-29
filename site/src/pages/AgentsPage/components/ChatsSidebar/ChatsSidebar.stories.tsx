@@ -2238,7 +2238,7 @@ export const SettingsUserAgentsAdmin: Story = {
 	},
 };
 
-export const SettingsAdminAgentsEntryPreserved: Story = {
+export const SettingsAdminCoderAgentsEntryPreserved: Story = {
 	args: {
 		chats: [],
 		isAdmin: true,
@@ -2251,8 +2251,13 @@ export const SettingsAdminAgentsEntryPreserved: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const agentsLink = canvas.getByRole("link", { name: "Agents" });
-		await expect(agentsLink).toHaveAttribute("aria-current", "page");
+		const coderAgentsLink = canvas.getByRole("link", {
+			name: "Coder Agents",
+		});
+		expect(coderAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
 		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
 	},
 };

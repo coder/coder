@@ -247,6 +247,88 @@ func TestResetMismatchedOIDCLinks(t *testing.T) {
 	})
 }
 
+func TestResetMismatchedOIDCLinksWithUnmatchableIssuer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResetsAll", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		db, _ := dbtestutil.NewDB(t)
+
+		// Correctly linked user.
+		correctUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    correctUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://accounts.google.com||sub-correct",
+		})
+
+		// Mismatched user.
+		mismatchedUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    mismatchedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://old-issuer.example.com||sub-mismatched",
+		})
+
+		// Unlinked user (empty linked_id).
+		unlinkedUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    unlinkedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "",
+		})
+
+		count, err := authlink.ResetMismatchedOIDCLinks(ctx, db, authlink.UnmatchableIssuer)
+		require.NoError(t, err)
+		require.EqualValues(t, 2, count, "should reset correct + mismatched, not unlinked")
+
+		// Verify the correct link was reset.
+		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    correctUser.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", link.LinkedID)
+
+		// Verify the mismatched link was reset.
+		link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    mismatchedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", link.LinkedID)
+
+		// Verify the unlinked user is still unlinked.
+		link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    unlinkedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", link.LinkedID)
+	})
+
+	t.Run("NothingToReset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		db, _ := dbtestutil.NewDB(t)
+
+		// Only an unlinked user.
+		user := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "",
+		})
+
+		count, err := authlink.ResetMismatchedOIDCLinks(ctx, db, authlink.UnmatchableIssuer)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, count)
+	})
+}
+
 func TestResolveIssuer(t *testing.T) {
 	t.Parallel()
 

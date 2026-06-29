@@ -499,3 +499,78 @@ func (x *drpcAuthorizer_IsAuthorizedStream) SendAndClose(m *IsAuthorizedResponse
 	}
 	return x.CloseSend()
 }
+
+type DRPCProviderConfiguratorClient interface {
+	DRPCConn() drpc.Conn
+
+	GetAIProviders(ctx context.Context, in *GetAIProvidersRequest) (*GetAIProvidersResponse, error)
+}
+
+type drpcProviderConfiguratorClient struct {
+	cc drpc.Conn
+}
+
+func NewDRPCProviderConfiguratorClient(cc drpc.Conn) DRPCProviderConfiguratorClient {
+	return &drpcProviderConfiguratorClient{cc}
+}
+
+func (c *drpcProviderConfiguratorClient) DRPCConn() drpc.Conn { return c.cc }
+
+func (c *drpcProviderConfiguratorClient) GetAIProviders(ctx context.Context, in *GetAIProvidersRequest) (*GetAIProvidersResponse, error) {
+	out := new(GetAIProvidersResponse)
+	err := c.cc.Invoke(ctx, "/proto.ProviderConfigurator/GetAIProviders", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+type DRPCProviderConfiguratorServer interface {
+	GetAIProviders(context.Context, *GetAIProvidersRequest) (*GetAIProvidersResponse, error)
+}
+
+type DRPCProviderConfiguratorUnimplementedServer struct{}
+
+func (s *DRPCProviderConfiguratorUnimplementedServer) GetAIProviders(context.Context, *GetAIProvidersRequest) (*GetAIProvidersResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+type DRPCProviderConfiguratorDescription struct{}
+
+func (DRPCProviderConfiguratorDescription) NumMethods() int { return 1 }
+
+func (DRPCProviderConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
+	switch n {
+	case 0:
+		return "/proto.ProviderConfigurator/GetAIProviders", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCProviderConfiguratorServer).
+					GetAIProviders(
+						ctx,
+						in1.(*GetAIProvidersRequest),
+					)
+			}, DRPCProviderConfiguratorServer.GetAIProviders, true
+	default:
+		return "", nil, nil, nil, false
+	}
+}
+
+func DRPCRegisterProviderConfigurator(mux drpc.Mux, impl DRPCProviderConfiguratorServer) error {
+	return mux.Register(impl, DRPCProviderConfiguratorDescription{})
+}
+
+type DRPCProviderConfigurator_GetAIProvidersStream interface {
+	drpc.Stream
+	SendAndClose(*GetAIProvidersResponse) error
+}
+
+type drpcProviderConfigurator_GetAIProvidersStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProviderConfigurator_GetAIProvidersStream) SendAndClose(m *GetAIProvidersResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}

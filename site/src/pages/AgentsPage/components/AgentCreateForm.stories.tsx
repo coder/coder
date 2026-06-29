@@ -490,11 +490,11 @@ export const MissingProviderAndModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/ai/settings",
+			"/ai/settings/providers",
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
 		);
 	},
 };

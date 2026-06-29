@@ -10,3 +10,7 @@ export const templateBuilderModules = (base?: string) => ({
 	queryFn: () => API.getTemplateBuilderModules(base),
 	staleTime: Number.POSITIVE_INFINITY,
 });
+
+export const createTemplateFromBuilder = () => ({
+	mutationFn: API.createTemplateFromBuilder,
+});

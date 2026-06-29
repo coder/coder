@@ -16,7 +16,7 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/openai/v1"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
 ```
@@ -38,7 +38,7 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/openai/v1"
 wire_api = "responses"
 requires_openai_auth = true
 env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
@@ -68,14 +68,14 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/chatgpt/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/chatgpt/v1"
 wire_api = "responses"
 requires_openai_auth = true
 env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 ```
 
 > [!NOTE]
-> The `base_url` uses `/aibridge/chatgpt/v1` instead of `/aibridge/openai/v1` to route requests through the ChatGPT provider.
+> The `base_url` uses `/ai-gateway/chatgpt/v1` instead of `/ai-gateway/openai/v1` to route requests through the ChatGPT provider.
 
 Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
 
@@ -129,7 +129,7 @@ module "codex" {
 
     [model_providers.ai_gateway]
     name = "AI Gateway"
-    base_url = "${data.coder_workspace.me.access_url}/api/v2/aibridge/chatgpt/v1"
+    base_url = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/chatgpt/v1"
     wire_api = "responses"
     requires_openai_auth = true
     env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
@@ -165,7 +165,7 @@ model_provider = "ai_gateway"
 
 [model_providers.ai_gateway]
 name = "AI Gateway"
-base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+base_url = "<your-deployment-url>/api/v2/ai-gateway/openai/v1"
 wire_api = "responses"
 supports_websockets = false
 ```

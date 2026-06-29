@@ -70,7 +70,17 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 	}
 
 	for _, trustedHeader := range config.TrustedHeaders {
-		addr := getRemoteAddress(req.Header.Get(trustedHeader))
+		// X-Forwarded-For is a list-valued header. Per RFC 7230, multiple
+		// field lines with the same name are equivalent to a single
+		// comma-separated value. Join them so a client cannot hide a spoofed
+		// address in the first field line, which Header.Get would return on
+		// its own. Other forwarding headers carry a single edge-proxy value,
+		// so use Header.Get to preserve their first-value semantics.
+		value := req.Header.Get(trustedHeader)
+		if http.CanonicalHeaderKey(trustedHeader) == headerXForwardedFor {
+			value = strings.Join(req.Header.Values(trustedHeader), ",")
+		}
+		addr := extractForwardedAddress(config, value)
 		if addr != nil {
 			return addr, nil
 		}
@@ -101,6 +111,14 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	}
 
 	for _, header := range config.TrustedHeaders {
+		// X-Forwarded-For is a list-valued header whose field lines are
+		// equivalent to a single comma-separated value (RFC 7230 section
+		// 3.2.2). Join them so later hops are not dropped when collapsing to a
+		// single line. Other forwarding headers carry a single value.
+		if http.CanonicalHeaderKey(header) == headerXForwardedFor {
+			req.Header.Set(header, strings.Join(req.Header.Values(header), ","))
+			continue
+		}
 		req.Header.Set(header, req.Header.Get(header))
 	}
 }
@@ -185,12 +203,15 @@ func EnsureXForwardedForHeader(req *http.Request) error {
 	return nil
 }
 
-// getRemoteAddress extracts the IP address from the given string. If
-// the string contains commas, it assumes that the first part is the
-// original address.
+// getRemoteAddress extracts a single IP address from the given string,
+// stripping a port if present. If the string contains commas, only the
+// portion before the first comma is parsed. This helper does not select the
+// real client from a multi-hop X-Forwarded-For chain; use
+// extractForwardedAddress for that, which accounts for client-supplied values.
 func getRemoteAddress(address string) net.IP {
-	// X-Forwarded-For may contain multiple addresses, in case the
-	// proxies are chained; the first value is the client address
+	// A value may contain a port and, for a raw X-Forwarded-For value, more
+	// than one comma-separated address. Parse only the part before the first
+	// comma.
 	i := strings.IndexByte(address, ',')
 	if i == -1 {
 		i = len(address)
@@ -204,6 +225,32 @@ func getRemoteAddress(address string) net.IP {
 		return net.ParseIP(firstAddress)
 	}
 	return net.ParseIP(host)
+}
+
+// extractForwardedAddress parses a comma-separated forwarding header value and
+// returns the rightmost address that is not a trusted origin. Reverse proxies
+// append the peer that connected to them, so when every trusted proxy hop is
+// listed in TrustedOrigins, the rightmost untrusted address is the real client;
+// any values a client prepends to spoof its address sit to the left of the
+// addresses inserted by trusted proxies and are ignored. If every parsed address
+// is a trusted origin, the leftmost address is returned. It returns nil when no
+// address can be parsed.
+func extractForwardedAddress(config *RealIPConfig, value string) net.IP {
+	parts := strings.Split(value, ",")
+	var leftmost net.IP
+	for i := len(parts) - 1; i >= 0; i-- {
+		ip := getRemoteAddress(strings.TrimSpace(parts[i]))
+		if ip == nil {
+			continue
+		}
+		// Iterating right-to-left, so the last assignment is the leftmost
+		// valid address, used as the fallback when all hops are trusted.
+		leftmost = ip
+		if !isContainedIn(config.TrustedOrigins, ip) {
+			return ip
+		}
+	}
+	return leftmost
 }
 
 // isContainedIn checks that the given address is contained in the given

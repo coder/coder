@@ -1,16 +1,20 @@
 package chatd_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -395,4 +399,108 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	refresh, err = agentClient.RefreshChatContext(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, refresh.Refreshed, "nothing left to refresh")
+}
+
+// agentMCPToolContext specifies an mcp_server tool to seed into an agent's
+// pushed context snapshot.
+type agentMCPToolContext struct {
+	AgentID         uuid.UUID
+	ServerName      string
+	ToolName        string
+	ToolDescription string
+}
+
+// seedAgentMCPToolContext upserts an mcp_server context snapshot and resource
+// for the agent, mirroring what PushContextState writes, so a chat bound to the
+// agent hydrates a pinned, execution-ready MCP tool. The model-facing tool name
+// is "<ServerName>__<ToolName>". It seeds the raw store directly so unit tests
+// can exercise pinned MCP execution without a live agent connection.
+func seedAgentMCPToolContext(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	tool agentMCPToolContext,
+) {
+	t.Helper()
+
+	schema, err := structpb.NewStruct(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"input": map[string]any{"type": "string"},
+		},
+	})
+	require.NoError(t, err)
+
+	body, err := protojson.Marshal(&agentproto.MCPServerBody{
+		ServerName: tool.ServerName,
+		Tools: []*agentproto.MCPTool{{
+			Name:        tool.ToolName,
+			Description: tool.ToolDescription,
+			InputSchema: schema,
+		}},
+	})
+	require.NoError(t, err)
+
+	now := dbtime.Now()
+	hash := []byte(tool.ServerName + ":" + tool.ToolName)
+	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: tool.AgentID,
+		Version:          1,
+		AggregateHash:    hash,
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+		WorkspaceAgentID: tool.AgentID,
+		Source:           tool.ServerName,
+		BodyKind:         database.WorkspaceAgentContextBodyKindMcpServer,
+		Body:             body,
+		ContentHash:      hash,
+		SizeBytes:        int64(len(body)),
+		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		Now:              now,
+	})
+	require.NoError(t, err)
+}
+
+// seedAgentInstructionContext upserts an instruction_file context snapshot and
+// resource for the agent, mirroring what PushContextState writes, so a chat
+// bound to the agent hydrates a pinned instruction block. It seeds the raw
+// store directly so unit tests can exercise pinned workspace context without a
+// live agent connection.
+func seedAgentInstructionContext(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	agentID uuid.UUID,
+	source string,
+	content string,
+) {
+	t.Helper()
+
+	body, err := protojson.Marshal(&agentproto.InstructionFileBody{Content: []byte(content)})
+	require.NoError(t, err)
+
+	now := dbtime.Now()
+	hash := []byte("instruction:" + source)
+	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: agentID,
+		Version:          1,
+		AggregateHash:    hash,
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+		WorkspaceAgentID: agentID,
+		Source:           source,
+		BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+		Body:             body,
+		ContentHash:      hash,
+		SizeBytes:        int64(len(body)),
+		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		Now:              now,
+	})
+	require.NoError(t, err)
 }

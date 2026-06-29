@@ -8,23 +8,15 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// CanonicalizePath produces the canonical form of a user-
-// supplied path. The result is absolute, has ~ expanded, has
-// path-traversal segments collapsed, and has symlinks resolved
-// when the target exists. The path is left lexically clean if
-// it does not yet exist (so adding a not-yet-created directory
-// remains possible).
-//
-// CanonicalizePath returns the original input when it is empty.
-func CanonicalizePath(raw string) (string, error) {
+// lexicalPath returns raw as a cleaned, absolute path with ~
+// expanded and symlinks left unresolved.
+func lexicalPath(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", xerrors.New("path is empty")
 	}
 
-	// Expand ~ and ~/ prefixes against the current user's home
-	// directory. Other ~user forms are not supported on
-	// purpose; the agent runs as a known user.
+	// ~user forms are intentionally unsupported.
 	if raw == "~" || strings.HasPrefix(raw, "~/") {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -38,13 +30,20 @@ func CanonicalizePath(raw string) (string, error) {
 	}
 
 	if !filepath.IsAbs(raw) {
-		// Fail closed: relative paths could mean different
-		// things depending on the agent's working directory at
-		// add-time, so require the caller to absolutize first.
+		// Relative paths are ambiguous; require an absolute path.
 		return "", xerrors.Errorf("path %q is not absolute", raw)
 	}
 
-	cleaned := filepath.Clean(raw)
+	return filepath.Clean(raw), nil
+}
+
+// CanonicalizePath returns lexicalPath with symlinks resolved
+// when the target exists.
+func CanonicalizePath(raw string) (string, error) {
+	cleaned, err := lexicalPath(raw)
+	if err != nil {
+		return "", err
+	}
 	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
 		return resolved, nil
 	}

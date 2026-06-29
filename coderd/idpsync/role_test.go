@@ -31,6 +31,9 @@ func TestRoleSyncTable(t *testing.T) {
 			"foo", "bar", "baz",
 			"create-bar", "create-baz",
 			"legacy-bar", rbac.RoleOrgAuditor(),
+			// Some arbitrary values to attempt to trip up the SQL in the matching.
+			"Role with (Special Characters)",
+			"NULL",
 		},
 		// bad-claim is a number, and will fail any role sync
 		"bad-claim": 100,

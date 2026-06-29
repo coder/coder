@@ -146,7 +146,7 @@ export interface AIBridgeSession {
 // From codersdk/aibridge.go
 /**
  * AIBridgeSessionThreadsResponse is the response for GET
- * /api/v2/aibridge/sessions/{session_id} which returns a single
+ * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
  */
 export interface AIBridgeSessionThreadsResponse {
@@ -263,8 +263,14 @@ export interface AIGatewayKey {
 	readonly name: string;
 	readonly key_prefix: string;
 	readonly created_at: string;
-	readonly last_used_at?: string;
+	readonly last_heartbeat_at?: string;
 }
+
+// From codersdk/client.go
+/**
+ * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
+ */
+export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
 // From codersdk/aiproviders.go
 /**
@@ -322,6 +328,13 @@ export interface AIProviderBedrockSettings {
 	 * AccessKey. Write-only.
 	 */
 	readonly access_key_secret?: string;
+	/**
+	 * RoleARN, when set, is the IAM role assumed via STS before calling
+	 * Bedrock. The base identity (static keys or the AWS environment, e.g.
+	 * IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	 * call, and the resulting temporary credentials sign Bedrock requests.
+	 */
+	readonly role_arn?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -484,6 +497,7 @@ export type APIKeyScope =
 	| "ai_gateway_key:create"
 	| "ai_gateway_key:delete"
 	| "ai_gateway_key:read"
+	| "ai_gateway_key:update"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -718,6 +732,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_gateway_key:create",
 	"ai_gateway_key:delete",
 	"ai_gateway_key:read",
+	"ai_gateway_key:update",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -1569,13 +1584,6 @@ export interface Chat {
 	 * connect and disconnect.
 	 */
 	readonly has_unread: boolean;
-	/**
-	 * LastInjectedContext holds the most recently persisted
-	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes, on first workspace
-	 * attach or agent change.
-	 */
-	readonly last_injected_context?: readonly ChatMessagePart[];
 	/**
 	 * Context reports the chat's pinned workspace-context state and
 	 * whether it has drifted from the agent's latest pushed snapshot.
@@ -3267,6 +3275,11 @@ export interface ChatWorkspaceTTLResponse {
 	readonly workspace_ttl_ms: number;
 }
 
+// From codersdk/deployment.go
+export interface ClusterConfig {
+	readonly host: string;
+}
+
 // From codersdk/client.go
 /**
  * CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
@@ -3693,6 +3706,12 @@ export interface CreateTemplateRequest {
 	 * but can be set to 0 to disable activity bumping.
 	 */
 	readonly activity_bump_ms?: number;
+	/**
+	 * TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	 * before the autostop deadline at which a reminder notification is sent for
+	 * workspaces created from this template. Defaults to 0 (disabled).
+	 */
+	readonly time_til_autostop_notify_ms?: number;
 	/**
 	 * AutostopRequirement allows optionally specifying the autostop requirement
 	 * for workspaces created from this template. This is an enterprise feature.
@@ -4276,6 +4295,7 @@ export interface DeploymentValues {
 	readonly http_address?: string;
 	readonly autobuild_poll_interval?: number;
 	readonly job_hang_detector_interval?: number;
+	readonly cluster?: ClusterConfig;
 	readonly derp?: DERP;
 	readonly prometheus?: PrometheusConfig;
 	readonly pprof?: PprofConfig;
@@ -6250,6 +6270,14 @@ export interface OIDCConfig {
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
+	/**
+	 * EmailFallback allows OIDC logins to fall back to email-based matching
+	 * when the `linked_id` (issuer+subject) does not match an existing user
+	 * link. INSECURE: weakens the linked_id check. It exists for IdP
+	 * brokers that do not issue a stable `sub` for the same user across
+	 * connections.
+	 */
+	readonly email_fallback: boolean;
 }
 
 // From codersdk/parameters.go
@@ -8176,6 +8204,12 @@ export interface Template {
 	readonly default_ttl_ms: number;
 	readonly activity_bump_ms: number;
 	/**
+	 * TimeTilAutostopNotifyMillis is the duration before the workspace's
+	 * autostop deadline at which a reminder notification is sent. 0 disables
+	 * the notification.
+	 */
+	readonly time_til_autostop_notify_ms: number;
+	/**
 	 * AutostopRequirement and AutostartRequirement are enterprise features. Its
 	 * value is only used if your license is entitled to use the advanced template
 	 * scheduling feature.
@@ -8289,6 +8323,7 @@ export interface TemplateBuilderBase {
 	readonly icon: string;
 	readonly os: string;
 	readonly variables: readonly TemplateBuilderModuleVariable[];
+	readonly prerequisites: string;
 }
 
 // From codersdk/templatebuilder.go
@@ -9113,6 +9148,13 @@ export interface UpdateTemplateMeta {
 	 */
 	readonly activity_bump_ms?: number;
 	/**
+	 * TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	 * before the autostop deadline at which a reminder notification is sent for
+	 * workspaces created from this template. Defaults to 0 (disabled). Omitting
+	 * the field keeps the existing value.
+	 */
+	readonly time_til_autostop_notify_ms?: number;
+	/**
 	 * AutostopRequirement and AutostartRequirement can only be set if your license
 	 * includes the advanced template scheduling feature. If you attempt to set this
 	 * value while unlicensed, it will be ignored.
@@ -9257,6 +9299,12 @@ export interface UpdateUserPreferenceSettingsRequest {
 export interface UpdateUserProfileRequest {
 	readonly username: string;
 	readonly name: string;
+	/**
+	 * AvatarURL is only applied for users whose login type is password or
+	 * none. For other login types the avatar is synced from the identity
+	 * provider on login, so a submitted value is ignored.
+	 */
+	readonly avatar_url: string;
 }
 
 // From codersdk/users.go

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -270,12 +269,11 @@ func TestPinnedWorkspaceContext(t *testing.T) {
 			Return(nil, xerrors.New("boom"))
 		server := newPinServer(t, db)
 
-		_, _, ok, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
+		_, _, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
 		require.Error(t, err)
-		require.False(t, ok)
 	})
 
-	t.Run("NoRowsFallsBack", func(t *testing.T) {
+	t.Run("NoRowsYieldsNothing", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -285,9 +283,8 @@ func TestPinnedWorkspaceContext(t *testing.T) {
 			Return([]database.ChatContextResource{}, nil)
 		server := newPinServer(t, db)
 
-		instruction, skills, ok, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
+		instruction, skills, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
 		require.NoError(t, err)
-		require.False(t, ok)
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
 	})
@@ -306,9 +303,8 @@ func TestPinnedWorkspaceContext(t *testing.T) {
 		server := newPinServer(t, db)
 
 		agent := database.WorkspaceAgent{OperatingSystem: "linux", ExpandedDirectory: "/home/coder"}
-		instruction, skills, ok, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, agent)
+		instruction, skills, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, agent)
 		require.NoError(t, err)
-		require.True(t, ok)
 		require.Contains(t, instruction, "Operating System: linux")
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.Contains(t, instruction, "be helpful")
@@ -330,9 +326,8 @@ func TestPinnedWorkspaceContext(t *testing.T) {
 
 		// Zero-value agent: the pin still resolves, just without the
 		// OS/directory header.
-		instruction, _, ok, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
+		instruction, _, err := server.pinnedWorkspaceContext(context.Background(), database.Chat{ID: chatID}, database.WorkspaceAgent{})
 		require.NoError(t, err)
-		require.True(t, ok)
 		require.Contains(t, instruction, "Source: /home/coder/AGENTS.md")
 		require.NotContains(t, instruction, "Operating System:")
 	})
@@ -415,9 +410,8 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	server := &Server{db: db, logger: logger}
 
-	instruction, skills, ok, err := server.pinnedWorkspaceContext(ctx, chat, agent)
+	instruction, skills, err := server.pinnedWorkspaceContext(ctx, chat, agent)
 	require.NoError(t, err)
-	require.True(t, ok)
 	require.Contains(t, instruction, "Operating System: linux")
 	require.Contains(t, instruction, "Working Directory: /home/coder/ws")
 	require.Contains(t, instruction, "Source: /home/coder/ws/AGENTS.md")
@@ -428,8 +422,7 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	require.Equal(t, "/home/coder/ws/.coder/skills/deploy", skills[0].Dir)
 
 	// A chat created after hydration keeps a NULL pinned hash and no pinned
-	// rows, so the pin resolves to ok=false and the caller falls back to the
-	// per-turn history path.
+	// rows, so the pin yields no instruction or skills.
 	unpinnedChat := dbgen.Chat(t, db, database.Chat{
 		OwnerID:           user.ID,
 		OrganizationID:    org.ID,
@@ -438,37 +431,15 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
-	_, _, ok, err = server.pinnedWorkspaceContext(ctx, unpinnedChat, agent)
+	emptyInstruction, emptySkills, err := server.pinnedWorkspaceContext(ctx, unpinnedChat, agent)
 	require.NoError(t, err)
-	require.False(t, ok)
-}
-
-func historyContextMessage(t *testing.T, agentID uuid.UUID) database.ChatMessage {
-	t.Helper()
-	parts := []codersdk.ChatMessagePart{
-		{
-			Type:                 codersdk.ChatMessagePartTypeContextFile,
-			ContextFileAgentID:   uuid.NullUUID{UUID: agentID, Valid: true},
-			ContextFilePath:      "/home/coder/AGENTS.md",
-			ContextFileContent:   "history content",
-			ContextFileOS:        "linux",
-			ContextFileDirectory: "/home/coder",
-		},
-		{
-			Type:               codersdk.ChatMessagePartTypeSkill,
-			ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
-			SkillName:          "history-skill",
-			SkillDescription:   "from history",
-		},
-	}
-	raw, err := json.Marshal(parts)
-	require.NoError(t, err)
-	return database.ChatMessage{Content: pqtype.NullRawMessage{RawMessage: raw, Valid: true}}
+	require.Empty(t, emptyInstruction)
+	require.Empty(t, emptySkills)
 }
 
 // TestResolveTurnWorkspaceContext covers the dispatch that prepareGeneration
-// wires up: the pinned copy when the chat has pinned rows, otherwise the
-// per-turn history-derived parts, and nothing for a non-workspace chat.
+// wires up: the pinned copy when the chat has pinned rows, and nothing for a
+// non-workspace chat or a chat without pinned rows.
 func TestResolveTurnWorkspaceContext(t *testing.T) {
 	t.Parallel()
 
@@ -483,7 +454,7 @@ func TestResolveTurnWorkspaceContext(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		server := newPinServer(t, db)
 
-		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), database.Chat{ID: uuid.New()}, database.WorkspaceAgent{}, nil)
+		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), database.Chat{ID: uuid.New()}, database.WorkspaceAgent{})
 		require.NoError(t, err)
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
@@ -495,7 +466,6 @@ func TestResolveTurnWorkspaceContext(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := workspaceChat()
-		agentID := uuid.New()
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
 			Return([]database.ChatContextResource{
 				instructionResource(t, "/home/coder/AGENTS.md", "pinned content", database.WorkspaceAgentContextResourceStatusOk),
@@ -503,48 +473,25 @@ func TestResolveTurnWorkspaceContext(t *testing.T) {
 			}, nil)
 		server := newPinServer(t, db)
 
-		// History rows are present too; the pinned path must take precedence.
-		promptRows := []database.ChatMessage{historyContextMessage(t, agentID)}
-		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{OperatingSystem: "linux"}, promptRows)
+		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{OperatingSystem: "linux"})
 		require.NoError(t, err)
 		require.Contains(t, instruction, "pinned content")
-		require.NotContains(t, instruction, "history content")
 		require.Len(t, skills, 1)
 		require.Equal(t, "deploy", skills[0].Name)
 	})
 
-	t.Run("HistoryFallbackWhenNoPin", func(t *testing.T) {
+	t.Run("NoPinYieldsNothing", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chat := workspaceChat()
-		// No pinned rows: the resolver falls back to the per-turn history path.
+		// No pinned rows: the turn carries no context.
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
 			Return([]database.ChatContextResource{}, nil)
 		server := newPinServer(t, db)
 
-		agentID := uuid.New()
-		promptRows := []database.ChatMessage{historyContextMessage(t, agentID)}
-		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{}, promptRows)
-		require.NoError(t, err)
-		require.Contains(t, instruction, "history content")
-		require.Len(t, skills, 1)
-		require.Equal(t, "history-skill", skills[0].Name)
-	})
-
-	t.Run("NoContextWhenHistoryEmpty", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		chat := workspaceChat()
-		// No pinned rows and no history parts: the turn carries no context.
-		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).
-			Return([]database.ChatContextResource{}, nil)
-		server := newPinServer(t, db)
-
-		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{}, nil)
+		instruction, skills, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{})
 		require.NoError(t, err)
 		require.Empty(t, instruction)
 		require.Empty(t, skills)
@@ -560,7 +507,7 @@ func TestResolveTurnWorkspaceContext(t *testing.T) {
 			Return(nil, xerrors.New("boom"))
 		server := newPinServer(t, db)
 
-		_, _, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{}, nil)
+		_, _, err := server.resolveTurnWorkspaceContext(context.Background(), chat, database.WorkspaceAgent{})
 		require.Error(t, err)
 	})
 }
@@ -807,7 +754,7 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		return nil, xerrors.New("not dialed in this test")
 	}
 
-	t.Run("NoRowsFallsBack", func(t *testing.T) {
+	t.Run("NoRowsYieldsNoTools", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -817,9 +764,8 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			Return([]database.ChatContextResource{}, nil)
 		server := newPinServer(t, db)
 
-		tools, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.NoError(t, err)
-		require.False(t, ok)
 		require.Empty(t, tools)
 	})
 
@@ -833,9 +779,8 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			Return(nil, xerrors.New("boom"))
 		server := newPinServer(t, db)
 
-		_, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		_, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.Error(t, err)
-		require.False(t, ok)
 	})
 
 	t.Run("BuildsToolsFromMCPServers", func(t *testing.T) {
@@ -857,9 +802,8 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			}, nil)
 		server := newPinServer(t, db)
 
-		tools, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.NoError(t, err)
-		require.True(t, ok)
 		require.Len(t, tools, 2)
 		require.Equal(t, "github__create_issue", tools[0].Info().Name)
 		require.Equal(t, "github__search", tools[1].Info().Name)
@@ -872,17 +816,16 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		chatID := uuid.New()
 		// The chat is pinned (an instruction file is present) but the agent
-		// reported no MCP servers: ok is true with zero tools so the caller does
-		// not fall back to a live pull that could resurrect stale tools.
+		// reported no MCP servers: the pin is authoritative, yielding zero
+		// tools without a live pull that could resurrect stale tools.
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
 			Return([]database.ChatContextResource{
 				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
 			}, nil)
 		server := newPinServer(t, db)
 
-		tools, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
 		require.NoError(t, err)
-		require.True(t, ok)
 		require.Empty(t, tools)
 	})
 }

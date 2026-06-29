@@ -98,7 +98,7 @@ AI Gateway interception data can be exported for external analysis, compliance r
 You can retrieve AI Gateway sessions via the Coder API, with filtering and pagination support.
 
 ```sh
-curl -X GET "https://coder.example.com/api/v2/aibridge/sessions" \
+curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
@@ -131,7 +131,7 @@ Available query filters:
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
 
-See the [API documentation](../../reference/api/aibridge.md) for full details.
+See the [API documentation](../../reference/api/aigateway.md) for full details.
 
 ## Data Retention
 

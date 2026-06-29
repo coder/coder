@@ -35,6 +35,15 @@ const (
 	BaseURLChatGPT  = "https://" + HostChatGPT + "/backend-api/codex"
 )
 
+// API route prefixes for the AI Gateway and legacy AI Bridge endpoints.
+const (
+	// AIGatewayRootPath is the URL prefix the AI Gateway handler
+	// registers all of its routes under.
+	AIGatewayRootPath = "/api/v2/ai-gateway"
+	// AIBridgeRootPath is the legacy prefix kept for backward compatibility.
+	AIBridgeRootPath = "/api/v2/aibridge"
+)
+
 // IsBYOK reports whether the request is using BYOK mode, determined
 // by the presence of the X-Coder-AI-Governance-Token header.
 func IsBYOK(header http.Header) bool {

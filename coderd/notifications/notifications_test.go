@@ -844,6 +844,19 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateWorkspaceAutostopReminder",
+			id:   notifications.TemplateWorkspaceAutostopReminder,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"deadline":  "2024-03-15 14:00 UTC",
+				},
+			},
+		},
+		{
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
@@ -1528,11 +1541,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					assert.NoError(t, srv.Serve(listen))
-				}()
+				})
 
 				// Wait for the server to become pingable.
 				require.Eventually(t, func() bool {

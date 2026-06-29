@@ -219,7 +219,6 @@ interface AgentChatPageViewProps {
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
 
-	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	chatContext?: TypesGen.ChatContext;
 }
 
@@ -381,7 +380,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
-	lastInjectedContext,
 	chatContext,
 }) => {
 	const queryClient = useQueryClient();
@@ -906,7 +904,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onFetchMoreMessages={onFetchMoreMessages}
 							messageCount={messageCount}
 						>
-							<div className="px-4">
+							<div className="px-4" data-chat-scroll-content>
 								<ChatPageTimeline
 									store={store}
 									persistedError={persistedError}
@@ -975,7 +973,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								selectedMCPServerIds={selectedMCPServerIds}
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
-								lastInjectedContext={lastInjectedContext}
 								chatContext={chatContext}
 								workspace={workspace}
 								workspaceAgent={workspaceAgent}

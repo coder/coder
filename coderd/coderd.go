@@ -338,6 +338,10 @@ type Options struct {
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
 // @name Coder-Session-Token
+
+// @securitydefinitions.apiKey AIGatewayKey
+// @in header
+// @name X-AI-Governance-Gateway-Key
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -621,7 +625,7 @@ func New(options *Options) *API {
 	// Seed the AI Bridge model price table from the embedded price book.
 	//nolint:gocritic // Startup seeder needs to run as aibridge context.
 	if err := prices.Seed(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
-		options.Logger.Error(ctx, "failed to seed AI Bridge prices; cost tracking may use stale prices", slog.Error(err))
+		options.Logger.Error(ctx, "failed to seed AI Gateway prices; cost tracking may use stale prices", slog.Error(err))
 	}
 
 	// AGPL uses a no-op build usage checker as there are no license
@@ -1794,8 +1798,6 @@ func New(options *Options) *API {
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context", api.workspaceAgentAddChatContext)
-					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
 					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
@@ -2237,11 +2239,12 @@ type API struct {
 	// providers directly. Registered by coderd at startup once aibridged is
 	// wired in-memory.
 	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
-	// aibridgedHandler is the in-memory aibridge HTTP handler. Set by
-	// RegisterInMemoryAIBridgedHTTPHandler; read both by the enterprise
-	// /api/v2/aibridge route (license-gated) and by the in-memory transport
-	// (used by chatd, license-exempt).
-	aibridgedHandler http.Handler
+	// aiGatewayHandler is the in-memory AI Gateway HTTP handler
+	// (no prefix stripping). Set by RegisterInMemoryAIBridgedHTTPHandler,
+	// used by the enterprise /api/v2/aibridge and /api/v2/ai-gateway
+	// routes (license-gated) which apply their own StripPrefix, and by
+	// the in-memory transport (used by chatd, license-exempt).
+	aiGatewayHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

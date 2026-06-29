@@ -52,9 +52,11 @@ type BaseDefaultContext struct {
 // parsedBase holds the result of loading and pre-parsing a single base
 // template directory.
 type parsedBase struct {
-	Manifest  BaseManifest
-	Templates map[string]*template.Template
-	FS        fs.FS
+	Manifest      BaseManifest
+	Templates     map[string]*template.Template
+	FS            fs.FS
+	Readme        string // full README.md content (including frontmatter)
+	Prerequisites string // content between prerequisite comment markers
 }
 
 var loadBases = sync.OnceValues(func() (map[string]*parsedBase, error) {
@@ -114,10 +116,18 @@ func parseBasesFromFS(fsys fs.FS) (map[string]*parsedBase, error) {
 			return nil, xerrors.Errorf("parse templates for base %q: %w", manifest.ID, err)
 		}
 
+		readmeData, err := fs.ReadFile(baseFS, "README.md")
+		if err != nil {
+			return nil, xerrors.Errorf("read README.md for base %q: %w", manifest.ID, err)
+		}
+		readme := string(readmeData)
+
 		bases[manifest.ID] = &parsedBase{
-			Manifest:  manifest,
-			Templates: templates,
-			FS:        baseFS,
+			Manifest:      manifest,
+			Templates:     templates,
+			FS:            baseFS,
+			Readme:        readme,
+			Prerequisites: ExtractPrerequisites(readme),
 		}
 	}
 
@@ -174,9 +184,24 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 	if err != nil || bases[exampleID] == nil {
 		return BaseRenderContext{}
 	}
-	dc := bases[exampleID].Manifest.DefaultContext
+	base := bases[exampleID]
+	dc := base.Manifest.DefaultContext
+
+	// Populate Variables from manifest defaults so that Go template
+	// rendering succeeds even without caller-supplied values.
+	vars := make(map[string]string, len(base.Manifest.Variables))
+	for _, v := range base.Manifest.Variables {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if len(v.Default) > 0 && isSimpleJSONValue(v.Default) {
+			vars[v.Name] = string(v.Default)
+		}
+	}
+
 	return BaseRenderContext{
 		ContainerImage: dc.ContainerImage,
+		Variables:      vars,
 	}
 }
 
@@ -217,4 +242,25 @@ func BaseTemplateFS(exampleID string) (fs.FS, error) {
 		return nil, xerrors.Errorf("unknown base template %q", exampleID)
 	}
 	return base.FS, nil
+}
+
+// BaseReadme returns the full README.md content for a base template.
+// Returns an empty string if the base is unknown or has no README.
+func BaseReadme(exampleID string) string {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return ""
+	}
+	return bases[exampleID].Readme
+}
+
+// BasePrerequisites returns the prerequisites section extracted from
+// the base template README. Returns an empty string if the base is
+// unknown or has no prerequisites markers.
+func BasePrerequisites(exampleID string) string {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return ""
+	}
+	return bases[exampleID].Prerequisites
 }

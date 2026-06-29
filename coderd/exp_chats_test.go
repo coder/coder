@@ -1982,13 +1982,6 @@ func TestWatchChats(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		lastInjectedContext, err := json.Marshal([]codersdk.ChatMessagePart{{
-			Type:             codersdk.ChatMessagePartTypeSkill,
-			SkillName:        "large-skill",
-			SkillDescription: strings.Repeat("x", 9000),
-		}})
-		require.NoError(t, err)
-
 		// Insert a chat and a diff status row.
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -1996,20 +1989,9 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff status watch test",
 		})
-		chat, err = db.UpdateChatLastInjectedContext(
-			dbauthz.AsChatd(ctx),
-			database.UpdateChatLastInjectedContextParams{
-				ID: chat.ID,
-				LastInjectedContext: pqtype.NullRawMessage{
-					RawMessage: lastInjectedContext,
-					Valid:      true,
-				},
-			},
-		)
-		require.NoError(t, err)
 		refreshedAt := time.Now().UTC().Truncate(time.Second)
 		staleAt := refreshedAt.Add(time.Hour)
-		_, err = db.UpsertChatDiffStatusReference(
+		_, err := db.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:          chat.ID,
@@ -2034,10 +2016,6 @@ func TestWatchChats(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-
-		storedChat, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, storedChat.LastInjectedContext)
 
 		// Open the watch WebSocket.
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
@@ -2069,7 +2047,6 @@ func TestWatchChats(t *testing.T) {
 		require.EqualValues(t, 42, ds.Additions)
 		require.EqualValues(t, 7, ds.Deletions)
 		require.EqualValues(t, 5, ds.ChangedFiles)
-		require.Empty(t, received.Chat.LastInjectedContext)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
@@ -7461,6 +7438,51 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Contains(t, sdkErr.Detail, "does not exist")
 	})
 
+	t.Run("UnsupportedPromptInputFileType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "initial message"},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Using AsChatd to mimic an agent-created artifact.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "artifact.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip data"),
+		})
+		require.NoError(t, err)
+		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+		require.Zero(t, rejected)
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileRow.ID},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "cannot be used as prompt input")
+		require.Contains(t, sdkErr.Detail, "application/json")
+	})
+
 	t.Run("FilesLinkedOnSend", func(t *testing.T) {
 		t.Parallel()
 
@@ -10088,6 +10110,42 @@ func TestGetChatFile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "attachment", disposition)
 		require.Equal(t, "report.pdf", params["filename"])
+	})
+
+	t.Run("AgentArtifactZipServedAsAttachment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte("zip data")
+		//nolint:gocritic // Using AsChatd to mimic an agent-created artifact.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		row, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "artifact.zip",
+			Mimetype:       "application/zip",
+			Data:           data,
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", row.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/zip", res.Header.Get("Content-Type"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
+
+		disposition, params, err := mime.ParseMediaType(res.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		require.Equal(t, "attachment", disposition)
+		require.Equal(t, "artifact.zip", params["filename"])
+
+		got, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, data, got)
 	})
 
 	t.Run("LongFilename", func(t *testing.T) {

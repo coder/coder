@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -595,6 +596,27 @@ func createWorkspace(
 		})
 	}
 
+	// Required external auth is otherwise only enforced by client-side preflight
+	// checks in the CLI and UI, so API-created workspaces must be validated here
+	// before any workspace row is inserted or prebuilt workspace is claimed.
+	templateVersionID := req.TemplateVersionID
+	if templateVersionID == uuid.Nil {
+		templateVersionID = template.ActiveVersionID
+	}
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return codersdk.Workspace{}, httperror.ErrResourceNotFound
+		}
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+	}
+	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+		return codersdk.Workspace{}, err
+	}
+
 	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
@@ -890,6 +912,50 @@ func createWorkspace(
 	}
 
 	return w, nil
+}
+
+// requireWorkspaceOwnerExternalAuth returns a 403 response error when the
+// workspace owner has not authenticated with every required (non-optional)
+// external auth provider referenced by the template version. Token injection
+// at build time uses the owner's external auth links, so the owner is the
+// subject of the check even when another user initiates the build.
+func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateVersion database.TemplateVersion, ownerID uuid.UUID) error {
+	//nolint:gocritic // System access is required to validate the workspace owner's external auth links because admins and API clients may create workspaces for other users.
+	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsSystemRestricted(ctx), templateVersion, ownerID)
+	if err != nil {
+		return err
+	}
+
+	var (
+		missingNames []string
+		validations  []codersdk.ValidationError
+	)
+	for _, provider := range providers {
+		if provider.Optional || provider.Authenticated {
+			continue
+		}
+		name := provider.DisplayName
+		if name == "" {
+			name = provider.ID
+		}
+		missingNames = append(missingNames, name)
+		validations = append(validations, codersdk.ValidationError{
+			Field:  "external_auth",
+			Detail: provider.ID,
+		})
+	}
+	if len(missingNames) == 0 {
+		return nil
+	}
+
+	return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+		Message: "External authentication is required to create a workspace with this template.",
+		Detail: fmt.Sprintf(
+			"The workspace owner must authenticate with the following external auth providers: %s.",
+			strings.Join(missingNames, ", "),
+		),
+		Validations: validations,
+	})
 }
 
 func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {
@@ -2300,13 +2366,13 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This is largely based on the template ACL implementation, and is far from
-	// ideal. Usually, when we use the System context it's because we need to
-	// run some query that won't actually be exposed to the user. That is not
-	// the case here. This data goes directly to an unauthorized user. We are
-	// just straight up breaking security promises.
-	//
-	// TODO: This needs to be fixed before GA. Currently in beta.
+	// Callers are authorized to read this workspace, not necessarily the
+	// users and groups on its ACL. We deliberately use the System context to
+	// look up that data, but only return minimal identity information that is
+	// safe to expose to anyone who can read the ACL: MinimalUser for ACL users
+	// (no email or other PII) and group identity plus a member count for ACL
+	// groups (no member roster). This mirrors the chat ACL and template
+	// available-ACL endpoints.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2318,7 +2384,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// For context see https://github.com/coder/coder/pull/19375
+	// ACL users are returned as MinimalUser, which contains no PII, so it is
+	// safe to fetch them under the System context.
 	// nolint:gocritic
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2350,7 +2417,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// before making the DB call.
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
-		// For context see https://github.com/coder/coder/pull/19375
+		// Group identity must be visible to anyone who can read the ACL so
+		// that owners and shared users can see and manage entries.
 		// nolint:gocritic
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2359,26 +2427,30 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fetch member counts for all groups in a single query to avoid an N+1
+	// lookup. We intentionally do not populate the per-group member rosters:
+	// callers authorized to read the ACL are not necessarily authorized to
+	// read group membership, and the roster includes member PII. Only the
+	// total member count is returned (see Group.TotalMemberCount).
+	// nolint:gocritic
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
-		var members []database.GroupMember
-		// For context see https://github.com/coder/coder/pull/19375
-		// nolint:gocritic
-		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-			GroupID:       it.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
 		groups = append(groups, codersdk.WorkspaceGroup{
-			Group: db2sdk.Group(database.GetGroupsRow{
-				Group:                   it.Group,
-				OrganizationName:        it.OrganizationName,
-				OrganizationDisplayName: it.OrganizationDisplayName,
-			}, members, len(members)),
-			Role: convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
+			Group: db2sdk.Group(it, nil, int(countByGroup[it.Group.ID])),
+			Role:  convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
 		})
 	}
 

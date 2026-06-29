@@ -1,4 +1,4 @@
-import { normalizeProvider } from "../helpers";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { anthropicKnownModels } from "./anthropic";
 import { openAIKnownModels } from "./openai";
 import type { KnownModel, KnownModelSourceMetadata } from "./types";

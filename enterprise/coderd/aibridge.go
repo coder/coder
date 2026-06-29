@@ -47,12 +47,35 @@ var errInvalidCursor = xerrors.New("invalid pagination cursor")
 // check_constraint.go.
 const userAIBudgetOverridesMustBeGroupMemberConstraint database.CheckConstraint = "user_ai_budget_overrides_must_be_group_member"
 
-// aibridgeHandler handles all aibridged-related endpoints.
-func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+// aibridgeHTTPHandler returns the legacy /api/v2/aibridge route tree.
+// Kept for backward compatibility only.
+//
+// NOTE: new endpoints must be registered on the enterprise API
+// handler under /api/v2/ai-gateway, not in this shared route builder.
+func aibridgeHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return aiBridgeRoutes(api, agplaibridge.AIBridgeRootPath, middlewares...)
+}
+
+// aiGatewayHTTPHandler returns the /api/v2/ai-gateway route tree.
+// This shares the same route builder as /aibridge for endpoints that
+// existed before the rename.
+//
+// NOTE: new endpoints must be registered on the enterprise API
+// handler under /api/v2/ai-gateway, not in this shared route builder.
+func aiGatewayHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return aiBridgeRoutes(api, agplaibridge.AIGatewayRootPath, middlewares...)
+}
+
+// aiBridgeRoutes builds the shared route tree for the legacy /aibridge
+// and /ai-gateway prefixes. It contains the upstream AI provider
+// catch-all handler and the management endpoints that were released
+// under /aibridge. The stripPrefix parameter selects which URL prefix
+// to strip before forwarding to the in-memory aibridged handler.
+func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
 	// Build the overload protection middleware chain for the aibridged handler.
 	// These limits are applied per-replica.
 	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
-	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Bridge")
+	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Gateway")
 	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), aiBridgeRateLimitWindow)
 
 	return func(r chi.Router) {
@@ -72,7 +95,8 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if api.AGPL.GetAIBridgedHandler() == nil {
+				handler := api.AGPL.AIGatewayHandler()
+				if handler == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",
 					})
@@ -89,7 +113,8 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				api.AGPL.GetAIBridgedHandler().ServeHTTP(rw, r)
+				// Strip the prefix and relay to the aibridged handler.
+				http.StripPrefix(stripPrefix, handler).ServeHTTP(rw, r)
 			})
 		})
 	}
@@ -97,17 +122,18 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 
 // aiBridgeListSessions returns AI Bridge sessions (aggregated interceptions).
 //
-// @Summary List AI Bridge sessions
-// @ID list-ai-bridge-sessions
+// @Summary List AI Gateway sessions
+// @Description Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
+// @ID list-ai-gateway-sessions
 // @Security CoderSessionToken
 // @Produce json
-// @Tags AI Bridge
+// @Tags AI Gateway
 // @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
 // @Success 200 {object} codersdk.AIBridgeListSessionsResponse
-// @Router /api/v2/aibridge/sessions [get]
+// @Router /api/v2/ai-gateway/sessions [get]
 func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -203,7 +229,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting AI Bridge sessions.",
+			Message: "Internal error getting AI Gateway sessions.",
 			Detail:  err.Error(),
 		})
 		return
@@ -223,17 +249,18 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // aiBridgeGetSessionThreads returns a single session with fully expanded
 // threads including agentic actions and thinking blocks.
 //
-// @Summary Get AI Bridge session threads
-// @ID get-ai-bridge-session-threads
+// @Summary Get AI Gateway session threads
+// @Description Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.
+// @ID get-ai-gateway-session-threads
 // @Security CoderSessionToken
 // @Produce json
-// @Tags AI Bridge
+// @Tags AI Gateway
 // @Param session_id path string true "Session ID (client_session_id or interception UUID)"
 // @Param after_id query string false "Thread pagination cursor (forward/older)"
 // @Param before_id query string false "Thread pagination cursor (backward/newer)"
 // @Param limit query int false "Number of threads per page (default 50)"
 // @Success 200 {object} codersdk.AIBridgeSessionThreadsResponse
-// @Router /api/v2/aibridge/sessions/{session_id} [get]
+// @Router /api/v2/ai-gateway/sessions/{session_id} [get]
 func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -414,13 +441,14 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 
 // aiBridgeListModels returns all AI Bridge models a user can see.
 //
-// @Summary List AI Bridge models
-// @ID list-ai-bridge-models
+// @Summary List AI Gateway models
+// @Description Alias: also available at /api/v2/aibridge/models for backward compatibility.
+// @ID list-ai-gateway-models
 // @Security CoderSessionToken
 // @Produce json
-// @Tags AI Bridge
+// @Tags AI Gateway
 // @Success 200 {array} string
-// @Router /api/v2/aibridge/models [get]
+// @Router /api/v2/ai-gateway/models [get]
 func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -446,7 +474,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid AI Bridge models search query.",
+			Message:     "Invalid AI Gateway models search query.",
 			Validations: errs,
 		})
 		return
@@ -455,7 +483,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	models, err := api.Database.ListAIBridgeModels(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting AI Bridge models.",
+			Message: "Internal error getting AI Gateway models.",
 			Detail:  err.Error(),
 		})
 		return
@@ -466,13 +494,14 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 
 // aiBridgeListClients returns all AI Bridge clients a user can see.
 //
-// @Summary List AI Bridge clients
-// @ID list-ai-bridge-clients
+// @Summary List AI Gateway clients
+// @Description Alias: also available at /api/v2/aibridge/clients for backward compatibility.
+// @ID list-ai-gateway-clients
 // @Security CoderSessionToken
 // @Produce json
-// @Tags AI Bridge
+// @Tags AI Gateway
 // @Success 200 {array} string
-// @Router /api/v2/aibridge/clients [get]
+// @Router /api/v2/ai-gateway/clients [get]
 func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -498,7 +527,7 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid AI Bridge clients search query.",
+			Message:     "Invalid AI Gateway clients search query.",
 			Validations: errs,
 		})
 		return
@@ -507,7 +536,7 @@ func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	clients, err := api.Database.ListAIBridgeClients(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting AI Bridge clients.",
+			Message: "Internal error getting AI Gateway clients.",
 			Detail:  err.Error(),
 		})
 		return

@@ -1,6 +1,7 @@
 package aibridge
 
 import (
+	"context"
 	"crypto/tls"
 	"maps"
 	"net"
@@ -316,10 +317,12 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				r.Header.Set("X-Api-Key", key)
 			},
 			newProvider: func(baseURL string, pool *keypool.Pool) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				p, err := provider.NewAnthropic(context.Background(), config.Anthropic{
 					BaseURL: baseURL,
 					KeyPool: pool,
 				}, nil)
+				require.NoError(t, err)
+				return p
 			},
 		},
 		{

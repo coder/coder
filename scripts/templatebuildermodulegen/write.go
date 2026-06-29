@@ -27,6 +27,7 @@ variable "{{ .Name }}" {
   description = "{{ .Description }}"
   type        = {{ .Type }}
   sensitive   = true
+  default     = ""
 }
 {{ end -}}
 module "{{ .ID }}" {

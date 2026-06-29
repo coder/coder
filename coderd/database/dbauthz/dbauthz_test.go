@@ -1899,19 +1899,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatMCPServerIDs(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
-	s.Run("UpdateChatLastInjectedContext", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.UpdateChatLastInjectedContextParams{
-			ID: chat.ID,
-			LastInjectedContext: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(`[{"type":"text","text":"test"}]`),
-				Valid:      true,
-			},
-		}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatLastInjectedContext(gomock.Any(), arg).Return(chat, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
-	}))
 	s.Run("UpdateChatLastTurnSummary", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatLastTurnSummaryParams{
@@ -2686,6 +2673,11 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateVersionTerraformValues(gomock.Any(), tv.ID).Return(val, nil).AnyTimes()
 		check.Args(tv.ID).Asserts(t, policy.ActionRead)
+	}))
+	s.Run("HasTemplateVersionsUsingCachedModuleFileInOrg", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.HasTemplateVersionsUsingCachedModuleFileInOrgParams{FileID: uuid.New(), OrganizationID: uuid.New()}
+		dbm.EXPECT().HasTemplateVersionsUsingCachedModuleFileInOrg(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceFile.InOrg(arg.OrganizationID), policy.ActionRead).Returns(true)
 	}))
 	s.Run("GetTemplateVersionVariables", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
@@ -4150,6 +4142,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().UpdateWorkspaceBuildDeadlineByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(w, policy.ActionUpdate)
 	}))
+	s.Run("UpdateWorkspaceBuildNotifiedAutostopDeadline", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{WorkspaceID: w.ID})
+		arg := database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams{ID: b.ID, NotifiedAutostopDeadline: b.Deadline}
+		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().UpdateWorkspaceBuildNotifiedAutostopDeadline(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionUpdate)
+	}))
 	s.Run("UpdateWorkspaceBuildFlagsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		o := testutil.Fake(s.T(), faker, database.Organization{})
@@ -5297,9 +5298,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspacesByTemplateID(gomock.Any(), id).Return([]database.WorkspaceTable{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetWorkspacesEligibleForTransition", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetWorkspacesEligibleForLifecycleAction", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
-		dbm.EXPECT().GetWorkspacesEligibleForTransition(gomock.Any(), t).Return([]database.GetWorkspacesEligibleForTransitionRow{}, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspacesEligibleForLifecycleAction(gomock.Any(), t).Return([]database.GetWorkspacesEligibleForLifecycleActionRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("InsertTemplateVersionVariable", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -6966,6 +6967,17 @@ func (s *MethodTestSuite) TestAIBridge() {
 		id := uuid.New()
 		dbm.EXPECT().DeleteAIGatewayKey(gomock.Any(), id).Return(database.DeleteAIGatewayKeyRow{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionDelete).Returns(database.DeleteAIGatewayKeyRow{})
+	}))
+	s.Run("GetAIGatewayKeyByHashedSecret", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		hashedSecret := []byte("hashed-secret")
+		key := database.AIGatewayKey{ID: uuid.New(), HashedSecret: hashedSecret}
+		dbm.EXPECT().GetAIGatewayKeyByHashedSecret(gomock.Any(), hashedSecret).Return(key, nil).AnyTimes()
+		check.Args(hashedSecret).Asserts(rbac.ResourceAIGatewayKey, policy.ActionRead).Returns(key)
+	}))
+	s.Run("UpdateAIGatewayKeyLastHeartbeatAt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().UpdateAIGatewayKeyLastHeartbeatAt(gomock.Any(), id).Return(int64(1), nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionUpdate).Returns(int64(1))
 	}))
 }
 

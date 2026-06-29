@@ -213,7 +213,15 @@ func (server *Server) prepareGeneration(
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
 		resolvedUserPrompt string
+		planPathBlock      string
 	)
+
+	// Drop provider-executed tool history produced by a different provider
+	// before building the prompt. A provider that shares another's wire format
+	// (e.g. Bedrock and Anthropic) can still reject the other's
+	// provider-executed blocks, so a mid-chat provider switch must not replay
+	// them.
+	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, modelConfig.ID)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -225,8 +233,16 @@ func (server *Server) prepareGeneration(
 		// history; only metadata is mutated here.
 		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
 
+		// API-created chats bind their agent lazily here, after
+		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
+		// bound agent's pushed snapshot now if it is still unpinned, so the
+		// first turn reads workspace context instead of waiting for the
+		// agent's next push. Idempotent and snapshot-gated; runs before the
+		// pinned context is read below.
+		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
+
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent, promptRows)
+		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
 			cleanup()
 			return generationPrepared{}, resolveErr
@@ -236,7 +252,15 @@ func (server *Server) prepareGeneration(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(modelConfig.Provider), logger)
+		// Key the file-part acceptance on model.Provider() (the fantasy
+		// transport identity), not the configured provider, because
+		// aibridge routing rewrites the provider (e.g. Bedrock to the
+		// Anthropic transport). The conversion that actually drops or
+		// accepts a file part is the one for model.Provider().
+		acceptsFilePart := func(mediaType string) bool {
+			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
+		}
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(modelConfig.Provider), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
@@ -268,6 +292,17 @@ func (server *Server) prepareGeneration(
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
+			return nil
+		})
+	}
+	// Resolve the per-chat plan path block in the parallel phase. It dials
+	// the workspace agent to read the home directory, so running it here lets
+	// the cold dial overlap with the rest of turn preparation instead of
+	// blocking system prompt assembly on a sequential dial. Best-effort:
+	// resolvePlanPathBlock logs and returns an empty block on failure.
+	if chat.WorkspaceID.Valid && !chat.ParentChatID.Valid {
+		g2.Go(func() error {
+			planPathBlock = resolvePlanPathBlock(ctx)
 			return nil
 		})
 	}
@@ -322,7 +357,7 @@ func (server *Server) prepareGeneration(
 	if advisorRuntime != nil {
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
-	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
+	prompt = renderPlanPathPrompt(prompt, planPathBlock)
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
@@ -359,7 +394,6 @@ func (server *Server) prepareGeneration(
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
-			primerCtx:       ctx,
 		})
 	}
 
@@ -563,13 +597,10 @@ func (server *Server) prepareGeneration(
 	compactionOptions.StepUsage = latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionOptions.StepUsage, modelConfig.ContextLimit, effectiveThreshold)
 
-	workspaceContextEligible := chat.WorkspaceID.Valid && isRootChat && !isPlanModeTurn && !isExploreSubagent
-
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
 	// AgentID/BuildID binding from the getWorkspaceAgent call above.
-	// Return that snapshot so the chatworker decision helper sees
-	// the up-to-date metadata when deciding whether to run
-	// persist_workspace_context.
+	// Return that snapshot so downstream consumers see the up-to-date
+	// metadata.
 	refreshedChat := workspaceCtx.currentChatSnapshot()
 	if refreshedChat.ID == uuid.Nil {
 		refreshedChat = chat
@@ -601,9 +632,8 @@ func (server *Server) prepareGeneration(
 			Required: compactionNeeded,
 			Options:  compactionOptions,
 		},
-		Cleanup:                  cleanup,
-		Debug:                    debug,
-		WorkspaceContextEligible: workspaceContextEligible,
+		Cleanup: cleanup,
+		Debug:   debug,
 	}, nil
 }
 

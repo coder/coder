@@ -416,12 +416,10 @@ func TestConfigCache_Singleflight(t *testing.T) {
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	for i := 0; i < callers; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			results[i], errs[i] = cache.EnabledProviders(ctx)
-		}(i)
+		})
 	}
 
 	close(start)

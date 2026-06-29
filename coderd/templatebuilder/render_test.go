@@ -58,6 +58,10 @@ func TestRenderBaseTemplate(t *testing.T) {
 		renderCtx := templatebuilder.BaseRenderContext{
 			ContainerImage: "custom/image:latest",
 			ImageOptions:   imageOpts,
+			Variables: map[string]string{
+				"namespace":      `"test-ns"`,
+				"use_kubeconfig": "false",
+			},
 		}
 		out, err := templatebuilder.RenderBaseTemplate("kubernetes", "main.tf.tmpl", renderCtx)
 		require.NoError(t, err)

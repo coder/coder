@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -48,6 +49,7 @@ type PoolMetrics interface {
 type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
+	Clock    quartz.Clock
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
@@ -56,6 +58,7 @@ var _ Pooler = &CachedBridgePool{}
 
 type CachedBridgePool struct {
 	cache *ristretto.Cache[string, *aibridge.RequestBridge]
+	clock quartz.Clock
 	// providers is the live provider set used by new RequestBridge
 	// instances. Includes disabled providers.
 	providers       atomic.Pointer[[]aibridge.Provider]
@@ -70,6 +73,11 @@ type CachedBridgePool struct {
 
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
+
+	// cacheMu + cacheWG order cache use against Shutdown. Without it,
+	// (*ristretto.Cache).Close may race against cache usage.
+	cacheMu sync.RWMutex
+	cacheWG sync.WaitGroup
 }
 
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
@@ -100,8 +108,14 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 		return nil, xerrors.Errorf("create cache: %w", err)
 	}
 
+	clk := options.Clock
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+
 	pool := &CachedBridgePool{
 		cache:   cache,
+		clock:   clk,
 		options: options,
 		metrics: metrics,
 		tracer:  tracer,
@@ -120,14 +134,20 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 // It is safe to call concurrently with Acquire and is a no-op after
 // Shutdown.
 func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
+	p.cacheMu.RLock()
 	select {
 	case <-p.shuttingDownCh:
+		p.cacheMu.RUnlock()
 		return
 	default:
 	}
+	p.cacheWG.Add(1)
+	p.cacheMu.RUnlock()
+	defer p.cacheWG.Done()
+
 	snapshot := slices.Clone(providers)
 	p.providers.Store(&snapshot)
-	version := time.Now().UnixNano()
+	version := p.clock.Now("provider_reload_version").UnixNano()
 	p.providerVersion.Store(version)
 	// Clear evicts every cached bridge; OnEvict shuts each one down in
 	// the background. Wait for buffered writes to drain so a replacement
@@ -178,11 +198,16 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
 
+	p.cacheMu.RLock()
 	select {
 	case <-p.shuttingDownCh:
+		p.cacheMu.RUnlock()
 		return nil, xerrors.New("pool shutting down")
 	default:
 	}
+	p.cacheWG.Add(1)
+	p.cacheMu.RUnlock()
+	defer p.cacheWG.Done()
 
 	// Wait for all buffered writes to be applied, otherwise multiple calls in quick succession
 	// may visit the slow path unnecessarily.
@@ -235,7 +260,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer)
+		bridge, err := aibridge.NewRequestBridge(ctx, p.loadProviders(), recorder, mcpServers, p.logger, p.metrics, p.tracer, aibridge.WithClock(p.clock))
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
@@ -261,8 +286,12 @@ func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
 func (p *CachedBridgePool) Shutdown(_ context.Context) error {
 	p.shutDownOnce.Do(func() {
-		// Prevent new requests from being served.
+		// Block new cache use, drain in-flight ops, then close (see cacheMu).
+		p.cacheMu.Lock()
 		close(p.shuttingDownCh)
+		p.cacheMu.Unlock()
+
+		p.cacheWG.Wait()
 
 		p.cache.Close()
 	})

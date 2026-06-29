@@ -96,6 +96,11 @@ type connHandlers struct {
 func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
 	connOpts := []natsgo.Option{
 		natsgo.Name(connName),
+		// Suppress async callbacks when we close the connection ourselves
+		// during Pubsub.Close, so a graceful shutdown does not fire the
+		// disconnect handler and inflate disconnections_total. Genuine
+		// disconnects still invoke the handler.
+		natsgo.NoCallbacksAfterClientClose(),
 	}
 	if opts.ClusterAuthToken != "" {
 		connOpts = append(connOpts, natsgo.Token(opts.ClusterAuthToken))
