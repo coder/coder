@@ -1391,8 +1391,7 @@ func (*WatchAIProvidersRequest) Descriptor() ([]byte, []int) {
 	return file_coderd_aibridged_proto_aibridged_proto_rawDescGZIP(), []int{21}
 }
 
-// WatchAIProvidersResponse is an intentionally empty change signal. The client
-// refetches the authoritative provider set via GetAIProviders on receipt.
+// WatchAIProvidersResponse is an intentionally empty change signal.
 type WatchAIProvidersResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

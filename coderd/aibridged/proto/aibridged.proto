@@ -182,8 +182,7 @@ message GetAIProvidersResponse {
 
 message WatchAIProvidersRequest {}
 
-// WatchAIProvidersResponse is an intentionally empty change signal. The client
-// refetches the authoritative provider set via GetAIProviders on receipt.
+// WatchAIProvidersResponse is an intentionally empty change signal.
 message WatchAIProvidersResponse {}
 
 message AIProvider {
