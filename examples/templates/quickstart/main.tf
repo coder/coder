@@ -88,11 +88,6 @@ data "coder_parameter" "ides" {
     icon  = "/icon/code.svg"
   }
   option {
-    name  = "VS Code Desktop"
-    value = "vscode-desktop"
-    icon  = "/icon/code.svg"
-  }
-  option {
     name  = "Cursor"
     value = "cursor"
     icon  = "/icon/cursor.svg"
@@ -283,14 +278,10 @@ module "code-server" {
   order    = 1
 }
 
-module "vscode-desktop" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "vscode-desktop") ? 1 : 0)
-  source   = "registry.coder.com/coder/vscode-desktop/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
-  order    = 2
-}
+# VS Code Desktop is intentionally omitted here. Coder enables the VS Code
+# Desktop display app for every workspace by default (see DefaultDisplayApps
+# in provisionersdk/agent.go), so adding the vscode-desktop module would show
+# a duplicate "VS Code Desktop" button.
 
 module "cursor" {
   count    = data.coder_workspace.me.start_count * (contains(local.ides, "cursor") ? 1 : 0)
