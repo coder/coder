@@ -1150,6 +1150,70 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	}
 }
 
+// TestRecordChatSummaryUsage_InsertsAccountingRow verifies the background
+// summary path persists its spend through InsertChatAccountingMessage tagged
+// with cost_source='summary' and soft-deletes the row, mirroring the manual
+// title path. Using the dedicated accounting insert (rather than
+// InsertChatMessages plus a follow-up tag) is what keeps the row from advancing
+// history_version.
+func TestRecordChatSummaryUsage_InsertsAccountingRow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	usageTx := dbmock.NewMockStore(ctrl)
+
+	ownerID := uuid.New()
+	chatID := uuid.New()
+	modelConfigID := uuid.New()
+	activeAPIKeyID := "key-" + uuid.NewString()
+
+	chat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusRunning,
+	}
+	modelConfig := database.ChatModelConfig{
+		ID:           modelConfigID,
+		Provider:     "openai",
+		Model:        "gpt-4o-mini",
+		ContextLimit: 8192,
+	}
+	usage := fantasy.Usage{
+		InputTokens:  120,
+		OutputTokens: 45,
+		TotalTokens:  165,
+	}
+
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, opts *database.TxOptions) error {
+			require.Nil(t, opts)
+			return fn(usageTx)
+		},
+	)
+	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
+	usageTx.EXPECT().InsertChatAccountingMessage(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatAccountingMessageParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
+			require.Equal(t, chatID, arg.ChatID)
+			require.Equal(t, ownerID, arg.CreatedBy)
+			require.Equal(t, modelConfigID, arg.ModelConfigID)
+			require.Equal(t, activeAPIKeyID, arg.APIKeyID)
+			require.Equal(t, json.RawMessage("[]"), arg.Content)
+			require.Equal(t, usage.InputTokens, arg.InputTokens)
+			require.Equal(t, usage.OutputTokens, arg.OutputTokens)
+			require.Equal(t, chatCostSourceSummary, arg.CostSource)
+			return database.ChatMessage{ID: 77}, nil
+		},
+	)
+	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(77)).Return(nil)
+
+	gotChat, err := recordChatSummaryUsage(ctx, db, chat, modelConfig, usage, activeAPIKeyID)
+	require.NoError(t, err)
+	require.Equal(t, chat, gotChat)
+}
+
 func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 	t.Parallel()
 

@@ -9749,7 +9749,7 @@ INSERT INTO chat_messages (
     NULLIF($17::bigint, 0),
     NULLIF($18::bigint, 0),
     NULLIF($19::text, ''),
-    NULLIF($20::text, '')
+    $20::text
 )
 RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
 `
@@ -9785,6 +9785,11 @@ type InsertChatAccountingMessageParams struct {
 // summary write is guarded on history_version, and a row that advanced it would
 // invalidate that write. Unlike InsertChatMessages this does not touch
 // chats.last_model_config_id, so callers do not need to restore it.
+//
+// cost_source is stored verbatim (no NULLIF) so it can never silently become
+// NULL: an empty value fails the chat_messages cost_source CHECK and surfaces a
+// caller bug instead of producing a row the history triggers treat as ordinary
+// turn history.
 func (q *sqlQuerier) InsertChatAccountingMessage(ctx context.Context, arg InsertChatAccountingMessageParams) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, insertChatAccountingMessage,
 		arg.ChatID,

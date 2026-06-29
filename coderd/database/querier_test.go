@@ -12675,6 +12675,23 @@ func TestInsertChatAccountingMessage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, historyBefore, afterChat.HistoryVersion,
 		"accounting-row insert must NOT advance history_version")
+
+	// cost_source is stored verbatim (no NULLIF), so an empty value violates the
+	// chat_messages cost_source CHECK instead of silently becoming NULL. A NULL
+	// cost_source would make the history triggers treat the row as ordinary turn
+	// history and advance history_version, the exact bug this query prevents.
+	_, err = db.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
+		ChatID:         chat.ID,
+		CreatedBy:      owner.ID,
+		ModelConfigID:  modelCfg.ID,
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        json.RawMessage(`[]`),
+		ContentVersion: 1,
+		Visibility:     database.ChatMessageVisibilityModel,
+		CostSource:     "",
+	})
+	require.Error(t, err,
+		"empty cost_source must fail the CHECK constraint, not silently insert NULL")
 }
 
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {

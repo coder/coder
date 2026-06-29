@@ -1032,6 +1032,11 @@ type sqlcQuerier interface {
 	// summary write is guarded on history_version, and a row that advanced it would
 	// invalidate that write. Unlike InsertChatMessages this does not touch
 	// chats.last_model_config_id, so callers do not need to restore it.
+	//
+	// cost_source is stored verbatim (no NULLIF) so it can never silently become
+	// NULL: an empty value fails the chat_messages cost_source CHECK and surfaces a
+	// caller bug instead of producing a row the history triggers treat as ordinary
+	// turn history.
 	InsertChatAccountingMessage(ctx context.Context, arg InsertChatAccountingMessageParams) (ChatMessage, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
