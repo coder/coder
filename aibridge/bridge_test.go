@@ -2,6 +2,7 @@ package aibridge_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,9 +20,70 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	codertestutil "github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 var bridgeTestTracer = otel.Tracer("bridge_test")
+
+// TestRequestBridgeShutdownAdmissionRace deterministically interleaves request
+// admission with Shutdown using the `serve_admission` quartz trap.
+func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		<-release
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	clk := quartz.NewMock(t)
+	trap := clk.Trap().Now("serve_admission")
+	defer trap.Close()
+
+	rec := testutil.MockRecorder{}
+	prov := aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})
+	bridge, err := aibridge.NewRequestBridge(ctx, []provider.Provider{prov}, &rec, nil, logger, nil, bridgeTestTracer, aibridge.WithClock(clk))
+	require.NoError(t, err)
+
+	serve := func(done chan struct{}) {
+		defer close(done)
+		bridge.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/openai/v1/conversations", nil))
+	}
+
+	// Request 1: admit past the trap; it then blocks in the upstream, holding
+	// the inflight WaitGroup (counter == 1).
+	req1 := make(chan struct{})
+	go serve(req1)
+	trap.MustWait(ctx).MustRelease(ctx)
+
+	// Request 2: park at the trap, having passed the closed check but before
+	// inflightWG.Add.
+	req2 := make(chan struct{})
+	go serve(req2)
+	call2 := trap.MustWait(ctx)
+
+	// Shutdown closes and waits on the inflight WaitGroup (held by request 1).
+	shutdown := make(chan struct{})
+	go func() {
+		defer close(shutdown)
+		_ = bridge.Shutdown(context.Background())
+	}()
+
+	// Releasing request 2 races its inflightWG.Add against Shutdown's Wait.
+	call2.MustRelease(ctx)
+
+	// Let both requests complete so Shutdown can finish.
+	close(release)
+	_ = codertestutil.TryReceive(ctx, t, req1)
+	_ = codertestutil.TryReceive(ctx, t, req2)
+	_ = codertestutil.TryReceive(ctx, t, shutdown)
+}
 
 func TestValidateProviders(t *testing.T) {
 	t.Parallel()
