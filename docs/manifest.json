@@ -13,11 +13,6 @@
 					"path": "./about/screenshots.md"
 				},
 				{
-					"title": "Quickstart",
-					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
-				},
-				{
 					"title": "Support",
 					"description": "How Coder supports your deployment and you",
 					"path": "./support/index.md",
@@ -86,6 +81,12 @@
 					]
 				}
 			]
+		},
+		{
+			"title": "Get started",
+			"description": "Install Coder and launch your first workspace",
+			"path": "./get-started/index.md",
+			"icon_path": "./images/icons/rocket.svg"
 		},
 		{
 			"title": "Install",
@@ -1362,7 +1363,7 @@
 				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
+					"path": "./get-started/index.md"
 				},
 				{
 					"title": "Write a Template from Scratch",

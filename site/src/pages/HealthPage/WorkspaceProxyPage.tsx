@@ -141,7 +141,7 @@ const WorkspaceProxyPage: FC = () => {
 										))}
 									</div>
 								)}
-								<span data-chromatic="ignore">
+								<span data-pixel="ignore">
 									{createDayString(region.updated_at)}
 								</span>
 							</div>
