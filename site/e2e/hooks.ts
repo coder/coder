@@ -54,38 +54,58 @@ export const beforeCoderTest = (page: Page) => {
 };
 
 export const resetExternalAuthKey = async (context: BrowserContext) => {
-	// Find the session token so we can destroy the external auth link between tests, to ensure valid authentication happens each time.
+	// Find the session token so we can destroy the external auth links between
+	// tests, to ensure valid authentication happens each time.
 	const cookies = await context.cookies();
 	const sessionCookie = cookies.find((c) => c.name === "coder_session_token");
-	const options = {
-		method: "DELETE",
-		hostname: "127.0.0.1",
-		port: coderPort,
-		path: `/api/v2/external-auth/${gitAuth.webProvider}?coder_session_token=${sessionCookie?.value}`,
-	};
 
-	const req = http.request(options, (res) => {
-		let data = "";
-		res.on("data", (chunk) => {
-			data += chunk;
+	// Reset every provider the suite exercises so repeated runs against the same
+	// coderd instance get a clean slate; otherwise the device-flow link from a
+	// previous iteration trips the test on its next pass.
+	const providers = [gitAuth.webProvider, gitAuth.deviceProvider];
+	await Promise.all(
+		providers.map((provider) =>
+			deleteExternalAuthLink(provider, sessionCookie?.value),
+		),
+	);
+};
+
+const deleteExternalAuthLink = (
+	provider: string,
+	sessionToken: string | undefined,
+): Promise<void> => {
+	return new Promise((resolve, reject) => {
+		const options = {
+			method: "DELETE",
+			hostname: "127.0.0.1",
+			port: coderPort,
+			path: `/api/v2/external-auth/${provider}?coder_session_token=${sessionToken}`,
+		};
+
+		const req = http.request(options, (res) => {
+			let data = "";
+			res.on("data", (chunk) => {
+				data += chunk;
+			});
+
+			res.on("end", () => {
+				// 200 = link deleted; 404 = no link existed for this provider.
+				if (res.statusCode !== 200 && res.statusCode !== 404) {
+					console.error("failed to delete external auth link", data);
+					reject(
+						new Error(
+							`failed to delete external auth link: HTTP response ${res.statusCode}`,
+						),
+					);
+					return;
+				}
+				resolve();
+			});
 		});
 
-		res.on("end", () => {
-			// 200 = link deleted; 404 = no link existed for this provider.
-			if (res.statusCode !== 200 && res.statusCode !== 404) {
-				console.error("failed to delete external auth link", data);
-				throw new Error(
-					`failed to delete external auth link: HTTP response ${res.statusCode}`,
-				);
-			}
-		});
+		req.on("error", reject);
+		req.end();
 	});
-
-	req.on("error", (err) => {
-		throw err.message;
-	});
-
-	req.end();
 };
 
 const isApiCall = (urlString: string): boolean => {
