@@ -19,6 +19,7 @@ import {
 	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
+	chatCostKey,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -55,6 +56,7 @@ import {
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
@@ -84,6 +86,11 @@ export const shouldInvalidateFilteredChatList = (
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+
+export const shouldInvalidateChatCost = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean => eventKind === "status_change" && !isActiveChatStatus(chat.status);
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -647,6 +654,12 @@ const AgentsPage: FC = () => {
 						});
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
+						}
+						if (shouldInvalidateChatCost(updatedChat, chatEvent.kind)) {
+							void queryClient.invalidateQueries({
+								queryKey: chatCostKey(updatedChat.id),
+								exact: true,
+							});
 						}
 						if (chatEvent.kind === "context_dirty") {
 							// The watch payload carries only the lightweight

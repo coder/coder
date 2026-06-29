@@ -1,7 +1,7 @@
 import type { FC, ReactNode } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
-import { formatDate } from "#/utils/time";
+import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 
 const EMPTY_VALUE = "-";
 
@@ -51,26 +51,22 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 
 	return (
 		<div className="flex flex-col gap-4">
-			<h3 className="m-0 text-lg font-semibold text-content-primary">
-				Summary
-			</h3>
-
 			{trimmedSummary ? (
-				<p className="m-0 text-sm leading-relaxed text-content-primary">
+				<p className="m-0 font-sans text-pretty text-sm font-normal leading-6 text-content-primary">
 					{trimmedSummary}
 				</p>
 			) : (
-				<p className="m-0 text-sm italic text-content-secondary">
+				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
 					No summary yet.
 				</p>
 			)}
 
-			<dl className="m-0 flex flex-col gap-2">
+			<dl className="m-0 flex flex-col gap-1.5">
 				<ChatSummaryRow label="Created:">
-					{formatDate(new Date(createdAt))}
+					{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
 				</ChatSummaryRow>
 				<ChatSummaryRow label="Updated:">
-					{formatDate(new Date(updatedAt))}
+					{formatDateTime(updatedAt, DATE_FORMAT.MEDIUM_DATE)}
 				</ChatSummaryRow>
 				<ChatSummaryRow label="Cost:">
 					{isCostLoading ? (
@@ -101,8 +97,10 @@ interface ChatSummaryRowProps {
 }
 
 const ChatSummaryRow: FC<ChatSummaryRowProps> = ({ label, children }) => (
-	<div className="flex items-center justify-between gap-4 text-sm">
+	<div className="grid grid-cols-[65px_minmax(0,1fr)] gap-x-2 text-sm leading-6">
 		<dt className="text-content-secondary">{label}</dt>
-		<dd className="m-0 font-medium text-content-primary">{children}</dd>
+		<dd className="m-0 font-sans text-sm font-normal leading-6 text-content-primary">
+			{children}
+		</dd>
 	</div>
 );
