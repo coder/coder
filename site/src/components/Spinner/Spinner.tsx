@@ -4,7 +4,7 @@
  * https://v0.dev/ help.
  */
 
-import isChromatic from "chromatic/isChromatic";
+import { isPixel } from "@coder/pixel-storybook";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "#/utils/cn";
@@ -59,7 +59,7 @@ export function Spinner({
 					rx="1"
 					// 0.8 = leaves * 0.1
 					className={
-						isChromatic() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
+						isPixel() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
 					}
 					style={{
 						transform: `rotate(${leaf * (360 / leaves.length)}deg)`,

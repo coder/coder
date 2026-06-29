@@ -1,10 +1,10 @@
-import isChromatic from "chromatic/isChromatic";
+import { isPixel } from "@coder/pixel-storybook";
 import type { FC } from "react";
 import { pageTitle } from "#/utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";
 
 const CliInstallPage: FC = () => {
-	const origin = isChromatic() ? "https://example.com" : location.origin;
+	const origin = isPixel() ? "https://example.com" : location.origin;
 
 	return (
 		<>

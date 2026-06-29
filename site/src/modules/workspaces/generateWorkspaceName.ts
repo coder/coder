@@ -1,4 +1,4 @@
-import isChromatic from "chromatic/isChromatic";
+import { isPixel } from "@coder/pixel-storybook";
 import {
 	animals,
 	colors,
@@ -7,7 +7,7 @@ import {
 } from "unique-names-generator";
 
 export const generateWorkspaceName = () => {
-	if (isChromatic()) {
+	if (isPixel()) {
 		return "yellow-bird-23";
 	}
 	const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 });
