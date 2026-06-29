@@ -11,8 +11,8 @@ import (
 
 //nolint:paralleltest // Prepare mutates the process environment.
 func TestPrepare(t *testing.T) {
-	// Track every variable Prepare touches so the test framework restores
-	// them afterward, keeping the process environment hermetic.
+	// Seed t.Setenv for each variable Prepare modifies so they're restored
+	// after the test.
 	t.Setenv("CODER_ACCESS_URL", "https://example.com")
 	t.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "")
 	t.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "")
