@@ -4928,17 +4928,19 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	// Launch background summary generation tracked by p.inflight so Close()
-	// waits for it. Bail out early if shutdown has begun: generation can run for
-	// up to chatSummaryWorkTimeout, and Close() must not block that long. The
-	// atomic inflightClosed check reproduces goInflight's shutdown admission
-	// gate without taking inflightMu, which drainInflight holds while waiting.
-	p.inflight.Go(func() {
-		if p.inflightClosed.Load() {
-			return
-		}
+	// Launch background summary generation through goInflight so Close() waits
+	// for it and the WaitGroup Add is serialized with drainInflight under
+	// inflightMu, matching the sibling finalize and last-turn-summary helpers. A
+	// direct p.inflight.Go would Add to the WaitGroup outside inflightMu and
+	// before the shutdown check, which can race drainInflight's Wait. goInflight
+	// instead drops the launch once shutdown has begun, so Close() is never
+	// blocked for up to chatSummaryWorkTimeout by a turn finishing concurrently.
+	if err := p.goInflight(func() {
 		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, runResult, logger)
-	})
+	}); err != nil {
+		logger.Debug(context.WithoutCancel(ctx), "skipped chat summary generation",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
 }
 
 // generateAndStoreChatSummary regenerates the whole-chat summary when the
@@ -4956,21 +4958,27 @@ func (p *Server) generateAndStoreChatSummary(
 	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
 	authCtx := dbauthz.AsChatd(ctx)
 
-	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
+	// Re-read the chat before loading the transcript so the captured
+	// history_version is no newer than the messages it guards. The chat passed
+	// in is a snapshot from when the turn finished; reading it fresh also lets
+	// the cadence gate see the latest Summary and SummaryGeneratedAt, so two
+	// rapid back-to-back turns do not both pass the gate and call the LLM.
+	//
+	// Ordering matters for correctness: if a new turn commits between these two
+	// reads, the captured history_version stays behind the transcript, so the
+	// UpdateChatSummary guard rejects the write rather than persisting a summary
+	// that omits the just-committed turn and advancing the cadence marker past
+	// it.
+	chat, err := p.db.GetChatByID(authCtx, chat.ID)
 	if err != nil {
-		logger.Debug(ctx, "failed to load messages for chat summary",
+		logger.Debug(ctx, "failed to re-read chat for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
 
-	// Re-read the chat so the cadence gate sees the freshest Summary and
-	// SummaryGeneratedAt. The chat passed in is a snapshot from when the turn
-	// finished. Without this, two rapid back-to-back turns both see the same
-	// stale snapshot, both pass the gate, and both call the LLM, even though the
-	// history_version guard in UpdateChatSummary still persists only one.
-	chat, err = p.db.GetChatByID(authCtx, chat.ID)
+	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
 	if err != nil {
-		logger.Debug(ctx, "failed to re-read chat for summary",
+		logger.Debug(ctx, "failed to load messages for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
