@@ -52,17 +52,6 @@ const meta: Meta<typeof GroupPage> = {
 			),
 		}),
 	},
-	// Default usage-limit status so the AI budget tooltip resolves a reset date.
-	beforeEach: () => {
-		spyOn(API.experimental, "getChatUsageLimitStatus").mockResolvedValue({
-			is_limited: true,
-			period: "month",
-			spend_limit_micros: 9_000_000_000,
-			current_spend: 1_345_000_000,
-			period_start: "2026-06-01T00:00:00Z",
-			period_end: "2026-07-01T00:00:00Z",
-		});
-	},
 };
 
 const groupQuery = (data: unknown) => ({

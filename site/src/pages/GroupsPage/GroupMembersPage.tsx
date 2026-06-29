@@ -9,7 +9,6 @@ import type {
 	GroupMemberWithAICostControl,
 } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { chatUsageLimitStatus } from "#/api/queries/chats";
 import { addMembers, groupById, removeMember } from "#/api/queries/groups";
 import type {
 	Group,
@@ -78,22 +77,13 @@ const GroupMembersPage: FC = () => {
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
 
-	// Reset date for the AI budget tooltip; spend resets at the period end.
-	const { data: usageLimitStatus } = useQuery({
-		...chatUsageLimitStatus(),
-		enabled: aibridgeVisible,
-	});
-	const periodWord = usageLimitStatus?.period
-		? { day: "Daily", week: "Weekly", month: "Monthly" }[
-				usageLimitStatus.period
-			]
-		: undefined;
-	const resetAt = usageLimitStatus?.period_end
-		? dayjs(usageLimitStatus.period_end).format("MMM D, YYYY h:mm A")
-		: undefined;
-	const aiBudgetNote = `${
-		periodWord ? `${periodWord} ` : ""
-	}AI API cost for this user.${resetAt ? ` Resets ${resetAt}` : ""}`;
+	// AI spend resets at the start of each UTC calendar month, the only
+	// supported AIBudgetPeriod, so the next reset is the first of next month.
+	const now = new Date();
+	const resetAt = dayjs(
+		new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+	).format("MMM D, YYYY h:mm A");
+	const aiBudgetNote = `Monthly AI API cost for this user. Resets ${resetAt}`;
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
