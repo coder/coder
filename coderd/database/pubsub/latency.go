@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -75,6 +76,12 @@ func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) (send, recv ti
 	}
 }
 
+// channelPrefix is the common prefix of every channel name this measurer
+// uses. Uniqueness across replicas comes from the channel UUID.
+func (lm *LatencyMeasurer) channelPrefix() string {
+	return fmt.Sprintf("latency-measure:%s.", lm.channel)
+}
+
 // nextChannelName returns a channel name unique to this measurement.
 // Uniqueness across replicas comes from the channel UUID; uniqueness
 // across consecutive measurements of the same replica comes from the
@@ -82,5 +89,14 @@ func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) (send, recv ti
 // identifier limit: 16 (prefix) + 36 (UUID) + 1 (dot) leaves 10 digits
 // for the sequence.
 func (lm *LatencyMeasurer) nextChannelName() string {
-	return fmt.Sprintf("latency-measure:%s.%d", lm.channel, lm.seq.Add(1))
+	return fmt.Sprintf("%s%d", lm.channelPrefix(), lm.seq.Add(1))
+}
+
+// isMeasurementChannel reports whether event is one of this measurer's
+// internal probe channels. Because each measurement uses a unique
+// sequence-suffixed name, this matches on the shared per-measurer prefix.
+// Callers use it to keep the latency probe's transient subscriptions out
+// of the current_events/current_subscribers gauges.
+func (lm *LatencyMeasurer) isMeasurementChannel(event string) bool {
+	return strings.HasPrefix(event, lm.channelPrefix())
 }
