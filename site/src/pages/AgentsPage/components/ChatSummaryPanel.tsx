@@ -24,12 +24,9 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 }) => {
-	// Created/Updated come from the cached chat query, which the AgentsPage keeps
-	// live via its watchChats merge. A background refetch may still run when the
-	// tab becomes visible, but cached data renders without a loading flash.
+	// chat() stays live via AgentsPage's watchChats merge; cost is fetched
+	// separately. Both gate on isVisible (see prop docs).
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
-	// Cost is dynamic and not part of the cached chat, so it is fetched on demand
-	// only while the Summary tab is visible.
 	const costQuery = useQuery({ ...chatCost(chatId), enabled: isVisible });
 
 	const chatData = chatQuery.data;
@@ -40,9 +37,6 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 				<ErrorAlert error={chatQuery.error} />
 			) : chatData ? (
 				<ChatSummary
-					// The persisted whole-chat summary is generated asynchronously and
-					// may be null until the first summary is produced; the component
-					// renders a muted empty state in that case.
 					summary={chatData.summary}
 					createdAt={chatData.created_at}
 					updatedAt={chatData.updated_at}

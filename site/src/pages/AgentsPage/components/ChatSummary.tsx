@@ -27,11 +27,7 @@ interface ChatSummaryProps {
 	unpricedMessageCount?: number;
 }
 
-/**
- * ChatSummary is a presentational, reusable summary of a chat: a short summary
- * blurb plus its created/updated dates and cumulative cost. It performs no data
- * fetching so it can be dropped in anywhere and exercised in Storybook.
- */
+/** Presentational summary of a chat: summary blurb, created/updated dates, and cost. */
 export const ChatSummary: FC<ChatSummaryProps> = ({
 	summary,
 	createdAt,
