@@ -5306,6 +5306,14 @@ export interface OIDCConfig {
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
+	/**
+	 * EmailFallback allows OIDC logins to fall back to email-based matching
+	 * when the `linked_id` (issuer+subject) does not match an existing user
+	 * link. INSECURE: weakens the linked_id check. It exists for IdP
+	 * brokers that do not issue a stable `sub` for the same user across
+	 * connections.
+	 */
+	readonly email_fallback: boolean;
 }
 
 // From codersdk/parameters.go
