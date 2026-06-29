@@ -17,11 +17,14 @@ export const AIBudgetUsage: FC<{
 	}
 
 	const severity = getSeverity(currentSpend, spendLimit);
+	// Emphasize spend like the budget until it nears the limit.
+	const spendClassName =
+		severity === "normal"
+			? "text-content-primary"
+			: severityTextClassName(severity);
 	return (
 		<span className="whitespace-nowrap">
-			<span className={severityTextClassName(severity)}>
-				{formatBudgetUSD(currentSpend)}
-			</span>{" "}
+			<span className={spendClassName}>{formatBudgetUSD(currentSpend)}</span>{" "}
 			<span className="text-content-primary">
 				/ {formatBudgetUSD(spendLimit)}
 			</span>{" "}

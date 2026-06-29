@@ -19,7 +19,7 @@ export const Unlimited: Story = {
 	},
 };
 
-// Well under budget: spend rendered in the normal (secondary) color.
+// Well under budget: spend emphasized in the primary color, like the limit.
 export const UnderBudget: Story = {
 	args: { currentSpend: 10_000_000, spendLimit: 50_000_000 },
 	play: async ({ canvasElement }) => {
