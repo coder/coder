@@ -1,5 +1,5 @@
 -- Drop the view before the columns it references, then recreate it without
--- the summary columns, matching the pre-000530 chats_expanded definition.
+-- the summary columns, matching the pre-000534 chats_expanded definition.
 DROP VIEW IF EXISTS chats_expanded;
 
 ALTER TABLE chats

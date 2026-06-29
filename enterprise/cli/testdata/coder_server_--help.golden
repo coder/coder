@@ -965,6 +965,9 @@ These options are only available in the Enterprise Edition.
       --browser-only bool, $CODER_BROWSER_ONLY
           Whether Coder only allows connections to workspaces via the browser.
 
+      --cluster-host string, $CODER_CLUSTER_HOST
+          Hostname or (more commonly) IP to reach this replica for clustering.
+
       --derp-server-relay-url url, $CODER_DERP_SERVER_RELAY_URL
           An HTTP URL that is accessible by other replicas to relay DERP
           traffic. Required for high availability.

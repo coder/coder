@@ -358,7 +358,7 @@ func Test_rotateKeys(t *testing.T) {
 			keyDuration: keyDuration,
 			clock:       clock,
 			logger:      logger,
-			features:    database.AllCryptoKeyFeatureValues(),
+			features:    defaultRotatedFeatures,
 		}
 
 		now := dbnow(clock)
@@ -409,7 +409,7 @@ func Test_rotateKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 5)
 
-		kbf, err := keysByFeature(keys, database.AllCryptoKeyFeatureValues())
+		kbf, err := keysByFeature(keys, defaultRotatedFeatures)
 		require.NoError(t, err)
 
 		// No actions on OIDC convert.

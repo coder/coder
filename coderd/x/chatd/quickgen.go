@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"charm.land/fantasy"
 	"charm.land/fantasy/object"
@@ -889,9 +890,7 @@ const (
 	// very long message (such as a replayed compaction summary) cannot dominate
 	// the transcript budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
-	// summaryMaxOutputTokens bounds the generated summary length. Combined with
-	// the prompt, this keeps the summary to a short blurb.
-	summaryMaxOutputTokens = 512
+	summaryMaxOutputTokens              = 512
 	// summaryMaxRunes rejects pathologically long summaries that ignore the
 	// length instruction.
 	summaryMaxRunes = 1000
@@ -905,15 +904,10 @@ type generatedChatSummary struct {
 	Summary string `json:"summary" description:"1-3 sentence summary of the whole chat"`
 }
 
-// renderChatSummaryTranscript renders compaction-aware chat history into a
-// plain-text transcript for whole-chat summary generation. It includes user and
-// assistant text, intentionally keeping the replayed compaction summary (a
-// model-only compressed message) so the summary still covers pre-compaction
-// content, and skips the system prompt and tool-call/tool-result noise.
-//
-// The history is rendered as plain transcript text rather than replayed as raw
-// fantasy messages so that provider tool-call pairing rules do not apply to
-// historical tool messages during structured (object.Generate) generation.
+// renderChatSummaryTranscript renders chat history as plain text for summary
+// generation. It keeps the compaction summary so pre-compaction content is
+// covered. Plain text avoids provider tool-call pairing rules during structured
+// generation.
 func renderChatSummaryTranscript(messages []database.ChatMessage) string {
 	lines := make([]string, 0, len(messages))
 	for _, message := range messages {
@@ -1042,8 +1036,7 @@ func generateChatSummary(
 	}, nil)
 	if err != nil {
 		var usage fantasy.Usage
-		var noObjErr *fantasy.NoObjectGeneratedError
-		if errors.As(err, &noObjErr) {
+		if noObjErr, ok := errors.AsType[*fantasy.NoObjectGeneratedError](err); ok {
 			usage = noObjErr.Usage
 		}
 		return "", usage, xerrors.Errorf("generate chat summary: %w", err)
@@ -1069,13 +1062,19 @@ func validateGeneratedChatSummary(summary string) error {
 	return nil
 }
 
-// countSentenceTerminators counts sentence-ending punctuation. It is an
-// approximation used only as a safety net against pathologically verbose
-// output, so abbreviations inflating the count slightly is acceptable.
+// countSentenceTerminators counts sentence-ending punctuation. It only counts a
+// terminator that is followed by whitespace or ends the text, so periods inside
+// dotted identifiers (pkg.cmd.server, file paths) that the prompt asks the model
+// to preserve do not inflate the count. It is an approximation used only as a
+// safety net against pathologically verbose output.
 func countSentenceTerminators(text string) int {
+	runes := []rune(text)
 	count := 0
-	for _, r := range text {
-		if r == '.' || r == '!' || r == '?' {
+	for i, r := range runes {
+		if r != '.' && r != '!' && r != '?' {
+			continue
+		}
+		if i == len(runes)-1 || unicode.IsSpace(runes[i+1]) {
 			count++
 		}
 	}

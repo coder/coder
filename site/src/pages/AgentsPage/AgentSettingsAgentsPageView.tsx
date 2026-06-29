@@ -151,7 +151,7 @@ export const AgentSettingsAgentsPageView: FC<
 			>
 				<SectionHeader
 					label="Summary generation model"
-					description="Choose a model for the generated whole-chat summary shown in the chat summary popover. Leave unset to use the chat's current model. When a model is selected here, Coder uses only that model for summary generation. Recommended summary models are fast and low cost."
+					description="Choose a model for the generated whole-chat summary. Leave unset to use the chat's current model. When a model is selected here, Coder uses only that model for summary generation. Recommended summary models are fast and low cost."
 					level="section"
 				/>
 				<SubagentModelOverrideSettings

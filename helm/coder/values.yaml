@@ -12,6 +12,7 @@ coder:
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
   # - KUBE_POD_IP
   # - CODER_DERP_SERVER_RELAY_URL
+  # - CODER_CLUSTER_HOST: set to the pod IP
   #
   # The following environment variables have defaults but CAN be overridden:
   # - CODER_PROMETHEUS_ADDRESS: defaults to 0.0.0.0:2112. Override to restrict
