@@ -1181,7 +1181,7 @@ func TestListChats(t *testing.T) {
 		// shift the cursor position between page requests.
 		const totalChats = 5
 		createdChatIDs := make([]uuid.UUID, 0, totalChats)
-		for i := 0; i < totalChats; i++ {
+		for i := range totalChats {
 			dbChat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    firstUser.OrganizationID,
 				OwnerID:           firstUser.UserID,
@@ -1717,6 +1717,46 @@ func TestListChatModels(t *testing.T) {
 		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		_, err := unauthenticatedClient.ListChatModels(ctx)
 		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("CopilotOnlyUnsupported", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		// Copilot is a valid AI Gateway provider but the Agents harness
+		// cannot use it. It must surface as an unsupported provider rather
+		// than vanish, so the empty state can explain why.
+		_ = createAIProviderForTest(t, client, string(codersdk.AIProviderTypeCopilot), "")
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		require.False(t, slices.ContainsFunc(models.Providers, func(p codersdk.ChatModelProvider) bool {
+			return p.Provider == string(codersdk.AIProviderTypeCopilot)
+		}), "copilot must not appear in the supported model picker")
+
+		require.Equal(t, []codersdk.ChatUnsupportedProvider{
+			{
+				Provider:    "copilot",
+				DisplayName: "GitHub Copilot",
+			},
+		}, models.UnsupportedProviders)
+	})
+
+	t.Run("SupportedProviderHasNoUnsupportedEntry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.Empty(t, models.UnsupportedProviders)
 	})
 
 	t.Run("CentralOnlyProviderAvailable", func(t *testing.T) {
@@ -4940,7 +4980,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			insertUserMessage(t, ctx, db, chat.ID, modelConfig.ID, user.UserID,
 				[]codersdk.ChatMessagePart{
 					{Type: codersdk.ChatMessagePartTypeText, Text: fmt.Sprintf("prompt %d", i)},
