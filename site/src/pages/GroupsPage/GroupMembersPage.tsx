@@ -77,8 +77,9 @@ const GroupMembersPage: FC = () => {
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
 
-	// AI spend resets at the start of each UTC calendar month, the only
-	// supported AIBudgetPeriod, so the next reset is the first of next month.
+	// AI spend resets at 00:00 UTC on the first of each month, the only
+	// supported AIBudgetPeriod. dayjs renders that instant in the viewer's
+	// local time, so the displayed day and hour shift by timezone.
 	const now = new Date();
 	const resetAt = dayjs(
 		new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
