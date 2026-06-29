@@ -400,6 +400,11 @@
 							"state": ["premium"]
 						},
 						{
+							"title": "Configuration Reference",
+							"description": "Searchable table of every Coder server setting with its environment variable, CLI flag, and YAML key",
+							"path": "./admin/setup/configuration-reference.md"
+						},
+						{
 							"title": "Telemetry",
 							"description": "Learn what usage telemetry Coder collects",
 							"path": "./admin/setup/telemetry.md"
