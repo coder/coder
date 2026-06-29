@@ -143,7 +143,7 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 
 	sanitized, stats := stripForeignProviderExecutedToolRows(rows, targetIdentity, originProvider)
 	if stats != (providerSwitchStripStats{}) {
-		logger.Warn(ctx, "stripped foreign provider-executed tool history",
+		logger.Debug(ctx, "stripped foreign provider-executed tool history",
 			slog.F("phase", "provider_switch"),
 			slog.F("target_provider_identity", targetIdentity),
 			slog.F("removed_tool_calls", stats.RemovedToolCalls),
