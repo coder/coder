@@ -59,6 +59,8 @@ var (
 	ErrSilent = xerrors.New("silent error")
 
 	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
+
+	ErrClientURLNotConfigured = xerrors.New("client URL is not configured")
 )
 
 const (
@@ -619,6 +621,45 @@ func (r *RootCmd) ensureClientURL() error {
 	}
 	r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
 	return err
+}
+
+// ResolveClientConnection resolves the deployment URL from --url/CODER_URL or
+// the on-disk config file, then builds an HTTP transport configured with the
+// global client TLS options. Unlike InitClient, it does not read or require a
+// session token, making it suitable for commands that authenticate with a
+// different credential.
+func (r *RootCmd) ResolveClientConnection() (*url.URL, http.RoundTripper, error) {
+	serverURL, err := r.resolveClientURL()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, nil, xerrors.Errorf("load client TLS config: %w", err)
+	}
+	transport, err := newHTTPTransport(r.tlsConfig)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create HTTP transport: %w", err)
+	}
+	return serverURL, transport, nil
+}
+
+func (r *RootCmd) resolveClientURL() (*url.URL, error) {
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		return r.clientURL, nil
+	}
+
+	rawURL, err := r.createConfig().URL().Read()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrClientURLNotConfigured
+		}
+		return nil, xerrors.Errorf("read configured URL: %w", err)
+	}
+	r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, xerrors.Errorf("parse configured URL: %w", err)
+	}
+	return r.clientURL, nil
 }
 
 // ensureTLSConfig loads the TLS configuration from files if specified.

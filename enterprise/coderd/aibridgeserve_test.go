@@ -75,7 +75,7 @@ func manualDialAIGatewayServe(ctx context.Context, t *testing.T, client *codersd
 func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string) (aibridged.DRPCClient, error) {
 	t.Helper()
 
-	dc, err := aibridged.NewWebsocketDialer(client, key)(ctx)
+	dc, err := aibridged.NewWebsocketDialer(client.URL, client.HTTPClient.Transport, key)(ctx)
 	if err != nil {
 		return nil, err
 	}
