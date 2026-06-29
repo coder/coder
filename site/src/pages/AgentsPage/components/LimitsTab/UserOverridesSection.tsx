@@ -3,6 +3,7 @@ import { getErrorMessage } from "#/api/errors";
 import type { User } from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -19,7 +20,6 @@ import {
 	formatCostMicros,
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
-import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 interface UserOverridesSectionProps {
