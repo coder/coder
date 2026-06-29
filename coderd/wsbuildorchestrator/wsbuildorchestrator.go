@@ -24,8 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/pproflabel"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -529,13 +527,12 @@ func (o *Orchestrator) createBuild(
 	}
 
 	workspaceBuild, provisionerJob, _, err := builder.Build(ctx, tx, o.fileCache,
-		func(policy.Action, rbac.Objecter) bool {
-			// Inserting the orchestration row required authorization
-			// for the parent and child transitions. The worker uses
-			// system authority to fulfill that durable intent after
-			// the parent build completes.
-			return true
-		},
+		// nil authorization function skips the builder's RBAC and
+		// config checks. The parent and child transitions were
+		// authorized when the orchestration row was inserted, and the
+		// child reuses the parent build's already-validated log
+		// level.
+		nil,
 		// The child build is created by a background worker, so there
 		// is no request IP to attach. Its initiator is still set from
 		// the parent build.
