@@ -95,6 +95,8 @@ export const CustomPlaceholder: Story = {
 	},
 };
 
+// The default trigger is a borderless pill; a callsite can override
+// that via `className` to render a full bordered form field.
 export const InputBorderTreatment: Story = {
 	args: {
 		value: "openai/gpt-4o-mini",
