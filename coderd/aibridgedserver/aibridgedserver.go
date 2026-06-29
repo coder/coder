@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -310,16 +309,17 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	if err := s.recordTokenUsageAndSpend(ctx, intc, cost, in, out); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("record token usage and spend: %w", err)
 	}
 
 	return &proto.RecordTokenUsageResponse{}, nil
 }
 
-// recordTokenUsageAndSpend atomically records the token usage (including
-// the interception's cost) and accumulates that cost into the user's
-// daily spend.
+// recordTokenUsageAndSpend atomically records the token usage (including the
+// interception's cost) and, when the user is budgeted and the computed cost is
+// positive, accumulates that cost into the user's daily spend.
 func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIBridgeInterception, cost tokenUsageCost, in *proto.RecordTokenUsageRequest, metadataJSON []byte) error {
+	createdAt := in.GetCreatedAt().AsTime()
 	return s.store.InTx(func(tx database.Store) error {
 		if _, err := tx.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 			ID:                    uuid.New(),
@@ -330,7 +330,7 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CacheReadInputTokens:  in.GetCacheReadInputTokens(),
 			CacheWriteInputTokens: in.GetCacheWriteInputTokens(),
 			Metadata:              metadataJSON,
-			CreatedAt:             in.GetCreatedAt().AsTime(),
+			CreatedAt:             createdAt,
 			EffectiveGroupID:      cost.effectiveGroupID,
 			InputPriceMicros:      cost.inputPriceMicros,
 			OutputPriceMicros:     cost.outputPriceMicros,
@@ -345,6 +345,7 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 		if !cost.effectiveGroupID.Valid || !cost.costMicros.Valid || cost.costMicros.Int64 <= 0 {
 			s.logger.Debug(ctx, "skipping spend update",
 				slog.F("interception_id", intc.ID),
+				slog.F("initiator_id", intc.InitiatorID),
 				slog.F("has_effective_group", cost.effectiveGroupID.Valid),
 				slog.F("has_cost", cost.costMicros.Valid),
 				slog.F("cost_micros", cost.costMicros.Int64),
@@ -357,7 +358,7 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			EffectiveGroupID: cost.effectiveGroupID.UUID,
 			// Day is derived from the record usage request CreatedAt
 			// so it matches the token usage row's created_at column.
-			Day:        calendarUTCDay(in.GetCreatedAt().AsTime()),
+			Day:        dbtime.StartOfDay(createdAt.UTC()),
 			CostMicros: cost.costMicros.Int64,
 		}); err != nil {
 			return xerrors.Errorf("increment user daily spend: %w", err)
@@ -923,9 +924,4 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 	}
 
 	return p, nil
-}
-
-// calendarUTCDay returns t truncated to midnight UTC of its calendar day.
-func calendarUTCDay(t time.Time) time.Time {
-	return t.UTC().Truncate(24 * time.Hour)
 }
