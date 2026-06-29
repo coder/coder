@@ -129,8 +129,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			// Watch coderd for provider changes and refresh the pool on each
-			// signal. The deferred cancel+wait drains this goroutine before
-			// srv.Close() runs at shutdown.
+			// signal.
 			watchCtx, watchCancel := context.WithCancel(ctx)
 			var watchWG sync.WaitGroup
 			watchWG.Add(1)
@@ -142,6 +141,12 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}()
 			defer func() {
 				watchCancel()
+				// srv.Close cancels the daemon lifecycle context, which is the
+				// only context WatchProviderReload's blocking Client() call
+				// observes. Without it, a watch goroutine waiting to reconnect
+				// would not unblock and Wait would hang on the HTTP error path.
+				// Close is idempotent, so the deferred srv.Close above is safe.
+				_ = srv.Close()
 				watchWG.Wait()
 			}()
 
