@@ -1,12 +1,19 @@
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
+import { useMemo, useState } from "react";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import {
 	Tooltip,
 	TooltipContent,
@@ -49,14 +56,32 @@ const defaultFormatProviderLabel = (provider: string): string => {
 	return `${normalized[0].toUpperCase()}${normalized.slice(1)}`;
 };
 
-const formatContextLimit = (tokens: number): string => {
+const formatContextLimitShort = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
 		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M context window`;
+		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 	}
-	const k = Math.round(tokens / 1_000);
-	return `${k}K context window`;
+	return `${Math.round(tokens / 1_000)}K`;
 };
+
+// cmdk filters rows by matching the query against this string and
+// resolves the active row by exact match, so the same helper is used
+// for both rendering rows and landing on the selection when it opens.
+const getCmdkValue = (
+	option: ModelSelectorOption,
+	providerLabel: string,
+): string =>
+	[
+		option.displayName,
+		option.provider,
+		option.model,
+		providerLabel,
+		option.contextLimit != null && option.contextLimit > 0
+			? formatContextLimitShort(option.contextLimit)
+			: "",
+	]
+		.join(" ")
+		.toLowerCase();
 
 export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
@@ -70,131 +95,207 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	dropdownSide = "bottom",
 	dropdownAlign = "start",
 	contentClassName,
-	open,
+	open: controlledOpen,
 	onOpenChange,
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
 }) => {
-	const selectedModel = options.find((option) => option.id === value);
-	const optionsByProvider = (() => {
-		const grouped = new Map<string, ModelSelectorOption[]>();
+	const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+	const isOpen = controlledOpen ?? uncontrolledOpen;
+	const setOpen = (next: boolean) => {
+		if (controlledOpen === undefined) {
+			setUncontrolledOpen(next);
+		}
+		onOpenChange?.(next);
+	};
 
+	const selectedModel = options.find((option) => option.id === value);
+	const optionsByProvider = useMemo(() => {
+		const grouped = new Map<string, ModelSelectorOption[]>();
 		for (const option of options) {
-			const providerOptions = grouped.get(option.provider);
-			if (providerOptions) {
-				providerOptions.push(option);
+			const existing = grouped.get(option.provider);
+			if (existing) {
+				existing.push(option);
 				continue;
 			}
 			grouped.set(option.provider, [option]);
 		}
-
 		return Array.from(grouped.entries());
-	})();
+	}, [options]);
+
 	const isDisabled = disabled || options.length === 0;
+	const triggerLabel = selectedModel ? selectedModel.displayName : placeholder;
+	const selectedCmdkValue = selectedModel
+		? getCmdkValue(selectedModel, formatProviderLabel(selectedModel.provider))
+		: undefined;
 
 	return (
-		<Select
-			value={value}
-			onValueChange={onValueChange}
-			disabled={isDisabled}
-			open={open}
-			onOpenChange={onOpenChange}
+		<Popover
+			open={isOpen}
+			onOpenChange={(next) => {
+				if (isDisabled && next) {
+					return;
+				}
+				setOpen(next);
+			}}
 		>
-			<SelectTrigger
-				aria-label={selectedModel ? selectedModel.displayName : placeholder}
-				className={cn(
-					"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
-					className,
-				)}
-				onTouchStart={onTriggerTouchStart}
-			>
-				<SelectValue placeholder={placeholder}>
-					{selectedModel ? selectedModel.displayName : placeholder}
-				</SelectValue>
-			</SelectTrigger>
-			<SelectContent
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					role="combobox"
+					aria-label={triggerLabel}
+					aria-expanded={isOpen}
+					aria-haspopup="listbox"
+					disabled={isDisabled}
+					onTouchStart={onTriggerTouchStart}
+					className={cn(
+						// Matches the previous SelectTrigger base so this PR is
+						// only about the dropdown panel, not the trigger.
+						"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
+						"disabled:cursor-not-allowed disabled:opacity-50",
+						className,
+					)}
+				>
+					<span className="truncate">{triggerLabel}</span>
+					<ChevronDownIcon
+						aria-hidden="true"
+						className="size-3.5 shrink-0 text-content-secondary"
+					/>
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
 				side={dropdownSide}
 				align={dropdownAlign}
+				sideOffset={6}
 				className={cn(
+					"w-72 p-0",
+					"border border-solid border-border-default",
+					"bg-surface-primary",
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
-					"border-border-default [&_[role=option]]:text-xs",
 					contentClassName,
 				)}
 			>
 				<TooltipProvider delayDuration={300}>
-					{optionsByProvider.map(([provider, providerOptions]) => {
-						const providerLabel = formatProviderLabel(provider);
-						return (
-							<SelectGroup key={provider}>
-								{providerOptions.map((option) => (
-									<ModelOptionItem
-										key={option.id}
-										option={option}
-										providerLabel={providerLabel}
-										isSelected={option.id === value}
-									/>
-								))}
-							</SelectGroup>
-						);
-					})}
-					{options.length === 0 && (
-						<SelectItem value="__empty__" disabled>
-							{emptyMessage}
-						</SelectItem>
-					)}
+					<Command
+						defaultValue={selectedCmdkValue}
+						// Override cmdk's fuzzy filter with strict substring matching
+						// so typing a model name hides unrelated providers cleanly.
+						filter={(val, search) => {
+							const needle = search.trim().toLowerCase();
+							if (!needle) {
+								return 1;
+							}
+							return val.toLowerCase().includes(needle) ? 1 : 0;
+						}}
+						className="border-0 bg-transparent"
+					>
+						<CommandInput
+							placeholder="Search..."
+							className="h-10 text-sm"
+							aria-label="Search models"
+						/>
+						<CommandList className="max-h-[280px]">
+							<CommandEmpty className="py-6 text-center text-sm text-content-secondary">
+								{options.length === 0 ? emptyMessage : "No matching models."}
+							</CommandEmpty>
+							{optionsByProvider.map(([provider, providerOptions]) => {
+								const providerLabel = formatProviderLabel(provider);
+								return (
+									<CommandGroup
+										key={provider}
+										heading={providerLabel}
+										className="px-1.5 py-1.5 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-2 [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:text-content-secondary [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-1"
+									>
+										{providerOptions.map((option) => (
+											<ModelRow
+												key={option.id}
+												option={option}
+												providerLabel={providerLabel}
+												isSelected={option.id === value}
+												onSelect={() => {
+													onValueChange(option.id);
+													setOpen(false);
+												}}
+											/>
+										))}
+									</CommandGroup>
+								);
+							})}
+						</CommandList>
+					</Command>
 				</TooltipProvider>
-			</SelectContent>
-		</Select>
+			</PopoverContent>
+		</Popover>
 	);
 };
 
-interface ModelOptionItemProps {
+interface ModelRowProps {
 	option: ModelSelectorOption;
 	providerLabel: string;
 	isSelected: boolean;
+	onSelect: () => void;
 }
 
-const ModelOptionItem: FC<ModelOptionItemProps> = ({
+const ModelRow: FC<ModelRowProps> = ({
 	option,
 	providerLabel,
 	isSelected,
+	onSelect,
 }) => {
-	const label = option.displayName;
-	const contextInfo =
+	const contextShort =
 		option.contextLimit != null && option.contextLimit > 0
-			? formatContextLimit(option.contextLimit)
+			? formatContextLimitShort(option.contextLimit)
 			: null;
-	const subtext = contextInfo
-		? `via ${providerLabel}, ${contextInfo}`
-		: `via ${providerLabel}`;
+
+	const row = (
+		<CommandItem
+			value={getCmdkValue(option, providerLabel)}
+			onSelect={onSelect}
+			aria-selected={isSelected}
+			// Keep the accessible name as just the display name so the
+			// context chip does not leak into screen-reader labels.
+			aria-label={option.displayName}
+			className={cn(
+				"group flex h-10 cursor-pointer items-center gap-2 rounded-md px-2.5 py-0",
+				"text-sm font-normal text-content-primary",
+				// cmdk's data-selected is the keyboard/hover cursor, not the
+				// persistent selection. Use a faint overlay for the cursor so
+				// it does not collide visually with the selected row below.
+				"data-[selected=true]:bg-content-primary/[0.08]",
+				isSelected && "bg-surface-secondary text-content-primary",
+			)}
+		>
+			<span className="min-w-0 flex-1 truncate">
+				<span>{option.displayName}</span>
+				{contextShort && (
+					<span className="ml-2 text-content-secondary">({contextShort})</span>
+				)}
+			</span>
+			{isSelected && (
+				<CheckIcon
+					aria-hidden="true"
+					className="size-4 shrink-0 text-content-primary"
+				/>
+			)}
+		</CommandItem>
+	);
 
 	return (
 		<Tooltip>
-			<TooltipTrigger asChild>
-				<SelectItem
-					value={option.id}
-					className={cn(isSelected && "bg-surface-secondary")}
-				>
-					<span className="flex flex-col">
-						<span>{label}</span>
-						<span className="text-content-secondary text-[11px] leading-tight md:hidden">
-							{subtext}
-						</span>
-					</span>
-				</SelectItem>
-			</TooltipTrigger>
+			<TooltipTrigger asChild>{row}</TooltipTrigger>
 			<TooltipContent
 				side="right"
-				sideOffset={4}
+				sideOffset={8}
 				className="hidden px-2.5 py-1.5 md:block"
 			>
 				<span className="block font-semibold text-content-primary leading-tight">
-					{label} via {providerLabel}
+					{option.displayName} via {providerLabel}
 				</span>
-				{contextInfo && (
+				{contextShort && (
 					<span className="block text-content-secondary leading-tight">
-						{contextInfo}
+						{contextShort} context window
 					</span>
 				)}
 			</TooltipContent>
