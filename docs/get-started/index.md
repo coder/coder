@@ -97,9 +97,15 @@ provides the Docker daemon on macOS without the overhead of Docker Desktop.
    colima start
    ```
 
-   Colima exposes the Docker socket at `~/.colima/default/docker.sock`.
-   If Coder later reports that it cannot connect to the Docker daemon, point `DOCKER_HOST` at that socket.
-   Refer to [Cannot connect to the Docker daemon](#cannot-connect-to-the-docker-daemon) for the exact steps.
+1. Point `DOCKER_HOST` at the Colima socket so Coder can reach the daemon:
+
+   ```sh
+   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+   ```
+
+   Colima exposes its Docker socket at `~/.colima/default/docker.sock`, not `/var/run/docker.sock`, so Coder needs `DOCKER_HOST` to find it.
+   Set it in the same terminal where you'll run `coder server` in the next step.
+   To persist it across new terminals and restarts, add the `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
 
 ### Windows
 
