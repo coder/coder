@@ -4,7 +4,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { withMessageScroller } from "./ChatConversation/messageScrollerStoryHarness";
-import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
+import {
+	buildStreamRenderState,
+	FIXTURE_NOW,
+	textResponseStreamParts,
+} from "./ChatConversation/storyFixtures";
 import { ChatPageTimeline } from "./ChatPageContent";
 
 const meta = {
@@ -192,6 +196,45 @@ export const NewUserTurnAnchorsToTop: Story = {
 			expect(offset).toBeGreaterThanOrEqual(0);
 			expect(offset).toBeLessThan(viewportRect.height / 2);
 		});
+	},
+};
+
+// The streaming reply (live-tail row) must sit the same distance below the
+// previous turn as a committed reply, so it does not jump when it hands off to
+// the transcript. A stray top margin on the live-tail row reintroduces the
+// shift. The row's content is flush to its scroller Item (no extra top margin).
+export const StreamingReplyHasNoExtraTopMargin: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Stream me a reply" }]),
+		]);
+		store.setChatStatus("running");
+		store.setStreamState(
+			buildStreamRenderState(textResponseStreamParts).streamState,
+		);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
+		});
+
+		const row = canvasElement.querySelector<HTMLElement>(
+			'[data-message-id="__live_stream__"]',
+		);
+		expect(row).not.toBeNull();
+		const inner = row?.firstElementChild as HTMLElement | null;
+		expect(inner).not.toBeNull();
+
+		// The content is flush to the top of its Item; the row relies on the
+		// scroller's gap-2 for spacing rather than its own margin.
+		const offset =
+			(inner as HTMLElement).getBoundingClientRect().top -
+			(row as HTMLElement).getBoundingClientRect().top;
+		expect(offset).toBeLessThan(2);
 	},
 };
 

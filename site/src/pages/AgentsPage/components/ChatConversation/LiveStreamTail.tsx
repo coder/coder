@@ -79,14 +79,12 @@ export const LiveStreamTailContent = ({
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
 
+	// MessageScroller.Content owns inter-row spacing via gap-2, so this row adds
+	// no extra top margin. A stray mt-2 made the streaming reply sit 8px lower
+	// than its committed form, producing a jump when the row handed off to the
+	// transcript.
 	return (
-		<div
-			className={
-				isTranscriptEmpty
-					? "flex flex-col gap-2"
-					: "mt-2 flex flex-col gap-2 empty:mt-0"
-			}
-		>
+		<div className="flex flex-col gap-2">
 			{shouldRenderEmptyState && (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>
