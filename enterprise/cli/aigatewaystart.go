@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -111,11 +112,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 			defer srv.Close()
 
-			// Fetch the initial provider set from coderd, retrying until
-			// success. The reloader owns the fetch/build/replace/metrics work;
-			// the standalone gateway just drives it once at startup.
-			// TODO(AIGOV-465): the standalone gateway has no refresh trigger
-			// yet, so this runs once on startup.
+			// Load the initial provider set from coderd, retrying until success,
+			// so the gateway serves with a populated pool.
 			providerLogger := logger.Named("aibridge.providers")
 			reloader := agpl.NewPoolRPCReloader(pool, srv.Client, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
 			if err := loadProviders(ctx, reloader, providerLogger); err != nil {
@@ -129,6 +127,26 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				}
 				return xerrors.Errorf("initialize ai providers: %w", err)
 			}
+
+			// Watch coderd for provider changes and refresh the pool on each
+			// signal.
+			watchCtx, watchCancel := context.WithCancel(ctx)
+			var watchWG sync.WaitGroup
+			watchWG.Go(func() {
+				if err := aibridged.WatchProviderReload(watchCtx, srv.Client, reloader, providerLogger); err != nil && watchCtx.Err() == nil {
+					providerLogger.Warn(watchCtx, "ai provider watch loop exited", slog.Error(err))
+				}
+			})
+			defer func() {
+				watchCancel()
+				// srv.Close cancels the daemon lifecycle context, which is the
+				// only context WatchProviderReload's blocking Client() call
+				// observes. Without it, a watch goroutine waiting to reconnect
+				// would not unblock and Wait would hang on the HTTP error path.
+				// Close is idempotent, so the deferred srv.Close above is safe.
+				_ = srv.Close()
+				watchWG.Wait()
+			}()
 
 			// The standalone listener is dedicated to Gateway traffic, so
 			// the daemon is served at the root. The /api/v2/ai-gateway alias
@@ -229,9 +247,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 // reload is retried with backoff. A successful empty provider list is a valid
 // result and ends the loop.
 //
-// TODO(AIGOV-465): the standalone gateway has no provider-change refresh
-// trigger yet, so this runs once on startup; provider add/enable will not
-// propagate to a running standalone gateway.
+// Subsequent provider changes are delivered by WatchProviderReload, started
+// after this initial load returns.
 func loadProviders(ctx context.Context, reloader aibridged.ProviderReloader, logger slog.Logger) error {
 	for r := retry.New(50*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 		if err := reloader.Reload(ctx); err != nil {
