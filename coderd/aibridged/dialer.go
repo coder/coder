@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
@@ -23,35 +24,35 @@ import (
 // which wires the same services over an in-memory pipe for the embedded
 // daemon.
 //
-// It mirrors codersdk.Client.ServeProvisionerDaemon: the gateway
-// authenticates with an AI Gateway key (codersdk.AIGatewayKeyHeader),
-// advertises its API version via the "version" query parameter, and
-// reports its build version via codersdk.BuildVersionHeader (used by
-// coderd for observability only). TLS for this connection is governed by
-// the scheme of the client's URL (standard Go TLS).
+// The gateway authenticates with an AI Gateway key
+// (codersdk.AIGatewayKeyHeader), advertises its API version via the
+// "version" query parameter, and reports its build version via
+// codersdk.BuildVersionHeader (used by coderd for observability only).
+// TLS for this connection is governed by the scheme of serverURL and any
+// TLS configuration baked into transport.
 //
 // On a failed upgrade the coderd HTTP error is returned as a
 // *codersdk.Error so [Server.connect] can distinguish fatal
 // auth/entitlement failures from transient ones.
-func NewWebsocketDialer(client *codersdk.Client, key string) Dialer {
+func NewWebsocketDialer(serverURL *url.URL, transport http.RoundTripper, key string) Dialer {
 	return func(ctx context.Context) (DRPCClient, error) {
-		serverURL, err := client.URL.Parse("/api/v2/ai-gateway/serve")
+		serveURL, err := serverURL.Parse("/api/v2/ai-gateway/serve")
 		if err != nil {
 			return nil, xerrors.Errorf("parse url: %w", err)
 		}
-		query := serverURL.Query()
+		query := serveURL.Query()
 		query.Add(aibridgedproto.VersionQueryParam, aibridgedproto.CurrentVersion.String())
-		serverURL.RawQuery = query.Encode()
+		serveURL.RawQuery = query.Encode()
 
 		headers := http.Header{}
 		headers.Set(codersdk.BuildVersionHeader, buildinfo.Version())
 		headers.Set(codersdk.AIGatewayKeyHeader, key)
 
 		httpClient := &http.Client{
-			Transport: client.HTTPClient.Transport,
+			Transport: transport,
 		}
 		// nolint:bodyclose // ReadBodyAsError closes the body; success path hands off to the websocket conn.
-		conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		conn, res, err := websocket.Dial(ctx, serveURL.String(), &websocket.DialOptions{
 			HTTPClient:      httpClient,
 			CompressionMode: websocket.CompressionDisabled,
 			HTTPHeader:      headers,

@@ -19,17 +19,16 @@ import (
 	agpl "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
 
+const (
+	shutdownTimeout = 15 * time.Second
+)
+
 // aiGatewayStart runs the AI Gateway as a standalone process.
-// It connects to coderd over DRPC via /api/v2/ai-gateway/serve for
-// authentication, recording, and MCP configuration, and listens on its
-// own HTTP address for incoming LLM client traffic. The provider set is
-// fetched from coderd over DRPC (GetAIProviders); the standalone process
-// does not read the database directly. Other AI Gateway settings come from
-// the shared CODER_AI_GATEWAY_* deployment options.
 func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	var (
 		key         string
@@ -39,27 +38,18 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 		verbose     bool
 	)
 
-	// Reuse the shared AI Gateway deployment options (CODER_AI_GATEWAY_*)
-	// so standalone mode is configured exactly like embedded mode. The
-	// option Values point into vals, which is captured by the handler.
 	vals := new(codersdk.DeploymentValues)
-	var aiGatewayOpts serpent.OptionSet
-	for _, opt := range vals.Options() {
-		if opt.Group != nil && opt.Group.Name == "AI Gateway" {
-			aiGatewayOpts = append(aiGatewayOpts, opt)
-		}
-	}
 
 	cmd := &serpent.Command{
 		Use:   "start",
 		Short: "Run a standalone AI Gateway server",
-		Long: "The standalone AI Gateway connects to a Coder deployment over DRPC to " +
-			"authenticate users, record interceptions, and configure MCP, while serving " +
-			"LLM client traffic on its own HTTP listener.\n\n" +
-			"The deployment address is taken from the global --url flag (CODER_URL) and " +
-			"is required. The gateway authenticates with the key from --key " +
-			"(CODER_AI_GATEWAY_KEY). The provider set is fetched from coderd over DRPC; " +
-			"other AI Gateway settings use the same CODER_AI_GATEWAY_* options as embedded mode.",
+		Long: "Runs a standalone replica of the AI Gateway. Standalone replicas " +
+			"serve LLM client traffic on a dedicated HTTP listener and connect " +
+			"to a Coder deployment over DRPC.\n\n" +
+			"Set --url or CODER_URL to the Coder deployment address, and set " +
+			"--key or CODER_AI_GATEWAY_KEY to the AI Gateway key used for " +
+			"gateway-to-coderd authentication. A user login or session token is " +
+			"not required.",
 		Handler: func(inv *serpent.Invocation) error {
 			// Derive a single signal-aware context so a stop signal interrupts
 			// every phase, including connecting to coderd and the initial
@@ -70,7 +60,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			defer stop()
 
 			if key == "" {
-				return xerrors.New("an AI Gateway key is required; set --key or CODER_AI_GATEWAY_KEY")
+				return xerrors.New("an AI Gateway key is required, set --key or CODER_AI_GATEWAY_KEY")
 			}
 			// TLS is opt-in and requires both files; setting only one is
 			// an error. Default is plain HTTP.
@@ -78,9 +68,12 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.New("--tls-cert-file and --tls-key-file must be provided together")
 			}
 
-			client, err := r.InitClient(inv)
+			serverURL, transport, err := r.ResolveClientConnection()
 			if err != nil {
-				return err
+				if errors.Is(err, agpl.ErrClientURLNotConfigured) {
+					return xerrors.New("AI Gateway requires --url or CODER_URL to point at the Coder deployment")
+				}
+				return xerrors.Errorf("configure Coder deployment connection: %w", err)
 			}
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
@@ -88,24 +81,21 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			// Metrics and tracing are not yet exposed by standalone mode
-			// (future work), but the pool and the reloader require a metrics
-			// object and a tracer, so wire up no-op sinks registered against a
-			// throwaway registry until standalone metrics are exported.
+			// Metrics and tracing are not yet exposed by standalone mode yet
+			// (TODO AIGOV-317), but the pool and the reloader require a metrics
+			// object and a tracer.
 			metrics := aibridge.NewMetrics(prometheus.NewRegistry())
 			providerMetrics := aibridged.NewMetrics(prometheus.NewRegistry())
 			tracer := trace.NewNoopTracerProvider().Tracer("aibridged")
 
-			// The standalone gateway has no provider env vars and no database
-			// access. It starts with an empty pool, connects to coderd over
-			// DRPC, then fetches the provider set via GetAIProviders and builds
-			// the pool from it.
+			// Standalone Gateway starts with an empty pool. Providers are
+			// fetched later via GetAIProviders DRPC and pool is updated.
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), metrics, tracer)
 			if err != nil {
 				return xerrors.Errorf("create request pool: %w", err)
 			}
 
-			dialer := aibridged.NewWebsocketDialer(client, key)
+			dialer := aibridged.NewWebsocketDialer(serverURL, transport, key)
 			srv, err := aibridged.New(ctx, pool, dialer, logger.Named("aibridged"), tracer)
 			if err != nil {
 				return xerrors.Errorf("start aibridge daemon: %w", err)
@@ -113,8 +103,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			defer srv.Close()
 
 			// Fetch the initial provider set from coderd, retrying until
-			// success. The reloader owns the fetch/build/replace/metrics work;
-			// the standalone gateway just drives it once at startup.
+			// success.
 			// TODO(AIGOV-465): the standalone gateway has no refresh trigger
 			// yet, so this runs once on startup.
 			providerLogger := logger.Named("aibridge.providers")
@@ -131,20 +120,27 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.Errorf("initialize ai providers: %w", err)
 			}
 
+			mw := coderd.AIGatewayDataPlaneMiddleware(vals.AI.BridgeConfig)
+
 			// The standalone listener is dedicated to Gateway traffic, so
-			// the daemon is served at the root. The /api/v2/ai-gateway alias
-			// keeps parity with the embedded route, so a Gateway proxy
-			// pointed here with the embedded path still works.
+			// the daemon is served at the root. The /api/v2/ai-gateway
+			// and /api/v2/aibridge/ aliases are added for compatibility
+			// with the embedded route.
 			mux := http.NewServeMux()
-			mux.Handle("/api/v2/aibridge/", http.StripPrefix("/api/v2/aibridge", srv))
-			mux.Handle("/api/v2/ai-gateway/", http.StripPrefix("/api/v2/ai-gateway", srv))
-			mux.Handle("/", srv)
+			mux.Handle("/api/v2/aibridge/", mw(http.StripPrefix("/api/v2/aibridge", srv)))
+			mux.Handle("/api/v2/ai-gateway/", mw(http.StripPrefix("/api/v2/ai-gateway", srv)))
+			mux.Handle("/", mw(srv))
 
 			listener, err := net.Listen("tcp", httpAddress)
 			if err != nil {
 				return xerrors.Errorf("listen on %q: %w", httpAddress, err)
 			}
 			defer listener.Close()
+
+			logger.Info(ctx, "standalone AI Gateway listening",
+				slog.F("address", listener.Addr().String()),
+				slog.F("tls", tlsCertFile != ""),
+			)
 
 			httpServer := &http.Server{
 				Handler:           mux,
@@ -160,11 +156,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				}
 			}()
 
-			logger.Info(ctx, "standalone AI Gateway listening",
-				slog.F("address", listener.Addr().String()),
-				slog.F("tls", tlsCertFile != ""),
-			)
-
 			select {
 			case <-ctx.Done():
 				logger.Info(ctx, "shutting down standalone AI Gateway")
@@ -174,7 +165,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				}
 			}
 
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 			defer shutdownCancel()
 			if err := httpServer.Shutdown(shutdownCtx); err != nil {
 				return xerrors.Errorf("shutdown http server: %w", err)
@@ -217,6 +208,35 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			Default:     "false",
 		},
 	}
+
+	// Standalone Gateway only uses part of the options from "AI Gateway" group.
+	// Every other option in the group is coderd-only (eg. budget, provider-seeding).
+	standaloneOpts := map[string]struct{}{
+		"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
+		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
+		"CODER_AI_GATEWAY_DUMP_DIR":                          {},
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED":           {},
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD": {},
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
+		"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
+		"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
+	}
+
+	// Reuse the shared AI Gateway deployment options for
+	// parity (of applicable options) between embedded and standalone.
+	var aiGatewayOpts serpent.OptionSet
+	for _, opt := range vals.Options() {
+		if opt.Group == nil || opt.Group.Name != "AI Gateway" {
+			continue
+		}
+		if _, ok := standaloneOpts[opt.Env]; !ok {
+			continue
+		}
+		aiGatewayOpts = append(aiGatewayOpts, opt)
+	}
+
 	cmd.Options = append(cmd.Options, aiGatewayOpts...)
 
 	return cmd
