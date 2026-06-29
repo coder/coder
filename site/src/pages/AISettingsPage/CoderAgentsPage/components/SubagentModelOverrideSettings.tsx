@@ -2,9 +2,11 @@ import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
-import { ModelSelector } from "./ChatElements/ModelSelector";
-import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
+import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import type { ModelSelectorOption } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
+import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
+import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
+import { AgentSettingLayout } from "./AgentSettingLayout";
 
 export interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -36,7 +38,6 @@ interface SubagentModelOverrideSettingsProps {
 	saveErrorMessage: string;
 	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
-	showHeader?: boolean;
 	disabled?: boolean;
 }
 
@@ -65,9 +66,9 @@ export const SubagentModelOverrideSettings: FC<
 	saveErrorMessage,
 	unsetPlaceholder = "Use chat default",
 	unavailableModelWarning = "The saved model is no longer enabled and will be ignored until you choose a new override.",
-	showHeader = true,
 	disabled = false,
 }) => {
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
 	const enabledModelOptions = enabledModelConfigs.map(toModelSelectorOption);
@@ -84,6 +85,7 @@ export const SubagentModelOverrideSettings: FC<
 				},
 				{
 					onSuccess: () => {
+						showSavedState();
 						resetForm({ values });
 					},
 				},
@@ -102,61 +104,55 @@ export const SubagentModelOverrideSettings: FC<
 		);
 
 	return (
-		<form aria-label={title} className="space-y-2" onSubmit={form.handleSubmit}>
-			{showHeader && (
-				<>
-					<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-						{title}
-					</h3>
-					{description && (
-						<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-							{description}
-						</p>
-					)}
-				</>
-			)}
-			<ModelSelector
-				options={enabledModelOptions}
-				value={form.values.model_config_id}
-				onValueChange={(value) => form.setFieldValue("model_config_id", value)}
-				disabled={isFormDisabled}
-				placeholder={
-					isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
-				}
-				emptyMessage={
-					isLoading ? "Loading models..." : "No enabled models found."
-				}
-				className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-sm"
-				contentClassName="min-w-[18rem]"
-			/>
-			<ModelOverrideAlerts
-				isUnavailableSavedModel={isUnavailableSavedModel}
-				unavailableMessage={unavailableModelWarning}
-				isMalformedOverride={isMalformedOverride}
-				malformedMessage="The saved override is malformed and is being treated as unset. Click Save to clear it."
-				modelConfigsError={modelConfigsError}
-			/>
-			<div className="flex justify-end gap-2">
-				<Button
-					size="sm"
-					variant="outline"
-					type="button"
-					onClick={() => {
-						form.setFieldValue("model_config_id", "");
-					}}
+		<AgentSettingLayout
+			title={title}
+			description={description}
+			showSave={canSave}
+			isSaving={isSaving}
+			isSavedVisible={isSavedVisible}
+			saveDisabled={isFormDisabled || !canSave}
+			onSubmit={form.handleSubmit}
+			error={
+				isSaveError ? <p className="m-0">{saveErrorMessage}</p> : undefined
+			}
+		>
+			<div className="flex w-[22rem] max-w-full flex-col gap-2">
+				<ModelSelector
+					options={enabledModelOptions}
+					value={form.values.model_config_id}
+					onValueChange={(value) =>
+						void form.setFieldValue("model_config_id", value)
+					}
 					disabled={isFormDisabled}
-				>
-					Clear
-				</Button>
-				<Button size="sm" type="submit" disabled={isFormDisabled || !canSave}>
-					Save
-				</Button>
+					placeholder={
+						isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
+					}
+					emptyMessage={
+						isLoading ? "Loading models..." : "No enabled models found."
+					}
+					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
+					contentClassName="min-w-[18rem]"
+				/>
+				<ModelOverrideAlerts
+					isUnavailableSavedModel={isUnavailableSavedModel}
+					unavailableMessage={unavailableModelWarning}
+					isMalformedOverride={isMalformedOverride}
+					malformedMessage="The saved override is malformed and is being treated as unset. Click Save to clear it."
+					modelConfigsError={modelConfigsError}
+				/>
 			</div>
-			{isSaveError && (
-				<p className="m-0 text-xs text-content-destructive">
-					{saveErrorMessage}
-				</p>
-			)}
-		</form>
+			<Button
+				size="lg"
+				variant="outline"
+				type="button"
+				onClick={() => {
+					void form.setFieldValue("model_config_id", "");
+				}}
+				disabled={isFormDisabled}
+				className="h-10"
+			>
+				Clear
+			</Button>
+		</AgentSettingLayout>
 	);
 };

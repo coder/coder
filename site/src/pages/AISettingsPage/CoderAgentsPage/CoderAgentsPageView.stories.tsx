@@ -3,9 +3,9 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
-	AgentSettingsAgentsPageView,
-	type AgentSettingsAgentsPageViewProps,
-} from "./AgentSettingsAgentsPageView";
+	CoderAgentsPageView,
+	type CoderAgentsPageViewProps,
+} from "./CoderAgentsPageView";
 
 const OVERRIDE_MALFORMED_WARNING =
 	"The saved override is malformed and is being treated as unset. Click Save to clear it.";
@@ -105,8 +105,8 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const buildArgs = (
-	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
-): AgentSettingsAgentsPageViewProps => ({
+	overrides: Partial<CoderAgentsPageViewProps> = {},
+): CoderAgentsPageViewProps => ({
 	adminOverridesData: { allow_users: false },
 	adminOverridesError: undefined,
 	onRetryAdminOverrides: fn(),
@@ -138,13 +138,11 @@ const getSection = async (
 ): Promise<HTMLElement> => {
 	const canvas = within(canvasElement);
 	const heading = await canvas.findByRole("heading", { name: headingName });
-	const section = heading.closest("section");
-	if (!(section instanceof HTMLElement)) {
-		throw new Error(
-			`Expected ${headingName} heading to live inside a section.`,
-		);
+	const setting = heading.closest("form");
+	if (!(setting instanceof HTMLElement)) {
+		throw new Error(`Expected ${headingName} heading to live inside a form.`);
 	}
-	return section;
+	return setting;
 };
 
 const selectModelInSection = async (
@@ -162,29 +160,36 @@ const selectModelInSection = async (
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsAgentsPageView",
-	component: AgentSettingsAgentsPageView,
+	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
+	component: CoderAgentsPageView,
 	args: buildArgs(),
-} satisfies Meta<typeof AgentSettingsAgentsPageView>;
+} satisfies Meta<typeof CoderAgentsPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsAgentsPageView>;
+type Story = StoryObj<typeof CoderAgentsPageView>;
 
 export const AllOverridesUnset: Story = {
 	args: buildArgs(),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Agents");
+		expect(
+			await canvas.findByRole("heading", { name: "Coder Agents" }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(
+				"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
+			),
+		).toBeVisible();
 
+		expect(canvas.getByText("Allow personal model overrides")).toBeVisible();
 		const headings = await canvas.findAllByRole("heading", { level: 3 });
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
-			"Enable users to define their personal overrides",
 			"General model",
 			"Title generation model",
 			"Explore subagent model",
 		]);
 		await canvas.findByText(
-			"Choose a model for generated chat titles. Leave unset to use Coder's default title algorithm, which currently tries fast title models for configured providers first, for example Claude Haiku, GPT-4o mini, and Gemini Flash, then falls back to the chat's current model. When a model is selected here, Coder uses only that model for title generation. Recommended title models are fast and low cost.",
+			"Leave unset to use Coder's title default, which prefers fast models from configured providers.",
 		);
 
 		const unsetSections = [
@@ -204,8 +209,8 @@ export const AllOverridesUnset: Story = {
 				within(section).getByRole("combobox", { name: placeholder }),
 			).toBeInTheDocument();
 			expect(
-				within(section).getByRole("button", { name: "Save" }),
-			).toBeDisabled();
+				within(section).queryByRole("button", { name: "Save" }),
+			).not.toBeInTheDocument();
 		}
 	},
 };
@@ -217,7 +222,7 @@ export const PersonalOverridesDisabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
-			name: "Enable users to define their personal overrides",
+			name: "Allow personal model overrides",
 		});
 
 		expect(toggle).not.toBeChecked();
@@ -231,7 +236,7 @@ export const PersonalOverridesEnabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
-			name: "Enable users to define their personal overrides",
+			name: "Allow personal model overrides",
 		});
 
 		expect(toggle).toBeChecked();
