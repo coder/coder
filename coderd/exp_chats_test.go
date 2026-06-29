@@ -2314,6 +2314,9 @@ func TestUserAIProviderKeys(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.AllowBYOK = serpent.Bool(false)
+		// The aibridged reloader logs at error level when it sees a provider
+		// configured with no API key and BYOK disabled. That state is the
+		// scenario under test, so suppress its error logs here.
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		client := newChatClient(t, func(o *coderdtest.Options) {
 			o.DeploymentValues = values
