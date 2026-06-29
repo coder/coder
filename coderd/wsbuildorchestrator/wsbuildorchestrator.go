@@ -187,7 +187,7 @@ func (o *Orchestrator) run(ctx context.Context) {
 
 		err := o.processAll(ctx)
 		if err != nil && ctx.Err() == nil {
-			o.logger.Error(ctx, "process orchestrations", slog.Error(err))
+			o.logger.Error(ctx, "failed to process orchestrations", slog.Error(err))
 		}
 
 		select {
@@ -392,7 +392,7 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 			// An unexpected error (a parent lookup or status update
 			// that should not fail). Log it before the retry below
 			// records it on the row and fails it after maxAttempts.
-			o.logger.Error(ctx, "unexpected error processing workspace build orchestration",
+			o.logger.Error(ctx, "unexpected error processing orchestration",
 				slog.F("workspace_build_orchestration_id", orchestrationID),
 				slog.Error(err))
 		}
