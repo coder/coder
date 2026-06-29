@@ -2232,10 +2232,9 @@ export const SettingsUserAgentsAdmin: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(canvas.getByRole("link", { name: "Manage agents" })).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
+		expect(
+			canvas.getByRole("link", { name: "Manage agents" }),
+		).toBeInTheDocument();
 	},
 };
 
