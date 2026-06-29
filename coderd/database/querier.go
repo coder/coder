@@ -472,6 +472,7 @@ type sqlcQuerier interface {
 	// A value of 0 disables chat purging entirely.
 	GetChatRetentionDays(ctx context.Context) (int32, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
+	GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
@@ -1567,6 +1568,7 @@ type sqlcQuerier interface {
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
+	UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error

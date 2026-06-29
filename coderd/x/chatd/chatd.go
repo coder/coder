@@ -5034,14 +5034,38 @@ func (p *Server) generateAndStoreChatSummary(
 	p.updateChatSummary(ctx, chat, chat.HistoryVersion, summary, logger)
 }
 
-// resolveChatSummaryModel resolves the chat's configured model for summary
-// generation.
+// resolveChatSummaryModel resolves the model for summary generation. It prefers
+// the deployment summary-generation override when set; a configured-but-unusable
+// override is a hard failure that skips generation (preserving any existing
+// summary). Otherwise it falls back to the chat's configured model.
 func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
 	chat database.Chat,
 	runResult runChatResult,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
+	overrideConfig, overrideModel, _, _, overrideSet, overrideErr := p.resolveSummaryGenerationModelOverride(
+		ctx, chat, runResult.ProviderKeys, runResult.ModelBuildOptions,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			logger.Warn(ctx, "summary generation model override unavailable, skipping summary generation",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", summaryGenerationOverrideContext),
+				slog.Error(overrideErr),
+			)
+			return nil, database.ChatModelConfig{}, false
+		}
+		logger.Debug(ctx, "failed to resolve summary generation model override",
+			slog.F("chat_id", chat.ID),
+			slog.F("override_context", summaryGenerationOverrideContext),
+			slog.Error(overrideErr),
+		)
+	}
+	if overrideSet {
+		return overrideModel, overrideConfig, true
+	}
+
 	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
 	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, runResult.ModelBuildOptions)
 	if err != nil {

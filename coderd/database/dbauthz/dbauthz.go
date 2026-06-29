@@ -3451,6 +3451,13 @@ func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([
 	return q.db.GetChatStreamSyncRows(ctx, ids)
 }
 
+func (q *querier) GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatSummaryGenerationModelOverride(ctx)
+}
+
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check
@@ -8722,6 +8729,13 @@ func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int
 		return err
 	}
 	return q.db.UpsertChatRetentionDays(ctx, retentionDays)
+}
+
+func (q *querier) UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatSummaryGenerationModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) error {

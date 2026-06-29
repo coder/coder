@@ -42,6 +42,11 @@ const buildTitleGenerationModelOverrideData = (
 ): TypesGen.ChatModelOverrideResponse =>
 	buildOverrideData("title_generation", overrides);
 
+const buildSummaryGenerationModelOverrideData = (
+	overrides: Partial<TypesGen.ChatModelOverrideResponse> = {},
+): TypesGen.ChatModelOverrideResponse =>
+	buildOverrideData("summary_generation", overrides);
+
 const generalModelConfig = buildModelConfig({
 	id: "model-general-gpt-4.1-mini",
 	display_name: "GPT 4.1 Mini",
@@ -116,6 +121,7 @@ const buildArgs = (
 	isSaveAdminOverridesError: false,
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
+	summaryGenerationModelOverrideData: buildSummaryGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
 	modelConfigsError: undefined,
@@ -126,6 +132,9 @@ const buildArgs = (
 	onSaveTitleGenerationModel: fn(),
 	isSavingTitleGenerationModel: false,
 	isSaveTitleGenerationModelError: false,
+	onSaveSummaryGenerationModel: fn(),
+	isSavingSummaryGenerationModel: false,
+	isSaveSummaryGenerationModelError: false,
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
@@ -344,6 +353,46 @@ export const EachOverrideSetToEnabledModel: Story = {
 		await waitFor(() => {
 			expect(args.onSaveExploreModelOverride).toHaveBeenCalledWith(
 				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const SummaryGenerationModelSetToEnabledModel: Story = {
+	args: buildArgs({
+		summaryGenerationModelOverrideData: buildSummaryGenerationModelOverrideData(
+			{ model_config_id: titleModelConfig.id },
+		),
+	}),
+	play: async ({ canvasElement, args }) => {
+		const summarySection = await getSection(
+			canvasElement,
+			"Summary generation model",
+		);
+
+		expect(
+			within(summarySection).getByRole("combobox", {
+				name: /gpt 4o mini/i,
+			}),
+		).toHaveTextContent("GPT 4o Mini");
+
+		await selectModelInSection(
+			summarySection,
+			canvasElement,
+			/gpt 4o mini/i,
+			"Claude Sonnet 4",
+		);
+		const summarySaveButton = within(summarySection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(summarySaveButton).toBeEnabled();
+		});
+		await userEvent.click(summarySaveButton);
+		await waitFor(() => {
+			expect(args.onSaveSummaryGenerationModel).toHaveBeenCalledWith(
+				{ model_config_id: claudeSonnetModelConfig.id },
 				expect.anything(),
 			);
 		});
