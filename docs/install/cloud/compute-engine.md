@@ -65,12 +65,12 @@ sudo systemctl restart coder # restart Coder
 
 Instead of running containers on the Coder instance, you can offer developers
 full VM instances with the
-[gcp-linux](../../../examples/templates/gcp-linux)
+[gcp-linux](../../../examples/templates/gcp-linux/README.md)
 template.
 
 Before you can use this template, you must authorize Coder to create VM
 instances in your GCP project. Follow the instructions in the
-[gcp-linux template README](../../../examples/templates/gcp-linux#authentication)
+[gcp-linux template README](../../../examples/templates/gcp-linux/README.md#authentication)
 to set up authentication.
 
 ### Next Steps

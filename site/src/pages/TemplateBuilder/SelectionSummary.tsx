@@ -107,7 +107,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({ step, children }) => {
 };
 
 const stepDividerVariants = cva(
-	"border-0 border-l border-solid mx-4 -translate-x-px",
+	"border-0 border-l border-solid mx-3 -translate-x-px",
 	{
 		variants: {
 			variant: {
