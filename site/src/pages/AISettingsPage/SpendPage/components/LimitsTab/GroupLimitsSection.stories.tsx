@@ -68,14 +68,13 @@ const editingGroupOverride = {
 };
 
 const meta: Meta<typeof GroupLimitsSection> = {
-	title: "pages/AgentsPage/LimitsTab/GroupLimitsSection",
+	title: "pages/AISettingsPage/SpendPage/LimitsTab/GroupLimitsSection",
 	component: GroupLimitsSection,
 	args: {
 		groupOverrides: mockGroupOverrides,
 		groupOrganizationNames: {
-			"group-1": "acme",
-			"group-2": "acme",
-			"group-4": "acme",
+			"group-1": "Acme",
+			"group-2": "Acme",
 		},
 		showGroupForm: false,
 		onShowGroupFormChange: fn(),
@@ -123,14 +122,14 @@ export const EditForm: Story = {
 		groupAmount: "10.00",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Save button confirms edit mode is active.
+		const body = within(canvasElement.ownerDocument.body);
+		// Update budget button confirms edit mode is active.
 		await expect(
-			canvas.getByRole("button", { name: /save/i }),
+			body.getByRole("button", { name: /update budget/i }),
 		).toBeInTheDocument();
 		// The editing group name appears in both the table row and the
 		// read-only edit form identity, confirming it was populated.
-		const nameElements = canvas.getAllByText(
+		const nameElements = body.getAllByText(
 			editingGroupOverride.group_display_name,
 		);
 		expect(nameElements.length).toBeGreaterThanOrEqual(2);
@@ -141,11 +140,13 @@ export const DeleteGroupOverride: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click the Delete button for the first group override.
-		const deleteButtons = await body.findAllByRole("button", {
-			name: "Delete",
+		const actionButtons = await body.findAllByRole("button", {
+			name: /actions for/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(actionButtons[0]);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: /remove group limit/i }),
+		);
 
 		// The confirmation dialog should appear.
 		const dialog = await body.findByRole("dialog");
@@ -160,11 +161,13 @@ export const DeleteGroupOverrideCancelled: Story = {
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click the Delete button for the first group override.
-		const deleteButtons = await body.findAllByRole("button", {
-			name: "Delete",
+		const actionButtons = await body.findAllByRole("button", {
+			name: /actions for/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(actionButtons[0]);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: /remove group limit/i }),
+		);
 
 		// Cancel the dialog.
 		await body.findByRole("dialog");

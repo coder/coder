@@ -1999,7 +1999,7 @@ communicating directly.`,
 	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
-		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Description: "Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
 		Flag:        "ai-gateway-dump-dir",
 		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
 		Value:       &c.AI.BridgeConfig.APIDumpDir,

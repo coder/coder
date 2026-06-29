@@ -67,7 +67,7 @@ describe("formatUsageDateRange", () => {
 			startDate: new Date("2025-06-01T00:00:00.000"),
 			endDate: new Date("2025-06-08T00:00:00.000"),
 		});
-		expect(result).toBe("Jun 1 – Jun 8, 2025");
+		expect(result).toBe("Jun 1 to Jun 8, 2025");
 	});
 
 	it("shows previous day when endDateIsExclusive is true and end date is midnight", () => {
@@ -78,7 +78,7 @@ describe("formatUsageDateRange", () => {
 			},
 			{ endDateIsExclusive: true },
 		);
-		expect(result).toBe("Jun 1 – Jun 7, 2025");
+		expect(result).toBe("Jun 1 to Jun 7, 2025");
 	});
 
 	it("shows same day when endDateIsExclusive is true and end date is not midnight", () => {
@@ -89,7 +89,7 @@ describe("formatUsageDateRange", () => {
 			},
 			{ endDateIsExclusive: true },
 		);
-		expect(result).toBe("Jun 1 – Jun 8, 2025");
+		expect(result).toBe("Jun 1 to Jun 8, 2025");
 	});
 
 	it("shows same day when endDateIsExclusive is false and end date is midnight", () => {
@@ -100,7 +100,7 @@ describe("formatUsageDateRange", () => {
 			},
 			{ endDateIsExclusive: false },
 		);
-		expect(result).toBe("Jun 1 – Jun 8, 2025");
+		expect(result).toBe("Jun 1 to Jun 8, 2025");
 	});
 
 	it("formats a cross-month range", () => {
@@ -108,7 +108,7 @@ describe("formatUsageDateRange", () => {
 			startDate: new Date("2025-05-28T00:00:00.000"),
 			endDate: new Date("2025-06-04T00:00:00.000"),
 		});
-		expect(result).toBe("May 28 – Jun 4, 2025");
+		expect(result).toBe("May 28 to Jun 4, 2025");
 	});
 
 	it("formats a same-month range", () => {
@@ -116,7 +116,7 @@ describe("formatUsageDateRange", () => {
 			startDate: new Date("2025-06-01T00:00:00.000"),
 			endDate: new Date("2025-06-15T00:00:00.000"),
 		});
-		expect(result).toBe("Jun 1 – Jun 15, 2025");
+		expect(result).toBe("Jun 1 to Jun 15, 2025");
 	});
 
 	it("formats a cross-year range without ambiguity", () => {
@@ -125,8 +125,8 @@ describe("formatUsageDateRange", () => {
 			endDate: new Date("2026-01-04T00:00:00.000"),
 		});
 		// Start date omits year, end date includes it. The label reads
-		// as "Dec 28 – Jan 4, 2026" which is unambiguous enough for a
+		// as "Dec 28 to Jan 4, 2026" which is unambiguous enough for a
 		// 30-day range label (the start year is implied).
-		expect(result).toBe("Dec 28 – Jan 4, 2026");
+		expect(result).toBe("Dec 28 to Jan 4, 2026");
 	});
 });

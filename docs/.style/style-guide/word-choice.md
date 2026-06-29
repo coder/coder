@@ -19,7 +19,7 @@ It reads as a misspelling of the product name.
 |---------------------------------|------------------------------------------------|
 | Coder                           | coder (referring to the product, no backticks) |
 | `coder` (the CLI, in backticks) | coder (the CLI, no backticks)                  |
-| AI Bridge                       | AI bridge, AIBridge                            |
+| AI Gateway                      | AI gateway, AIGateway, AI Bridge               |
 | Workspace Proxy                 | workspace proxy (referring to the feature)     |
 | workspace                       | Workspace (referring to the generic concept)   |
 | template                        | Template (referring to the generic concept)    |
@@ -30,13 +30,13 @@ It reads as a misspelling of the product name.
 
 > Coder runs `coder login` to authenticate against the Coder server.
 >
-> Open the AI Bridge integration page to configure model providers.
+> Open the AI Gateway integration page to configure model providers.
 
 **Don't**:
 
 > coder runs coder login to authenticate against the coder server.
 >
-> Open the ai bridge integration page to configure model providers.
+> Open the ai gateway integration page to configure model providers.
 
 *Enforced by `Coder.ProductTerms` (planned).*
 

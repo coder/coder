@@ -6,4 +6,5 @@ type DRPCServer interface {
 	proto.DRPCRecorderServer
 	proto.DRPCMCPConfiguratorServer
 	proto.DRPCAuthorizerServer
+	proto.DRPCProviderConfiguratorServer
 }

@@ -972,7 +972,7 @@ ai_gateway:
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
   send_actor_headers: false
-  # Base directory for dumping AI Bridge request/response pairs to disk for
+  # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.
   # (default: <unset>, type: string)
