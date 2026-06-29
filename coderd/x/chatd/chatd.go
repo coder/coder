@@ -2887,6 +2887,82 @@ func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsa
 	return chatUsage
 }
 
+// recordHiddenUsageMessageTx records non-turn spend (background summary or
+// manual title generation) as a hidden, soft-deleted accounting message tagged
+// with costSource, then restores the chat's last model config. It runs inside
+// the caller's transaction against the already-locked chat and does not touch
+// any user-visible chat field. costSource also labels the wrapped errors.
+func recordHiddenUsageMessageTx(
+	ctx context.Context,
+	tx database.Store,
+	lockedChat database.Chat,
+	modelConfig database.ChatModelConfig,
+	usage fantasy.Usage,
+	activeAPIKeyID string,
+	costSource string,
+) error {
+	callConfig := codersdk.ChatModelCallConfig{}
+	if len(modelConfig.Options) > 0 {
+		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+			return xerrors.Errorf("parse model call config: %w", err)
+		}
+	}
+	totalCostMicros := chatcost.CalculateTotalCostMicros(
+		fantasyUsageToChatMessageUsage(usage),
+		callConfig.Cost,
+	)
+
+	// MarshalParts returns a null NullRawMessage for empty slices, which becomes
+	// an empty string that PostgreSQL rejects as invalid JSON.
+	content := "[]"
+
+	messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              lockedChat.ID,
+		CreatedBy:           []uuid.UUID{lockedChat.OwnerID},
+		APIKeyID:            []string{activeAPIKeyID},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		Content:             []string{content},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
+		InputTokens:         []int64{usage.InputTokens},
+		OutputTokens:        []int64{usage.OutputTokens},
+		TotalTokens:         []int64{usage.TotalTokens},
+		ReasoningTokens:     []int64{usage.ReasoningTokens},
+		CacheCreationTokens: []int64{usage.CacheCreationTokens},
+		CacheReadTokens:     []int64{usage.CacheReadTokens},
+		ContextLimit:        []int64{modelConfig.ContextLimit},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert %s usage message: %w", costSource, err)
+	}
+	if len(messages) != 1 {
+		return xerrors.Errorf("expected 1 %s usage message, got %d", costSource, len(messages))
+	}
+	if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
+		ID:         messages[0].ID,
+		CostSource: costSource,
+	}); err != nil {
+		return xerrors.Errorf("tag %s usage cost source: %w", costSource, err)
+	}
+	if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+		return xerrors.Errorf("soft delete %s usage message: %w", costSource, err)
+	}
+	if lockedChat.LastModelConfigID != modelConfig.ID {
+		if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+			ID:                lockedChat.ID,
+			LastModelConfigID: lockedChat.LastModelConfigID,
+		}); err != nil {
+			return xerrors.Errorf("restore chat model config after %s usage: %w", costSource, err)
+		}
+	}
+	return nil
+}
+
 func recordManualTitleUsage(
 	ctx context.Context,
 	store database.Store,
@@ -2901,26 +2977,6 @@ func recordManualTitleUsage(
 		return chat, nil
 	}
 
-	var totalCostMicros *int64
-	if hasUsage {
-		callConfig := codersdk.ChatModelCallConfig{}
-		if len(modelConfig.Options) > 0 {
-			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-				return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
-			}
-		}
-		totalCostMicros = chatcost.CalculateTotalCostMicros(
-			fantasyUsageToChatMessageUsage(usage),
-			callConfig.Cost,
-		)
-	}
-
-	// Use a valid empty JSON array for the content column.
-	// MarshalParts returns a null NullRawMessage for empty
-	// slices, which becomes an empty string that PostgreSQL
-	// rejects as invalid JSON.
-	content := "[]"
-
 	updatedChat := chat
 	err := store.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
@@ -2929,49 +2985,8 @@ func recordManualTitleUsage(
 		}
 		updatedChat = lockedChat
 		if hasUsage {
-			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-				ChatID:              chat.ID,
-				CreatedBy:           []uuid.UUID{chat.OwnerID},
-				APIKeyID:            []string{activeAPIKeyID},
-				ModelConfigID:       []uuid.UUID{modelConfig.ID},
-				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-				Content:             []string{content},
-				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-				InputTokens:         []int64{usage.InputTokens},
-				OutputTokens:        []int64{usage.OutputTokens},
-				TotalTokens:         []int64{usage.TotalTokens},
-				ReasoningTokens:     []int64{usage.ReasoningTokens},
-				CacheCreationTokens: []int64{usage.CacheCreationTokens},
-				CacheReadTokens:     []int64{usage.CacheReadTokens},
-				ContextLimit:        []int64{modelConfig.ContextLimit},
-				Compressed:          []bool{false},
-				TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
-				RuntimeMs:           []int64{0},
-				ProviderResponseID:  []string{""},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert manual title usage message: %w", err)
-			}
-			if len(messages) != 1 {
-				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
-			}
-			if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
-				ID:         messages[0].ID,
-				CostSource: chatCostSourceTitle,
-			}); err != nil {
-				return xerrors.Errorf("tag manual title usage cost source: %w", err)
-			}
-			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
-				return xerrors.Errorf("soft delete manual title usage message: %w", err)
-			}
-			if lockedChat.LastModelConfigID != modelConfig.ID {
-				if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-					ID:                chat.ID,
-					LastModelConfigID: lockedChat.LastModelConfigID,
-				}); err != nil {
-					return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
-				}
+			if err := recordHiddenUsageMessageTx(ctx, tx, lockedChat, modelConfig, usage, activeAPIKeyID, chatCostSourceTitle); err != nil {
+				return err
 			}
 		}
 		if newTitle != "" && lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
@@ -4915,6 +4930,10 @@ const (
 	chatSummaryWorkTimeout = 120 * time.Second
 	// chatSummaryGenerateTimeout bounds the model call itself.
 	chatSummaryGenerateTimeout = 60 * time.Second
+	// chatSummaryWriteTimeout bounds the best-effort persistence of a generated
+	// whole-chat summary. It is separate from turnStatusLabelWriteTimeout so the
+	// two policies can be tuned independently.
+	chatSummaryWriteTimeout = 5 * time.Second
 )
 
 // chatCostSource values tag hidden accounting rows so non-turn spend is
@@ -4937,10 +4956,15 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	// This helper runs during processChat cleanup, while processChat is still
-	// counted in p.inflight. Do not take inflightMu here because drainInflight
-	// holds it while waiting.
+	// Launch background summary generation tracked by p.inflight so Close()
+	// waits for it. Bail out early if shutdown has begun: generation can run for
+	// up to chatSummaryWorkTimeout, and Close() must not block that long. The
+	// atomic inflightClosed check reproduces goInflight's shutdown admission
+	// gate without taking inflightMu, which drainInflight holds while waiting.
 	p.inflight.Go(func() {
+		if p.inflightClosed.Load() {
+			return
+		}
 		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, runResult, logger)
 	})
 }
@@ -4963,6 +4987,18 @@ func (p *Server) generateAndStoreChatSummary(
 	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to load messages for chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+
+	// Re-read the chat so the cadence gate sees the freshest Summary and
+	// SummaryGeneratedAt. The chat passed in is a snapshot from when the turn
+	// finished. Without this, two rapid back-to-back turns both see the same
+	// stale snapshot, both pass the gate, and both call the LLM, even though the
+	// history_version guard in UpdateChatSummary still persists only one.
+	chat, err = p.db.GetChatByID(authCtx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to re-read chat for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
@@ -5105,7 +5141,7 @@ func (p *Server) updateChatSummary(
 
 	//nolint:gocritic // Narrow daemon access for best-effort summary cache writes.
 	updateCtx := dbauthz.AsChatd(ctx)
-	updateCtx, cancel := context.WithTimeout(updateCtx, turnStatusLabelWriteTimeout)
+	updateCtx, cancel := context.WithTimeout(updateCtx, chatSummaryWriteTimeout)
 	defer cancel()
 
 	affected, err := p.db.UpdateChatSummary(updateCtx, database.UpdateChatSummaryParams{
@@ -5134,7 +5170,8 @@ func (p *Server) updateChatSummary(
 
 // recordChatSummaryUsage records the cost of a background summary generation as
 // a hidden, soft-deleted accounting row tagged with cost_source='summary'. It
-// mirrors recordManualTitleUsage but does not update the chat title.
+// locks the chat and delegates to recordHiddenUsageMessageTx; unlike
+// recordManualTitleUsage it never updates the chat title.
 func recordChatSummaryUsage(
 	ctx context.Context,
 	store database.Store,
@@ -5147,20 +5184,6 @@ func recordChatSummaryUsage(
 		return chat, nil
 	}
 
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
-		}
-	}
-	totalCostMicros := chatcost.CalculateTotalCostMicros(
-		fantasyUsageToChatMessageUsage(usage),
-		callConfig.Cost,
-	)
-
-	// Use a valid empty JSON array for the content column.
-	content := "[]"
-
 	updatedChat := chat
 	err := store.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
@@ -5168,52 +5191,7 @@ func recordChatSummaryUsage(
 			return xerrors.Errorf("lock chat for summary usage: %w", err)
 		}
 		updatedChat = lockedChat
-
-		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{chat.OwnerID},
-			APIKeyID:            []string{activeAPIKeyID},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{content},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-			InputTokens:         []int64{usage.InputTokens},
-			OutputTokens:        []int64{usage.OutputTokens},
-			TotalTokens:         []int64{usage.TotalTokens},
-			ReasoningTokens:     []int64{usage.ReasoningTokens},
-			CacheCreationTokens: []int64{usage.CacheCreationTokens},
-			CacheReadTokens:     []int64{usage.CacheReadTokens},
-			ContextLimit:        []int64{modelConfig.ContextLimit},
-			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
-			RuntimeMs:           []int64{0},
-			ProviderResponseID:  []string{""},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert summary usage message: %w", err)
-		}
-		if len(messages) != 1 {
-			return xerrors.Errorf("expected 1 summary usage message, got %d", len(messages))
-		}
-		if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
-			ID:         messages[0].ID,
-			CostSource: chatCostSourceSummary,
-		}); err != nil {
-			return xerrors.Errorf("tag summary usage cost source: %w", err)
-		}
-		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
-			return xerrors.Errorf("soft delete summary usage message: %w", err)
-		}
-		if lockedChat.LastModelConfigID != modelConfig.ID {
-			if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-				ID:                chat.ID,
-				LastModelConfigID: lockedChat.LastModelConfigID,
-			}); err != nil {
-				return xerrors.Errorf("restore chat model config after summary usage: %w", err)
-			}
-		}
-		return nil
+		return recordHiddenUsageMessageTx(ctx, tx, lockedChat, modelConfig, usage, activeAPIKeyID, chatCostSourceSummary)
 	}, nil)
 	if err != nil {
 		return database.Chat{}, err

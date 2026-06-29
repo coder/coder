@@ -16726,7 +16726,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
                 "summary": {
-                    "description": "Summary is the persisted whole-chat summary shown in the chat summary\npopover. It is generated asynchronously in the background and may be nil\nuntil the first summary has been produced.",
+                    "description": "Summary is the persisted whole-chat summary, generated asynchronously in\nthe background. It is nil until the first summary has been produced.",
                     "type": "string"
                 },
                 "title": {
