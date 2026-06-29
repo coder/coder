@@ -3,7 +3,6 @@ import {
 	ArrowUpRightIcon,
 	BotIcon,
 	BoxesIcon,
-	ChevronRightIcon,
 	CoinsIcon,
 	FlaskConicalIcon,
 	KeyIcon,
@@ -147,10 +146,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						<SettingsNavItem
 							icon={Settings2Icon}
 							label="Manage agents"
-							active={false}
-							to="/agents/settings/admin"
+							active={settingsSection === "experiments"}
+							to="/agents/settings/experiments"
 							state={location.state}
-							trailingIcon={ChevronRightIcon}
 						/>
 					)}
 				</nav>

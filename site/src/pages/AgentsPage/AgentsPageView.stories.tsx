@@ -1143,7 +1143,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
-export const OpensAdminSubPanelOnMobile: Story = {
+export const OpensExperimentsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1160,15 +1160,12 @@ export const OpensAdminSubPanelOnMobile: Story = {
 		);
 
 		await expect(
-			await screen.findByRole("link", { name: "Providers" }),
-		).toBeInTheDocument();
-		await expect(
-			await screen.findByRole("link", { name: "Spend" }),
+			await screen.findByRole("heading", { name: "Experiments" }),
 		).toBeInTheDocument();
 	},
 };
 
-export const SettingsViewSpendCrossLink: Story = {
+export const SettingsViewExperimentsLink: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1186,9 +1183,10 @@ export const SettingsViewSpendCrossLink: Story = {
 			await screen.findByRole("link", { name: "Manage agents" }),
 		);
 
-		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
-			expect(screen.getByText("Spend limits and usage")).toBeInTheDocument();
+			expect(
+				screen.getByText("Opt in to experimental features."),
+			).toBeInTheDocument();
 		});
 	},
 };
