@@ -1183,20 +1183,20 @@ func TestAIBridgeListClients(t *testing.T) {
 		Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
 	}, &endedAt)
 
-	// Completed interception with no client — should appear as "Unknown".
+	// Completed interception with no client. Should appear as "Unknown".
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
 	}, &endedAt)
 
-	// Duplicate client — should be deduplicated in results.
+	// Duplicate client. Should be deduplicated in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
 		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
 	}, &endedAt)
 
-	// In-flight interception (no ended_at) — must NOT appear in results.
+	// In-flight interception (no ended_at). Must NOT appear in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,

@@ -1568,6 +1568,25 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/ai-gateway/serve": {
+            "get": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "AI Gateway serve",
+                "operationId": "ai-gateway-serve",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "AIGatewayKey": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai-gateway/sessions": {
             "get": {
                 "description": "Alias: also available at /api/v2/aibridge/sessions for backward compatibility.",
@@ -15292,7 +15311,7 @@ const docTemplate = `{
                 "key_prefix": {
                     "type": "string"
                 },
-                "last_used_at": {
+                "last_heartbeat_at": {
                     "type": "string",
                     "format": "date-time"
                 },
@@ -15526,6 +15545,7 @@ const docTemplate = `{
                 "ai_gateway_key:create",
                 "ai_gateway_key:delete",
                 "ai_gateway_key:read",
+                "ai_gateway_key:update",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -15760,6 +15780,7 @@ const docTemplate = `{
                 "APIKeyScopeAiGatewayKeyCreate",
                 "APIKeyScopeAiGatewayKeyDelete",
                 "APIKeyScopeAiGatewayKeyRead",
+                "APIKeyScopeAiGatewayKeyUpdate",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -16741,7 +16762,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
                 "summary": {
-                    "description": "Summary is the persisted whole-chat summary shown in the chat summary\npopover. It is generated asynchronously in the background and may be nil\nuntil the first summary has been produced.",
+                    "description": "Summary is the persisted whole-chat summary, generated asynchronously in\nthe background. It is nil until the first summary has been produced.",
                     "type": "string"
                 },
                 "title": {
@@ -17897,6 +17918,14 @@ const docTemplate = `{
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"
             ]
+        },
+        "codersdk.ClusterConfig": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -19233,6 +19262,9 @@ const docTemplate = `{
                 },
                 "cli_upgrade_message": {
                     "type": "string"
+                },
+                "cluster": {
+                    "$ref": "#/definitions/codersdk.ClusterConfig"
                 },
                 "config": {
                     "type": "string"
@@ -21331,6 +21363,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "email_fallback": {
+                    "description": "EmailFallback allows OIDC logins to fall back to email-based matching\nwhen the ` + "`" + `linked_id` + "`" + ` (issuer+subject) does not match an existing user\nlink. INSECURE: weakens the linked_id check. It exists for IdP\nbrokers that do not issue a stable ` + "`" + `sub` + "`" + ` for the same user across\nconnections.",
+                    "type": "boolean"
                 },
                 "email_field": {
                     "type": "string"
@@ -25216,6 +25252,11 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "avatar_url": {
+                    "description": "AvatarURL is only applied for users whose login type is password or\nnone. For other login types the avatar is synced from the identity\nprovider on login, so a submitted value is ignored.",
+                    "type": "string",
+                    "format": "uri"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -28955,6 +28996,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "AIGatewayKey": {
+            "type": "apiKey",
+            "name": "X-AI-Governance-Gateway-Key",
+            "in": "header"
+        },
         "Authorization": {
             "type": "apiKey",
             "name": "Authorizaiton",

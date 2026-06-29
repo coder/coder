@@ -1,196 +1,355 @@
-import { ExternalLinkIcon } from "lucide-react";
+import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { API } from "#/api/api";
-import { isApiValidationError } from "#/api/errors";
-import { checkAuthorization } from "#/api/queries/authCheck";
-import { richParameters } from "#/api/queries/templates";
-import { workspaceBuildParameters } from "#/api/queries/workspaceBuilds";
+import { DetailedError } from "#/api/errors";
 import type {
-	TemplateVersionParameter,
-	Workspace,
+	DynamicParametersRequest,
+	DynamicParametersResponse,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
-import {
-	type WorkspacePermissions,
-	workspaceChecks,
-} from "../../../modules/workspaces/permissions";
+import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
-import {
-	WorkspaceParametersForm,
-	type WorkspaceParametersFormValues,
-} from "./WorkspaceParametersForm";
+import { WorkspaceParametersPageView } from "./WorkspaceParametersPageView";
 
 const WorkspaceParametersPage: FC = () => {
-	const { workspace } = useWorkspaceSettings();
-	const build = workspace.latest_build;
-	const { data: templateVersionParameters } = useQuery(
-		richParameters(build.template_version_id),
-	);
-	const { data: buildParameters } = useQuery(
-		workspaceBuildParameters(build.id),
-	);
+	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
-	const updateParameters = useMutation({
+	const [searchParams] = useSearchParams();
+	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
+
+	const [confirmingRestart, setConfirmingRestart] = useState<{
+		open: boolean;
+		buildParameters?: WorkspaceBuildParameter[];
+	}>({ open: false });
+
+	// autofill the form with the workspace build parameters from the latest build
+	//  CLEANUP(bad-vibes): raw query options
+	const {
+		data: latestBuildParameters,
+		isLoading: latestBuildParametersLoading,
+	} = useQuery({
+		queryKey: ["workspaceBuilds", workspace.latest_build.id, "parameters"],
+		queryFn: () => API.getWorkspaceBuildParameters(workspace.latest_build.id),
+	});
+
+	const [latestResponse, setLatestResponse] =
+		useState<DynamicParametersResponse | null>(null);
+	// The current expected response ID.  Starts at -1 because the backend sends
+	// an initial message when the web socket is connected with -1.
+	const wsResponseId = useRef<number>(-1);
+	const ws = useRef<WebSocket | null>(null);
+	const [wsError, setWsError] = useState<Error | null>(null);
+	// The expected ID of the init message, so we can wait until the initial
+	// parameters have gone through before rendering the form.
+	const [initId, setInitId] = useState(Number.NaN);
+
+	// Parameters from the latest build, formatted as auto-fill parameters.
+	const autofillParameters: AutofillBuildParameter[] =
+		latestBuildParameters?.map((p) => ({
+			...p,
+			source: "active_build",
+		})) ?? [];
+
+	// sendMessage increments the ID and sends the form values on the web socket
+	// and return true.  If the socket is not open, it does not increment the ID
+	// and returns false.
+	const sendMessage = (formValues: Record<string, string>): boolean => {
+		const request: DynamicParametersRequest = {
+			id: wsResponseId.current + 1,
+			owner_id: workspace.owner_id,
+			inputs: formValues,
+		};
+		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+			wsResponseId.current = wsResponseId.current + 1;
+			ws.current.send(JSON.stringify(request));
+			return true;
+		}
+		if (ws.current) {
+			console.error(
+				"Tried to send message but the web socket state is %s",
+				ws.current.readyState,
+				request,
+			);
+		}
+		return false;
+	};
+
+	// Send the initial parameters if necessary and mark the ID of the response we
+	// need to wait for until we can finally render the form with the right state.
+	const sendInitialParameters = useEffectEvent(() => {
+		if (latestBuildParametersLoading || !Number.isNaN(initId)) {
+			return;
+		}
+		if (autofillParameters.length > 0) {
+			const values = Object.fromEntries(
+				autofillParameters.map((afp) => [afp.name, afp.value]),
+			);
+			if (!sendMessage(values)) {
+				return;
+			}
+		}
+		// If there were no parameters to send, this will end up just using the
+		// response we already have.  Otherwise it will wait for the next response.
+		setInitId(wsResponseId.current);
+	});
+
+	// Send the build parameters once we get them.
+	useEffect(() => {
+		// sendInitialParameters already makes this check but the linter complains
+		// if the dependency is not used.
+		if (!latestBuildParametersLoading) {
+			sendInitialParameters();
+		}
+	}, [latestBuildParametersLoading]);
+
+	useEffect(() => {
+		if (!templateVersionId && !workspace.latest_build.template_version_id)
+			return;
+
+		// CLEANUP(bad-vibes): raw api call
+		const socket = API.templateVersionDynamicParameters(
+			templateVersionId ?? workspace.latest_build.template_version_id,
+			workspace.owner_id,
+			{
+				onOpen: () => {
+					// If we already have the build parameters, send them now.
+					sendInitialParameters();
+				},
+				// Record the latest message every time we get one from the web
+				// socket.  Stale responses are discarded.
+				onMessage: (response: DynamicParametersResponse) => {
+					if (response.id >= wsResponseId.current) {
+						setLatestResponse(response);
+					}
+				},
+				onError: (error) => {
+					if (ws.current === socket) {
+						setWsError(error);
+					}
+				},
+				onClose: () => {
+					if (ws.current === socket) {
+						setWsError(
+							new DetailedError(
+								"Websocket connection for dynamic parameters unexpectedly closed.",
+								"Refresh the page to reset the form.",
+							),
+						);
+					}
+				},
+			},
+		);
+
+		ws.current = socket;
+
+		return () => {
+			socket.close();
+		};
+	}, [
+		templateVersionId,
+		workspace.latest_build.template_version_id,
+		workspace.owner_id,
+	]);
+
+	const startWithParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
 			API.postWorkspaceBuild(workspace.id, {
 				transition: "start",
+				template_version_id: templateVersionId,
 				rich_parameter_values: buildParameters,
 				reason: "dashboard",
 			}),
 		onSuccess: () => {
-			navigate(`/${workspace.owner_name}/${workspace.name}`);
+			navigate(`/@${workspace.owner_name}/${workspace.name}`);
 		},
 	});
 
-	// Permissions
-	const checks = workspace ? workspaceChecks(workspace) : {};
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks }),
-		enabled: workspace !== undefined,
+	const restartWithParameters = useMutation({
+		mutationFn: async (buildParameters: WorkspaceBuildParameter[]) => {
+			const stopBuild = await API.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await API.waitForBuild(stopBuild);
+
+			// If the restart is canceled halfway through, make sure we bail
+			if (awaitedStopBuild?.status === "canceled") {
+				return;
+			}
+
+			return API.postWorkspaceBuild(workspace.id, {
+				transition: "start",
+				template_version_id: templateVersionId,
+				rich_parameter_values: buildParameters,
+				reason: "dashboard",
+			});
+		},
+		onSuccess: () => {
+			navigate(`/@${workspace.owner_name}/${workspace.name}`);
+		},
 	});
-	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
+
 	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
-	const templatePermissionsQuery = useQuery({
-		...checkAuthorization({
-			checks: {
-				canUpdateTemplate: {
-					object: {
-						resource_type: "template",
-						resource_id: workspace.template_id,
-					},
-					action: "update",
-				},
-			},
-		}),
-		enabled: workspace !== undefined,
-	});
+	const handleSubmit = (values: {
+		rich_parameter_values: WorkspaceBuildParameter[];
+	}) => {
+		if (!latestResponse?.parameters) {
+			return;
+		}
 
-	const templatePermissions = templatePermissionsQuery.data as
-		| { canUpdateTemplate: boolean }
-		| undefined;
+		// Only submit mutable parameters
+		const onlyMutableValues = latestResponse.parameters
+			.filter((p) => p.mutable)
+			.map((p) => {
+				const value = values.rich_parameter_values.find(
+					(v) => v.name === p.name,
+				);
+				if (!value) {
+					throw new Error(`Missing value for parameter ${p.name}`);
+				}
+				return value;
+			});
+
+		// We only enable the button to navigate to this page if the workspace can
+		// accept new jobs, but if the workspace is in any pending state (user
+		// manually loaded the page or workspace state changed after load) then we
+		// could still submit a build that will fail.
+		if (workspace.latest_build.status === "running") {
+			setConfirmingRestart({ open: true, buildParameters: onlyMutableValues });
+		} else {
+			startWithParameters.mutate(onlyMutableValues);
+		}
+	};
+
+	const sortedParams = useMemo(() => {
+		if (!latestResponse?.parameters) {
+			return [];
+		}
+		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
+	}, [latestResponse?.parameters]);
+
+	const error =
+		wsError || startWithParameters.error || restartWithParameters.error;
+
+	// Some of these checks conceptually overlap, but opting to be explicit.
+	const isLoading =
+		latestBuildParametersLoading ||
+		!latestResponse ||
+		Number.isNaN(initId) ||
+		latestResponse.id < initId ||
+		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
+
+	let submitLabel = "Update and start";
+	if (restartWithParameters.isPending) {
+		submitLabel = "Stopping workspace";
+	} else if (startWithParameters.isPending) {
+		submitLabel = "Starting workspace";
+	} else if (workspace.latest_build.status === "running") {
+		submitLabel = "Update and restart";
+	}
 
 	return (
-		<>
+		<div className="flex flex-col gap-6 max-w-screen-md">
 			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
-			<WorkspaceParametersPageView
-				workspace={workspace}
-				templateVersionParameters={templateVersionParameters}
-				buildParameters={buildParameters}
-				canChangeVersions={canChangeVersions}
-				templatePermissions={templatePermissions}
-				submitError={updateParameters.error}
-				isSubmitting={updateParameters.isPending}
-				onSubmit={(values) => {
-					if (!templateVersionParameters) {
-						return;
-					}
-					// When updating the parameters, the API does not accept immutable
-					// values so we need to filter them
-					const onlyMutableValues = templateVersionParameters
-						.filter((p) => p.mutable)
-						.map((p) => {
-							const value = values.rich_parameter_values.find(
-								(v) => v.name === p.name,
-							);
-							if (!value) {
-								throw new Error(`Missing value for parameter ${p.name}`);
-							}
-							return value;
-						});
-					updateParameters.mutate(onlyMutableValues);
-				}}
-				onCancel={() => {
-					navigate("../..");
-				}}
-			/>
-		</>
-	);
-};
-
-type WorkspaceParametersPageViewProps = {
-	workspace: Workspace;
-	canChangeVersions: boolean;
-	templatePermissions: { canUpdateTemplate: boolean } | undefined;
-	templateVersionParameters?: TemplateVersionParameter[];
-	buildParameters?: WorkspaceBuildParameter[];
-	submitError: unknown;
-	isSubmitting: boolean;
-	onSubmit: (formValues: WorkspaceParametersFormValues) => void;
-	onCancel: () => void;
-};
-
-export const WorkspaceParametersPageView: FC<
-	WorkspaceParametersPageViewProps
-> = ({
-	workspace,
-	canChangeVersions,
-	templatePermissions,
-	templateVersionParameters,
-	buildParameters,
-	submitError,
-	onSubmit,
-	isSubmitting,
-	onCancel,
-}) => {
-	return (
-		<div className="flex flex-col gap-10">
 			<header className="flex flex-col items-start gap-2">
-				<span className="flex flex-row justify-between w-full items-center gap-2">
-					<h1 className="text-3xl m-0">Workspace parameters</h1>
+				<span className="flex flex-row items-center gap-2 justify-between w-full">
+					<span className="flex flex-row items-center gap-2">
+						<h1 className="text-3xl m-0">Workspace parameters</h1>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelpIcon className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/dynamic-parameters",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</span>
 				</span>
 			</header>
 
-			{submitError && !isApiValidationError(submitError) ? (
-				<ErrorAlert error={submitError} className="mb-12" />
-			) : null}
+			{Boolean(error) && <ErrorAlert error={error} />}
 
-			{templateVersionParameters && buildParameters ? (
-				templateVersionParameters.length > 0 ? (
-					<WorkspaceParametersForm
-						workspace={workspace}
-						canChangeVersions={canChangeVersions}
-						templatePermissions={templatePermissions}
-						autofillParams={buildParameters.map((p) => ({
-							...p,
-							source: "active_build",
-						}))}
-						templateVersionRichParameters={templateVersionParameters}
-						error={submitError}
-						isSubmitting={isSubmitting}
-						onSubmit={onSubmit}
-						onCancel={onCancel}
-					/>
-				) : (
-					<EmptyState
-						message="This workspace has no parameters"
-						cta={
-							<Button asChild>
-								<a
-									href={docs("/admin/templates/extending-templates/parameters")}
-									target="_blank"
-									rel="noreferrer"
-								>
-									<ExternalLinkIcon className="size-icon-xs" />
-									Learn more about parameters
-								</a>
-							</Button>
-						}
-						className="border border-solid rounded-lg"
-					/>
-				)
-			) : (
+			{isLoading ? (
 				<Loader />
+			) : sortedParams.length > 0 ? (
+				<WorkspaceParametersPageView
+					templateVersionId={templateVersionId}
+					workspace={workspace}
+					autofillParameters={autofillParameters}
+					canChangeVersions={canChangeVersions}
+					parameters={sortedParams}
+					diagnostics={latestResponse?.diagnostics ?? []}
+					isSubmitting={
+						startWithParameters.isPending || restartWithParameters.isPending
+					}
+					submitLabel={submitLabel}
+					onSubmit={handleSubmit}
+					onCancel={() =>
+						navigate(`/@${workspace.owner_name}/${workspace.name}`)
+					}
+					sendMessage={sendMessage}
+				/>
+			) : (
+				<EmptyState
+					className="border border-border border-solid rounded-md"
+					message="This workspace has no parameters"
+					cta={
+						<Link
+							href={docs(
+								"/admin/templates/extending-templates/dynamic-parameters",
+							)}
+						>
+							Learn more about parameters
+						</Link>
+					}
+				/>
 			)}
+
+			<ConfirmDialog
+				type="info"
+				hideCancel={false}
+				open={confirmingRestart.open}
+				onConfirm={() => {
+					restartWithParameters.mutate(confirmingRestart.buildParameters ?? []);
+					setConfirmingRestart({ open: false });
+				}}
+				onClose={() => setConfirmingRestart({ open: false })}
+				title="Restart your workspace?"
+				confirmText="Restart"
+				description={
+					<>
+						Restarting your workspace will stop all running processes and{" "}
+						<strong>delete non-persistent data</strong>.
+					</>
+				}
+			/>
 		</div>
 	);
 };

@@ -417,12 +417,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
 	},
 	&database.AIGatewayKey{}: {
-		"id":            ActionTrack,
-		"name":          ActionTrack,
-		"secret_prefix": ActionTrack,
-		"hashed_secret": ActionSecret, // Bearer token hash, never expose.
-		"created_at":    ActionIgnore, // Implicit; not useful in a diff.
-		"last_used_at":  ActionIgnore, // Bumped on every use.
+		"id":                ActionTrack,
+		"name":              ActionTrack,
+		"secret_prefix":     ActionTrack,
+		"hashed_secret":     ActionSecret, // Bearer token hash, never expose.
+		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
+		"last_heartbeat_at": ActionIgnore, // Bumped on every heartbeat.
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,

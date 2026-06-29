@@ -486,6 +486,7 @@ var (
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChat.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIProvider.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIGatewayKey.Type:           {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -2753,6 +2754,16 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
+// Authenticates a standalone AI Gateway replica by its hashed key secret, returning the matched key.
+func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor reading the AI Gateway key it authenticates against.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayKey); err != nil {
+		return database.AIGatewayKey{}, err
+	}
+	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
+}
+
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return database.AIModelPrice{}, err
@@ -3438,13 +3449,6 @@ func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([
 		return nil, err
 	}
 	return q.db.GetChatStreamSyncRows(ctx, ids)
-}
-
-func (q *querier) GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return "", err
-	}
-	return q.db.GetChatSummaryGenerationModelOverride(ctx)
 }
 
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
@@ -7049,6 +7053,16 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
 }
 
+// Records heartbeat liveness for a key used in active DRPC session between coderd and standalone AI Gateway.
+func (q *querier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor recording connection liveness on the AI Gateway key.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayKey); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
+}
+
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
@@ -8708,13 +8722,6 @@ func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int
 		return err
 	}
 	return q.db.UpsertChatRetentionDays(ctx, retentionDays)
-}
-
-func (q *querier) UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatSummaryGenerationModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) error {

@@ -1130,6 +1130,14 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
+	m.queryLatencies.WithLabelValues("GetAIGatewayKeyByHashedSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayKeyByHashedSecret").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
@@ -1759,14 +1767,6 @@ func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid
 	r0, r1 := m.s.GetChatStreamSyncRows(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetChatStreamSyncRows").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatStreamSyncRows").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatSummaryGenerationModelOverride(ctx)
-	m.queryLatencies.WithLabelValues("GetChatSummaryGenerationModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSummaryGenerationModelOverride").Inc()
 	return r0, r1
 }
 
@@ -5066,6 +5066,14 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayKeyLastHeartbeatAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayKeyLastHeartbeatAt").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateAIProvider(ctx, arg)
@@ -6223,14 +6231,6 @@ func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentio
 	r0 := m.s.UpsertChatRetentionDays(ctx, retentionDays)
 	m.queryLatencies.WithLabelValues("UpsertChatRetentionDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatRetentionDays").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatSummaryGenerationModelOverride(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertChatSummaryGenerationModelOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatSummaryGenerationModelOverride").Inc()
 	return r0
 }
 

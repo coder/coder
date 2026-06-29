@@ -123,9 +123,8 @@ type Chat struct {
 	PlanMode          ChatPlanMode `json:"plan_mode,omitempty"`
 	LastError         *ChatError   `json:"last_error,omitempty"`
 	LastTurnSummary   *string      `json:"last_turn_summary"`
-	// Summary is the persisted whole-chat summary shown in the chat summary
-	// popover. It is generated asynchronously in the background and may be nil
-	// until the first summary has been produced.
+	// Summary is the persisted whole-chat summary, generated asynchronously in
+	// the background. It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
 	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
@@ -739,10 +738,9 @@ type UpdateChatPlanModeInstructionsRequest struct {
 type ChatModelOverrideContext string
 
 const (
-	ChatModelOverrideContextGeneral           ChatModelOverrideContext = "general"
-	ChatModelOverrideContextExplore           ChatModelOverrideContext = "explore"
-	ChatModelOverrideContextTitleGeneration   ChatModelOverrideContext = "title_generation"
-	ChatModelOverrideContextSummaryGeneration ChatModelOverrideContext = "summary_generation"
+	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
+	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
+	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -750,8 +748,7 @@ func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
-		ChatModelOverrideContextTitleGeneration,
-		ChatModelOverrideContextSummaryGeneration:
+		ChatModelOverrideContextTitleGeneration:
 		return true
 	default:
 		return false
@@ -764,7 +761,6 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
-		ChatModelOverrideContextSummaryGeneration,
 	}
 }
 

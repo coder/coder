@@ -9,9 +9,11 @@ ALTER TABLE chats
 -- summary and title generation spend can be reported separately from ordinary
 -- turn spend. NULL means ordinary turn spend; 'summary' and 'title' tag the
 -- hidden accounting rows written for background summary and manual title
--- generation respectively.
+-- generation respectively. The CHECK constrains it to the closed discriminator
+-- set so a typo or direct SQL write cannot silently corrupt cost attribution
+-- (NULL is implicitly allowed).
 ALTER TABLE chat_messages
-    ADD COLUMN cost_source TEXT;
+    ADD COLUMN cost_source TEXT CHECK (cost_source IN ('summary', 'title'));
 
 -- Recreate chats_expanded so the new chat columns are exposed to the API. The
 -- view has an explicit column list, so new columns are otherwise invisible.

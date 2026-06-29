@@ -11673,16 +11673,6 @@ func TestChatModelOverrides(t *testing.T) {
 				return db.UpsertChatTitleGenerationModelOverride(dbauthz.AsSystemRestricted(ctx), value)
 			},
 		},
-		{
-			name:    "SummaryGeneration",
-			context: codersdk.ChatModelOverrideContextSummaryGeneration,
-			dbGet: func(ctx context.Context, db database.Store) (string, error) {
-				return db.GetChatSummaryGenerationModelOverride(dbauthz.AsSystemRestricted(ctx))
-			},
-			dbUpsert: func(ctx context.Context, db database.Store, value string) error {
-				return db.UpsertChatSummaryGenerationModelOverride(dbauthz.AsSystemRestricted(ctx), value)
-			},
-		},
 	}
 
 	for _, setting := range settings {
@@ -11828,7 +11818,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore, title_generation, summary_generation. Got "not-a-context".`,
+			`Expected one of general, explore, title_generation. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 
@@ -11837,7 +11827,7 @@ func TestChatModelOverrides(t *testing.T) {
 		require.Equal(t, "Invalid chat model override context.", sdkErr.Message)
 		require.Equal(
 			t,
-			`Expected one of general, explore, title_generation, summary_generation. Got "not-a-context".`,
+			`Expected one of general, explore, title_generation. Got "not-a-context".`,
 			sdkErr.Detail,
 		)
 	})
