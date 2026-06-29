@@ -115,18 +115,27 @@ daemon before creating a workspace from a Docker-based template. Refer to the
 for platform-specific steps.
 
 If Docker is installed and running but Coder still cannot connect, the daemon
-may expose its socket at a non-default path. This is common with
-[Colima](https://colima.run) and other Docker Desktop alternatives on macOS.
-Point Coder at the correct socket with `DOCKER_HOST`, and append it to your
-shell profile so it survives new shells and restarts:
+may expose its socket at a path other than `/var/run/docker.sock`. This can
+happen on any operating system when Docker runs through a tool that uses a
+per-user socket, such as rootless Docker on Linux, or Colima, Podman, or Rancher
+Desktop on macOS. Point Coder at the right socket with `DOCKER_HOST`.
+
+Find the socket path first. For example, run `colima status` for Colima, or
+`docker context inspect` to read the endpoint of the active Docker context. The
+samples below are examples only; tools use different default paths, so check
+your tool's documentation for the value to set:
 
 ```sh
-export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"
-echo 'export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"' >> ~/.zshrc
+# rootless Docker (Linux)
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
+
+# Colima (macOS)
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
 ```
 
-Run `colima status` (or your runtime's equivalent) to confirm the socket path,
-then restart the Coder server.
+To persist the setting, add the `export` line to your shell's startup file, such
+as `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`. Then restart the
+Coder server.
 
 ### Docker-based workspace is stuck in "Connecting..."
 
