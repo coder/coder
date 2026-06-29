@@ -385,6 +385,9 @@ coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="",resource=""}
 # HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
 # TYPE coderd_oauth2_external_requests_rate_limit_used gauge
 coderd_oauth2_external_requests_rate_limit_used{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_rate_limited_total The total number of api calls to external oauth2 providers that returned a rate-limited response (a 429, or a 403 with rate-limit headers).
+# TYPE coderd_oauth2_external_requests_rate_limited_total counter
+coderd_oauth2_external_requests_rate_limited_total{name="",source="",status_code=""} 0
 # HELP coderd_oauth2_external_requests_total The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.
 # TYPE coderd_oauth2_external_requests_total counter
 coderd_oauth2_external_requests_total{name="",source="",status_code=""} 0

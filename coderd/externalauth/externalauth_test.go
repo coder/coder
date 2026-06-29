@@ -889,6 +889,7 @@ func TestValidateToken(t *testing.T) {
 			ProviderType string `json:"provider_type"`
 			StatusCode   int    `json:"status_code"`
 			Reason       string `json:"reason"`
+			Suppressed   int64  `json:"suppressed"`
 		} `json:"fields"`
 	}
 
@@ -922,6 +923,8 @@ func TestValidateToken(t *testing.T) {
 		assert.Equal(t, codersdk.EnhancedExternalAuthProviderGitHub.String(), entry.Fields.ProviderType)
 		assert.Equal(t, wantStatus, entry.Fields.StatusCode)
 		assert.Equal(t, wantReason, entry.Fields.Reason)
+		assert.EqualValues(t, 0, entry.Fields.Suppressed,
+			"a lone warning should report no suppressed occurrences")
 	}
 
 	newToken := func() *oauth2.Token {
@@ -1081,7 +1084,27 @@ func TestValidateToken(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, valid, "429 should be treated as optimistically valid")
 		assert.Nil(t, user)
-		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "http_429")
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
+	})
+
+	// Throttled: repeated rate-limited validations against the same config
+	// within the throttle interval emit a single warning.
+	t.Run("Throttled", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		t.Cleanup(srv.Close)
+
+		config, logs := newLoggedConfig(t, srv.URL)
+		ctx := newValidateCtx(t)
+		for range 3 {
+			valid, _, err := config.ValidateToken(ctx, newToken())
+			require.NoError(t, err)
+			assert.True(t, valid)
+		}
+		requireRateLimitLog(t, logs.String(), http.StatusTooManyRequests, "status_code")
 	})
 
 	// Confirmed: a 200 means the provider confirmed the token. It logs no
