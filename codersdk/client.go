@@ -96,6 +96,9 @@ const (
 	// ProvisionerDaemonKey contains the authentication key for an external provisioner daemon
 	ProvisionerDaemonKey = "Coder-Provisioner-Daemon-Key"
 
+	// AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
+	AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key"
+
 	// BuildVersionHeader contains build information of Coder.
 	BuildVersionHeader = "X-Coder-Build-Version"
 

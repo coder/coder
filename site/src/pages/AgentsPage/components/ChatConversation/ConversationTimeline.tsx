@@ -843,10 +843,13 @@ const StickyUserMessage = memo<{
 			const MIN_HEIGHT = 72;
 			const STICKY_TOP = 8;
 
-			let scrollerTop = scroller.getBoundingClientRect().top;
-			let scrollerHeight = scroller.clientHeight;
-
 			const update = () => {
+				// Read the scroller geometry on each tick. Caching it goes
+				// stale when the scroller moves or resizes without a window
+				// resize (for example the composer growing), which skews the
+				// clip height and push-up math.
+				const scrollerTop = scroller.getBoundingClientRect().top;
+				const scrollerHeight = scroller.clientHeight;
 				const fullHeight = container.offsetHeight;
 
 				// Skip sticky behavior for messages that take up
@@ -904,12 +907,6 @@ const StickyUserMessage = memo<{
 			};
 			updateFnRef.current = update;
 
-			const onResize = () => {
-				scrollerTop = scroller.getBoundingClientRect().top;
-				scrollerHeight = scroller.clientHeight;
-				update();
-			};
-
 			// Throttle to one update per animation frame so we don't
 			// do redundant work on high-refresh-rate displays.
 			let rafId: number | null = null;
@@ -921,12 +918,21 @@ const StickyUserMessage = memo<{
 				});
 			};
 
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
-			const contentEl = scroller.firstElementChild as HTMLElement | null;
+			// Re-run the visual update when the transcript height changes,
+			// for example a streaming response or several messages arriving
+			// at once. In flex-col-reverse the scrollTop stays at 0 while
+			// pinned to the bottom, so no scroll event fires; observing the
+			// content wrapper catches that growth instead.
+			//
+			// The scroller's firstElementChild is the flex spacer that pins
+			// content to the bottom. It collapses to 0px once the transcript
+			// overflows and then stops emitting resize callbacks, which is
+			// exactly when truncation is active, so observe the real content
+			// node (an ancestor of the sentinel) and fall back to the spacer
+			// only when the marker is absent.
+			const contentEl =
+				sentinel.closest<HTMLElement>("[data-chat-scroll-content]") ??
+				(scroller.firstElementChild as HTMLElement | null);
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
 				? new ResizeObserver(() => {
@@ -940,7 +946,7 @@ const StickyUserMessage = memo<{
 			contentObserver?.observe(contentEl!);
 
 			scroller.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", onResize);
+			window.addEventListener("resize", update);
 			update();
 			// Set immediately — both --clip-h and --overlay-ready are
 			// applied before the browser paints since we're in a
@@ -948,7 +954,7 @@ const StickyUserMessage = memo<{
 			container.style.setProperty("--overlay-ready", "1");
 			return () => {
 				scroller.removeEventListener("scroll", onScroll);
-				window.removeEventListener("resize", onResize);
+				window.removeEventListener("resize", update);
 				contentObserver?.disconnect();
 				container.style.removeProperty("--overlay-ready");
 				if (rafId !== null) cancelAnimationFrame(rafId);

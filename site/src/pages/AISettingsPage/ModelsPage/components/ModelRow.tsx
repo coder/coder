@@ -6,7 +6,6 @@ import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
-import { cn } from "#/utils/cn";
 
 type ModelRowProps = {
 	model: ChatModelConfig;
@@ -30,11 +29,8 @@ export const ModelRow: FC<ModelRowProps> = ({
 	const displayName = model.display_name || model.model;
 
 	return (
-		<TableRow
-			{...clickableProps}
-			className={cn(clickableProps.className, "h-[72px]")}
-		>
-			<TableCell className="min-w-0 p-4">
+		<TableRow {...clickableProps}>
+			<TableCell className="min-w-0 px-4 py-3">
 				<div className="flex min-w-0 items-center gap-4">
 					<Avatar
 						size="lg"

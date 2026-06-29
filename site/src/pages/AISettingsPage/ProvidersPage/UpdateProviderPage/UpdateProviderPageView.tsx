@@ -29,7 +29,7 @@ import {
 	providerFormValuesToUpdate,
 } from "../components/providerFormApiMap";
 
-const BACK_HREF = "/ai/settings";
+const BACK_HREF = "/ai/settings/providers";
 
 const UpdateProviderPageView: React.FC = () => {
 	const { providerId } = useParams<{ providerId: string }>();

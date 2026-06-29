@@ -88,10 +88,10 @@ const WorkspaceSchedulePage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
-const WorkspaceParametersExperimentRouter = lazy(
+const WorkspaceParametersPage = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersExperimentRouter"
+			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
 		),
 );
 const WorkspaceSharingPage = lazy(
@@ -378,8 +378,8 @@ const AgentSettingsExperimentsPage = lazy(
 const AISettingsLifecyclePage = lazy(
 	() => import("./pages/AISettingsPage/LifecyclePage/LifecyclePage"),
 );
-const AgentSettingsAgentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
+const CoderAgentsPage = lazy(
+	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
 );
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
@@ -390,8 +390,8 @@ const AgentSettingsPersonalSkillsPage = lazy(
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
-const AgentSettingsSpendPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
+const AISettingsSpendPage = lazy(
+	() => import("./pages/AISettingsPage/SpendPage/SpendPage"),
 );
 const AgentAnalyticsPage = lazy(
 	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
@@ -472,11 +472,11 @@ const AISettingsUpdateMCPServerPage = lazy(
 		),
 );
 
-const AISettingsIndexPage = () => {
+const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
 
 	if (permissions.viewAnyAIProvider) {
-		return <AISettingsProvidersPage />;
+		return <Navigate to="/ai/settings/providers" replace />;
 	}
 
 	if (permissions.viewAIGatewayKeys) {
@@ -487,7 +487,7 @@ const AISettingsIndexPage = () => {
 		return <Navigate to="/ai/settings/models" replace />;
 	}
 
-	return <AISettingsProvidersPage />;
+	return <Navigate to="/ai/settings/providers" replace />;
 };
 
 const GlobalLayout = () => {
@@ -724,10 +724,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route path="settings" element={<WorkspaceSettingsLayout />}>
 							<Route index element={<WorkspaceSettingsPage />} />
-							<Route
-								path="parameters"
-								element={<WorkspaceParametersExperimentRouter />}
-							/>
+							<Route path="parameters" element={<WorkspaceParametersPage />} />
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
 							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
@@ -770,13 +767,15 @@ export const router = createBrowserRouter(
 							path="gateway-keys"
 							element={<AISettingsGatewayKeysPage />}
 						/>
-						<Route index element={<AISettingsIndexPage />} />
+						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="spend" element={<AISettingsSpendPage />} />
 						<Route
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
 						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
+						<Route path="coder-agents" element={<CoderAgentsPage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
@@ -792,9 +791,13 @@ export const router = createBrowserRouter(
 							path="mcp-servers/:serverId"
 							element={<AISettingsUpdateMCPServerPage />}
 						/>
-						<Route path="add" element={<AISettingsAddProviderPage />} />
+						<Route path="providers" element={<AISettingsProvidersPage />} />
 						<Route
-							path=":providerId"
+							path="providers/add"
+							element={<AISettingsAddProviderPage />}
+						/>
+						<Route
+							path="providers/:providerId"
 							element={<AISettingsUpdateProviderPage />}
 						/>
 					</Route>
@@ -877,12 +880,18 @@ export const router = createBrowserRouter(
 							path="personal-skills"
 							element={<AgentSettingsPersonalSkillsPage />}
 						/>
-						<Route path="admin" element={<AgentSettingsAgentsPage />} />
-						<Route path="agents" element={<AgentSettingsAgentsPage />} />
+						<Route
+							path="admin"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route
 							path="providers"
-							element={<Navigate to="/ai/settings" replace />}
+							element={<Navigate to="/ai/settings/providers" replace />}
 						/>
 						<Route
 							path="models"
@@ -892,9 +901,18 @@ export const router = createBrowserRouter(
 							path="mcp-servers"
 							element={<Navigate to="/ai/settings/mcp-servers" replace />}
 						/>
-						<Route path="spend" element={<AgentSettingsSpendPage />} />
-						<Route path="limits" element={<Navigate to="spend" replace />} />
-						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
+						<Route
+							path="spend"
+							element={<NavigateWithSearch to="/ai/settings/spend" />}
+						/>
+						<Route
+							path="limits"
+							element={<NavigateWithSearch to="/ai/settings/spend" />}
+						/>
+						<Route
+							path="usage"
+							element={<NavigateWithSearch to="/ai/settings/spend" />}
+						/>
 						<Route
 							path="templates"
 							element={<Navigate to="/ai/settings/templates" replace />}

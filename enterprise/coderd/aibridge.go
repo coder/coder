@@ -122,9 +122,9 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 
 // aiBridgeListSessions returns AI Bridge sessions (aggregated interceptions).
 //
-// @Summary List AI Bridge sessions
+// @Summary List AI Gateway sessions
 // @Description Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
-// @ID list-ai-bridge-sessions
+// @ID list-ai-gateway-sessions
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
@@ -249,9 +249,9 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // aiBridgeGetSessionThreads returns a single session with fully expanded
 // threads including agentic actions and thinking blocks.
 //
-// @Summary Get AI Bridge session threads
+// @Summary Get AI Gateway session threads
 // @Description Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward compatibility.
-// @ID get-ai-bridge-session-threads
+// @ID get-ai-gateway-session-threads
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
@@ -441,9 +441,9 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 
 // aiBridgeListModels returns all AI Bridge models a user can see.
 //
-// @Summary List AI Bridge models
+// @Summary List AI Gateway models
 // @Description Alias: also available at /api/v2/aibridge/models for backward compatibility.
-// @ID list-ai-bridge-models
+// @ID list-ai-gateway-models
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
@@ -494,9 +494,9 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 
 // aiBridgeListClients returns all AI Bridge clients a user can see.
 //
-// @Summary List AI Bridge clients
+// @Summary List AI Gateway clients
 // @Description Alias: also available at /api/v2/aibridge/clients for backward compatibility.
-// @ID list-ai-bridge-clients
+// @ID list-ai-gateway-clients
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway

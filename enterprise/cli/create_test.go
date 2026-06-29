@@ -76,11 +76,9 @@ func TestEnterpriseCreate(t *testing.T) {
 
 		createTemplate := func(tplName string, orgID uuid.UUID) {
 			version := coderdtest.CreateTemplateVersion(t, ownerClient, orgID, nil)
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
-				wg.Done()
-			}()
+			})
 
 			coderdtest.CreateTemplate(t, ownerClient, orgID, version.ID, func(request *codersdk.CreateTemplateRequest) {
 				request.Name = tplName

@@ -34,9 +34,11 @@ type staticPeerFetcher struct {
 	addrs []string
 }
 
+func (*staticPeerFetcher) SetSelfNATSPort(int32) {}
+
 var _ nats.PeerFetcher = (*staticPeerFetcher)(nil)
 
-func (f *staticPeerFetcher) PrimaryPeerAddresses() []string {
+func (f *staticPeerFetcher) FetchNATSPeers() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.addrs)

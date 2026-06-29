@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -1888,6 +1890,277 @@ func setupTestDBPrebuiltWorkspace(
 	setupTestDBWorkspaceBuild(ctx, t, clock, db, ps, orgID, workspace.ID, templateVersionID, presetID, buildTransition)
 
 	return workspace
+}
+
+// setupAutostopReminderWorkspace provisions a running workspace whose template
+// has the given time_til_autostop_notify configured, using the caller-supplied
+// notifications enqueuer. It returns the harness channels needed to drive ticks
+// and observe notifications.
+func setupAutostopReminderWorkspace(t *testing.T, timeTilAutostopNotify time.Duration, enq notifications.Enqueuer) (
+	client *codersdk.Client,
+	tickCh chan time.Time,
+	statsCh chan autobuild.Stats,
+	workspace codersdk.Workspace,
+) {
+	t.Helper()
+
+	tickCh = make(chan time.Time)
+	statsCh = make(chan autobuild.Stats)
+	client = coderdtest.New(t, &coderdtest.Options{
+		AutobuildTicker:          tickCh,
+		AutobuildStats:           statsCh,
+		IncludeProvisionerDaemon: true,
+		NotificationsEnqueuer:    enq,
+		// The AGPL schedule store persists and returns time_til_autostop_notify.
+		TemplateScheduleStore: schedule.NewAGPLTemplateScheduleStore(),
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		if timeTilAutostopNotify > 0 {
+			ctr.TimeTilAutostopNotifyMillis = ptr.Ref(timeTilAutostopNotify.Milliseconds())
+		}
+	})
+	ws := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+	workspace = coderdtest.MustWorkspace(t, client, ws.ID)
+
+	// The build must have a non-zero deadline for a reminder to ever fire.
+	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+	require.NotZero(t, workspace.LatestBuild.Deadline)
+	return client, tickCh, statsCh, workspace
+}
+
+// failOnceEnqueuer fails its first Enqueue call and delegates every subsequent
+// call to the wrapped enqueuer. It is used by the FailedEnqueueNotRetried
+// subtest to verify that a failed reminder enqueue is not retried (the
+// at-most-once guarantee); notificationstest.FakeEnqueuer.Enqueue always
+// succeeds, so this wrapper is the only way to inject a send failure.
+type failOnceEnqueuer struct {
+	notifications.Enqueuer
+	mu     sync.Mutex
+	failed bool
+}
+
+func (f *failOnceEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) ([]uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.failed {
+		f.failed = true
+		return nil, xerrors.New("injected enqueue failure")
+	}
+	return f.Enqueuer.Enqueue(ctx, userID, templateID, labels, createdBy, targets...)
+}
+
+func TestExecutorAutostopReminder(t *testing.T) {
+	t.Parallel()
+
+	// Sent: a reminder is enqueued when a tick lands inside the lead window
+	// [deadline - ttl, deadline).
+	t.Run("Sent", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		go func() {
+			// Halfway into the lead window.
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Len(t, stats.Transitions, 0)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 1)
+		require.Equal(t, workspace.OwnerID, sent[0].UserID)
+		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
+		require.Equal(t, deadline.UTC().Format(time.RFC1123), sent[0].Labels["deadline"])
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+		require.Contains(t, sent[0].Targets, workspace.TemplateID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+	})
+
+	// NotBeforeWindow: no reminder when the tick precedes the lead window.
+	t.Run("NotBeforeWindow", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		go func() {
+			// Well before the window opens.
+			tickCh <- deadline.Add(-2 * timeTilNotify)
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
+	// Disabled: time_til_autostop_notify of 0 (the default) never reminds.
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, 0, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		go func() {
+			tickCh <- deadline.Add(-time.Minute)
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
+	// NoDuplicate: a second tick still inside the window does not re-notify
+	// because the idempotence marker was stamped.
+	t.Run("NoDuplicate", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// First tick: reminder fires. Receiving from statsCh acts as the
+		// per-tick barrier guaranteeing the enqueue already happened.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+
+		// Second tick still inside the window: no new reminder. Sent()
+		// accumulates across ticks, so a cumulative count still at 1 proves
+		// the duplicate was suppressed.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 4)
+			close(tickCh)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+	})
+
+	// DeadlineBumped: extending the deadline re-arms the marker, so a new
+	// reminder fires once the new deadline re-enters the window.
+	t.Run("DeadlineBumped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		client, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// First tick: reminder fires for the original deadline.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+		}()
+		testutil.TryReceive(ctx, t, statsCh)
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 1)
+		require.Equal(t, deadline.UTC().Format(time.RFC1123), sent[0].Labels["deadline"])
+
+		// Move the deadline well into the future. The marker now differs from
+		// the build deadline, re-arming the reminder.
+		newDeadline := deadline.Add(2 * time.Hour)
+		require.NoError(t, client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
+			Deadline: newDeadline,
+		}))
+
+		// Second tick inside the new window fires another reminder. Sent()
+		// accumulates across ticks, so two total proves the second reminder
+		// fired; sent[1] carries the bumped deadline.
+		go func() {
+			tickCh <- newDeadline.Add(-timeTilNotify / 2)
+			close(tickCh)
+		}()
+		testutil.TryReceive(ctx, t, statsCh)
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 2)
+		require.Equal(t, newDeadline.UTC().Format(time.RFC1123), sent[1].Labels["deadline"])
+	})
+
+	// ExceedsLifetime: a time_til_autostop_notify larger than the
+	// workspace's remaining lifetime yields exactly one reminder, not one per
+	// tick.
+	t.Run("ExceedsLifetime", func(t *testing.T) {
+		t.Parallel()
+
+		// Far larger than the workspace's 8h TTL, so the lead window already
+		// includes "now" at build creation.
+		timeTilNotify := 100 * time.Hour
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// First tick: a single reminder fires.
+		go func() {
+			tickCh <- deadline.Add(-time.Hour)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+
+		// Second tick still before the deadline: no flood of reminders. Sent()
+		// accumulates across ticks, so a cumulative count still at 1 proves no
+		// duplicate fired.
+		go func() {
+			tickCh <- deadline.Add(-30 * time.Minute)
+			close(tickCh)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 1)
+	})
+
+	// FailedEnqueueNotRetried pins the marker-before-enqueue / at-most-once
+	// guarantee: the marker is committed inside the transaction before the
+	// post-commit enqueue, so a failed enqueue on the first tick is NOT
+	// retried on a later tick even though the workspace is still inside the
+	// lead window. failOnceEnqueuer injects that single send failure;
+	// notificationstest.FakeEnqueuer.Enqueue always succeeds.
+	t.Run("FailedEnqueueNotRetried", func(t *testing.T) {
+		t.Parallel()
+
+		fake := &notificationstest.FakeEnqueuer{}
+		enq := &failOnceEnqueuer{Enqueuer: fake}
+		timeTilNotify := 2 * time.Hour
+		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, enq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Tick 1 inside the window: the enqueue fails. Because the marker is
+		// stamped before the enqueue, the failure only logs and nothing is
+		// sent.
+		go func() {
+			tickCh <- deadline.Add(-time.Hour)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, fake.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 0)
+
+		// Tick 2 still inside the window: the committed marker suppresses
+		// re-selection, so the failed reminder is NOT retried. A cumulative
+		// count still at 0 proves the at-most-once guarantee described at the
+		// enqueue block in lifecycle_executor.go.
+		go func() {
+			tickCh <- deadline.Add(-time.Hour + time.Minute)
+			close(tickCh)
+		}()
+		testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, fake.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)), 0)
+	})
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {

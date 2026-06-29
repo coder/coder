@@ -4,10 +4,7 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import {
-	groupsByOrganization,
-	organizationGroupsAISpend,
-} from "#/api/queries/groups";
+import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -40,10 +37,6 @@ const GroupsPage: FC = () => {
 		...organizationsPermissions([organization?.id ?? ""]),
 		enabled: Boolean(organization),
 	});
-	const aiSpendQuery = useQuery({
-		...organizationGroupsAISpend(organization?.name ?? ""),
-		enabled: Boolean(organization) && groupsEnabled && aibridgeVisible,
-	});
 
 	useEffect(() => {
 		if (groupsQuery.error) {
@@ -66,17 +59,6 @@ const GroupsPage: FC = () => {
 			);
 		}
 	}, [permissionsQuery.error]);
-
-	useEffect(() => {
-		if (aiSpendQuery.error) {
-			toast.error(
-				getErrorMessage(aiSpendQuery.error, "Unable to load AI budget."),
-				{
-					description: getErrorDetail(aiSpendQuery.error),
-				},
-			);
-		}
-	}, [aiSpendQuery.error]);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -126,11 +108,7 @@ const GroupsPage: FC = () => {
 				groups={groupsQuery.data}
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
-				aiBudget={
-					aibridgeVisible
-						? { spend: aiSpendQuery.data, isLoading: aiSpendQuery.isLoading }
-						: undefined
-				}
+				showAIBudget={aibridgeVisible}
 			/>
 		</div>
 	);

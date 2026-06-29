@@ -67,7 +67,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 						</TableHead>
 					</TableRow>
 				</TableHeader>
-				<TableBody>
+				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
 					) : !error && servers.length === 0 ? (

@@ -37,6 +37,9 @@ export const WithAIBudget: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("AI budget")).toBeInTheDocument();
+		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
+			1000,
+		);
 		const helper = canvas.getByText(/month maximum/i);
 		await expect(helper).toHaveTextContent(
 			"$7,000/month maximum, based on 7 members.",
@@ -52,7 +55,11 @@ export const AIBudgetUncapped: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText("Leave empty for uncapped spend."),
+			canvas.getByLabelText("Monthly limit per member"),
+		).toHaveAttribute("placeholder", "unlimited");
+		await expect(canvas.getByText("unlimited budget")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Members in this group have no spending cap."),
 		).toBeInTheDocument();
 	},
 };
@@ -65,11 +72,13 @@ export const AIBudgetDisabled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// A budget of 0 is valid and reads as disabled spend.
-		const helper = canvas.getByText(/month maximum/i);
-		await expect(helper).toHaveTextContent(
-			"$0/month maximum, based on 7 members.",
+		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
+			0,
 		);
+		await expect(canvas.getByText("no budget")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("A $0 limit disables AI access for this group."),
+		).toBeInTheDocument();
 	},
 };
 
@@ -96,7 +105,7 @@ export const SaveWithBudget: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const input = canvas.getByLabelText("Monthly budget per member (USD)");
+		const input = canvas.getByLabelText("Monthly limit per member");
 		await userEvent.type(input, "25");
 		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
 		// onSubmit fires asynchronously with (values, formikHelpers).

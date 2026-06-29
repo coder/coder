@@ -1,4 +1,3 @@
-import { ArrowUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	Sidebar as BaseSidebar,
@@ -28,7 +27,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{permissions.viewAnyAIProvider && (
-					<SidebarNavItem href="/ai/settings" end>
+					<SidebarNavItem href="/ai/settings/providers">
 						Providers
 					</SidebarNavItem>
 				)}
@@ -36,8 +35,16 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/spend">Spend</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/instructions">
 						Instructions
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/coder-agents">
+						Coder Agents
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
@@ -53,13 +60,6 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/mcp-servers">
 						MCP servers
-					</SidebarNavItem>
-				)}
-				{permissions.editDeploymentConfig && (
-					<SidebarNavItem href="/agents/settings/agents">
-						<div className="flex flex-row items-center gap-1">
-							Manage Coder Agents <ArrowUpRightIcon size={16} />
-						</div>
 					</SidebarNavItem>
 				)}
 			</div>
