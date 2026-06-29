@@ -27,12 +27,12 @@ type Story = StoryObj<typeof ChatSummary>;
 export const WithSummary: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByRole("heading", { name: "Summary" }),
-		).toBeInTheDocument();
 		await expect(canvas.getByText("Created:")).toBeInTheDocument();
 		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
 		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
+		await expect(canvas.getByText("May 1, 2024")).toBeInTheDocument();
+		await expect(canvas.getByText("May 2, 2024")).toBeInTheDocument();
+		await expect(canvas.queryByText(/12:00|15:30/)).not.toBeInTheDocument();
 		// formatCostMicros is locale-pinned to en-US, so this is deterministic.
 		await expect(canvas.getByText("$1.25")).toBeInTheDocument();
 	},

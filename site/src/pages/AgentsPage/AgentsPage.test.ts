@@ -1,7 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { shouldInvalidateFilteredChatList } from "./AgentsPage";
+import {
+	shouldInvalidateChatCost,
+	shouldInvalidateFilteredChatList,
+} from "./AgentsPage";
 import {
 	emptyInputStorageKey,
 	useEmptyStateDraft,
@@ -927,5 +930,41 @@ describe(shouldInvalidateFilteredChatList.name, () => {
 		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(
 			expected,
 		);
+	});
+});
+
+describe(shouldInvalidateChatCost.name, () => {
+	it.each<{
+		name: string;
+		updatedChat: TypesGen.Chat;
+		eventKind: TypesGen.ChatWatchEventKind;
+		expected: boolean;
+	}>([
+		{
+			name: "invalidates when a status change leaves active generation",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "status_change",
+			expected: true,
+		},
+		{
+			name: "waits while the chat is still active",
+			updatedChat: chatForFilterInvalidation({ status: "running" }),
+			eventKind: "status_change",
+			expected: false,
+		},
+		{
+			name: "waits while the chat is interrupting",
+			updatedChat: chatForFilterInvalidation({ status: "interrupting" }),
+			eventKind: "status_change",
+			expected: false,
+		},
+		{
+			name: "ignores non-status events",
+			updatedChat: chatForFilterInvalidation({ status: "waiting" }),
+			eventKind: "summary_change",
+			expected: false,
+		},
+	])("$name", ({ updatedChat, eventKind, expected }) => {
+		expect(shouldInvalidateChatCost(updatedChat, eventKind)).toBe(expected);
 	});
 });
