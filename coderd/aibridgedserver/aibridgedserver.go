@@ -302,7 +302,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 	}
 
 	// Snapshot the effective group, per-token prices and compute cost. A
-	// missing price row or unbudgeted user yields NULL columns.
+	// missing price row or no effective group yields NULL columns.
 	cost, err := s.resolveTokenUsageCost(ctx, intc, in)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve token usage cost: %w", err)
@@ -341,7 +341,7 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			return xerrors.Errorf("insert token usage: %w", err)
 		}
 
-		// Skip the spend update when the user is unbudgeted or the interception has no cost.
+		// Skip the spend update when there is no effective group or the interception has no cost.
 		if !cost.effectiveGroupID.Valid || !cost.costMicros.Valid || cost.costMicros.Int64 <= 0 {
 			s.logger.Debug(ctx, "skipping spend update",
 				slog.F("interception_id", intc.ID),
