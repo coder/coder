@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
+import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
 export interface AgentSettingsCompactionPageViewProps {

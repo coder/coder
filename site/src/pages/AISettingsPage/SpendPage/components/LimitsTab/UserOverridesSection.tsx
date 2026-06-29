@@ -24,7 +24,6 @@ import { Label } from "#/components/Label/Label";
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -40,6 +39,7 @@ import {
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
+import { SpendSectionHeader } from "../SpendSectionHeader";
 
 const USER_OVERRIDES_PAGE_SIZE = 10;
 
@@ -116,8 +116,8 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 	return (
 		<section className="space-y-6">
 			{!hideHeader && (
-				<SectionHeader
-					label="Per-user overrides"
+				<SpendSectionHeader
+					title="Per-user overrides"
 					description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
 				/>
 			)}

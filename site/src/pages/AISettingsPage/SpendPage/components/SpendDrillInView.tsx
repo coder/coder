@@ -8,10 +8,10 @@ import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
-import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { BackButton } from "./BackButton";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
+import { SpendSectionHeader } from "./SpendSectionHeader";
 
 interface SpendDrillInViewProps {
 	selectedUser: TypesGen.User | null;
@@ -47,10 +47,10 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 	const backButton = <BackButton onClick={onBack} />;
 
 	const header = (
-		<SectionHeader
-			label="Spend details"
+		<SpendSectionHeader
+			title="Spend details"
 			description="Review spend details for a specific user."
-			action={
+			actions={
 				<DateRangePicker
 					value={displayDateRange}
 					onChange={onDateRangeChange}

@@ -31,7 +31,6 @@ import { Label } from "#/components/Label/Label";
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -47,6 +46,7 @@ import {
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
+import { SpendSectionHeader } from "../SpendSectionHeader";
 
 const GROUP_LIMITS_PAGE_SIZE = 10;
 
@@ -130,8 +130,8 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	return (
 		<section className="space-y-6">
 			{!hideHeader && (
-				<SectionHeader
-					label="Group limits"
+				<SpendSectionHeader
+					title="Group limits"
 					description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
 				/>
 			)}

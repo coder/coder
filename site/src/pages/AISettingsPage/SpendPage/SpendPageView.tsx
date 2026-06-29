@@ -21,7 +21,6 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -69,6 +68,7 @@ import { normalizeChatUsageLimitPeriod } from "./components/LimitsTab/limitsForm
 import { UserOverrideController } from "./components/LimitsTab/UserOverrideController";
 import { UserOverridesSection } from "./components/LimitsTab/UserOverridesSection";
 import { SpendDrillInView } from "./components/SpendDrillInView";
+import { SpendSectionHeader } from "./components/SpendSectionHeader";
 import { formatUsageDateRange, toInclusiveDateRange } from "./utils/dateRange";
 
 const UserRow: FC<{
@@ -450,10 +450,8 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 												</DefaultLimitController>
 
 												<section className="space-y-6">
-													<SectionHeader
-														level="section"
-														variant="spacious"
-														label="Group limits"
+													<SpendSectionHeader
+														title="Group limits"
 														description="Override the default limit for specific groups. The lowest group limit applies."
 													/>
 													<GroupLimitsSection
@@ -493,10 +491,8 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 												</section>
 
 												<section className="space-y-6">
-													<SectionHeader
-														level="section"
-														variant="spacious"
-														label="User overrides"
+													<SpendSectionHeader
+														title="User overrides"
 														description="Set user-specific limits. User overrides take highest priority, followed by group limits, then the default."
 													/>
 													<UserOverridesSection
@@ -539,12 +535,10 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 
 								<TabsContent value="usage" className="pt-8">
 									<section className="space-y-6">
-										<SectionHeader
-											level="section"
-											variant="spacious"
-											label="Usage by user"
+										<SpendSectionHeader
+											title="Usage by user"
 											description="Monitor AI usage and spend for users in the selected date range."
-											action={
+											actions={
 												<DateRangePicker
 													value={displayDateRange}
 													onChange={onDateRangeChange}
