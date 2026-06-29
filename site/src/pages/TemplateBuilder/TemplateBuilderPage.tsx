@@ -21,13 +21,11 @@ const TemplateBuilderPage: FC = () => {
 	const { data, error, isLoading } = useQuery(deploymentConfig());
 	const createMutation = useMutation(createTemplateFromBuilder());
 
-	// If the template builder is disabled in the deployment config,
-	// redirect to the new template page.
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
 
 	const basesQuery = useQuery({
 		...templateBuilderBases(),
-		enabled: !builderDisabled && !isLoading,
+		enabled: !builderDisabled && !isLoading && permissions.createTemplates,
 	});
 
 	if (isLoading) {
