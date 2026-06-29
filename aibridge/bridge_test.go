@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -79,9 +80,9 @@ func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
 
 	// Let both requests complete so Shutdown can finish.
 	close(release)
-	<-req1
-	<-req2
-	<-shutdown
+	_ = codertestutil.TryReceive(ctx, t, req1)
+	_ = codertestutil.TryReceive(ctx, t, req2)
+	_ = codertestutil.TryReceive(ctx, t, shutdown)
 }
 
 func TestValidateProviders(t *testing.T) {

@@ -49,9 +49,7 @@ type PoolMetrics interface {
 type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
-	// Clock sources the provider-reload version stamp. Defaults to a real
-	// clock; tests inject a mock to trap ReplaceProviders deterministically.
-	Clock quartz.Clock
+	Clock    quartz.Clock
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
@@ -76,10 +74,10 @@ type CachedBridgePool struct {
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
 
-	// opsMu + opsWG order cache use against Shutdown. Without it,
+	// cacheMu + cacheWG order cache use against Shutdown. Without it,
 	// (*ristretto.Cache).Close may race against cache usage.
-	opsMu sync.RWMutex
-	opsWG sync.WaitGroup
+	cacheMu sync.RWMutex
+	cacheWG sync.WaitGroup
 }
 
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
@@ -136,16 +134,16 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 // It is safe to call concurrently with Acquire and is a no-op after
 // Shutdown.
 func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
-	p.opsMu.RLock()
+	p.cacheMu.RLock()
 	select {
 	case <-p.shuttingDownCh:
-		p.opsMu.RUnlock()
+		p.cacheMu.RUnlock()
 		return
 	default:
 	}
-	p.opsWG.Add(1)
-	p.opsMu.RUnlock()
-	defer p.opsWG.Done()
+	p.cacheWG.Add(1)
+	p.cacheMu.RUnlock()
+	defer p.cacheWG.Done()
 
 	snapshot := slices.Clone(providers)
 	p.providers.Store(&snapshot)
@@ -200,16 +198,16 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
 
-	p.opsMu.RLock()
+	p.cacheMu.RLock()
 	select {
 	case <-p.shuttingDownCh:
-		p.opsMu.RUnlock()
+		p.cacheMu.RUnlock()
 		return nil, xerrors.New("pool shutting down")
 	default:
 	}
-	p.opsWG.Add(1)
-	p.opsMu.RUnlock()
-	defer p.opsWG.Done()
+	p.cacheWG.Add(1)
+	p.cacheMu.RUnlock()
+	defer p.cacheWG.Done()
 
 	// Wait for all buffered writes to be applied, otherwise multiple calls in quick succession
 	// may visit the slow path unnecessarily.
@@ -288,12 +286,12 @@ func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
 func (p *CachedBridgePool) Shutdown(_ context.Context) error {
 	p.shutDownOnce.Do(func() {
-		// Block new cache use, drain in-flight ops, then close (see opsMu).
-		p.opsMu.Lock()
+		// Block new cache use, drain in-flight ops, then close (see cacheMu).
+		p.cacheMu.Lock()
 		close(p.shuttingDownCh)
-		p.opsMu.Unlock()
+		p.cacheMu.Unlock()
 
-		p.opsWG.Wait()
+		p.cacheWG.Wait()
 
 		p.cache.Close()
 	})

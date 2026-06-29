@@ -413,8 +413,8 @@ func TestPoolShutdownReplaceProviders(t *testing.T) {
 	}()
 	call.MustRelease(ctx)
 
-	<-replaceDone
-	<-shutdownDone
+	_ = testutil.TryReceive(ctx, t, replaceDone)
+	_ = testutil.TryReceive(ctx, t, shutdownDone)
 }
 
 func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, tracer trace.Tracer) (mcp.ServerProxier, error) {
