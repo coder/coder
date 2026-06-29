@@ -12,12 +12,6 @@ interface AISettingsSidebarViewProps {
 	permissions: Permissions;
 }
 
-/**
- * Sub-item for the Coder Agents group. The wrapping div paints a continuous
- * left rule for the whole group; each item's own left border sits on top of
- * that rule via a negative left margin, so the active item lights up a
- * matching segment instead of drawing a second parallel line.
- */
 const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
 	href,
 	children,
