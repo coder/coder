@@ -53,7 +53,7 @@ install a free runtime quickly on your platform.
 
 1. Install Docker Engine:
 
-   ```bash
+   ```sh
    curl -sSL https://get.docker.com | sh
    ```
 
@@ -61,13 +61,13 @@ install a free runtime quickly on your platform.
 
 1. Assign your user to the Docker group:
 
-   ```shell
+   ```sh
    sudo usermod -aG docker $USER
    ```
 
 1. Run `newgrp` to activate the groups changes:
 
-   ```shell
+   ```sh
    newgrp docker
    ```
 
@@ -76,7 +76,7 @@ install a free runtime quickly on your platform.
 
 1. Launch the Docker daemon:
 
-   ```shell
+   ```sh
    sudo systemctl start docker
    ```
 
@@ -87,18 +87,19 @@ provides the Docker daemon on macOS without the overhead of Docker Desktop.
 
 1. Install Colima and the Docker CLI with [Homebrew](https://brew.sh):
 
-   ```shell
+   ```sh
    brew install colima docker
    ```
 
 1. Start Colima to launch the Docker daemon:
 
-   ```shell
+   ```sh
    colima start
    ```
 
-   Colima exposes the Docker socket at `/var/run/docker.sock`, so the Coder
-   Quickstart template works without additional configuration.
+   Colima exposes the Docker socket at `~/.colima/default/docker.sock`.
+   If Coder later reports that it cannot connect to the Docker daemon, point `DOCKER_HOST` at that socket.
+   Refer to [Cannot connect to the Docker daemon](#cannot-connect-to-the-docker-daemon) for the exact steps.
 
 ### Windows
 
@@ -145,7 +146,7 @@ Install the `coder` CLI to get started:
 
 1. Install Coder:
 
-   ```shell
+   ```sh
    curl -L https://coder.com/install.sh | sh
    ```
 
@@ -155,7 +156,7 @@ Install the `coder` CLI to get started:
 
 1. Start Coder:
 
-   ```shell
+   ```sh
    coder server
    ```
 
@@ -175,7 +176,7 @@ is installed.
 
 1. Start Coder:
 
-   ```shell
+   ```sh
    coder server
    ```
 
@@ -216,19 +217,32 @@ Templates define what's in your development environment. The following is a basi
 
    **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
 
-3. Name your template:
-   - Name: `quickstart`
-   - Display name: `quickstart doc template`
-   - Description: `Provision Docker containers as Coder workspaces`
+3. Name your template.
+   The **Display name** and **Description** are pre-filled from the starter template, so you can keep the defaults or replace them:
+   - **Name**: `quickstart`
+   - **Display name**: `Coder Quickstart`
+   - **Description**: `Get started with Coder by picking your languages, editors, and a repo`
 
 4. Select **Save**.
 
    ![Create template](../images/screenshots/create-template.png)
 
-**What just happened?** You defined a template — a reusable blueprint for dev
-environments — in your Coder deployment. It's now stored in your organization's
-template list, where you and any teammates in the same org can create workspaces
-from it. Now it's time launch a workspace.
+**What just happened?**
+You defined a template, a reusable blueprint for dev environments, in your Coder deployment.
+It's now stored in your organization's template list, where you and any teammates in the same organization can create workspaces from it.
+
+<details>
+<summary>What happens under the hood?</summary>
+
+A Coder template is a [Terraform](https://developer.hashicorp.com/terraform/intro) configuration, and Coder is built on top of Terraform.
+When you create a workspace from this template, a Coder [provisioner](../admin/infrastructure/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
+For the Coder Quickstart template, that job starts a Docker container, connects the Coder agent, and runs a startup script that installs the programming languages and editors you choose in the next step.
+
+To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../admin/infrastructure/architecture.md).
+
+</details>
+
+Now it's time to launch a workspace.
 
 ## Step 5: Launch your workspace
 
@@ -252,10 +266,13 @@ After a short wait (10-15 seconds on most modern computers), Coder will start yo
 
 ## Step 6: Connect your IDE
 
-Each of the buttons in the workspace view is a different **agent app**
-(more on this in a later section). Select your preferred IDE from the
-list of agent apps. This guide assumes you'll use Visual Studio Code,
-but the process is similar for other IDEs and editors.
+Each button in the workspace view is a different **agent app**.
+The buttons you see reflect the editors you selected in the **IDEs & Editors** parameter in [Step 5](#step-5-launch-your-workspace).
+Select your preferred IDE from the list of agent apps.
+
+This guide uses **VS Code Desktop**, which opens the workspace in the VS Code installed on your local machine, using the Coder extension.
+To stay in the browser instead, select the browser-based VS Code option.
+The remaining steps are similar for other IDEs and editors.
 
 After VS Code loads the remote environment, you can select **Open Folder** to
 explore directories in the Docker container or work on something new.
@@ -314,9 +331,12 @@ When creating a workspace from a Docker template, you may see an error like:
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
-This means a container runtime is either not installed or not running on the
-machine where Coder is running. A runtime must be running before you create a
-workspace from a Docker-based template.
+This usually means a container runtime is either not installed or not running on the machine where Coder is running.
+A runtime must be running before you create a workspace from a Docker-based template.
+
+If the runtime is running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+This is common with Colima on macOS and with rootless Docker on Linux.
+In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the Coder server.
 
 <div class="tabs">
 
@@ -324,40 +344,48 @@ workspace from a Docker-based template.
 
 1. If Colima is not installed, install it with [Homebrew](https://brew.sh):
 
-   ```shell
+   ```sh
    brew install colima docker
    ```
 
 1. Start Colima to launch the Docker daemon:
 
-   ```shell
+   ```sh
    colima start
    ```
 
 1. Verify that the daemon is reachable:
 
-   ```shell
+   ```sh
    docker ps
    ```
+
+1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
+
+   ```sh
+   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+   ```
+
+   To persist the setting across restarts, add that `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
 
 #### Linux
 
 1. Install Docker, if you haven't already:
 
-   ```shell
+   ```sh
    curl -sSL https://get.docker.com | sh
    ```
 
 1. Start the Docker daemon:
 
-   ```shell
+   ```sh
    sudo systemctl start docker
    ```
 
 1. Assign your user to the `docker` group so Coder can access the daemon
    without root:
 
-   ```shell
+   ```sh
    sudo usermod -aG docker $USER
    newgrp docker
    ```
@@ -380,7 +408,7 @@ workspace from a Docker-based template.
 
 ### Can't start Coder server: Address already in use
 
-```shell
+```text
 Encountered an error running "coder server", see "coder server --help" for more information
 error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in use
 ```
@@ -392,13 +420,13 @@ then start the server again.
 
 1. Stop the process:
 
-   ```shell
+   ```sh
    sudo systemctl stop coder
    ```
 
 1. Start Coder:
 
-   ```shell
+   ```sh
    coder server
    ```
 
@@ -406,25 +434,25 @@ then start the server again.
 
 1. Identify the process using port 3000:
 
-   ```shell
+   ```sh
    lsof -i :3000
    ```
 
 1. Stop the process using the PID from the previous command:
 
-   ```shell
+   ```sh
    kill <PID>
    ```
 
    If the process does not exit, force-kill it:
 
-   ```shell
+   ```sh
    kill -9 <PID>
    ```
 
 1. Start Coder:
 
-   ```shell
+   ```sh
    coder server
    ```
 
@@ -444,6 +472,6 @@ then start the server again.
 
 1. Start Coder:
 
-   ```shell
+   ```sh
    coder server
    ```
