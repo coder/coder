@@ -21,6 +21,7 @@ import (
 	xgithub "golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
@@ -56,6 +57,8 @@ const (
 // Config is used for authentication for Git operations.
 type Config struct {
 	promoauth.InstrumentedOAuth2Config
+	// Logger records token validation outcomes. A zero value is a no-op.
+	Logger slog.Logger
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -489,6 +492,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// Treat it as optimistically valid rather than discarding
 		// the token.
 		if isRateLimited(res) {
+			c.logRateLimitedValidation(ctx, http.StatusForbidden, "rate_limit_headers")
 			return true, nil, nil
 		}
 		// No rate-limit headers: genuine token revocation or
@@ -500,6 +504,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// Treat 429 the same as a rate-limited 403: optimistically
 		// valid. The token was likely just issued by the IDP; the
 		// validation endpoint is transiently overloaded.
+		c.logRateLimitedValidation(ctx, http.StatusTooManyRequests, "http_429")
 		return true, nil, nil
 
 	case http.StatusOK:
@@ -526,6 +531,16 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	}
 
 	return true, user, nil
+}
+
+// logRateLimitedValidation logs at Warn that a token was kept valid without
+// provider confirmation because the validation endpoint returned a
+// rate-limited response.
+func (c *Config) logRateLimitedValidation(ctx context.Context, statusCode int, reason string) {
+	c.Logger.Warn(ctx, "external auth validation endpoint rate-limited; keeping token without provider confirmation",
+		slog.F("status_code", statusCode),
+		slog.F("reason", reason),
+	)
 }
 
 type AppInstallation struct {
@@ -820,7 +835,7 @@ func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
 
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(logger slog.Logger, instrument *promoauth.Factory, entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
@@ -904,6 +919,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 
 		cfg := &Config{
 			InstrumentedOAuth2Config:      instrumented,
+			Logger:                        logger.Named("externalauth").With(slog.F("provider_id", entry.ID), slog.F("provider_type", entry.Type)),
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
