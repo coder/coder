@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -28,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/xhttp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -64,8 +66,11 @@ type SingleflightGroup interface {
 // Config is used for authentication for Git operations.
 type Config struct {
 	promoauth.InstrumentedOAuth2Config
-	// Logger records token validation outcomes. A zero value is a no-op.
+	// Logs rate-limited validation warnings. Zero value discards output.
 	Logger slog.Logger
+	// rateLimitLogThrottle limits how often rate-limited validation
+	// warnings are emitted. Zero value is ready for use.
+	rateLimitLogThrottle logThrottle
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
@@ -523,7 +528,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// validation endpoint is rejecting for a transient reason.
 		// Treat it as optimistically valid rather than discarding
 		// the token.
-		if isRateLimited(res) {
+		if xhttp.IsRateLimited(res) {
 			c.logRateLimitedValidation(ctx, http.StatusForbidden, "rate_limit_headers")
 			return true, nil, nil
 		}
@@ -536,7 +541,7 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 		// Treat 429 the same as a rate-limited 403: optimistically
 		// valid. The token was likely just issued by the IDP; the
 		// validation endpoint is transiently overloaded.
-		c.logRateLimitedValidation(ctx, http.StatusTooManyRequests, "http_429")
+		c.logRateLimitedValidation(ctx, http.StatusTooManyRequests, "status_code")
 		return true, nil, nil
 
 	case http.StatusOK:
@@ -565,14 +570,59 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	return true, user, nil
 }
 
+// rateLimitLogInterval is the minimum time between rate-limited validation
+// warnings emitted per Config.
+const rateLimitLogInterval = time.Minute
+
 // logRateLimitedValidation logs at Warn that a token was kept valid without
 // provider confirmation because the validation endpoint returned a
-// rate-limited response.
+// rate-limited response. At most one warning is emitted per Config per
+// rateLimitLogInterval; the emitted line reports how many occurrences were
+// suppressed since the previous one. Counts from a burst that ended more
+// than an interval before the current occurrence are discarded rather than
+// attributed to it.
 func (c *Config) logRateLimitedValidation(ctx context.Context, statusCode int, reason string) {
+	suppressed, ok := c.rateLimitLogThrottle.shouldLog(time.Now(), rateLimitLogInterval)
+	if !ok {
+		return
+	}
 	c.Logger.Warn(ctx, "external auth validation endpoint rate-limited; keeping token without provider confirmation",
 		slog.F("status_code", statusCode),
 		slog.F("reason", reason),
+		slog.F("suppressed", suppressed),
 	)
+}
+
+// logThrottle allows one event per interval and counts the events
+// suppressed in between. Safe for concurrent use; the zero value is
+// ready for use.
+type logThrottle struct {
+	mu         sync.Mutex
+	lastLog    time.Time
+	suppressed int64
+}
+
+// shouldLog reports whether an event occurring at now may be logged,
+// allowing at most one event per interval. When it returns true, it also
+// returns the number of events suppressed since the last allowed one.
+// Suppressed events all occur within one interval of the last allowed
+// event, so when two or more intervals have elapsed the count describes a
+// past burst and zero is returned instead.
+func (t *logThrottle) shouldLog(now time.Time, interval time.Duration) (int64, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	sinceLast := now.Sub(t.lastLog)
+	if sinceLast < interval {
+		t.suppressed++
+		return 0, false
+	}
+	n := t.suppressed
+	if sinceLast >= 2*interval {
+		n = 0
+	}
+	t.suppressed = 0
+	t.lastLog = now
+	return n, true
 }
 
 type AppInstallation struct {
@@ -1497,32 +1547,6 @@ func IsGithubDotComURL(str string) bool {
 		return false
 	}
 	return ghURL.Host == "github.com"
-}
-
-// isRateLimited checks whether an HTTP response indicates a rate
-// limit rather than a genuine authorization failure. It returns
-// true if either X-RateLimit-Remaining is "0" (primary) or
-// Retry-After is present (secondary). OR logic is intentional:
-// GitHub secondary limits can include Retry-After without
-// X-RateLimit-Remaining: 0 (the remaining count tracks the
-// primary quota, not secondary).
-//
-// Does not catch every secondary rate limit. GitHub can return
-// 403 with positive X-RateLimit-Remaining and no Retry-After.
-// Reliable detection of those requires response body inspection.
-// Missing them is not a regression since all 403s were previously
-// treated as invalid.
-func isRateLimited(resp *http.Response) bool {
-	if resp == nil {
-		return false
-	}
-	if resp.Header.Get("Retry-After") != "" {
-		return true
-	}
-	if resp.Header.Get("X-RateLimit-Remaining") == "0" {
-		return true
-	}
-	return false
 }
 
 // isFailedRefresh returns true if the error returned by the refresh attempt
