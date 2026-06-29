@@ -4669,7 +4669,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	switch status {
 	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
-		p.maybeGenerateChatSummaryAsync(ctx, chat, runResult, logger)
+		p.maybeGenerateChatSummaryAsync(ctx, chat, logger)
 
 	case database.ChatStatusPending:
 		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
@@ -4922,7 +4922,6 @@ const (
 func (p *Server) maybeGenerateChatSummaryAsync(
 	ctx context.Context,
 	chat database.Chat,
-	runResult runChatResult,
 	logger slog.Logger,
 ) {
 	if chat.ParentChatID.Valid {
@@ -4936,7 +4935,7 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	// instead drops the launch once shutdown has begun, so Close() is never
 	// blocked for up to chatSummaryWorkTimeout by a turn finishing concurrently.
 	if err := p.goInflight(func() {
-		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, runResult, logger)
+		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, logger)
 	}); err != nil {
 		logger.Debug(context.WithoutCancel(ctx), "skipped chat summary generation",
 			slog.F("chat_id", chat.ID), slog.Error(err))
@@ -4944,12 +4943,11 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 }
 
 // generateAndStoreChatSummary regenerates the whole-chat summary when the
-// cadence gate allows, then stores it and records its cost. It is best-effort
-// and never clears an existing summary on failure.
+// cadence gate allows, then stores it. It is best-effort and never clears an
+// existing summary on failure.
 func (p *Server) generateAndStoreChatSummary(
 	ctx context.Context,
 	chat database.Chat,
-	runResult runChatResult,
 	logger slog.Logger,
 ) {
 	ctx, cancel := context.WithTimeout(ctx, chatSummaryWorkTimeout)
@@ -4996,7 +4994,16 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	model, _, ok := p.resolveChatSummaryModel(authCtx, chat, runResult, logger)
+	// Derive the model build options from the transcript just loaded rather
+	// than from the turn that launched this goroutine. A detached summary
+	// goroutine can run after a later turn has committed, so the launching
+	// turn's options (notably ActiveAPIKeyID, required for AI Gateway routing)
+	// may be stale or belong to a different turn. Thread the key onto the
+	// context too, matching deriveFinalTurnRunResult and the generation path.
+	modelOpts := modelBuildOptionsFromMessages(messages)
+	authCtx = withActiveTurnAPIKeyID(authCtx, modelOpts)
+
+	model, _, ok := p.resolveChatSummaryModel(authCtx, chat, modelOpts, logger)
 	if !ok {
 		return
 	}
@@ -5019,11 +5026,11 @@ func (p *Server) generateAndStoreChatSummary(
 func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
 	chat database.Chat,
-	runResult runChatResult,
+	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
 	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
-	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, runResult.ModelBuildOptions)
+	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		logger.Debug(ctx, "failed to resolve chat model for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))

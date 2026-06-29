@@ -211,6 +211,25 @@ func TestShouldGenerateChatSummary(t *testing.T) {
 		}
 		require.True(t, shouldGenerateChatSummary(chat, msgs))
 	})
+
+	t.Run("PreMarkerTurnsAreNotCounted", func(t *testing.T) {
+		t.Parallel()
+		marker := base
+		chat := database.Chat{
+			Summary:            sql.NullString{String: "existing", Valid: true},
+			SummaryGeneratedAt: sql.NullTime{Time: marker, Valid: true},
+		}
+		// Two post-marker turns stay below the refresh threshold of 3. The
+		// pre-marker turn would tip the total to 3, so this stays false only
+		// because countCompletedTurnsSince excludes turns at or before the
+		// marker. Dropping that time filter would flip this to true.
+		msgs := []database.ChatMessage{
+			userMsg(1, marker.Add(-time.Minute)),
+			userMsg(2, marker.Add(time.Minute)),
+			userMsg(3, marker.Add(2*time.Minute)),
+		}
+		require.False(t, shouldGenerateChatSummary(chat, msgs))
+	})
 }
 
 func TestValidateGeneratedChatSummary(t *testing.T) {
