@@ -163,7 +163,14 @@ func buildSections(opts serpent.OptionSet) []section {
 func optionToRow(opt serpent.Option) row {
 	flagCell := "-"
 	if opt.Flag != "" {
-		flagCell = fmt.Sprintf("[`--%s`](../../reference/cli/server.md#--%s)", opt.Flag, opt.Flag)
+		// Link to the heading anchor that clidocgen emits in server.md. Flags
+		// with a shorthand render as "### -s, --flag" (anchor "-s---flag");
+		// flags without one render as "### --flag" (anchor "--flag").
+		anchor := "--" + opt.Flag
+		if opt.FlagShorthand != "" {
+			anchor = "-" + opt.FlagShorthand + "---" + opt.Flag
+		}
+		flagCell = fmt.Sprintf("[`--%s`](../../reference/cli/server.md#%s)", opt.Flag, anchor)
 	}
 
 	def := opt.Default
