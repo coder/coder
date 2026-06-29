@@ -197,6 +197,18 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
+	// The Summary tab is the default right-panel tab and reads the chat and its
+	// cost. Mock both so opening the sidebar renders real content instead of an
+	// error. Stories that need other behavior can override in their own hooks.
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
+		spyOn(API.experimental, "getChatCost").mockResolvedValue({
+			root_chat_id: AGENT_ID,
+			total_cost_micros: 0,
+			priced_message_count: 0,
+			unpriced_message_count: 0,
+		});
+	},
 	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		layout: "fullscreen",
@@ -479,6 +491,10 @@ index abc1234..def5678 100644
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+
+		// Summary is the default right-panel tab, so switch to Git to view and
+		// refresh the PR diff.
+		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
 
 		// Wait for the initial diff fetch triggered by React Query.
 		await waitFor(() => {
@@ -1527,7 +1543,8 @@ export const TerminalFocusOnTabSwitch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The sidebar should open on the Git tab by default.
+		// The sidebar opens on the Summary tab by default; this story drives the
+		// Terminal tab regardless of which tab is initially active.
 		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
 
 		// 1. Click the Terminal tab.
@@ -1625,8 +1642,8 @@ export const PersistsSidebarTabClick: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });
@@ -1643,7 +1660,7 @@ export const PersistsSidebarTabClick: Story = {
 /**
  * When localStorage holds a tab ID whose tab is not currently available
  * (e.g. `"terminal"` while the workspace is stopped), the sidebar
- * should fall back to the first available tab (Git) and the stored
+ * should fall back to the first available tab (Summary) and the stored
  * value must be preserved so it can be honoured once the tab reappears.
  *
  * This locks down the contract described in the PR: `getEffectiveTabId`
@@ -1663,8 +1680,8 @@ export const PreservesUnavailableSidebarTab: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
@@ -1703,8 +1720,8 @@ export const DoesNotPersistForArchivedChat: Story = {
 		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			const gitTab = canvas.getByRole("tab", { name: "Git" });
-			expect(gitTab).toHaveAttribute("aria-selected", "true");
+			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
+			expect(summaryTab).toHaveAttribute("aria-selected", "true");
 		});
 
 		const terminalTab = canvas.getByRole("tab", { name: "Terminal" });

@@ -2222,13 +2222,15 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
+	// ExtractChatParam already authorized read access to the chat (an
+	// unauthorized caller gets 404 from the middleware), so this only needs to
+	// surface unexpected query failures, matching the sibling chat handlers.
 	row, err := api.Database.GetChatCostByChatID(ctx, chat.ID)
 	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat cost.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 

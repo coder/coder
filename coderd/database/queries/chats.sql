@@ -868,65 +868,6 @@ SELECT
 RETURNING
     *;
 
--- name: InsertChatAccountingMessage :one
--- Inserts a single hidden accounting row whose cost_source is set on the
--- initial INSERT. Background summary and manual title generation use this to
--- attribute their spend. Tagging cost_source at insert time (rather than via a
--- follow-up UPDATE) is required so the AFTER STATEMENT history triggers see the
--- row as an accounting row and do not advance chats.history_version: a turn
--- summary write is guarded on history_version, and a row that advanced it would
--- invalidate that write. Unlike InsertChatMessages this does not touch
--- chats.last_model_config_id, so callers do not need to restore it.
---
--- cost_source is stored verbatim (no NULLIF) so it can never silently become
--- NULL: an empty value fails the chat_messages cost_source CHECK and surfaces a
--- caller bug instead of producing a row the history triggers treat as ordinary
--- turn history.
-INSERT INTO chat_messages (
-    chat_id,
-    created_by,
-    api_key_id,
-    model_config_id,
-    role,
-    content,
-    content_version,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros,
-    runtime_ms,
-    provider_response_id,
-    cost_source
-) VALUES (
-    @chat_id::uuid,
-    @created_by::uuid,
-    NULLIF(@api_key_id::text, ''),
-    @model_config_id::uuid,
-    @role::chat_message_role,
-    @content::jsonb,
-    @content_version::smallint,
-    @visibility::chat_message_visibility,
-    NULLIF(@input_tokens::bigint, 0),
-    NULLIF(@output_tokens::bigint, 0),
-    NULLIF(@total_tokens::bigint, 0),
-    NULLIF(@reasoning_tokens::bigint, 0),
-    NULLIF(@cache_creation_tokens::bigint, 0),
-    NULLIF(@cache_read_tokens::bigint, 0),
-    NULLIF(@context_limit::bigint, 0),
-    @compressed::boolean,
-    NULLIF(@total_cost_micros::bigint, 0),
-    NULLIF(@runtime_ms::bigint, 0),
-    NULLIF(@provider_response_id::text, ''),
-    @cost_source::text
-)
-RETURNING *;
-
 -- name: UpdateChatMessageByID :one
 UPDATE
     chat_messages
@@ -2407,8 +2348,10 @@ ORDER BY cc.total_cost_micros DESC;
 -- Cumulative cost for a single chat, rolled up across its root + child
 -- (subagent) chats. Only counts assistant-role messages. Mirrors
 -- GetChatCostPerChat's root rollup but scoped to one chat and with no date
--- range. Always returns exactly one row (zero totals when the chat has no
--- priced messages). priced/unpriced counts let callers flag a partial total.
+-- range. Returns exactly one row when the chat exists (zero totals when it has
+-- no priced messages); the dbauthz wrapper resolves the chat first, so the
+-- empty-family case is unreachable in practice. priced/unpriced counts let
+-- callers flag a partial total.
 WITH target AS (
     SELECT COALESCE(root_chat_id, id) AS root_chat_id
     FROM chats
@@ -2431,7 +2374,12 @@ WITH target AS (
         )::bigint AS unpriced_message_count
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
-    WHERE COALESCE(c.root_chat_id, c.id) = (SELECT root_chat_id FROM target)
+    -- Match the family by indexed columns (the root itself plus its children)
+    -- instead of COALESCE(root_chat_id, id), which would force a full scan.
+    WHERE (
+        c.id = (SELECT root_chat_id FROM target)
+        OR c.root_chat_id = (SELECT root_chat_id FROM target)
+    )
         AND cm.role = 'assistant'
 )
 SELECT

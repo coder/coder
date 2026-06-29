@@ -10556,6 +10556,71 @@ func TestGetChatCost(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+
+	t.Run("ZeroMessages", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// A chat with no assistant messages must still return a single row of
+		// zeros. The query relies on COALESCE + the :one annotation, so a
+		// regression that made the aggregate return zero rows would surface here
+		// as sql.ErrNoRows and a 500 instead of this clean zero total.
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "empty chat",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cost.RootChatID)
+		require.Equal(t, int64(0), cost.TotalCostMicros)
+		require.Equal(t, int64(0), cost.PricedMessageCount)
+		require.Equal(t, int64(0), cost.UnpricedMessageCount)
+	})
+
+	t.Run("ExcludesNonAssistantMessages", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "mixed-role chat",
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 600, Valid: true},
+		})
+		// A user-role message carrying a cost must be excluded from both the
+		// total and the priced/unpriced counts; the query only bills assistant
+		// messages, so dropping the role filter would change these assertions.
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			Role:            database.ChatMessageRoleUser,
+			TotalCostMicros: sql.NullInt64{Int64: 999, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(600), cost.TotalCostMicros)
+		require.Equal(t, int64(1), cost.PricedMessageCount)
+		require.Equal(t, int64(0), cost.UnpricedMessageCount)
+	})
 }
 
 func TestChatCostUsers(t *testing.T) {

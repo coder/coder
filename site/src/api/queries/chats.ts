@@ -1975,10 +1975,14 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 export const chatCostKey = (chatId: string) =>
 	[...chatsKey, chatId, "cost"] as const;
 
+// Per-chat cost changes only as new assistant messages are priced, so a short
+// window avoids refetching on every Summary tab activation.
+const COST_STALE_MS = 30_000;
+
 export const chatCost = (chatId: string) => ({
 	queryKey: chatCostKey(chatId),
 	queryFn: () => API.experimental.getChatCost(chatId),
-	staleTime: 30_000,
+	staleTime: COST_STALE_MS,
 });
 
 interface PaginatedChatCostUsersPayload {

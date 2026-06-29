@@ -4,7 +4,6 @@ import {
 	ArrowLeftIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
-	InfoIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
@@ -41,10 +40,6 @@ type ChatSharingTopBarButtonProps = {
 	renderChatSharingContent: (open: boolean) => ReactNode;
 };
 
-type ChatSummaryTopBarButtonProps = {
-	renderChatSummaryContent: (open: boolean) => ReactNode;
-};
-
 type ChatTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
@@ -62,7 +57,6 @@ type ChatTopBarProps = {
 	diffStatusData?: ChatDiffStatus;
 	isSharedChat?: boolean;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
-	renderChatSummaryContent?: (open: boolean) => ReactNode;
 };
 
 const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
@@ -98,39 +92,6 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-const ChatSummaryTopBarButton: FC<ChatSummaryTopBarButtonProps> = ({
-	renderChatSummaryContent,
-}) => {
-	const [isChatSummaryOpen, setIsChatSummaryOpen] = useState(false);
-	const [contentGeneration, setContentGeneration] = useState(0);
-
-	const handleOpenChange = (nextOpen: boolean) => {
-		if (nextOpen) {
-			setContentGeneration((generation) => generation + 1);
-		}
-
-		setIsChatSummaryOpen(nextOpen);
-	};
-
-	return (
-		<Popover open={isChatSummaryOpen} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<Button
-					variant="subtle"
-					size="icon"
-					className="size-7 text-content-secondary hover:text-content-primary"
-					aria-label="Show chat summary"
-				>
-					<InfoIcon className="size-4" />
-				</Button>
-			</PopoverTrigger>
-			<Fragment key={contentGeneration}>
-				{renderChatSummaryContent(isChatSummaryOpen)}
-			</Fragment>
-		</Popover>
-	);
-};
-
 export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chatTitle,
 	parentChat,
@@ -148,7 +109,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	diffStatusData,
 	isSharedChat,
 	renderChatSharingContent,
-	renderChatSummaryContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
@@ -273,11 +233,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && renderChatSummaryContent && (
-					<ChatSummaryTopBarButton
-						renderChatSummaryContent={renderChatSummaryContent}
-					/>
-				)}
 				{!isEmbedded && renderChatSharingContent && (
 					<ChatSharingTopBarButton
 						renderChatSharingContent={renderChatSharingContent}
