@@ -14,7 +14,7 @@ coder ai-gateway start [flags]
 ```console
 The standalone AI Gateway connects to a Coder deployment over DRPC to authenticate users, record interceptions, and configure MCP, while serving LLM client traffic on its own HTTP listener.
 
-The deployment address is taken from the global --url flag (CODER_URL) and is required. The gateway authenticates with the key from --key (CODER_AI_GATEWAY_KEY). Provider and other AI Gateway settings use the same CODER_AI_GATEWAY_* options as embedded mode.
+The deployment address is taken from the global --url flag (CODER_URL) and is required. The gateway authenticates with the key from --key (CODER_AI_GATEWAY_KEY). The provider set is fetched from coderd over DRPC; other AI Gateway settings use the same CODER_AI_GATEWAY_* options as embedded mode.
 ```
 
 ## Options

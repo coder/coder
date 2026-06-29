@@ -26,9 +26,10 @@ import (
 // aiGatewayStart runs the AI Gateway as a standalone process.
 // It connects to coderd over DRPC via /api/v2/ai-gateway/serve for
 // authentication, recording, and MCP configuration, and listens on its
-// own HTTP address for incoming LLM client traffic. Providers are built
-// from the deployment configuration; the standalone process does not read
-// the database directly.
+// own HTTP address for incoming LLM client traffic. The provider set is
+// fetched from coderd over DRPC (GetAIProviders); the standalone process
+// does not read the database directly. Other AI Gateway settings come from
+// the shared CODER_AI_GATEWAY_* deployment options.
 func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	var (
 		key         string
@@ -57,8 +58,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			"LLM client traffic on its own HTTP listener.\n\n" +
 			"The deployment address is taken from the global --url flag (CODER_URL) and " +
 			"is required. The gateway authenticates with the key from --key " +
-			"(CODER_AI_GATEWAY_KEY). Provider and other AI Gateway settings use the same " +
-			"CODER_AI_GATEWAY_* options as embedded mode.",
+			"(CODER_AI_GATEWAY_KEY). The provider set is fetched from coderd over DRPC; " +
+			"other AI Gateway settings use the same CODER_AI_GATEWAY_* options as embedded mode.",
 		Handler: func(inv *serpent.Invocation) error {
 			// Derive a single signal-aware context so a stop signal interrupts
 			// every phase, including connecting to coderd and the initial
