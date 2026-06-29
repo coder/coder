@@ -1,61 +1,23 @@
-import {
-	CheckIcon,
-	EllipsisVerticalIcon,
-	PlusIcon,
-	TrashIcon,
-} from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
-import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import type { ChatUsageLimitGroupOverride, Group } from "#/api/typesGenerated";
-import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
-import { AvatarData } from "#/components/Avatar/AvatarData";
+import type { Group } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
 import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
-import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
-import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
-import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "#/components/Table/Table";
-import { getGroupSubtitle } from "#/modules/groups";
-import {
-	formatCostMicros,
-	isPositiveFiniteDollarAmount,
-} from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
 import { SpendSectionHeader } from "../SpendSectionHeader";
-
-const GROUP_LIMITS_PAGE_SIZE = 10;
+import { GroupLimitDialog } from "./GroupLimitDialog";
+import { GroupLimitsTable } from "./GroupLimitsTable";
+import {
+	GROUP_LIMITS_PAGE_SIZE,
+	type GroupLimitOverride,
+	type GroupLimitOverrideGroup,
+} from "./groupLimits";
 
 interface GroupLimitsSectionProps {
 	hideHeader?: boolean;
-	groupOverrides: readonly ChatUsageLimitGroupOverride[];
-	/** Maps group_id to organization_name so override rows can link to
-	 * the group's organization page. Overrides without a known org name
-	 * fall back to plain (non-linked) display. */
+	groupOverrides: readonly GroupLimitOverride[];
 	groupOrganizationNames?: Record<string, string | undefined>;
 	showGroupForm: boolean;
 	onShowGroupFormChange: (show: boolean) => void;
@@ -66,16 +28,8 @@ interface GroupLimitsSectionProps {
 	availableGroups: Group[];
 	groupAutocompleteNoOptionsText: string;
 	groupsLoading: boolean;
-	editingGroupOverride: {
-		group_id: string;
-		group_display_name: string;
-		group_name: string;
-		group_avatar_url: string;
-		member_count: number;
-	} | null;
-	onEditGroupOverride: (
-		override: GroupLimitsSectionProps["groupOverrides"][number],
-	) => void;
+	editingGroupOverride: GroupLimitOverrideGroup | null;
+	onEditGroupOverride: (override: GroupLimitOverride) => void;
 	onAddGroupOverride: () => void;
 	onDeleteGroupOverride: (groupID: string) => void;
 	upsertPending: boolean;
@@ -163,116 +117,26 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 						Add group
 					</Button>
 				</div>
-				{filteredGroupOverrides.length > 0 ? (
-					<div className="space-y-4">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Group</TableHead>
-									<TableHead>Members</TableHead>
-									<TableHead>Spend limit</TableHead>
-									<TableHead className="w-1">Actions</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{pagedItems.map((override) => {
-									const orgName = groupOrganizationNames?.[override.group_id];
-									const groupAvatar = (
-										<AvatarData
-											title={override.group_display_name || override.group_name}
-											subtitle={override.group_name}
-											src={override.group_avatar_url}
-											imgFallbackText={override.group_name}
-										/>
-									);
-									return (
-										<TableRow key={override.group_id}>
-											<TableCell>
-												{orgName ? (
-													<Link
-														to={`/organizations/${orgName}/groups/${override.group_name}`}
-														className="inline-block"
-													>
-														{groupAvatar}
-													</Link>
-												) : (
-													groupAvatar
-												)}
-											</TableCell>
-											<TableCell>{override.member_count}</TableCell>
-											<TableCell>
-												{override.spend_limit_micros !== null
-													? formatCostMicros(override.spend_limit_micros)
-													: "Unlimited"}
-											</TableCell>
-											<TableCell className="w-1 whitespace-nowrap text-right">
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															variant="subtle"
-															size="icon"
-															type="button"
-															disabled={deletePending || upsertPending}
-															aria-label={`Actions for ${
-																override.group_display_name ||
-																override.group_name
-															}`}
-														>
-															<EllipsisVerticalIcon />
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															onSelect={() => onEditGroupOverride(override)}
-														>
-															Update budget
-														</DropdownMenuItem>
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															disabled={isEditing}
-															onSelect={() =>
-																setPendingDeleteGroupId(override.group_id)
-															}
-														>
-															<TrashIcon />
-															Remove group limit
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</TableCell>
-										</TableRow>
-									);
-								})}
-							</TableBody>
-						</Table>
-						<PaginationAmount
-							limit={GROUP_LIMITS_PAGE_SIZE}
-							totalRecords={filteredGroupOverrides.length}
-							currentOffsetStart={
-								(clampedPage - 1) * GROUP_LIMITS_PAGE_SIZE + 1
-							}
-							paginationUnitLabel="groups"
-							className="justify-end"
-						/>
-					</div>
-				) : (
-					<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
-						{groupOverrides.length === 0
-							? "No group overrides configured."
-							: "No group limits match your search."}
-					</div>
-				)}
 
-				{filteredGroupOverrides.length > GROUP_LIMITS_PAGE_SIZE && (
-					<PaginationWidgetBase
-						currentPage={clampedPage}
-						pageSize={GROUP_LIMITS_PAGE_SIZE}
-						totalRecords={filteredGroupOverrides.length}
-						onPageChange={setPage}
-						hasPreviousPage={hasPreviousPage}
-						hasNextPage={hasNextPage}
-					/>
-				)}
+				<GroupLimitsTable
+					pagedOverrides={pagedItems}
+					totalOverrides={filteredGroupOverrides.length}
+					clampedPage={clampedPage}
+					hasPreviousPage={hasPreviousPage}
+					hasNextPage={hasNextPage}
+					onPageChange={setPage}
+					onEditGroupOverride={onEditGroupOverride}
+					onRequestDelete={setPendingDeleteGroupId}
+					groupOrganizationNames={groupOrganizationNames}
+					deletePending={deletePending}
+					upsertPending={upsertPending}
+					isEditing={isEditing}
+					emptyMessage={
+						groupOverrides.length === 0
+							? "No group overrides configured."
+							: "No group limits match your search."
+					}
+				/>
 
 				{deleteError && (
 					<p className="text-xs text-content-destructive">
@@ -280,140 +144,23 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 					</p>
 				)}
 
-				<Dialog
+				<GroupLimitDialog
 					open={showGroupForm}
-					onOpenChange={(open) => {
-						if (upsertPending) {
-							return;
-						}
-
-						onShowGroupFormChange(open);
-						if (!open) {
-							onSelectedGroupChange(null);
-							onGroupAmountChange("");
-						}
-					}}
-				>
-					<DialogContent>
-						<DialogHeader>
-							<DialogTitle>
-								{isEditing ? "Update group budget" : "Add group budget"}
-							</DialogTitle>
-							<DialogDescription>
-								{isEditing
-									? "Update this group's spend limit override."
-									: "Set a spend limit override for a specific group."}
-							</DialogDescription>
-						</DialogHeader>
-
-						<div className="space-y-5">
-							<div className="space-y-1.5">
-								{editingGroupOverride ? (
-									<>
-										<Label>Group</Label>
-										<div className="rounded-md border border-border bg-surface-secondary/40 p-2">
-											<AvatarData
-												title={
-													editingGroupOverride.group_display_name ||
-													editingGroupOverride.group_name
-												}
-												subtitle={editingGroupOverride.group_name}
-												src={editingGroupOverride.group_avatar_url}
-												imgFallbackText={editingGroupOverride.group_name}
-											/>
-										</div>
-									</>
-								) : (
-									<>
-										<Label htmlFor={groupAutocompleteId}>Group</Label>
-										<Autocomplete
-											id={groupAutocompleteId}
-											value={selectedGroup}
-											onChange={onSelectedGroupChange}
-											options={availableGroups}
-											getOptionValue={(group) => group.id}
-											getOptionLabel={(group) =>
-												group.display_name || group.name
-											}
-											isOptionEqualToValue={(option, optionValue) =>
-												option.id === optionValue.id
-											}
-											renderOption={(option, isSelected) => (
-												<div className="flex w-full items-center justify-between gap-2">
-													<AvatarData
-														title={option.display_name || option.name}
-														subtitle={getGroupSubtitle(option)}
-														src={option.avatar_url}
-														imgFallbackText={option.name}
-													/>
-													{isSelected && (
-														<CheckIcon className="size-4 shrink-0" />
-													)}
-												</div>
-											)}
-											placeholder="Search groups..."
-											noOptionsText={groupAutocompleteNoOptionsText}
-											loading={groupsLoading}
-											disabled={groupsLoading}
-											className="w-full"
-										/>
-									</>
-								)}
-							</div>
-							<div className="space-y-1.5">
-								<Label htmlFor={groupAmountId}>Spend limit ($)</Label>
-								<Input
-									id={groupAmountId}
-									type="number"
-									step="0.01"
-									min="0.01"
-									disabled={upsertPending}
-									value={groupAmount}
-									onChange={(event) => onGroupAmountChange(event.target.value)}
-									placeholder="0.00"
-								/>
-							</div>
-							{upsertError && (
-								<p className="text-xs text-content-destructive">
-									{getErrorMessage(
-										upsertError,
-										"Failed to save group override.",
-									)}
-								</p>
-							)}
-						</div>
-
-						<DialogFooter>
-							<Button
-								variant="outline"
-								type="button"
-								onClick={() => {
-									onShowGroupFormChange(false);
-									onSelectedGroupChange(null);
-									onGroupAmountChange("");
-								}}
-								disabled={upsertPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								type="button"
-								onClick={() => void onAddGroupOverride()}
-								disabled={
-									isEditing
-										? upsertPending ||
-											!isPositiveFiniteDollarAmount(groupAmount)
-										: upsertPending ||
-											selectedGroup === null ||
-											!isPositiveFiniteDollarAmount(groupAmount)
-								}
-							>
-								{upsertPending ? <Spinner loading className="h-4 w-4" /> : null}
-								{isEditing ? "Update budget" : "Add group"}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+					onOpenChange={onShowGroupFormChange}
+					selectedGroup={selectedGroup}
+					onSelectedGroupChange={onSelectedGroupChange}
+					groupAmount={groupAmount}
+					onGroupAmountChange={onGroupAmountChange}
+					availableGroups={availableGroups}
+					groupAutocompleteNoOptionsText={groupAutocompleteNoOptionsText}
+					groupsLoading={groupsLoading}
+					editingGroupOverride={editingGroupOverride}
+					upsertPending={upsertPending}
+					upsertError={upsertError}
+					onSave={onAddGroupOverride}
+					groupAutocompleteId={groupAutocompleteId}
+					groupAmountId={groupAmountId}
+				/>
 				{groupsError && (
 					<p className="text-xs text-content-destructive">
 						{getErrorMessage(groupsError, "Failed to load groups.")}
