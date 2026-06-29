@@ -114,6 +114,20 @@ daemon before creating a workspace from a Docker-based template. Refer to the
 [quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
 for platform-specific steps.
 
+If Docker is installed and running but Coder still cannot connect, the daemon
+may expose its socket at a non-default path. This is common with
+[Colima](https://colima.run) and other Docker Desktop alternatives on macOS.
+Point Coder at the correct socket with `DOCKER_HOST`, and append it to your
+shell profile so it survives new shells and restarts:
+
+```sh
+export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"
+echo 'export DOCKER_HOST="unix://${HOME}/.config/colima/default/docker.sock"' >> ~/.zshrc
+```
+
+Run `colima status` (or your runtime's equivalent) to confirm the socket path,
+then restart the Coder server.
+
 ### Docker-based workspace is stuck in "Connecting..."
 
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See

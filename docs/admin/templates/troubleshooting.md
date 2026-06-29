@@ -171,6 +171,17 @@ to optimize your templates based on this data.
 
 ![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
 
+## Cannot connect to the Docker daemon
+
+If a Docker-based template fails to provision with an error like
+`Cannot connect to the Docker daemon at unix:///var/run/docker.sock`, the Coder
+host cannot reach the Docker socket. Confirm that Docker is installed and running
+on the host. With [Colima](https://colima.run) or another Docker Desktop
+alternative on macOS, the daemon exposes its socket at a non-default path, so set
+`DOCKER_HOST` before you start the Coder server. See
+[Cannot connect to the Docker daemon](../../install/docker.md#cannot-connect-to-the-docker-daemon)
+for the full steps.
+
 ## Docker Workspaces on Raspberry Pi OS
 
 ### Unable to query ContainerMemory
