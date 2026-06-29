@@ -11,8 +11,9 @@ USAGE:
   
   The deployment address is taken from the global --url flag (CODER_URL) and is
   required. The gateway authenticates with the key from --key
-  (CODER_AI_GATEWAY_KEY). Provider and other AI Gateway settings use the same
-  CODER_AI_GATEWAY_* options as embedded mode.
+  (CODER_AI_GATEWAY_KEY). The provider set is fetched from coderd over DRPC;
+  other AI Gateway settings use the same CODER_AI_GATEWAY_* options as embedded
+  mode.
 
 OPTIONS:
       --http-address string, $CODER_AI_GATEWAY_HTTP_ADDRESS (default: 127.0.0.1:4001)
