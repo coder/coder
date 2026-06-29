@@ -30,7 +30,6 @@ var moduleConfigs = map[string]ModuleConfig{
 	"kiro":               {Category: "IDE", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
 	"claude-code":        {Category: "AI Agent", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
 	"aider":              {Category: "AI Agent", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
-	"goose":              {Category: "AI Agent", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
 	"amazon-q":           {Category: "AI Agent", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
 	"git-clone":          {Category: "Source Control", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
 	"git-config":         {Category: "Source Control", CompatibleOS: []string{"linux"}, ConflictsWith: []string{}},
