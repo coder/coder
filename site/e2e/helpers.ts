@@ -868,13 +868,7 @@ export class Awaiter {
 
 type MockServer = {
 	app: ReturnType<typeof express>;
-	/**
-	 * close stops the server and force-closes any lingering keep-alive
-	 * connections so the port is released promptly. Callers must invoke
-	 * this in their teardown (e.g. test.afterAll, try/finally) to avoid
-	 * leaking the listener into the next test run, which historically
-	 * caused EADDRINUSE flakes in this suite.
-	 */
+	/** Stops the server and drops keep-alive connections. */
 	close: () => Promise<void>;
 };
 
@@ -893,12 +887,7 @@ export const createServer = async (port: number): Promise<MockServer> => {
 		app,
 		close: () =>
 			new Promise<void>((resolve, reject) => {
-				// Call server.close() first so the listener stops accepting
-				// new connections, then closeAllConnections() (Node >= 18.2 /
-				// 16.17) drops lingering keep-alives so close() resolves
-				// promptly. Inverting this order races: a connection accepted
-				// between closeAllConnections() and close() is not force-
-				// closed and keeps close() pending until keep-alive timeout.
+				// Order matters: stop accepting, then drop keep-alives.
 				server.close((err) => (err ? reject(err) : resolve()));
 				server.closeAllConnections?.();
 			}),
