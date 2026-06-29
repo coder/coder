@@ -2887,72 +2887,6 @@ func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsa
 	return chatUsage
 }
 
-// recordHiddenUsageMessageTx records non-turn spend (background summary or
-// manual title generation) as a hidden, soft-deleted accounting message tagged
-// with costSource. It runs inside the caller's transaction against the
-// already-locked chat and does not touch any user-visible chat field.
-// costSource also labels the wrapped errors.
-//
-// cost_source is set on the initial INSERT via InsertChatAccountingMessage so
-// the AFTER STATEMENT history triggers recognize the row as accounting spend
-// and do not advance chats.history_version. Advancing it would invalidate the
-// turn summary write guarded on history_version. The accounting insert also
-// leaves chats.last_model_config_id untouched, so there is nothing to restore.
-func recordHiddenUsageMessageTx(
-	ctx context.Context,
-	tx database.Store,
-	lockedChat database.Chat,
-	modelConfig database.ChatModelConfig,
-	usage fantasy.Usage,
-	activeAPIKeyID string,
-	costSource string,
-) error {
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return xerrors.Errorf("parse model call config: %w", err)
-		}
-	}
-	totalCostMicros := chatcost.CalculateTotalCostMicros(
-		fantasyUsageToChatMessageUsage(usage),
-		callConfig.Cost,
-	)
-
-	// MarshalParts returns a null NullRawMessage for empty slices, which becomes
-	// an empty string that PostgreSQL rejects as invalid JSON.
-	content := "[]"
-
-	message, err := tx.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
-		ChatID:              lockedChat.ID,
-		CreatedBy:           lockedChat.OwnerID,
-		APIKeyID:            activeAPIKeyID,
-		ModelConfigID:       modelConfig.ID,
-		Role:                database.ChatMessageRoleAssistant,
-		Content:             json.RawMessage(content),
-		ContentVersion:      chatprompt.CurrentContentVersion,
-		Visibility:          database.ChatMessageVisibilityModel,
-		InputTokens:         usage.InputTokens,
-		OutputTokens:        usage.OutputTokens,
-		TotalTokens:         usage.TotalTokens,
-		ReasoningTokens:     usage.ReasoningTokens,
-		CacheCreationTokens: usage.CacheCreationTokens,
-		CacheReadTokens:     usage.CacheReadTokens,
-		ContextLimit:        modelConfig.ContextLimit,
-		Compressed:          false,
-		TotalCostMicros:     ptr.NilToDefault(totalCostMicros, 0),
-		RuntimeMs:           0,
-		ProviderResponseID:  "",
-		CostSource:          costSource,
-	})
-	if err != nil {
-		return xerrors.Errorf("insert %s usage message: %w", costSource, err)
-	}
-	if err := tx.SoftDeleteChatMessageByID(ctx, message.ID); err != nil {
-		return xerrors.Errorf("soft delete %s usage message: %w", costSource, err)
-	}
-	return nil
-}
-
 func recordManualTitleUsage(
 	ctx context.Context,
 	store database.Store,
@@ -2967,6 +2901,26 @@ func recordManualTitleUsage(
 		return chat, nil
 	}
 
+	var totalCostMicros *int64
+	if hasUsage {
+		callConfig := codersdk.ChatModelCallConfig{}
+		if len(modelConfig.Options) > 0 {
+			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+				return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
+			}
+		}
+		totalCostMicros = chatcost.CalculateTotalCostMicros(
+			fantasyUsageToChatMessageUsage(usage),
+			callConfig.Cost,
+		)
+	}
+
+	// Use a valid empty JSON array for the content column.
+	// MarshalParts returns a null NullRawMessage for empty
+	// slices, which becomes an empty string that PostgreSQL
+	// rejects as invalid JSON.
+	content := "[]"
+
 	updatedChat := chat
 	err := store.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
@@ -2975,8 +2929,43 @@ func recordManualTitleUsage(
 		}
 		updatedChat = lockedChat
 		if hasUsage {
-			if err := recordHiddenUsageMessageTx(ctx, tx, lockedChat, modelConfig, usage, activeAPIKeyID, chatCostSourceTitle); err != nil {
-				return err
+			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{chat.OwnerID},
+				APIKeyID:            []string{activeAPIKeyID},
+				ModelConfigID:       []uuid.UUID{modelConfig.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+				Content:             []string{content},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
+				InputTokens:         []int64{usage.InputTokens},
+				OutputTokens:        []int64{usage.OutputTokens},
+				TotalTokens:         []int64{usage.TotalTokens},
+				ReasoningTokens:     []int64{usage.ReasoningTokens},
+				CacheCreationTokens: []int64{usage.CacheCreationTokens},
+				CacheReadTokens:     []int64{usage.CacheReadTokens},
+				ContextLimit:        []int64{modelConfig.ContextLimit},
+				Compressed:          []bool{false},
+				TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
+				RuntimeMs:           []int64{0},
+				ProviderResponseID:  []string{""},
+			})
+			if err != nil {
+				return xerrors.Errorf("insert manual title usage message: %w", err)
+			}
+			if len(messages) != 1 {
+				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
+			}
+			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+				return xerrors.Errorf("soft delete manual title usage message: %w", err)
+			}
+			if lockedChat.LastModelConfigID != modelConfig.ID {
+				if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+					ID:                chat.ID,
+					LastModelConfigID: lockedChat.LastModelConfigID,
+				}); err != nil {
+					return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
+				}
 			}
 		}
 		if newTitle != "" && lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
@@ -4926,13 +4915,6 @@ const (
 	chatSummaryWriteTimeout = 5 * time.Second
 )
 
-// chatCostSource values tag hidden accounting rows so non-turn spend is
-// attributable per feature in cost reporting. Ordinary turn spend is left NULL.
-const (
-	chatCostSourceSummary = "summary"
-	chatCostSourceTitle   = "title"
-)
-
 // maybeGenerateChatSummaryAsync launches background whole-chat summary
 // generation after a successful turn on a root chat. It is best-effort: it runs
 // detached from the request context so the user's turn is never blocked, and
@@ -4946,17 +4928,19 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	// Launch background summary generation tracked by p.inflight so Close()
-	// waits for it. Bail out early if shutdown has begun: generation can run for
-	// up to chatSummaryWorkTimeout, and Close() must not block that long. The
-	// atomic inflightClosed check reproduces goInflight's shutdown admission
-	// gate without taking inflightMu, which drainInflight holds while waiting.
-	p.inflight.Go(func() {
-		if p.inflightClosed.Load() {
-			return
-		}
+	// Launch background summary generation through goInflight so Close() waits
+	// for it and the WaitGroup Add is serialized with drainInflight under
+	// inflightMu, matching the sibling finalize and last-turn-summary helpers. A
+	// direct p.inflight.Go would Add to the WaitGroup outside inflightMu and
+	// before the shutdown check, which can race drainInflight's Wait. goInflight
+	// instead drops the launch once shutdown has begun, so Close() is never
+	// blocked for up to chatSummaryWorkTimeout by a turn finishing concurrently.
+	if err := p.goInflight(func() {
 		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, runResult, logger)
-	})
+	}); err != nil {
+		logger.Debug(context.WithoutCancel(ctx), "skipped chat summary generation",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
 }
 
 // generateAndStoreChatSummary regenerates the whole-chat summary when the
@@ -4974,21 +4958,27 @@ func (p *Server) generateAndStoreChatSummary(
 	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
 	authCtx := dbauthz.AsChatd(ctx)
 
-	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
+	// Re-read the chat before loading the transcript so the captured
+	// history_version is no newer than the messages it guards. The chat passed
+	// in is a snapshot from when the turn finished; reading it fresh also lets
+	// the cadence gate see the latest Summary and SummaryGeneratedAt, so two
+	// rapid back-to-back turns do not both pass the gate and call the LLM.
+	//
+	// Ordering matters for correctness: if a new turn commits between these two
+	// reads, the captured history_version stays behind the transcript, so the
+	// UpdateChatSummary guard rejects the write rather than persisting a summary
+	// that omits the just-committed turn and advancing the cadence marker past
+	// it.
+	chat, err := p.db.GetChatByID(authCtx, chat.ID)
 	if err != nil {
-		logger.Debug(ctx, "failed to load messages for chat summary",
+		logger.Debug(ctx, "failed to re-read chat for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
 
-	// Re-read the chat so the cadence gate sees the freshest Summary and
-	// SummaryGeneratedAt. The chat passed in is a snapshot from when the turn
-	// finished. Without this, two rapid back-to-back turns both see the same
-	// stale snapshot, both pass the gate, and both call the LLM, even though the
-	// history_version guard in UpdateChatSummary still persists only one.
-	chat, err = p.db.GetChatByID(authCtx, chat.ID)
+	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
 	if err != nil {
-		logger.Debug(ctx, "failed to re-read chat for summary",
+		logger.Debug(ctx, "failed to load messages for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
@@ -5006,24 +4996,14 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	model, modelConfig, ok := p.resolveChatSummaryModel(authCtx, chat, runResult, logger)
+	model, _, ok := p.resolveChatSummaryModel(authCtx, chat, runResult, logger)
 	if !ok {
 		return
 	}
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
-	summary, usage, genErr := generateChatSummary(summaryCtx, model, transcript)
-
-	// Record cost whenever the model reported usage, even on failure, so spend
-	// is attributed. The active API key is best-effort from the latest turn.
-	if usage != (fantasy.Usage{}) {
-		activeAPIKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
-		if _, recordErr := recordChatSummaryUsage(authCtx, p.db, chat, modelConfig, usage, activeAPIKeyID); recordErr != nil {
-			logger.Warn(ctx, "failed to record chat summary usage",
-				slog.F("chat_id", chat.ID), slog.Error(recordErr))
-		}
-	}
+	summary, _, genErr := generateChatSummary(summaryCtx, model, transcript)
 
 	if genErr != nil {
 		logger.Debug(ctx, "failed to generate chat summary",
@@ -5132,37 +5112,6 @@ func (p *Server) updateChatSummary(
 	updatedChat := chat
 	updatedChat.Summary = sqlSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
-}
-
-// recordChatSummaryUsage records the cost of a background summary generation as
-// a hidden, soft-deleted accounting row tagged with cost_source='summary'. It
-// locks the chat and delegates to recordHiddenUsageMessageTx; unlike
-// recordManualTitleUsage it never updates the chat title.
-func recordChatSummaryUsage(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	modelConfig database.ChatModelConfig,
-	usage fantasy.Usage,
-	activeAPIKeyID string,
-) (database.Chat, error) {
-	if usage == (fantasy.Usage{}) {
-		return chat, nil
-	}
-
-	updatedChat := chat
-	err := store.InTx(func(tx database.Store) error {
-		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("lock chat for summary usage: %w", err)
-		}
-		updatedChat = lockedChat
-		return recordHiddenUsageMessageTx(ctx, tx, lockedChat, modelConfig, usage, activeAPIKeyID, chatCostSourceSummary)
-	}, nil)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	return updatedChat, nil
 }
 
 func (p *Server) webpushConfigured() bool {

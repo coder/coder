@@ -7543,7 +7543,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -7578,7 +7578,6 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.ProviderResponseID,
 		&i.APIKeyID,
 		&i.Revision,
-		&i.CostSource,
 	)
 	return i, err
 }
@@ -7668,7 +7667,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -7718,7 +7717,6 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.ProviderResponseID,
 			&i.APIKeyID,
 			&i.Revision,
-			&i.CostSource,
 		); err != nil {
 			return nil, err
 		}
@@ -7735,7 +7733,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -7788,7 +7786,6 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.ProviderResponseID,
 			&i.APIKeyID,
 			&i.Revision,
-			&i.CostSource,
 		); err != nil {
 			return nil, err
 		}
@@ -7805,7 +7802,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -7871,7 +7868,6 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.ProviderResponseID,
 			&i.APIKeyID,
 			&i.Revision,
-			&i.CostSource,
 		); err != nil {
 			return nil, err
 		}
@@ -7888,7 +7884,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -7937,7 +7933,6 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.ProviderResponseID,
 			&i.APIKeyID,
 			&i.Revision,
-			&i.CostSource,
 		); err != nil {
 			return nil, err
 		}
@@ -7970,7 +7965,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -8044,7 +8039,6 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.ProviderResponseID,
 			&i.APIKeyID,
 			&i.Revision,
-			&i.CostSource,
 		); err != nil {
 			return nil, err
 		}
@@ -9291,7 +9285,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 FROM
     chat_messages
 WHERE
@@ -9336,7 +9330,6 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.ProviderResponseID,
 		&i.APIKeyID,
 		&i.Revision,
-		&i.CostSource,
 	)
 	return i, err
 }
@@ -9773,142 +9766,6 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 	return i, err
 }
 
-const insertChatAccountingMessage = `-- name: InsertChatAccountingMessage :one
-INSERT INTO chat_messages (
-    chat_id,
-    created_by,
-    api_key_id,
-    model_config_id,
-    role,
-    content,
-    content_version,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros,
-    runtime_ms,
-    provider_response_id,
-    cost_source
-) VALUES (
-    $1::uuid,
-    $2::uuid,
-    NULLIF($3::text, ''),
-    $4::uuid,
-    $5::chat_message_role,
-    $6::jsonb,
-    $7::smallint,
-    $8::chat_message_visibility,
-    NULLIF($9::bigint, 0),
-    NULLIF($10::bigint, 0),
-    NULLIF($11::bigint, 0),
-    NULLIF($12::bigint, 0),
-    NULLIF($13::bigint, 0),
-    NULLIF($14::bigint, 0),
-    NULLIF($15::bigint, 0),
-    $16::boolean,
-    NULLIF($17::bigint, 0),
-    NULLIF($18::bigint, 0),
-    NULLIF($19::text, ''),
-    $20::text
-)
-RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
-`
-
-type InsertChatAccountingMessageParams struct {
-	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
-	CreatedBy           uuid.UUID             `db:"created_by" json:"created_by"`
-	APIKeyID            string                `db:"api_key_id" json:"api_key_id"`
-	ModelConfigID       uuid.UUID             `db:"model_config_id" json:"model_config_id"`
-	Role                ChatMessageRole       `db:"role" json:"role"`
-	Content             json.RawMessage       `db:"content" json:"content"`
-	ContentVersion      int16                 `db:"content_version" json:"content_version"`
-	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
-	InputTokens         int64                 `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        int64                 `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         int64                 `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     int64                 `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens int64                 `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     int64                 `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        int64                 `db:"context_limit" json:"context_limit"`
-	Compressed          bool                  `db:"compressed" json:"compressed"`
-	TotalCostMicros     int64                 `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           int64                 `db:"runtime_ms" json:"runtime_ms"`
-	ProviderResponseID  string                `db:"provider_response_id" json:"provider_response_id"`
-	CostSource          string                `db:"cost_source" json:"cost_source"`
-}
-
-// Inserts a single hidden accounting row whose cost_source is set on the
-// initial INSERT. Background summary and manual title generation use this to
-// attribute their spend. Tagging cost_source at insert time (rather than via a
-// follow-up UPDATE) is required so the AFTER STATEMENT history triggers see the
-// row as an accounting row and do not advance chats.history_version: a turn
-// summary write is guarded on history_version, and a row that advanced it would
-// invalidate that write. Unlike InsertChatMessages this does not touch
-// chats.last_model_config_id, so callers do not need to restore it.
-//
-// cost_source is stored verbatim (no NULLIF) so it can never silently become
-// NULL: an empty value fails the chat_messages cost_source CHECK and surfaces a
-// caller bug instead of producing a row the history triggers treat as ordinary
-// turn history.
-func (q *sqlQuerier) InsertChatAccountingMessage(ctx context.Context, arg InsertChatAccountingMessageParams) (ChatMessage, error) {
-	row := q.db.QueryRowContext(ctx, insertChatAccountingMessage,
-		arg.ChatID,
-		arg.CreatedBy,
-		arg.APIKeyID,
-		arg.ModelConfigID,
-		arg.Role,
-		arg.Content,
-		arg.ContentVersion,
-		arg.Visibility,
-		arg.InputTokens,
-		arg.OutputTokens,
-		arg.TotalTokens,
-		arg.ReasoningTokens,
-		arg.CacheCreationTokens,
-		arg.CacheReadTokens,
-		arg.ContextLimit,
-		arg.Compressed,
-		arg.TotalCostMicros,
-		arg.RuntimeMs,
-		arg.ProviderResponseID,
-		arg.CostSource,
-	)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ChatID,
-		&i.ModelConfigID,
-		&i.CreatedAt,
-		&i.Role,
-		&i.Content,
-		&i.Visibility,
-		&i.InputTokens,
-		&i.OutputTokens,
-		&i.TotalTokens,
-		&i.ReasoningTokens,
-		&i.CacheCreationTokens,
-		&i.CacheReadTokens,
-		&i.ContextLimit,
-		&i.Compressed,
-		&i.CreatedBy,
-		&i.ContentVersion,
-		&i.TotalCostMicros,
-		&i.RuntimeMs,
-		&i.Deleted,
-		&i.ProviderResponseID,
-		&i.APIKeyID,
-		&i.Revision,
-		&i.CostSource,
-	)
-	return i, err
-}
-
 const insertChatMessages = `-- name: InsertChatMessages :many
 WITH updated_chat AS (
     UPDATE
@@ -9980,7 +9837,7 @@ SELECT
     NULLIF(UNNEST($18::bigint[]), 0),
     NULLIF(UNNEST($19::text[]), '')
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 `
 
 type InsertChatMessagesParams struct {
@@ -10058,7 +9915,6 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.ProviderResponseID,
 			&i.APIKeyID,
 			&i.Revision,
-			&i.CostSource,
 		); err != nil {
 			return nil, err
 		}
@@ -11917,7 +11773,7 @@ SET
 WHERE
     id = $3::bigint
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, cost_source
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 `
 
 type UpdateChatMessageByIDParams struct {
@@ -11953,7 +11809,6 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 		&i.ProviderResponseID,
 		&i.APIKeyID,
 		&i.Revision,
-		&i.CostSource,
 	)
 	return i, err
 }

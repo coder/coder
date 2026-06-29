@@ -5,16 +5,6 @@ ALTER TABLE chats
     ADD COLUMN summary TEXT,
     ADD COLUMN summary_generated_at TIMESTAMPTZ;
 
--- cost_source attributes spend on a chat_message to a specific feature so that
--- summary and title generation spend can be reported separately from ordinary
--- turn spend. NULL means ordinary turn spend; 'summary' and 'title' tag the
--- hidden accounting rows written for background summary and manual title
--- generation respectively. The CHECK constrains it to the closed discriminator
--- set so a typo or direct SQL write cannot silently corrupt cost attribution
--- (NULL is implicitly allowed).
-ALTER TABLE chat_messages
-    ADD COLUMN cost_source TEXT CHECK (cost_source IN ('summary', 'title'));
-
 -- Recreate chats_expanded so the new chat columns are exposed to the API. The
 -- view has an explicit column list, so new columns are otherwise invisible.
 -- summary and summary_generated_at are placed next to last_turn_summary.

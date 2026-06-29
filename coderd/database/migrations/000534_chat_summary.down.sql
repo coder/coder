@@ -6,9 +6,6 @@ ALTER TABLE chats
     DROP COLUMN summary,
     DROP COLUMN summary_generated_at;
 
-ALTER TABLE chat_messages
-    DROP COLUMN cost_source;
-
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
