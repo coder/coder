@@ -278,6 +278,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:       vals.OIDC.EmailFallback.Value(),
 	}, nil
 }
 
