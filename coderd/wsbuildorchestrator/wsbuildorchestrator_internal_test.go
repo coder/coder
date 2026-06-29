@@ -100,16 +100,16 @@ func (s *runStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx contex
 	return database.WorkspaceBuildOrchestration{}, sql.ErrNoRows
 }
 
-// GetWorkspaceByID returns soft-deleted rows, so the orchestrator
-// must guard against them explicitly to avoid starting a build for
-// them.
-func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
-	t.Parallel()
-
-	// GIVEN: a soft-deleted workspace whose parent stop build
-	// succeeded and a pending orchestration to start it.
-	ctx := testutil.Context(t, testutil.WaitShort)
-	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+// seedPendingOrchestration overwrites parentJob's OrganizationID and
+// Type.
+func seedPendingOrchestration(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	workspaceDeleted bool,
+	parentJob database.ProvisionerJob,
+) (database.ProvisionerJob, database.WorkspaceBuild) {
+	t.Helper()
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
@@ -131,27 +131,21 @@ func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     template.ID,
-		Deleted:        true,
+		Deleted:        workspaceDeleted,
 	})
 
-	// The succeeded parent stop build makes the orchestration ready
-	// to process.
-	now := dbtime.Now()
-	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		OrganizationID: org.ID,
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		StartedAt:      sql.NullTime{Time: now, Valid: true},
-		CompletedAt:    sql.NullTime{Time: now, Valid: true},
-	})
-	require.Equal(t, database.ProvisionerJobStatusSucceeded, parentJob.JobStatus)
+	parentJob.OrganizationID = org.ID
+	parentJob.Type = database.ProvisionerJobTypeWorkspaceBuild
+	job := dbgen.ProvisionerJob(t, db, nil, parentJob)
 	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		WorkspaceID:       workspace.ID,
 		TemplateVersionID: version.ID,
-		JobID:             parentJob.ID,
+		JobID:             job.ID,
 		Transition:        database.WorkspaceTransitionStop,
 		Reason:            database.BuildReasonInitiator,
 	})
 
+	now := dbtime.Now()
 	_, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
 		ID:                       uuid.New(),
 		CreatedAt:                now,
@@ -162,6 +156,27 @@ func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	return job, parentBuild
+}
+
+// GetWorkspaceByID returns soft-deleted rows, so the orchestrator
+// must guard against them explicitly to avoid starting a build for
+// them.
+func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a soft-deleted workspace whose parent stop build
+	// succeeded and a pending orchestration to start it.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+
+	now := dbtime.Now()
+	parentJob, parentBuild := seedPendingOrchestration(ctx, t, db, true, database.ProvisionerJob{
+		StartedAt:   sql.NullTime{Time: now, Valid: true},
+		CompletedAt: sql.NullTime{Time: now, Valid: true},
+	})
+	require.Equal(t, database.ProvisionerJobStatusSucceeded, parentJob.JobStatus)
+
 	o := newTestOrchestrator(t, db, nil)
 
 	// WHEN: the orchestrator processes the row.
@@ -169,14 +184,49 @@ func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 
-	// THEN: the orchestration resolves as failed without creating a child
-	// build.
+	// THEN: the orchestration resolves as failed without creating a
+	// child build.
 	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuild.ID)
 	require.NoError(t, err)
 	require.Equal(t, "failed", orchestration.Status)
 	require.False(t, orchestration.ChildBuildID.Valid)
 	require.True(t, orchestration.Error.Valid)
 	require.Equal(t, "workspace was deleted", orchestration.Error.String)
+}
+
+// If a pending parent build is canceled before any provisioner
+// acquires it, the orchestration resolves as canceled, with no error
+// and without creating a child build.
+func TestWorkspaceBuildOrchestratorCancelsForCanceledParent(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a workspace whose parent stop build was canceled
+	// (without a provisioner acquiring it) and a pending
+	// orchestration to start it.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+
+	now := dbtime.Now()
+	parentJob, parentBuild := seedPendingOrchestration(ctx, t, db, false, database.ProvisionerJob{
+		CanceledAt:  sql.NullTime{Time: now, Valid: true},
+		CompletedAt: sql.NullTime{Time: now, Valid: true},
+	})
+	require.Equal(t, database.ProvisionerJobStatusCanceled, parentJob.JobStatus)
+
+	o := newTestOrchestrator(t, db, nil)
+
+	// WHEN: the orchestrator processes the row.
+	found, err := o.processNext(ctx)
+	require.NoError(t, err)
+	require.True(t, found)
+
+	// THEN: the orchestration resolves as canceled, with no error and
+	// without creating a child build.
+	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, "canceled", orchestration.Status)
+	require.False(t, orchestration.ChildBuildID.Valid)
+	require.False(t, orchestration.Error.Valid)
 }
 
 // emptyStore reports no pending orchestrations so the run loop stays

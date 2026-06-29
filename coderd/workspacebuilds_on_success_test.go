@@ -456,7 +456,11 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 	}
 }
 
-func TestPostWorkspaceBuildsOnSuccessParentCanceled(t *testing.T) {
+// Canceling an already-running job resolves the orchestration as
+// "failed", not "canceled". This hits the same orchestrator branch as
+// TestPostWorkspaceBuildsOnSuccessParentFailed below; despite that
+// overlap, the test pins this non-obvious end-to-end behavior.
+func TestPostWorkspaceBuildsOnSuccessParentCanceledMidFlight(t *testing.T) {
 	t.Parallel()
 
 	// GIVEN: a running workspace whose stop apply will block.
