@@ -111,7 +111,7 @@ Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:
 
 Docker is not installed or not running on the host. Install Docker and start the
 daemon before creating a workspace from a Docker-based template. Refer to the
-[quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
+[Troubleshooting section of the get started guide](../get-started/index.md#cannot-connect-to-the-docker-daemon)
 for platform-specific steps.
 
 ### Docker-based workspace is stuck in "Connecting..."
