@@ -197,7 +197,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		)
 	}); err != nil {
 		stopTitleCtx()
-		logger.Error(titleCtx, "failed to schedule automatic chat title generation",
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule automatic chat title generation",
 			slog.F("chat_id", chat.ID),
 			slog.F("owner_id", chat.OwnerID),
 			slog.Error(err),
