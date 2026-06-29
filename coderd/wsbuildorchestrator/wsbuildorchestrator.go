@@ -452,6 +452,7 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 		if err := provisionerjobs.PostJob(o.pubsub, *childJob); err != nil {
 			o.logger.Error(ctx, "failed to post child provisioner job to pubsub",
 				slog.F("workspace_build_orchestration_id", orchestrationID),
+				slog.F("workspace_id", workspace.ID),
 				slog.Error(err),
 			)
 		}
@@ -462,6 +463,7 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 		})
 		if err != nil {
 			o.logger.Warn(ctx, "failed to publish workspace update",
+				slog.F("workspace_build_orchestration_id", orchestrationID),
 				slog.F("workspace_id", workspace.ID), slog.Error(err))
 		}
 	}
