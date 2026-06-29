@@ -209,8 +209,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						)}
 					</div>
 				)}
-				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
-				{!isEmbedded && (
+				{/* Actions menu sits inline with the title so it tracks the title's right edge.
+				   Suppressed when there is no chat to act on (loading and not-found views). */}
+				{!isEmbedded && chatTitle && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
