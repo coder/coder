@@ -782,12 +782,10 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 	return &proto.GetAIProvidersResponse{Providers: providers}, nil
 }
 
-// WatchAIProviders streams a payload-free change signal to the AI Gateway daemon
-// on each AIProvidersChangedChannel event, published by the provider CRUD
-// endpoints. The client refetches the authoritative set via GetAIProviders on
-// receipt. One signal is sent immediately on subscribe, and pubsub drop errors
-// are delivered as a signal rather than failing the stream. The stream runs
-// until its context or the server lifecycle is canceled.
+// WatchAIProviders streams a payload-free change signal on each
+// AIProvidersChangedChannel event, plus one immediately on subscribe. Pubsub
+// drop errors produce a signal rather than failing the stream. Blocks until the
+// stream context or the server lifecycle is canceled.
 func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto.DRPCProviderConfigurator_WatchAIProvidersStream) error {
 	if s.pubsub == nil {
 		return xerrors.New("pubsub not configured")

@@ -82,7 +82,7 @@ func TestSubscribeProviderReloadFailsWhenSubscribeFails(t *testing.T) {
 	require.Equal(t, 0, calls.count())
 }
 
-func TestSubscribeProviderReloadIgnoresEventError(t *testing.T) {
+func TestSubscribeProviderReloadReloadsOnEventError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
@@ -97,11 +97,13 @@ func TestSubscribeProviderReloadIgnoresEventError(t *testing.T) {
 
 	require.Equal(t, 1, calls.count())
 
+	// A dropped-message delivery error may have masked a change, so it must
+	// still trigger a reload to reconverge.
 	ps.listener(ctx, nil, errPubsubDelivery)
-	require.Equal(t, 1, calls.count())
+	require.Equal(t, 2, calls.count())
 
 	ps.listener(ctx, nil, nil)
-	require.Equal(t, 2, calls.count())
+	require.Equal(t, 3, calls.count())
 }
 
 func TestWatchProviderReload(t *testing.T) {
@@ -171,6 +173,49 @@ func TestWatchProviderReloadReconnects(t *testing.T) {
 
 	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
 		"reload must continue after the stream drops and reconnects")
+
+	watchCancel()
+	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
+}
+
+func TestWatchProviderReloadRetriesDialFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, nil)
+
+	ctrl := gomock.NewController(t)
+	mockClient := aibridgedmock.NewMockDRPCClient(ctrl)
+
+	// Once dialed, the stream delivers one signal then blocks on its context.
+	mockClient.EXPECT().WatchAIProviders(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(rpcCtx context.Context, _ *proto.WatchAIProvidersRequest) (proto.DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+			ev := make(chan error, 1)
+			ev <- nil
+			return &fakeWatchClientStream{ctx: rpcCtx, events: ev}, nil
+		}).AnyTimes()
+
+	calls := &recordingReloader{}
+
+	// The first dial fails; the second succeeds. This exercises the
+	// connected=false backoff path: a failed dial must not reset the backoff
+	// and must not trigger a reload, but the loop must keep retrying until the
+	// dial succeeds.
+	var attempt atomic.Int32
+	clientFunc := func() (aibridged.DRPCClient, error) {
+		if attempt.Add(1) == 1 {
+			return nil, xerrors.New("dial failed")
+		}
+		return mockClient, nil
+	}
+
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- aibridged.WatchProviderReload(watchCtx, clientFunc, calls, logger) }()
+
+	require.Eventually(t, func() bool { return calls.count() >= 1 }, testutil.WaitShort, testutil.IntervalFast,
+		"reload must fire only after a failed dial is retried successfully")
+	require.GreaterOrEqual(t, int(attempt.Load()), 2, "the first dial must have failed and been retried")
 
 	watchCancel()
 	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)

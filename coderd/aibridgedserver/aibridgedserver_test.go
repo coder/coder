@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 	protobufproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -2653,6 +2654,64 @@ func TestWatchAIProviders(t *testing.T) {
 	streamCancel()
 	require.NoError(t, testutil.TryReceive(ctx, t, watchErr))
 }
+
+// TestWatchAIProvidersSignalsOnDeliveryError asserts that a dropped-message
+// delivery error is forwarded as a change signal rather than failing the
+// stream, so the gateway reconverges after a pubsub drop.
+func TestWatchAIProvidersSignalsOnDeliveryError(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil)
+	ps := &captureListenerPubsub{listenerC: make(chan pubsub.ListenerWithErr, 1)}
+
+	srv, err := aibridgedserver.NewServer(ctx, db, ps, logger, "/", codersdk.AIBridgeConfig{}, nil, nil, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	defer streamCancel()
+	stream := &fakeWatchProvidersStream{ctx: streamCtx, sent: make(chan struct{}, 16)}
+
+	watchErr := make(chan error, 1)
+	go func() {
+		watchErr <- srv.WatchAIProviders(&proto.WatchAIProvidersRequest{}, stream)
+	}()
+
+	// Capture the registered listener and drain the initial subscribe signal so
+	// the delivery-error signal that follows is not coalesced into it.
+	listener := testutil.TryReceive(ctx, t, ps.listenerC)
+	testutil.TryReceive(ctx, t, stream.sent)
+
+	// A delivery error must still produce a signal, exercising the pubsub-error
+	// branch of the handler.
+	listener(ctx, nil, pubsub.ErrDroppedMessages)
+	testutil.TryReceive(ctx, t, stream.sent)
+
+	streamCancel()
+	require.NoError(t, testutil.TryReceive(ctx, t, watchErr))
+}
+
+// captureListenerPubsub captures the ListenerWithErr registered via
+// SubscribeWithErr so a test can drive delivery (including errors) directly.
+type captureListenerPubsub struct {
+	listenerC chan pubsub.ListenerWithErr
+}
+
+func (*captureListenerPubsub) Subscribe(string, pubsub.Listener) (func(), error) {
+	return nil, xerrors.New("Subscribe not implemented")
+}
+
+func (p *captureListenerPubsub) SubscribeWithErr(_ string, listener pubsub.ListenerWithErr) (func(), error) {
+	p.listenerC <- listener
+	return func() {}, nil
+}
+
+func (*captureListenerPubsub) Publish(string, []byte) error {
+	return xerrors.New("Publish not implemented")
+}
+
+func (*captureListenerPubsub) Close() error { return nil }
 
 // fakeWatchProvidersStream is a minimal proto.DRPCProviderConfigurator_WatchAIProvidersStream
 // that records Send calls on a channel.

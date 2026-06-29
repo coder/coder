@@ -132,13 +132,11 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			// signal.
 			watchCtx, watchCancel := context.WithCancel(ctx)
 			var watchWG sync.WaitGroup
-			watchWG.Add(1)
-			go func() {
-				defer watchWG.Done()
+			watchWG.Go(func() {
 				if err := aibridged.WatchProviderReload(watchCtx, srv.Client, reloader, providerLogger); err != nil && watchCtx.Err() == nil {
 					providerLogger.Warn(watchCtx, "ai provider watch loop exited", slog.Error(err))
 				}
-			}()
+			})
 			defer func() {
 				watchCancel()
 				// srv.Close cancels the daemon lifecycle context, which is the
