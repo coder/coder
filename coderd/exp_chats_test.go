@@ -82,7 +82,7 @@ func newChatTestOptions(
 	return opts
 }
 
-func newChatClient(t *testing.T, overrides ...func(*coderdtest.Options)) *codersdk.ExperimentalClient {
+func newChatClient(t testing.TB, overrides ...func(*coderdtest.Options)) *codersdk.ExperimentalClient {
 	t.Helper()
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
@@ -91,7 +91,7 @@ func newChatClient(t *testing.T, overrides ...func(*coderdtest.Options)) *coders
 	return codersdk.NewExperimentalClient(client)
 }
 
-func newChatClientWithAPI(t *testing.T, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, *coderd.API) {
+func newChatClientWithAPI(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, *coderd.API) {
 	t.Helper()
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
@@ -101,7 +101,7 @@ func newChatClientWithAPI(t *testing.T, overrides ...func(*coderdtest.Options)) 
 }
 
 func newChatClientWithDeploymentValues(
-	t *testing.T,
+	t testing.TB,
 	values *codersdk.DeploymentValues,
 ) *codersdk.ExperimentalClient {
 	t.Helper()
@@ -112,7 +112,7 @@ func newChatClientWithDeploymentValues(
 	return codersdk.NewExperimentalClient(client)
 }
 
-func newChatClientWithDatabase(t *testing.T, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
+func newChatClientWithDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
@@ -121,7 +121,7 @@ func newChatClientWithDatabase(t *testing.T, overrides ...func(*coderdtest.Optio
 	return codersdk.NewExperimentalClient(client), api.Database
 }
 
-func newChatClientWithAPIAndDatabase(t *testing.T, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store, *coderd.API) {
+func newChatClientWithAPIAndDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store, *coderd.API) {
 	t.Helper()
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
