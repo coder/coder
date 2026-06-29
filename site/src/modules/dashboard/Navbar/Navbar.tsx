@@ -13,7 +13,8 @@ import { NavbarView } from "./NavbarView";
 export const Navbar: FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings } = useDashboard();
+	const { appearance, canViewOrganizationSettings, experiments } =
+		useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
@@ -32,6 +33,7 @@ export const Navbar: FC = () => {
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig;
 	const canCreateChat = permissions.createChat;
+	const canViewDocs = experiments.includes("embedded-docs");
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -53,6 +55,7 @@ export const Navbar: FC = () => {
 			canViewAIBridge={canViewAIBridge}
 			canViewAISettings={canViewAISettings}
 			canCreateChat={canCreateChat}
+			canViewDocs={canViewDocs}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

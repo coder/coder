@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
@@ -36,6 +36,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewAISettings: true,
 		canViewOrganizations: true,
 		canCreateChat: true,
+		canViewDocs: false,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -228,5 +229,20 @@ export const RcDevelBuild: Story = {
 			version: "v2.33.0-rc.1-devel+727ec00f7",
 			external_url: "https://github.com/coder/coder/commit/727ec00f7",
 		},
+	},
+};
+
+export const WithDocsTab: Story = {
+	args: { canViewDocs: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Docs" })).toBeVisible();
+	},
+};
+
+export const WithoutDocsTab: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByRole("link", { name: "Docs" })).toBeNull();
 	},
 };

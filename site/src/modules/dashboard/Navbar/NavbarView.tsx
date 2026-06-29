@@ -35,6 +35,7 @@ interface NavbarViewProps {
 	canViewAIBridge: boolean;
 	canViewAISettings: boolean;
 	canCreateChat: boolean;
+	canViewDocs: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -57,6 +58,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAIBridge,
 	canViewAISettings,
 	canCreateChat,
+	canViewDocs,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -89,6 +91,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				className="ml-4 hidden md:flex"
 				user={user}
 				canCreateChat={canCreateChat}
+				canViewDocs={canViewDocs}
 			/>
 
 			{prerelease && buildInfo?.version && (
@@ -178,9 +181,15 @@ interface NavItemsProps {
 	className?: string;
 	user: TypesGen.User;
 	canCreateChat: boolean;
+	canViewDocs: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
+const NavItems: FC<NavItemsProps> = ({
+	className,
+	user,
+	canCreateChat,
+	canViewDocs,
+}) => {
 	const location = useLocation();
 
 	return (
@@ -206,6 +215,8 @@ const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
 			</NavLink>
 			<TasksNavItem user={user} />
 			<AgentsNavItem canCreateChat={canCreateChat} />
+			{/* TODO: add Docs to MobileMenu when the embedded-docs experiment graduates. */}
+			<DocsNavItem canViewDocs={canViewDocs} />
 		</nav>
 	);
 };
@@ -283,6 +294,26 @@ const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
 			to="/agents"
 		>
 			Agents
+		</NavLink>
+	);
+};
+
+interface DocsNavItemProps {
+	canViewDocs: boolean;
+}
+
+const DocsNavItem: FC<DocsNavItemProps> = ({ canViewDocs }) => {
+	if (!canViewDocs) {
+		return null;
+	}
+	return (
+		<NavLink
+			className={({ isActive }) =>
+				cn(linkStyles.default, { [linkStyles.active]: isActive })
+			}
+			to="/docs"
+		>
+			Docs
 		</NavLink>
 	);
 };

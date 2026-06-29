@@ -4570,6 +4570,7 @@ export type Experiment =
 	| "ai-gateway-cost-control"
 	| "agent-app-tabs"
 	| "auto-fill-parameters"
+	| "embedded-docs"
 	| "example"
 	| "mcp-server-http"
 	| "minimum-implicit-member"
@@ -4583,6 +4584,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
 	"agent-app-tabs",
 	"auto-fill-parameters",
+	"embedded-docs",
 	"example",
 	"mcp-server-http",
 	"minimum-implicit-member",

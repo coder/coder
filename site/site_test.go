@@ -517,6 +517,9 @@ func TestShouldCacheFile(t *testing.T) {
 		{"service-worker.js", false},
 		{"dashboard.html", false},
 		{"apps/app/code/terminal.html", false},
+
+		{"docs-content/manifest.json", false},
+		{"docs-content/install/index.md", false},
 	}
 
 	for _, testCase := range testCases {
