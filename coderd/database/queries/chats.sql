@@ -879,19 +879,6 @@ WHERE
 RETURNING
     *;
 
--- name: UpdateChatMessageCostSource :execrows
--- Tags a chat_message with a cost_source so its spend is attributable to a
--- specific feature (for example 'summary' or 'title') rather than ordinary
--- turn spend. Used to mark the hidden accounting rows written for background
--- summary and manual title generation without threading a new field through
--- the shared InsertChatMessages batch insert.
-UPDATE
-    chat_messages
-SET
-    cost_source = NULLIF(@cost_source::text, '')
-WHERE
-    id = @id::bigint;
-
 -- name: UpdateChatByID :one
 WITH updated_chat AS (
 UPDATE

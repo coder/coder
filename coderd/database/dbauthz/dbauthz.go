@@ -7214,22 +7214,6 @@ func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.Update
 	return q.db.UpdateChatMessageByID(ctx, arg)
 }
 
-func (q *querier) UpdateChatMessageCostSource(ctx context.Context, arg database.UpdateChatMessageCostSourceParams) (int64, error) {
-	// Authorize update on the parent chat of the tagged message.
-	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	return q.db.UpdateChatMessageCostSource(ctx, arg)
-}
-
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatModelConfig{}, err

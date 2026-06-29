@@ -1367,12 +1367,6 @@ type sqlcQuerier interface {
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
-	// Tags a chat_message with a cost_source so its spend is attributable to a
-	// specific feature (for example 'summary' or 'title') rather than ordinary
-	// turn spend. Used to mark the hidden accounting rows written for background
-	// summary and manual title generation without threading a new field through
-	// the shared InsertChatMessages batch insert.
-	UpdateChatMessageCostSource(ctx context.Context, arg UpdateChatMessageCostSourceParams) (int64, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)

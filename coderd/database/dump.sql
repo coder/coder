@@ -1895,9 +1895,7 @@ CREATE TABLE chat_messages (
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
     api_key_id text,
-    revision bigint NOT NULL,
-    cost_source text,
-    CONSTRAINT chat_messages_cost_source_check CHECK ((cost_source = ANY (ARRAY['summary'::text, 'title'::text])))
+    revision bigint NOT NULL
 );
 
 CREATE SEQUENCE chat_messages_id_seq
