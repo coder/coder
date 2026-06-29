@@ -67,7 +67,12 @@ func createOpenAIModelConfigForTest(
 }
 
 func TestChatStreamRelay(t *testing.T) {
-	t.Skip("chat stream relay does not deliver streaming events when AI Gateway routing is enabled; see CODAGT-681")
+	// OpenAI Responses streaming events are buffered (not relayed) under AI
+	// Gateway routing while the agentic inner loop exists; see
+	// https://github.com/coder/aibridge/issues/223. Unskip once the
+	// reverse-proxy refactor lands and the follow-up tracking ticket is
+	// resolved.
+	t.Skip("chat stream relay buffers events under AI Gateway routing; see CODAGT-XXX TODO PLACEHOLDER and https://github.com/coder/aibridge/issues/223")
 	t.Parallel()
 
 	t.Run("RelayMessagePartsAcrossReplicas", func(t *testing.T) {
