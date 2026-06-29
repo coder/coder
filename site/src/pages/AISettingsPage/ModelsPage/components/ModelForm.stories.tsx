@@ -183,8 +183,30 @@ export const EditSaveSubmits: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const save = canvas.getByRole("button", { name: /^update model$/i });
+		// Update is disabled until the user makes a change.
+		await expect(save).toBeDisabled();
+		await userEvent.type(canvas.getByLabelText(/display name/i), " (updated)");
+		await expect(save).toBeEnabled();
 		await userEvent.click(save);
 		await expect(args.onUpdateModel).toHaveBeenCalledTimes(1);
+	},
+};
+
+export const EditUpdateDisabledUntilDirty: Story = {
+	args: {
+		editingModel: mockGPT5,
+		onDeleteModel: fn(async () => undefined),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const save = canvas.getByRole("button", { name: /^update model$/i });
+		await expect(save).toBeDisabled();
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.type(displayName, " (edited)");
+		await expect(save).toBeEnabled();
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, mockGPT5.display_name);
+		await expect(save).toBeDisabled();
 	},
 };
 

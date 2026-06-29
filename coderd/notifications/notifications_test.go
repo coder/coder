@@ -1541,11 +1541,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					assert.NoError(t, srv.Serve(listen))
-				}()
+				})
 
 				// Wait for the server to become pingable.
 				require.Eventually(t, func() bool {

@@ -156,7 +156,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	const label = template.display_name || template.name;
 
 	return (
-		<TableRow className="h-[72px]">
+		<TableRow>
 			<TableCell className="w-full max-w-0 px-4 py-3">
 				<div className="flex min-w-0 items-center gap-4">
 					<Avatar
@@ -249,7 +249,7 @@ const TemplatesTable: FC<TemplatesTableProps> = ({
 					</TableHead>
 				</TableRow>
 			</TableHeader>
-			<TableBody>
+			<TableBody size="lg">
 				{isLoading ? (
 					<TableLoader />
 				) : allowlistedTemplates.length === 0 ? (

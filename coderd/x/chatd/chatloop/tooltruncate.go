@@ -7,19 +7,25 @@ import (
 
 const (
 	// toolResultContextDivisor bounds how much of a model's context
-	// window a single tool result may occupy: at most 1/N of the
+	// window a single tool result may occupy: at most 1/3 of the
 	// window. This caps a single oversized result (most often a large
 	// MCP response) so it cannot overflow the prompt on its own, while
-	// still letting a generous amount of output through. Cumulative
+	// still letting a useful amount of output through. The divisor is
+	// deliberately larger than 2 so the absolute cap stays sane on
+	// large-context (e.g. 1M-token) models, where a more generous
+	// fraction would still admit multi-megabyte results. Cumulative
 	// growth across many results is handled separately by context
 	// compaction.
-	toolResultContextDivisor = 2
+	toolResultContextDivisor = 3
 
 	// bytesPerTokenEstimate converts a token budget into a byte budget.
 	// Tool output is capped before tokenization, so this is a coarse,
-	// provider-agnostic estimate. Roughly 4 bytes per token for typical
-	// text.
-	bytesPerTokenEstimate = 4
+	// provider-agnostic estimate. It is deliberately conservative at ~3
+	// bytes per token: dense payloads (JSON, logs, code, non-ASCII) run
+	// well below 4 bytes per token, so the lower estimate yields a
+	// smaller byte budget that is less likely to underestimate the true
+	// token cost.
+	bytesPerTokenEstimate = 3
 
 	// minToolResultBytes is the floor for the per-result byte budget so
 	// small or unknown context windows still let useful output through.

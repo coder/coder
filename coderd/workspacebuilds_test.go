@@ -1341,7 +1341,10 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	require.Equal(t, 1, validateCalls) // Ensure the external link is working
+	// Ensure the external link is working. Workspace creation validates the
+	// owner's required external auth, and the build's token injection
+	// validates it again.
+	require.Equal(t, 2, validateCalls)
 
 	// Suspend the user
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1355,7 +1358,7 @@ func TestWorkspaceDeleteSuspendedUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, owner, build.ID)
-	require.Equal(t, 2, validateCalls)
+	require.Equal(t, 3, validateCalls)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 }
 

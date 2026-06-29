@@ -21,7 +21,7 @@ import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-type WorkspaceParametersPageViewExperimentalProps = {
+type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	autofillParameters: AutofillBuildParameter[];
 	parameters: PreviewParameter[];
@@ -37,8 +37,8 @@ type WorkspaceParametersPageViewExperimentalProps = {
 	templateVersionId: string | undefined;
 };
 
-export const WorkspaceParametersPageViewExperimental: FC<
-	WorkspaceParametersPageViewExperimentalProps
+export const WorkspaceParametersPageView: FC<
+	WorkspaceParametersPageViewProps
 > = ({
 	workspace,
 	autofillParameters,
@@ -189,8 +189,8 @@ export const WorkspaceParametersPageViewExperimental: FC<
 							className={cn(
 								"text-xs flex flex-col rounded-md border px-4 pb-3 border-solid",
 								diagnostic.severity === "error"
-									? " text-content-destructive border-border-destructive"
-									: " text-content-warning border-border-warning",
+									? "text-content-destructive border-border-destructive"
+									: "text-content-warning border-border-warning",
 							)}
 						>
 							<div className="flex items-center m-0">

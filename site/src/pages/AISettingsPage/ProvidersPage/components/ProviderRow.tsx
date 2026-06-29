@@ -24,7 +24,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 
 	return (
 		<TableRow key={provider.name} {...clickableProps}>
-			<TableCell className="min-w-0">
+			<TableCell className="min-w-0 px-4 py-3">
 				<AvatarData
 					title={displayName}
 					avatar={

@@ -2,7 +2,7 @@
 
 aibridge provides an HTTP handler that intercepts AI client requests bound for upstream AI providers (Anthropic, OpenAI, Copilot). It records token usage, prompts, and tool invocations per user. Optionally supports centralized [MCP](https://modelcontextprotocol.io/) tool injection with allowlist/denylist filtering.
 
-The handler is mounted by a host process. Today that host is `coderd`, which [mounts the handler](../enterprise/coderd/coderd.go#L294) at `/api/v2/aibridge/<provider>/*`. Running aibridge as a separate process is planned for the future.
+The handler is mounted by a host process. Today that host is `coderd`, which [mounts the handler](../enterprise/coderd/coderd.go#L294) at `/api/v2/ai-gateway/<provider>/*`. Running aibridge as a separate process is planned for the future.
 
 ## Architecture
 
@@ -92,7 +92,7 @@ type Recorder interface {
 
 ## Supported Routes
 
-Each provider instance is mounted under `/api/v2/aibridge/<name>`, where `<name>` is the provider's configured name. For example, with an Anthropic provider named `my-anthropic`, its `/messages` endpoint would be reachable at `/api/v2/aibridge/my-anthropic/v1/messages`.
+Each provider instance is mounted under `/api/v2/ai-gateway/<name>`, where `<name>` is the provider's configured name. For example, with an Anthropic provider named `my-anthropic`, its `/messages` endpoint would be reachable at `/api/v2/ai-gateway/my-anthropic/v1/messages`.
 
 If a name is not set, the route path defaults to the provider's type: `anthropic`, `openai`, or `copilot`. The table below uses the default names.
 

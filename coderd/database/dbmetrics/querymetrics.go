@@ -1130,6 +1130,14 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
+	m.queryLatencies.WithLabelValues("GetAIGatewayKeyByHashedSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayKeyByHashedSecret").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
@@ -3858,11 +3866,11 @@ func (m queryMetricsStore) GetWorkspacesByTemplateID(ctx context.Context, templa
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
+func (m queryMetricsStore) GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForLifecycleActionRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspacesEligibleForTransition(ctx, now)
-	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForTransition").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspacesEligibleForTransition").Inc()
+	r0, r1 := m.s.GetWorkspacesEligibleForLifecycleAction(ctx, now)
+	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForLifecycleAction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspacesEligibleForLifecycleAction").Inc()
 	return r0, r1
 }
 
@@ -5042,6 +5050,14 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayKeyLastHeartbeatAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayKeyLastHeartbeatAt").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateAIProvider(ctx, arg)
@@ -5943,6 +5959,14 @@ func (m queryMetricsStore) UpdateWorkspaceBuildFlagsByID(ctx context.Context, ar
 	r0 := m.s.UpdateWorkspaceBuildFlagsByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildFlagsByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildFlagsByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildNotifiedAutostopDeadline").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildNotifiedAutostopDeadline").Inc()
 	return r0
 }
 

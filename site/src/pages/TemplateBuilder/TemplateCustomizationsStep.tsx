@@ -7,6 +7,10 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Textarea } from "#/components/Textarea/Textarea";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type {
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
@@ -47,11 +51,11 @@ export const TemplateCustomizationsStep: FC<
 	};
 
 	return (
-		<div className="border border-border border-solid p-6 rounded-lg">
-			<h2 className="text-lg font-semibold mb-1">Customizations</h2>
-			<p className="text-sm text-content-secondary mb-6">
+		<>
+			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Add additional configurations.
-			</p>
+			</TemplateBuilderSubtitle>
 
 			<div className="flex gap-8">
 				{/* Base template card */}
@@ -134,7 +138,7 @@ export const TemplateCustomizationsStep: FC<
 					</div>
 				</div>
 			</div>
-		</div>
+		</>
 	);
 };
 

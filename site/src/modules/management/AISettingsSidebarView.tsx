@@ -28,7 +28,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{permissions.viewAnyAIProvider && (
-					<SidebarNavItem href="/ai/settings" end>
+					<SidebarNavItem href="/ai/settings/providers">
 						Providers
 					</SidebarNavItem>
 				)}

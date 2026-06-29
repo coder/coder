@@ -117,7 +117,15 @@ export function getExternalImageStylesFromUrl(
 		return undefined;
 	}
 
-	const url = new URL(urlString, location.origin);
+	// While a user types a URL the value can be incomplete or invalid (e.g.
+	// "https:"). new URL() throws on those, so treat them as having no special
+	// styles instead of crashing the render.
+	let url: URL;
+	try {
+		url = new URL(urlString, location.origin);
+	} catch {
+		return undefined;
+	}
 
 	if (url.search) {
 		return parseImageParameters(modes, url.search);
