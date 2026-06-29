@@ -82,9 +82,9 @@ func stripForeignProviderExecutedToolRows(
 			out = append(out, row)
 			continue
 		}
+		stats.RemovedToolCalls += removedCalls
+		stats.RemovedToolResults += removedResults
 		if len(kept) == 0 {
-			stats.RemovedToolCalls += removedCalls
-			stats.RemovedToolResults += removedResults
 			stats.DroppedMessages++
 			continue
 		}
@@ -96,8 +96,6 @@ func stripForeignProviderExecutedToolRows(
 		}
 		row.Content = content
 		row.ContentVersion = chatprompt.CurrentContentVersion
-		stats.RemovedToolCalls += removedCalls
-		stats.RemovedToolResults += removedResults
 		out = append(out, row)
 	}
 	return out, stats
