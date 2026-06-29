@@ -7539,6 +7539,21 @@ func (mr *MockStoreMockRecorder) InsertChat(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChat", reflect.TypeOf((*MockStore)(nil).InsertChat), ctx, arg)
 }
 
+// InsertChatAccountingMessage mocks base method.
+func (m *MockStore) InsertChatAccountingMessage(ctx context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatAccountingMessage", ctx, arg)
+	ret0, _ := ret[0].(database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatAccountingMessage indicates an expected call of InsertChatAccountingMessage.
+func (mr *MockStoreMockRecorder) InsertChatAccountingMessage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatAccountingMessage", reflect.TypeOf((*MockStore)(nil).InsertChatAccountingMessage), ctx, arg)
+}
+
 // InsertChatDebugRun mocks base method.
 func (m *MockStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	m.ctrl.T.Helper()

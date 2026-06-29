@@ -1402,7 +1402,9 @@ BEGIN
     SET history_version = c.snapshot_version,
         generation_attempt = 0
     FROM (
-        SELECT DISTINCT chat_id FROM chat_message_history_new_rows
+        SELECT DISTINCT chat_id
+        FROM chat_message_history_new_rows
+        WHERE cost_source IS NULL
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1425,6 +1427,7 @@ BEGIN
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
         WHERE o IS DISTINCT FROM n
+          AND n.cost_source IS NULL
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1895,7 +1898,9 @@ CREATE TABLE chat_messages (
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
     api_key_id text,
-    revision bigint NOT NULL
+    revision bigint NOT NULL,
+    cost_source text,
+    CONSTRAINT chat_messages_cost_source_check CHECK ((cost_source = ANY (ARRAY['summary'::text, 'title'::text])))
 );
 
 CREATE SEQUENCE chat_messages_id_seq

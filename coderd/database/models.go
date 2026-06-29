@@ -4951,6 +4951,7 @@ type ChatMessage struct {
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
+	CostSource          sql.NullString        `db:"cost_source" json:"cost_source"`
 }
 
 type ChatModelConfig struct {
