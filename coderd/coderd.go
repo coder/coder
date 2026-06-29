@@ -338,6 +338,10 @@ type Options struct {
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
 // @name Coder-Session-Token
+
+// @securitydefinitions.apiKey AIGatewayKey
+// @in header
+// @name X-AI-Governance-Gateway-Key
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {

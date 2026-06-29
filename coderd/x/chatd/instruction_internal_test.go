@@ -132,6 +132,15 @@ func TestDefaultSystemPromptContainsVersionControlSafety(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "Never treat the original request as confirmation")
 }
 
+func TestDefaultSystemPromptContainsSubagentOrchestration(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, DefaultSystemPrompt, "<subagent-orchestration>")
+	require.Contains(t, DefaultSystemPrompt, "</subagent-orchestration>")
+	require.Contains(t, DefaultSystemPrompt, "An error status is often recoverable")
+	require.Contains(t, DefaultSystemPrompt, "call list_agents to recover them")
+}
+
 func TestWorkspaceAwarenessDelaysWorkspaceCreation(t *testing.T) {
 	t.Parallel()
 

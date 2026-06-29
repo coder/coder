@@ -877,6 +877,11 @@ RETURNING
 -- summary write is guarded on history_version, and a row that advanced it would
 -- invalidate that write. Unlike InsertChatMessages this does not touch
 -- chats.last_model_config_id, so callers do not need to restore it.
+--
+-- cost_source is stored verbatim (no NULLIF) so it can never silently become
+-- NULL: an empty value fails the chat_messages cost_source CHECK and surfaces a
+-- caller bug instead of producing a row the history triggers treat as ordinary
+-- turn history.
 INSERT INTO chat_messages (
     chat_id,
     created_by,
@@ -918,7 +923,7 @@ INSERT INTO chat_messages (
     NULLIF(@total_cost_micros::bigint, 0),
     NULLIF(@runtime_ms::bigint, 0),
     NULLIF(@provider_response_id::text, ''),
-    NULLIF(@cost_source::text, '')
+    @cost_source::text
 )
 RETURNING *;
 

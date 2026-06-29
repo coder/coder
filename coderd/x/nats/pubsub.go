@@ -113,7 +113,8 @@ type Options struct {
 	ClusterHost string
 
 	// ClusterPort is the embedded NATS route listener port. Zero means
-	// 6222 when cluster mode is enabled.
+	// 6222 when cluster mode is enabled. NATS `server.RANDOM_PORT` can be
+	// used to select a random port.
 	ClusterPort int
 
 	// ClusterAuthToken is the shared route authentication token for
@@ -297,18 +298,7 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // New creates an embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
-func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	// Persist the default cluster port onto opts so it is the same value the
-	// listener (buildServerOptions) binds and the value parsePeerAddresses
-	// compares against. parsePeerAddresses overwrites each peer's parsed port
-	// with defaultClusterPort, but only when opts.ClusterPort already equals
-	// defaultClusterPort. Callers like the cli leave ClusterPort at 0, so
-	// without this that branch is skipped and peers are dialed on the relay
-	// URL's port (e.g. 8080) instead of the NATS route port (6222).
-	if opts.ClusterPort == 0 {
-		opts.ClusterPort = defaultClusterPort
-	}
-
+func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub, retErr error) {
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
@@ -318,6 +308,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			ns.Shutdown()
+			ns.WaitForShutdown()
+		}
+	}()
 
 	logger.Info(context.Background(), "embedded nats server started",
 		slog.F("client_url", ns.ClientURL()),
@@ -328,6 +324,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	}
 
 	p := newPubsub(ctx, logger, opts)
+	defer func() {
+		if retErr != nil {
+			p.cancel()
+		}
+	}()
 	p.Server = ns
 	p.clustered = !opts.disableCluster
 	p.serverOpts = sopts.Clone()
@@ -336,29 +337,43 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")
 	if err != nil {
-		p.cancel()
-		ns.Shutdown()
-		ns.WaitForShutdown()
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			for _, c := range publishPool {
+				c.Close()
+			}
+		}
+	}()
+	p.publishPool = publishPool
 
 	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
-		p.cancel()
-		for _, c := range publishPool {
-			c.Close()
-		}
-		ns.Shutdown()
-		ns.WaitForShutdown()
 		return nil, err
 	}
-
-	p.publishPool = publishPool
+	defer func() {
+		if retErr != nil {
+			for _, c := range subscribePool {
+				c.Close()
+			}
+		}
+	}()
 	p.subscribePool = subscribePool
 	// All owned connections dialed successfully above.
 	p.metrics.markConnected(len(publishPool) + len(subscribePool))
 
 	if p.clustered {
+		ca := ns.ClusterAddr()
+		if ca == nil {
+			return nil, xerrors.New("no cluster address")
+		}
+		// sec checks, just to be sure
+		if ca.Port < 0 || ca.Port > 65535 {
+			return nil, xerrors.Errorf("invalid cluster port: %d", ca.Port)
+		}
+		//nolint:gosec // range checked above so conversion is safe.
+		opts.PeerFetcher.SetSelfNATSPort(int32(ca.Port))
 		go p.runPeerRefresh()
 	}
 	go func() {

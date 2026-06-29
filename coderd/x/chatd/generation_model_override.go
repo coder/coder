@@ -12,39 +12,26 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
-const summaryGenerationOverrideContext = "summary_generation"
-
-func readSummaryGenerationModelOverride(
-	ctx context.Context,
-	db database.Store,
-) (string, error) {
-	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatSummaryGenerationModelOverride(chatdCtx)
-	if err != nil {
-		return "", xerrors.Errorf(
-			"get chat summary generation model override: %w",
-			err,
-		)
-	}
-	return raw, nil
-}
-
-// resolveSummaryGenerationModelOverride resolves the deployment-wide summary
-// generation model override. overrideSet is true when an override was
-// configured; in that case any returned error is a hard failure and the caller
-// should skip summary generation. When overrideSet is false, callers fall back
-// to the chat's configured model.
-func (p *Server) resolveSummaryGenerationModelOverride(
+// resolveGenerationModelOverride resolves a deployment-wide model override for a
+// background generation feature (title or summary). overrideContext labels the
+// override (and its error messages); readOverride loads the configured value.
+// overrideSet is true when an override was configured; in that case any returned
+// error is a hard failure and the caller should skip generation. When
+// overrideSet is false, callers fall back to the chat's configured model.
+func (p *Server) resolveGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
+	overrideContext string,
+	readOverride func(context.Context, database.Store) (string, error),
 ) (database.ChatModelConfig, fantasy.LanguageModel, chatprovider.ProviderAPIKeys, resolvedModelRoute, bool, error) {
-	raw, err := readSummaryGenerationModelOverride(ctx, p.db)
+	label := modelOverrideErrorLabel(overrideContext)
+	raw, err := readOverride(ctx, p.db)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, xerrors.Errorf(
-			"read summary generation model override: %w",
+			"read %s model override: %w",
+			label,
 			err,
 		)
 	}
@@ -52,7 +39,7 @@ func (p *Server) resolveSummaryGenerationModelOverride(
 	overrideProviderKeys := keys
 	modelConfig, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
-		summaryGenerationOverrideContext,
+		overrideContext,
 		raw,
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
@@ -81,7 +68,7 @@ func (p *Server) resolveSummaryGenerationModelOverride(
 		return database.ChatModelConfig{}, nil, keys, resolvedModelRoute{}, false, nil
 	}
 
-	//nolint:gocritic // Summary overrides need chatd-scoped provider reads for user-owned chats.
+	//nolint:gocritic // Overrides need chatd-scoped provider reads for user-owned chats.
 	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig, overrideProviderKeys)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, true, err
@@ -94,7 +81,8 @@ func (p *Server) resolveSummaryGenerationModelOverride(
 	}, route, modelOpts)
 	if err != nil {
 		return database.ChatModelConfig{}, nil, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, true, xerrors.Errorf(
-			"create summary generation model override: %w",
+			"create %s model override: %w",
+			label,
 			err,
 		)
 	}

@@ -20,8 +20,6 @@ const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
 const titleGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
 	"title_generation";
-const summaryGenerationOverrideContext: TypesGen.ChatModelOverrideContext =
-	"summary_generation";
 
 const chatModelOverrideKey = (context: TypesGen.ChatModelOverrideContext) =>
 	["chat-model-override", context] as const;
@@ -68,10 +66,6 @@ const AgentSettingsAgentsPage: FC = () => {
 		...chatModelOverrideQuery(titleGenerationOverrideContext),
 		enabled: canEditDeploymentConfig,
 	});
-	const summaryGenerationModelQuery = useQuery({
-		...chatModelOverrideQuery(summaryGenerationOverrideContext),
-		enabled: canEditDeploymentConfig,
-	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const savePersonalModelOverridesAdminSettingsMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
@@ -83,12 +77,6 @@ const AgentSettingsAgentsPage: FC = () => {
 		updateChatModelOverrideMutation(
 			queryClient,
 			titleGenerationOverrideContext,
-		),
-	);
-	const saveSummaryGenerationModelMutation = useMutation(
-		updateChatModelOverrideMutation(
-			queryClient,
-			summaryGenerationOverrideContext,
 		),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
@@ -134,14 +122,6 @@ const AgentSettingsAgentsPage: FC = () => {
 				}
 				isSaveTitleGenerationModelError={
 					saveTitleGenerationModelMutation.isError
-				}
-				summaryGenerationModelOverrideData={summaryGenerationModelQuery.data}
-				onSaveSummaryGenerationModel={saveSummaryGenerationModelMutation.mutate}
-				isSavingSummaryGenerationModel={
-					saveSummaryGenerationModelMutation.isPending
-				}
-				isSaveSummaryGenerationModelError={
-					saveSummaryGenerationModelMutation.isError
 				}
 				onSaveExploreModelOverride={saveExploreModelOverrideMutation.mutate}
 				isSavingExploreModelOverride={
