@@ -1122,6 +1122,16 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 Whether Coder only allows connections to workspaces via the browser.
 
+### --cluster-host
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_CLUSTER_HOST</code>            |
+| YAML        | <code>networking.cluster.clusterHost</code> |
+
+Hostname or (more commonly) IP to reach this replica for clustering.
+
 ### --scim-auth-header
 
 |             |                                      |
@@ -1909,7 +1919,7 @@ Once enabled, extra headers will be added to upstream requests to identify the u
 | Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
 | YAML        | <code>ai_gateway.api_dump_dir</code>    |
 
-Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
+Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
 
 ### --ai-gateway-allow-byok
 

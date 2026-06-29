@@ -28,6 +28,11 @@ export function microsToDollars(micros: number): number {
 	return micros / MICROS_PER_DOLLAR;
 }
 
+/** Formats micros as a whole-dollar USD budget, e.g. "$1,345". */
+export function formatBudgetUSD(micros: number): string {
+	return usdBudgetFormatter.format(microsToDollars(micros));
+}
+
 export function dollarsToMicros(dollars: string | number): number {
 	if (typeof dollars === "string" && dollars.trim() === "") {
 		return 0;

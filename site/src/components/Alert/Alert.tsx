@@ -135,7 +135,7 @@ export const AlertDescription: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => {
 	return (
-		<span className="m-0 text-sm" data-chromatic="ignore">
+		<span className="m-0 text-sm" data-pixel="ignore">
 			{children}
 		</span>
 	);

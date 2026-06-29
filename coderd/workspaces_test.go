@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/http/httptest"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -31,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -1463,6 +1466,244 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			assert.Equal(t, newLastSeenAt.UTC(), ws.LatestBuild.MatchedProvisioners.MostRecentlySeen.Time.UTC())
 			assert.True(t, ws.LatestBuild.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
+	})
+}
+
+func TestCreateWorkspaceExternalAuth(t *testing.T) {
+	t.Parallel()
+
+	// The expected 403 message returned by createWorkspace when the workspace
+	// owner is missing required external auth.
+	const externalAuthRequiredMessage = "External authentication is required to create a workspace with this template."
+
+	// externalAuthVersion returns echo responses for a template version whose
+	// graph references the given external auth providers.
+	externalAuthVersion := func(providers ...*proto.ExternalAuthProviderResource) *echo.Responses {
+		return &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						ExternalAuthProviders: providers,
+					},
+				},
+			}},
+		}
+	}
+
+	t.Run("RequiredAuthMissing", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		}
+		_, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Equal(t, "The workspace owner must authenticate with the following external auth providers: GitHub.", apiErr.Detail)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "external_auth",
+			Detail: "github",
+		}}, apiErr.Validations)
+
+		// The rejection must happen before any workspace row is inserted.
+		_, err = memberClient.WorkspaceByOwnerAndName(ctx, codersdk.Me, req.Name, codersdk.WorkspaceOptions{})
+		apiErr = nil
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+		// Authenticating with the provider lifts the rejection.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		workspace, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("OwnerVsInitiator", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The initiating admin is authenticated with the provider, but the
+		// workspace owner (the member) is not. Token injection at build time
+		// uses the owner's links, so the owner's auth state is what matters.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		req := codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		}
+		_, err := client.CreateUserWorkspace(ctx, member.Username, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+
+		// Once the owner authenticates, the same create succeeds.
+		resp = coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		workspace, err := client.CreateUserWorkspace(ctx, member.Username, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("OptionalProvider", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github", Optional: true}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Optional providers must not block creation even when the owner has
+		// never authenticated with them.
+		workspace, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, workspace.OwnerID)
+	})
+
+	t.Run("InvalidToken", func(t *testing.T) {
+		t.Parallel()
+		// The validation endpoint always reports the token as revoked. The
+		// external auth callback stores the link without validating it, so the
+		// link row exists but RefreshToken classifies it as invalid.
+		validateSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(validateSrv.Close)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+				ValidateURL:              validateSrv.URL,
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Create the external auth link for the owner.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A link that fails validation counts as unauthenticated.
+		_, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "external_auth",
+			Detail: "github",
+		}}, apiErr.Validations)
+	})
+
+	t.Run("DisplayNameFallback", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "fallback-provider",
+				Regex:                    regexp.MustCompile(`fallback\.example\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			externalAuthVersion(&proto.ExternalAuthProviderResource{Id: "fallback-provider"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Without a DisplayName, the response falls back to the provider ID.
+		_, err := memberClient.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       coderdtest.RandomUsername(t),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Contains(t, apiErr.Detail, "fallback-provider")
+		require.Len(t, apiErr.Validations, 1)
+		require.Equal(t, "external_auth", apiErr.Validations[0].Field)
+		require.Equal(t, "fallback-provider", apiErr.Validations[0].Detail)
 	})
 }
 

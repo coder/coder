@@ -4,6 +4,7 @@ import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleS
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
+	ConfigurationFieldContainer,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
@@ -73,18 +74,20 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+				<ConfigurationFieldContainer>
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
-				</div>
+				</ConfigurationFieldContainer>
 			)}
 
 			{optionalFields && optionalFields.length > 0 && (
 				<CollapsibleSummary label="Advanced settings" className="mt-4">
-					{optionalFields.map((f) => (
-						<ConfigurationField key={f.id} field={f} />
-					))}
+					<ConfigurationFieldContainer>
+						{optionalFields.map((f) => (
+							<ConfigurationField key={f.id} field={f} />
+						))}
+					</ConfigurationFieldContainer>
 				</CollapsibleSummary>
 			)}
 		</section>

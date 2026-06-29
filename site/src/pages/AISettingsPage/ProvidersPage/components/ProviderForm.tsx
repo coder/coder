@@ -25,6 +25,7 @@ export type ProviderFormValues = {
 	smallFastModel: string;
 	accessKey: string;
 	accessKeySecret: string;
+	roleArn: string;
 	apiKey: string;
 	enabled: boolean;
 };
@@ -66,6 +67,7 @@ const defaultInitialValues: ProviderFormValues = {
 	smallFastModel: "",
 	accessKey: "",
 	accessKeySecret: "",
+	roleArn: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -526,11 +528,21 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								View docs
 							</DocsLink>
 						</p>
+						<FormField
+							field={getFieldHelpers("roleArn")}
+							label="Role ARN"
+							className="w-full"
+							placeholder="arn:aws:iam::123456789012:role/BedrockRole"
+						/>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. When a role ARN is set, the gateway assumes that role
+							(using the base identity) before calling Bedrock.
+						</p>
 					</>
 				)}
 
 				<div className="flex justify-end gap-4">
-					<Link to="/ai/settings">
+					<Link to="/ai/settings/providers">
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>

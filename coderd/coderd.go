@@ -338,6 +338,10 @@ type Options struct {
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
 // @name Coder-Session-Token
+
+// @securitydefinitions.apiKey AIGatewayKey
+// @in header
+// @name X-AI-Governance-Gateway-Key
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -621,7 +625,7 @@ func New(options *Options) *API {
 	// Seed the AI Bridge model price table from the embedded price book.
 	//nolint:gocritic // Startup seeder needs to run as aibridge context.
 	if err := prices.Seed(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
-		options.Logger.Error(ctx, "failed to seed AI Bridge prices; cost tracking may use stale prices", slog.Error(err))
+		options.Logger.Error(ctx, "failed to seed AI Gateway prices; cost tracking may use stale prices", slog.Error(err))
 	}
 
 	// AGPL uses a no-op build usage checker as there are no license

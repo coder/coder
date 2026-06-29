@@ -21,6 +21,8 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceSubAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import {
@@ -359,6 +361,66 @@ export const MultipleApps: Story = {
 			},
 		],
 		count: allWorkspaces.length,
+	},
+};
+
+// The shortcuts row only renders apps from the parent agent (the agent without
+// a `parent_id`). Apps from sub-agents, such as those created by devcontainers,
+// are excluded so the row stays deterministic regardless of agent ordering.
+export const ParentAgentApps: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "parent-agent-apps",
+				latest_build: {
+					...MockWorkspace.latest_build,
+					resources: [
+						{
+							...MockWorkspace.latest_build.resources[0],
+							agents: [
+								// Sub-agent is listed first to prove ordering does
+								// not determine which apps are shown.
+								{
+									...MockWorkspaceSubAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "sub-agent-app",
+											slug: "sub-agent-app",
+											display_name: "Sub Agent App",
+											health: "healthy",
+										},
+									],
+								},
+								{
+									...MockWorkspaceAgent,
+									display_apps: [],
+									apps: [
+										{
+											...MockWorkspaceApp,
+											id: "parent-agent-app",
+											slug: "parent-agent-app",
+											display_name: "Parent Agent App",
+											health: "healthy",
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			},
+		],
+		count: allWorkspaces.length,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("link", { name: /Open Parent Agent App/i });
+		expect(
+			canvas.queryByRole("link", { name: /Open Sub Agent App/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

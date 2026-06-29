@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -76,87 +75,6 @@ func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
 	t.Helper()
 	key, _ := dbgen.APIKey(t, db, database.APIKey{ID: uuid.NewString(), UserID: userID})
 	return key.ID
-}
-
-type chatAIGatewayRecordedRequest struct {
-	ProviderName  string
-	Source        aibridge.Source
-	APIKeyID      string
-	Path          string
-	Authorization string
-	XAPIKey       string
-	CoderToken    string
-}
-
-type chatAIGatewayTestFactory struct {
-	target       *url.URL
-	transport    http.RoundTripper
-	preservePath bool
-	mu           sync.Mutex
-	requests     []chatAIGatewayRecordedRequest
-}
-
-func newChatAIGatewayTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
-	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport}
-}
-
-func newChatAIGatewayPreservePathTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
-	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport, preservePath: true}
-}
-
-func (f *chatAIGatewayTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
-	return chatAIGatewayRoundTripper{factory: f, providerName: providerName, source: source}, nil
-}
-
-func (f *chatAIGatewayTestFactory) requestsSnapshot() []chatAIGatewayRecordedRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return slices.Clone(f.requests)
-}
-
-type chatAIGatewayRoundTripper struct {
-	factory      *chatAIGatewayTestFactory
-	providerName string
-	source       aibridge.Source
-}
-
-func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
-	t.factory.mu.Lock()
-	t.factory.requests = append(t.factory.requests, chatAIGatewayRecordedRequest{
-		ProviderName:  t.providerName,
-		Source:        t.source,
-		APIKeyID:      apiKeyID,
-		Path:          req.URL.Path,
-		Authorization: req.Header.Get("Authorization"),
-		XAPIKey:       req.Header.Get("X-Api-Key"),
-		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
-	})
-	t.factory.mu.Unlock()
-
-	targetURL := *t.factory.target
-	if t.factory.preservePath {
-		targetURL.Path = req.URL.Path
-	} else {
-		targetURL.Path = strings.TrimPrefix(req.URL.Path, "/v1")
-		if targetURL.Path == "" {
-			targetURL.Path = "/"
-		}
-	}
-	targetURL.RawQuery = req.URL.RawQuery
-
-	cloned := req.Clone(req.Context())
-	cloned.URL = &targetURL
-	cloned.Host = t.factory.target.Host
-	return t.factory.transport.RoundTrip(cloned)
 }
 
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
@@ -387,7 +305,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		"list_templates", "read_template", "create_workspace",
 		"start_workspace", "stop_workspace",
 	}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents"}
 
 	// Identify root and subagent calls. Root chat calls include
 	// spawn_agent; the subagent call does not. Because the root chat
@@ -5401,7 +5319,7 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 			return chattest.AnthropicStreamingResponse()
 		}
 	})
-	factory := newChatAIGatewayPreservePathTestFactory(t, anthropicURL)
+	factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	provider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
@@ -5480,14 +5398,14 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 	require.True(t, compressed.summaries[0].APIKeyID.Valid)
 	require.Equal(t, apiKey.ID, compressed.summaries[0].APIKeyID.String)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "sk-user-aibridge", req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "sk-user-aibridge", req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
 }
 
@@ -9537,7 +9455,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
 		"spawn_agent",
-		"wait_agent", "message_agent", "close_agent",
+		"wait_agent", "message_agent", "interrupt_agent", "list_agents",
 	}
 	for _, tool := range subagentTools {
 		require.NotContains(t, childTools, tool,
@@ -9790,7 +9708,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Chat"}`)
 	})
-	factory := newChatAIGatewayTestFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 
@@ -9824,24 +9742,19 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
-	require.Contains(t, requests, chatAIGatewayRecordedRequest{
-		ProviderName:  provider.Name,
-		Source:        aibridge.SourceAgents,
-		APIKeyID:      apiKey.ID,
-		Path:          "/v1/responses",
-		Authorization: "Bearer sk-user-aibridge",
-		CoderToken:    "delegated",
-	})
+	require.True(t, slices.ContainsFunc(requests, func(req chattest.RecordedRequest) bool {
+		return req.Request.URL.Path == "/v1/responses"
+	}), "no request to /v1/responses found")
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
-		require.Empty(t, req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
-		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Empty(t, req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
+		require.True(t, strings.HasPrefix(req.Request.URL.Path, "/v1/"), "unexpected aibridge path %q", req.Request.URL.Path)
 	}
 }
 
@@ -9859,7 +9772,7 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Workspace"}`)
 	})
-	factory := newChatAIGatewayTestFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
@@ -9908,14 +9821,14 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 	require.NoError(t, err)
 	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
 }
 
@@ -12578,6 +12491,162 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		"advisor snapshot must retain the turn 1 user message even when chain mode is active")
 	require.Contains(t, string(gotAdvisorBody), turn1Reply,
 		"advisor snapshot must retain the turn 1 assistant message even when chain mode is active")
+}
+
+// TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
+// provider-switch contract:
+//
+//  1. A turn using model MA (backed by provider A) produces a
+//     provider-executed (PE) tool call in the DB.
+//  2. A subsequent turn using model MB (backed by provider B) does NOT
+//     send that PE tool call to provider B.
+//  3. A further turn back to MA sends the PE tool call to provider A again.
+//  4. The DB row is never mutated; the filter is read-time only.
+func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// Given: two AI providers A and B
+	const peToolCallID = "pe_switch_test_id"
+
+	chanA := make(chan string, 4)
+	chanB := make(chan string, 4)
+
+	serverAURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		chanA <- string(req.RawBody)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from A")...)
+	})
+	serverBURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		chanB <- string(req.RawBody)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from B")...)
+	})
+	cpA := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverAURL,
+	})
+	cpB := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverBURL,
+	})
+
+	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model A",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
+	})
+	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model B",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
+	})
+
+	server := newActiveTestServer(t, db, ps)
+
+	// Given: an initial conversation turn with model A that produces provider-executed
+	// tool call results
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
+		Title:              "provider-switch-test",
+		ModelConfigID:      mA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, mA.ID, uuid.Nil,
+		[]codersdk.ChatMessagePart{
+			{
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Args:             json.RawMessage(`{"query":"coder"}`),
+				ProviderExecuted: true,
+			},
+			{
+				Type:             codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Result:           json.RawMessage(`"search results"`),
+				ProviderExecuted: true,
+			},
+			codersdk.ChatMessageText("here is the answer"),
+		},
+	)
+
+	// When: a conversation turn is executed with model B
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mB.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue with B")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// When: a further conversation turn is executed with model A again
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mA.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("back to A")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// Then: the provider-executed tool call results should still be in the database
+	allMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: chat.ID,
+	})
+	require.NoError(t, err)
+	var peRowFound bool
+	for _, msg := range allMessages {
+		if msg.Role != database.ChatMessageRoleAssistant || msg.ModelConfigID.UUID != mA.ID {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, p := range parts {
+			if p.ProviderExecuted && p.ToolCallID == peToolCallID {
+				peRowFound = true
+			}
+		}
+	}
+	require.True(t, peRowFound, "PE tool call must still be in the DB after provider switches")
+
+	// Skip initial generation request
+	_ = testutil.TryReceive(ctx, t, chanA)
+
+	// Then: PE tool call ID from A must not appear in the request to provider B
+	turn2Body := testutil.TryReceive(ctx, t, chanB)
+	require.NotContains(t, turn2Body, peToolCallID,
+		"provider B must not receive the PE tool call from provider A")
+
+	// Then: PE tool call ID must appear in the second request to provider A
+	turn3Body := testutil.TryReceive(ctx, t, chanA)
+	require.Contains(t, turn3Body, peToolCallID,
+		"provider A must receive its own PE tool call when switching back")
 }
 
 func seedAdvisorConfig(
