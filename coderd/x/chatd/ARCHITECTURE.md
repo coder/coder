@@ -50,21 +50,21 @@ A chat's execution state lets the chat worker and the HTTP endpoints decide what
 
 The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, and then `1` or `0` indicate the presence or absence of queued messages.
 
-| Shorthand | Status | Queue | Archived | Meaning |
-| --- | --- | --- | --- | --- |
-| `N` | - | - | - | Chat does not exist |
-| `W` | `waiting` | empty | `false` | There's no work to be done by the chat worker |
-| `E0` | `error` | empty | `false` | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker |
-| `E1` | `error` | non-empty | `false` | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
-| `R0` | `running` | empty | `false` | Running state with no queued messages: a chat worker should be processing the chat |
-| `R1` | `running` | non-empty | `false` | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next |
-| `I0` | `interrupting` | empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption |
-| `I1` | `interrupting` | non-empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next |
-| `A0` | `requires_action` | empty | `false` | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature |
-| `A1` | `requires_action` | non-empty | `false` | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature |
-| `XW` | `waiting` | empty | `true` | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived |
-| `XE0` | `error` | empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived |
-| `XE1` | `error` | non-empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared |
+| Shorthand | Status            | Queue     | Archived | Meaning                                                                                                                                                                                                           |
+|-----------|-------------------|-----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `N`       | -                 | -         | -        | Chat does not exist                                                                                                                                                                                               |
+| `W`       | `waiting`         | empty     | `false`  | There's no work to be done by the chat worker                                                                                                                                                                     |
+| `E0`      | `error`           | empty     | `false`  | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker                                                                                       |
+| `E1`      | `error`           | non-empty | `false`  | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
+| `R0`      | `running`         | empty     | `false`  | Running state with no queued messages: a chat worker should be processing the chat                                                                                                                                |
+| `R1`      | `running`         | non-empty | `false`  | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next                                                                       |
+| `I0`      | `interrupting`    | empty     | `false`  | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption                                                                       |
+| `I1`      | `interrupting`    | non-empty | `false`  | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next           |
+| `A0`      | `requires_action` | empty     | `false`  | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature                                                                                            |
+| `A1`      | `requires_action` | non-empty | `false`  | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature                                |
+| `XW`      | `waiting`         | empty     | `true`   | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived                                                                                                           |
+| `XE0`     | `error`           | empty     | `true`   | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived                                                                                                               |
+| `XE1`     | `error`           | non-empty | `true`   | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared                              |
 
 If these states seem arbitrary and abstract at this point, that's expected. Each one of these states is needed by some runtime component of chatd for some specific use case, and their purpose will emerge as we discuss the implementation of the HTTP endpoints and the chat worker.
 
@@ -74,10 +74,10 @@ At a high-level, these states let us reason about what should be possible to hap
 
 A chat's ownership state lets the chat worker decide whether a chat can be acquired or not. It's decided by the `worker_id` field on the `chats` table. In total there are 2 ownership states.
 
-| Shorthand | Worker ID | Meaning |
-| --- | --- | --- |
-| `U` | null | Unowned chat |
-| `O` | not null | Owned chat |
+| Shorthand | Worker ID | Meaning      |
+|-----------|-----------|--------------|
+| `U`       | null      | Unowned chat |
+| `O`       | not null  | Owned chat   |
 
 ## Transitions
 
@@ -258,6 +258,8 @@ Users can reconcile a chat's state by calling the `POST /api/experimental/chats/
 Each row in `chat_messages` has a `revision` column. It stores the `chats.snapshot_version` of the transition that last inserted or meaningfully updated that message row. `revision` is mutable, trigger-managed, and not unique. Multiple message rows can share the same revision when they are changed in the same transaction.
 
 `chats.history_version` stores the latest `snapshot_version` in which chat message history changed. It starts at `0`, remains unchanged for non-history transitions, and is set to the current `snapshot_version` whenever a message is inserted or meaningfully updated. A newly created chat starts with `snapshot_version = 1`; because `Create` inserts initial history in that snapshot, the created chat's `history_version` becomes `1`. No-op message updates do not advance message `revision`, advance `history_version`, or reset `generation_attempt`. Whenever `history_version` changes, `generation_attempt` is reset to `0`; generation attempts are scoped to the current history version.
+
+Hidden accounting rows are an exception to the rule above. Background summary and manual title generation record their spend as soft-deleted `chat_messages` rows tagged with a non-NULL `cost_source` (`summary` or `title`), inserted via `InsertChatAccountingMessage`. These rows are not durable conversation history, so the history triggers skip them: only rows with `cost_source IS NULL` advance `history_version`. `snapshot_version` still advances for every insert, so `history_version` trails `snapshot_version` after an accounting-only write and catches up on the next real message. This matters because a background summary write is itself guarded on `history_version`; if the accounting row recorded for that same summary advanced `history_version`, the guard would reject the summary write as stale even though no new turn occurred.
 
 Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly.
 
@@ -922,10 +924,10 @@ Initial null state:
 
 The loop has two operations:
 
-| Operation | Description |
-| --- | --- |
-| `Sync(hints)` | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
-| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder. |
+| Operation                                                 | Description                                                                                                                                                                                       |
+|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Sync(hints)`                                             | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
+| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder.                    |
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 

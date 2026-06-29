@@ -261,6 +261,69 @@ func TestNoopMessageUpdateDoesNotAdvanceHistoryVersion(t *testing.T) {
 		"no-op update must NOT advance message revision")
 }
 
+// TestAccountingMessageDoesNotAdvanceHistoryVersion verifies that
+// inserting or soft-deleting a hidden accounting row (cost_source set,
+// e.g. background summary or manual title spend) does NOT advance
+// chats.history_version, while an ordinary turn message (cost_source
+// NULL) still does. Accounting rows are not durable conversation
+// history, so they must not invalidate history_version freshness
+// guards such as the ones used by the summary and last_turn_summary
+// writes.
+func TestAccountingMessageDoesNotAdvanceHistoryVersion(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	created := createTestChat(t, f)
+	content := userMessageContent(t, "accounting-row")
+
+	// Bump snapshot so history_version trails it; an accounting-row
+	// write must leave history_version untouched.
+	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	historyBefore := bumped.HistoryVersion
+	require.NotEqual(t, bumped.SnapshotVersion, historyBefore,
+		"snapshot bump leaves history_version trailing")
+
+	// Insert a hidden accounting row (cost_source = 'summary').
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, cost_source)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'model', 'summary')
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+	require.NoError(t, err)
+
+	afterInsert, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, historyBefore, afterInsert.HistoryVersion,
+		"accounting-row insert must NOT advance history_version")
+
+	// Soft-deleting the accounting row must also leave history_version
+	// untouched (the summary writer soft-deletes its usage row).
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		UPDATE chat_messages SET deleted = true WHERE chat_id = $1 AND cost_source = 'summary'
+	`, created.Chat.ID)
+	require.NoError(t, err)
+
+	afterDelete, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, historyBefore, afterDelete.HistoryVersion,
+		"accounting-row soft delete must NOT advance history_version")
+
+	// Positive control: an ordinary turn message (cost_source NULL)
+	// still advances history_version to the current snapshot.
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
+	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
+	require.NoError(t, err)
+
+	afterReal, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, afterReal.SnapshotVersion, afterReal.HistoryVersion,
+		"ordinary message must advance history_version to snapshot_version")
+}
+
 // Queue version triggers
 
 // TestQueueInsertUpdatesQueueVersion verifies that an INSERT into
