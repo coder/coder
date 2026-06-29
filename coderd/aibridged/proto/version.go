@@ -17,6 +17,11 @@ const (
 	CurrentMinor = 1
 )
 
+// VersionQueryParam is the URL query parameter the standalone AI Gateway
+// uses to advertise its aibridged API version when dialing coderd's serve
+// endpoint, and that coderd reads to negotiate compatibility.
+const VersionQueryParam = "version"
+
 // CurrentVersion is the current aibridged API version.
 // Breaking changes to the aibridged API **MUST** increment CurrentMajor above.
 // Non-breaking changes to the aibridged API **MUST** increment CurrentMinor

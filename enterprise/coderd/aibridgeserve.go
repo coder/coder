@@ -66,7 +66,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientAPIVersion := r.URL.Query().Get("version")
+	clientAPIVersion := r.URL.Query().Get(aibridgedproto.VersionQueryParam)
 	clientCoderVersion := r.Header.Get(codersdk.BuildVersionHeader)
 	logger := api.Logger.Named("aigateway-serve").With(
 		slog.F("remote_addr", r.RemoteAddr),
@@ -88,7 +88,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(keyCtx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Incompatible or unparsable version",
 			Validations: []codersdk.ValidationError{
-				{Field: "version", Detail: err.Error()},
+				{Field: aibridgedproto.VersionQueryParam, Detail: err.Error()},
 				{Field: "client_api_version", Detail: clientAPIVersion},
 				{Field: "server_api_version", Detail: aibridgedproto.CurrentVersion.String()},
 			},

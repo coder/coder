@@ -40,7 +40,7 @@ func NewWebsocketDialer(client *codersdk.Client, key string) Dialer {
 			return nil, xerrors.Errorf("parse url: %w", err)
 		}
 		query := serverURL.Query()
-		query.Add("version", aibridgedproto.CurrentVersion.String())
+		query.Add(aibridgedproto.VersionQueryParam, aibridgedproto.CurrentVersion.String())
 		serverURL.RawQuery = query.Encode()
 
 		headers := http.Header{}
