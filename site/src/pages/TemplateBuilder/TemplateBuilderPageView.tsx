@@ -60,14 +60,14 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	createError,
 	isCreating,
 }) => {
-	const wizardInitialState = preselectedBase
+	const resolvedInitialState = preselectedBase
 		? {
 				...initialWizardState,
 				baseTemplateId: preselectedBase.id,
 				selectedBase: preselectedBase,
 			}
 		: initialWizardState;
-	const [state, dispatch] = useReducer(wizardReducer, wizardInitialState);
+	const [state, dispatch] = useReducer(wizardReducer, resolvedInitialState);
 	const [stepIndex, setStepIndex] = useState(() => {
 		if (!preselectedBase) {
 			return 0;
