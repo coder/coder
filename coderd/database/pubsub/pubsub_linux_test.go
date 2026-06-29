@@ -43,7 +43,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, nil)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		event := "test"
@@ -71,7 +71,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, nil)
 		require.NoError(t, err)
 		defer pubsub.Close()
 		cancelFunc()
@@ -86,7 +86,7 @@ func TestPubsub(t *testing.T) {
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
-		pubsub, err := pubsub.New(ctx, logger, db, connectionURL)
+		pubsub, err := pubsub.New(ctx, logger, db, connectionURL, nil)
 		require.NoError(t, err)
 		defer pubsub.Close()
 
@@ -122,7 +122,7 @@ func TestPubsub_ordering(t *testing.T) {
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
-	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL, nil)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -171,7 +171,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancelFunc()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ps, err := pubsub.New(ctx, logger, db, connectionURL)
+	ps, err := pubsub.New(ctx, logger, db, connectionURL, nil)
 	require.NoError(t, err)
 	defer ps.Close()
 	event := "test"
@@ -306,7 +306,7 @@ func TestMeasureLatency(t *testing.T) {
 		t.Cleanup(func() {
 			_ = db.Close()
 		})
-		ps, err := pubsub.New(ctx, logger, db, connectionURL)
+		ps, err := pubsub.New(ctx, logger, db, connectionURL, nil)
 		require.NoError(t, err)
 
 		return ps, func() {

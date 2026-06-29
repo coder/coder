@@ -8,11 +8,9 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -30,8 +28,16 @@ type ListenerWithErr func(ctx context.Context, message []byte, err error)
 // might have been dropped.
 var ErrDroppedMessages = xerrors.New("dropped messages")
 
-// LatencyMeasureTimeout defines how often to trigger a new background latency measurement.
-const LatencyMeasureTimeout = time.Second * 10
+// LatencyMeasureInterval is how often the background loop runs a latency
+// measurement. It is intentionally shorter than a typical metrics scrape
+// interval (the coder/observability stack scrapes every 15s) so every scrape
+// observes a fresh measurement.
+const LatencyMeasureInterval = time.Second * 10
+
+// LatencyMeasureTimeout bounds a single latency measurement. It is shorter
+// than LatencyMeasureInterval so a hung probe cannot bleed into the next
+// interval; a timed-out probe is recorded as a measurement error.
+const LatencyMeasureTimeout = time.Second * 5
 
 type Subscriber interface {
 	Subscribe(event string, listener Listener) (cancel func(), err error)
@@ -224,17 +230,13 @@ type PGPubsub struct {
 	closedListener   bool
 	closeListenerErr error
 
-	publishesTotal      *prometheus.CounterVec
-	subscribesTotal     *prometheus.CounterVec
-	messagesTotal       *prometheus.CounterVec
-	publishedBytesTotal prometheus.Counter
-	receivedBytesTotal  prometheus.Counter
-	disconnectionsTotal prometheus.Counter
-	connected           prometheus.Gauge
+	metrics *BackendMetrics
 
-	latencyMeasurer       *LatencyMeasurer
-	latencyMeasureCounter atomic.Int64
-	latencyErrCounter     atomic.Int64
+	// closeCtx is canceled by Close to stop the background latency loop.
+	// latencyLoopDone is closed when that loop exits.
+	closeCtx        context.Context
+	closeCancel     context.CancelFunc
+	latencyLoopDone chan struct{}
 }
 
 // BufferSize is the maximum number of unhandled messages we will buffer
@@ -256,9 +258,9 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), 
 			// if we hit an error, we need to close the queue so we don't
 			// leak its goroutine.
 			newQ.Close()
-			p.subscribesTotal.WithLabelValues("false").Inc()
+			p.metrics.RecordSubscribeFailure()
 		} else {
-			p.subscribesTotal.WithLabelValues("true").Inc()
+			p.metrics.RecordSubscribeSuccess()
 		}
 	}()
 
@@ -275,8 +277,10 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), 
 		if qs, ok = p.queues[event]; !ok {
 			qs = newQueueSet()
 			p.queues[event] = qs
+			p.metrics.AddEvent(event)
 		}
 		qs.m[newQ] = struct{}{}
+		p.metrics.AddSubscriber(event)
 		unlistenInProgress = qs.unlistenInProgress
 	}()
 	// NOTE there cannot be any `return` statements between here and the next +-+, otherwise the
@@ -295,11 +299,13 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), 
 			p.qMu.Lock()
 			defer p.qMu.Unlock()
 			delete(qs.m, newQ)
+			p.metrics.RemoveSubscriber(event)
 			if len(qs.m) == 0 {
 				// we know that newQ was in the queueSet since we last unlocked, so there cannot
 				// have been any _new_ goroutines trying to Unlisten().  Therefore, if the queueSet
 				// is now empty, it's safe to delete.
 				delete(p.queues, event)
+				p.metrics.RemoveEvent(event)
 			}
 		}
 	}()
@@ -332,6 +338,7 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), 
 				return
 			}
 			delete(qSet.m, newQ)
+			p.metrics.RemoveSubscriber(event)
 			if len(qSet.m) == 0 {
 				unlistening = make(chan struct{})
 				qSet.unlistenInProgress = unlistening
@@ -350,6 +357,7 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), 
 				if ok && len(qSet.m) == 0 {
 					p.logger.Debug(context.Background(), "removing queueSet", slog.F("event", event))
 					delete(p.queues, event)
+					p.metrics.RemoveEvent(event)
 				}
 			}()
 
@@ -371,17 +379,24 @@ func (p *PGPubsub) Publish(event string, message []byte) error {
 	//nolint:gosec
 	_, err := p.db.ExecContext(context.Background(), `select pg_notify(`+pq.QuoteLiteral(event)+`, $1)`, message)
 	if err != nil {
-		p.publishesTotal.WithLabelValues("false").Inc()
+		p.metrics.RecordPublishFailure()
 		return xerrors.Errorf("exec pg_notify: %w", err)
 	}
-	p.publishesTotal.WithLabelValues("true").Inc()
-	p.publishedBytesTotal.Add(float64(len(message)))
+	p.metrics.RecordPublishSuccess(len(message))
 	return nil
 }
 
 // Close closes the pubsub instance.
 func (p *PGPubsub) Close() error {
 	p.logger.Info(context.Background(), "pubsub is closing")
+	// Stop the background latency loop and wait for any in-flight
+	// measurement to unsubscribe before we close the listener. The loop is
+	// only started by New, so latencyLoopDone is nil when the pubsub was
+	// built directly via newWithoutListener (e.g. in tests).
+	p.closeCancel()
+	if p.latencyLoopDone != nil {
+		<-p.latencyLoopDone
+	}
 	err := p.closeListener()
 	<-p.listenDone
 	p.logger.Debug(context.Background(), "pubsub closed")
@@ -421,12 +436,7 @@ func (p *PGPubsub) listen() {
 }
 
 func (p *PGPubsub) listenReceive(notif *pq.Notification) {
-	sizeLabel := MessageSizeNormal
-	if len(notif.Extra) >= ColossalThreshold {
-		sizeLabel = MessageSizeColossal
-	}
-	p.messagesTotal.WithLabelValues(sizeLabel).Inc()
-	p.receivedBytesTotal.Add(float64(len(notif.Extra)))
+	p.metrics.RecordReceived([]byte(notif.Extra))
 
 	p.qMu.Lock()
 	defer p.qMu.Unlock()
@@ -496,7 +506,7 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 }
 
 func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
-	p.connected.Set(0)
+	p.metrics.MarkDisconnected()
 	// Creates a new listener using pq.
 	var (
 		dialer = logDialer{
@@ -540,13 +550,14 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 			switch t {
 			case pq.ListenerEventConnected:
 				p.logger.Debug(ctx, "pubsub connected to postgres")
-				p.connected.Set(1.0)
+				p.metrics.MarkConnected()
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
-				p.connected.Set(0)
+				p.metrics.RecordDisconnect()
+				p.metrics.MarkDisconnected()
 			case pq.ListenerEventReconnected:
 				p.logger.Info(ctx, "pubsub reconnected to postgres")
-				p.connected.Set(1)
+				p.metrics.MarkConnected()
 			case pq.ListenerEventConnectionAttemptFailed:
 				p.logger.Error(ctx, "pubsub failed to connect to postgres", slog.Error(err))
 			}
@@ -571,44 +582,6 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	return nil
 }
 
-// these are the metrics we compute implicitly from our existing data structures
-var (
-	currentSubscribersDesc = prometheus.NewDesc(
-		"coder_pubsub_current_subscribers",
-		"The current number of active pubsub subscribers",
-		nil, nil,
-	)
-	currentEventsDesc = prometheus.NewDesc(
-		"coder_pubsub_current_events",
-		"The current number of pubsub event channels listened for",
-		nil, nil,
-	)
-)
-
-// additional metrics collected out-of-band
-var (
-	pubsubSendLatencyDesc = prometheus.NewDesc(
-		"coder_pubsub_send_latency_seconds",
-		"The time taken to send a message into a pubsub event channel",
-		nil, nil,
-	)
-	pubsubRecvLatencyDesc = prometheus.NewDesc(
-		"coder_pubsub_receive_latency_seconds",
-		"The time taken to receive a message from a pubsub event channel",
-		nil, nil,
-	)
-	pubsubLatencyMeasureCountDesc = prometheus.NewDesc(
-		"coder_pubsub_latency_measures_total",
-		"The number of pubsub latency measurements",
-		nil, nil,
-	)
-	pubsubLatencyMeasureErrDesc = prometheus.NewDesc(
-		"coder_pubsub_latency_measure_errs_total",
-		"The number of pubsub latency measurement failures",
-		nil, nil,
-	)
-)
-
 // We'll track messages as size "normal" and "colossal", where the
 // latter are messages larger than 7600 bytes, or 95% of the postgres
 // notify limit. If we see a lot of colossal packets that's an indication that
@@ -624,128 +597,39 @@ const (
 	MessageSizeColossal = "colossal"
 )
 
-// Describe implements, along with Collect, the prometheus.Collector interface
-// for metrics.
-func (p *PGPubsub) Describe(descs chan<- *prometheus.Desc) {
-	// explicit metrics
-	p.publishesTotal.Describe(descs)
-	p.subscribesTotal.Describe(descs)
-	p.messagesTotal.Describe(descs)
-	p.publishedBytesTotal.Describe(descs)
-	p.receivedBytesTotal.Describe(descs)
-	p.disconnectionsTotal.Describe(descs)
-	p.connected.Describe(descs)
-
-	// implicit metrics
-	descs <- currentSubscribersDesc
-	descs <- currentEventsDesc
-
-	// additional metrics
-	descs <- pubsubSendLatencyDesc
-	descs <- pubsubRecvLatencyDesc
-	descs <- pubsubLatencyMeasureCountDesc
-	descs <- pubsubLatencyMeasureErrDesc
-}
-
-// Collect implements, along with Describe, the prometheus.Collector interface
-// for metrics
-func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
-	// explicit metrics
-	p.publishesTotal.Collect(metrics)
-	p.subscribesTotal.Collect(metrics)
-	p.messagesTotal.Collect(metrics)
-	p.publishedBytesTotal.Collect(metrics)
-	p.receivedBytesTotal.Collect(metrics)
-	p.disconnectionsTotal.Collect(metrics)
-	p.connected.Collect(metrics)
-
-	// implicit metrics
-	p.qMu.Lock()
-	events := len(p.queues)
-	subs := 0
-	for _, qSet := range p.queues {
-		subs += len(qSet.m)
-	}
-	p.qMu.Unlock()
-	metrics <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(subs))
-	metrics <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
-
-	// additional metrics
-	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureTimeout)
-	defer cancel()
-	send, recv, err := p.latencyMeasurer.Measure(ctx, p)
-
-	metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(p.latencyMeasureCounter.Add(1)))
-	if err != nil {
-		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
-		metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, float64(p.latencyErrCounter.Add(1)))
-		return
-	}
-	metrics <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, send.Seconds())
-	metrics <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
-}
-
-// New creates a new Pubsub implementation using a PostgreSQL connection.
-func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL string) (*PGPubsub, error) {
-	p := newWithoutListener(logger, db)
+// New creates a new Pubsub implementation using a PostgreSQL connection. The
+// metrics argument is the shared pubsub metrics; pass nil to disable metrics
+// (an unregistered set is created internally).
+func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL string, metrics *Metrics) (*PGPubsub, error) {
+	p := newWithoutListener(logger, db, metrics)
 	if err := p.startListener(startCtx, connectURL); err != nil {
 		return nil, err
 	}
 	go p.listen()
+	// Measure latency out-of-band. The loop stops when closeCtx is canceled
+	// by Close, which then waits on latencyLoopDone.
+	p.latencyLoopDone = make(chan struct{})
+	go func() {
+		defer close(p.latencyLoopDone)
+		p.metrics.StartLatencyLoop(p.closeCtx, LatencyMeasureInterval, p)
+	}()
 	logger.Debug(startCtx, "pubsub has started")
 	return p, nil
 }
 
 // newWithoutListener creates a new PGPubsub without creating the pqListener.
-func newWithoutListener(logger slog.Logger, db *sql.DB) *PGPubsub {
+func newWithoutListener(logger slog.Logger, db *sql.DB, metrics *Metrics) *PGPubsub {
+	if metrics == nil {
+		metrics = NewMetrics(nil)
+	}
+	closeCtx, closeCancel := context.WithCancel(context.Background())
 	return &PGPubsub{
-		logger:          logger,
-		listenDone:      make(chan struct{}),
-		db:              db,
-		queues:          make(map[string]*queueSet),
-		latencyMeasurer: NewLatencyMeasurer(logger.Named("latency-measurer")),
-
-		publishesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "publishes_total",
-			Help:      "Total number of calls to Publish",
-		}, []string{"success"}),
-		subscribesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "subscribes_total",
-			Help:      "Total number of calls to Subscribe/SubscribeWithErr",
-		}, []string{"success"}),
-		messagesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "messages_total",
-			Help:      "Total number of messages received from postgres",
-		}, []string{"size"}),
-		publishedBytesTotal: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "published_bytes_total",
-			Help:      "Total number of bytes successfully published across all publishes",
-		}),
-		receivedBytesTotal: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "received_bytes_total",
-			Help:      "Total number of bytes received across all messages",
-		}),
-		disconnectionsTotal: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "disconnections_total",
-			Help:      "Total number of times we disconnected unexpectedly from postgres",
-		}),
-		connected: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coder",
-			Subsystem: "pubsub",
-			Name:      "connected",
-			Help:      "Whether we are connected (1) or not connected (0) to postgres",
-		}),
+		logger:      logger,
+		listenDone:  make(chan struct{}),
+		db:          db,
+		queues:      make(map[string]*queueSet),
+		metrics:     metrics.ForBackend(logger, BackendPostgres),
+		closeCtx:    closeCtx,
+		closeCancel: closeCancel,
 	}
 }
