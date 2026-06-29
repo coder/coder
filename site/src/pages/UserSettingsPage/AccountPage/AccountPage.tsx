@@ -38,7 +38,11 @@ const AccountPage: FC = () => {
 					email={me.email}
 					updateProfileError={updateProfileError}
 					isLoading={isUpdatingProfile}
-					initialValues={{ username: me.username, name: me.name ?? "" }}
+					initialValues={{
+						username: me.username,
+						name: me.name ?? "",
+						avatar_url: me.avatar_url ?? "",
+					}}
 					onSubmit={updateProfile}
 				/>
 			</div>

@@ -1333,6 +1333,68 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
+
+	t.Run("UpdateAvatar", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		// The first user is a password user, so the avatar is editable.
+		const newAvatar = "/emojis/1f600.png"
+		userProfile, err := client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Username:  me.Username,
+			Name:      me.Name,
+			AvatarURL: newAvatar,
+		})
+		require.NoError(t, err)
+		require.Equal(t, newAvatar, userProfile.AvatarURL)
+	})
+
+	t.Run("IgnoresAvatarForSSOUser", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		// The first user is an owner and can update other users' profiles.
+		coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Avatars for SSO users are synced from the identity provider on login,
+		// so a submitted avatar must be ignored and the existing one preserved.
+		ssoUser := dbgen.User(t, db, database.User{
+			Email:     "sso-avatar@coder.com",
+			Username:  "sso-avatar",
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		// dbgen.User does not persist the avatar at creation, so set it directly
+		// to emulate an avatar synced from the identity provider.
+		const idpAvatar = "https://idp.example.com/avatar.png"
+		//nolint:gocritic // Test setup requires a system context to set the avatar.
+		ssoUser, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
+			ID:        ssoUser.ID,
+			Email:     ssoUser.Email,
+			Name:      ssoUser.Name,
+			AvatarURL: idpAvatar,
+			Username:  ssoUser.Username,
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		userProfile, err := client.UpdateUserProfile(ctx, ssoUser.ID.String(), codersdk.UpdateUserProfileRequest{
+			Username:  ssoUser.Username,
+			Name:      ssoUser.Name,
+			AvatarURL: "/emojis/1f600.png",
+		})
+		require.NoError(t, err)
+		require.Equal(t, idpAvatar, userProfile.AvatarURL)
+	})
 }
 
 func TestUpdateUserPassword(t *testing.T) {

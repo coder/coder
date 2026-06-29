@@ -972,6 +972,13 @@ type OIDCConfig struct {
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
+
+	// EmailFallback allows OIDC logins to fall back to email-based matching
+	// when the `linked_id` (issuer+subject) does not match an existing user
+	// link. INSECURE: weakens the linked_id check. It exists for IdP
+	// brokers that do not issue a stable `sub` for the same user across
+	// connections.
+	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -3032,6 +3039,20 @@ communicating directly.`,
 			UseInstead: nil,
 			// This flag should be removed after validation in real deployments. Leaving it
 			// as a flag as an escape hatch for now.
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Insecure Email Fallback (DANGEROUS)",
+			Description: "INSECURE: Allow OIDC logins to fall back to email-based matching when " +
+				"the linked_id (issuer+subject) does not match an existing user link. " +
+				"Required for IdP brokers that do not issue a stable 'sub' for the same user across connections. " +
+				"The existing user_link's linked_id is preserved on fallback. " +
+				"Only enable if you understand and accept the risk.",
+			Flag:   "dangerous-oidc-email-fallback",
+			Env:    "CODER_DANGEROUS_OIDC_EMAIL_FALLBACK",
+			YAML:   "dangerousOidcEmailFallback",
+			Value:  &c.OIDC.EmailFallback,
+			Group:  &deploymentGroupOIDC,
 			Hidden: true,
 		},
 		// Telemetry settings

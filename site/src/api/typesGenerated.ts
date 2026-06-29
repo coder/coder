@@ -263,8 +263,14 @@ export interface AIGatewayKey {
 	readonly name: string;
 	readonly key_prefix: string;
 	readonly created_at: string;
-	readonly last_used_at?: string;
+	readonly last_heartbeat_at?: string;
 }
+
+// From codersdk/client.go
+/**
+ * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
+ */
+export const AIGatewayKeyHeader = "X-Coder-AI-Governance-Gateway-Key";
 
 // From codersdk/aiproviders.go
 /**
@@ -491,6 +497,7 @@ export type APIKeyScope =
 	| "ai_gateway_key:create"
 	| "ai_gateway_key:delete"
 	| "ai_gateway_key:read"
+	| "ai_gateway_key:update"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -725,6 +732,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_gateway_key:create",
 	"ai_gateway_key:delete",
 	"ai_gateway_key:read",
+	"ai_gateway_key:update",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -6262,6 +6270,14 @@ export interface OIDCConfig {
 	 */
 	readonly redirect_url: string;
 	readonly auto_repair_links: boolean;
+	/**
+	 * EmailFallback allows OIDC logins to fall back to email-based matching
+	 * when the `linked_id` (issuer+subject) does not match an existing user
+	 * link. INSECURE: weakens the linked_id check. It exists for IdP
+	 * brokers that do not issue a stable `sub` for the same user across
+	 * connections.
+	 */
+	readonly email_fallback: boolean;
 }
 
 // From codersdk/parameters.go
@@ -9283,6 +9299,12 @@ export interface UpdateUserPreferenceSettingsRequest {
 export interface UpdateUserProfileRequest {
 	readonly username: string;
 	readonly name: string;
+	/**
+	 * AvatarURL is only applied for users whose login type is password or
+	 * none. For other login types the avatar is synced from the identity
+	 * provider on login, so a submitted value is ignored.
+	 */
+	readonly avatar_url: string;
 }
 
 // From codersdk/users.go

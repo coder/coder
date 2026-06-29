@@ -113,15 +113,15 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
-RETURNING id, name, secret_prefix, created_at, last_used_at
+RETURNING id, name, secret_prefix, created_at, last_heartbeat_at
 `
 
 type DeleteAIGatewayKeyRow struct {
-	ID           uuid.UUID    `db:"id" json:"id"`
-	Name         string       `db:"name" json:"name"`
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	ID              uuid.UUID    `db:"id" json:"id"`
+	Name            string       `db:"name" json:"name"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error) {
@@ -132,7 +132,30 @@ func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (Dele
 		&i.Name,
 		&i.SecretPrefix,
 		&i.CreatedAt,
-		&i.LastUsedAt,
+		&i.LastHeartbeatAt,
+	)
+	return i, err
+}
+
+const getAIGatewayKeyByHashedSecret = `-- name: GetAIGatewayKeyByHashedSecret :one
+SELECT id, created_at, name, secret_prefix, hashed_secret, last_heartbeat_at
+FROM ai_gateway_keys
+WHERE hashed_secret = $1
+`
+
+// Authenticates a standalone AI Gateway replica by its hashed key secret,
+// returning the matched key. The lookup is an exact match on a unique index,
+// so a returned row is itself proof the secret is valid.
+func (q *sqlQuerier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayKeyByHashedSecret, hashedSecret)
+	var i AIGatewayKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.LastHeartbeatAt,
 	)
 	return i, err
 }
@@ -175,17 +198,17 @@ func (q *sqlQuerier) InsertAIGatewayKey(ctx context.Context, arg InsertAIGateway
 }
 
 const listAIGatewayKeys = `-- name: ListAIGatewayKeys :many
-SELECT id, name, secret_prefix, created_at, last_used_at
+SELECT id, name, secret_prefix, created_at, last_heartbeat_at
 FROM ai_gateway_keys
 ORDER BY created_at ASC
 `
 
 type ListAIGatewayKeysRow struct {
-	ID           uuid.UUID    `db:"id" json:"id"`
-	Name         string       `db:"name" json:"name"`
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	ID              uuid.UUID    `db:"id" json:"id"`
+	Name            string       `db:"name" json:"name"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error) {
@@ -202,7 +225,7 @@ func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeys
 			&i.Name,
 			&i.SecretPrefix,
 			&i.CreatedAt,
-			&i.LastUsedAt,
+			&i.LastHeartbeatAt,
 		); err != nil {
 			return nil, err
 		}
@@ -215,6 +238,23 @@ func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeys
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAIGatewayKeyLastHeartbeatAt = `-- name: UpdateAIGatewayKeyLastHeartbeatAt :execrows
+UPDATE ai_gateway_keys
+SET last_heartbeat_at = NOW()
+WHERE id = $1
+`
+
+// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
+// timestamp so it stays consistent regardless of clock drift between API
+// replicas.
+func (q *sqlQuerier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateAIGatewayKeyLastHeartbeatAt, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
