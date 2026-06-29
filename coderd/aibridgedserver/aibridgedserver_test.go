@@ -2410,14 +2410,17 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 
 // TestGetAIProviders exercises the row-to-proto mapping over a real database:
 // enabled providers carry their keys (and typed Bedrock settings), disabled
-// providers are included but withhold keys and settings, and Copilot (a
-// keyless BYOK provider) round-trips with no keys.
+// providers are included but withhold keys and settings, Copilot (a keyless
+// BYOK provider) round-trips with no keys, and an enabled provider whose
+// settings blob cannot be decoded is skipped rather than failing the fetch.
 func TestGetAIProviders(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil)
+	// The skipped misconfigured provider is logged at Error level by design,
+	// so error logs are expected here.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 	// Enabled OpenAI with two keys.
 	openai := dbgen.AIProvider(t, db, database.AIProvider{
@@ -2467,6 +2470,16 @@ func TestGetAIProviders(t *testing.T) {
 	})
 	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: disabled.ID, APIKey: "sk-secret"})
 
+	// Enabled provider with an undecodable settings blob; it must be skipped
+	// so one corrupt row does not break provider config for every gateway.
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Type:     database.AIProviderTypeBedrock,
+		Name:     "broken-settings",
+		Enabled:  true,
+		BaseUrl:  "https://bedrock-runtime.us-east-1.amazonaws.com/",
+		Settings: sql.NullString{String: "{not valid json", Valid: true},
+	})
+
 	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, nil, agplaiseats.Noop{})
 	require.NoError(t, err)
 
@@ -2478,6 +2491,7 @@ func TestGetAIProviders(t *testing.T) {
 		byName[p.GetName()] = p
 	}
 	require.Len(t, byName, 4)
+	assert.NotContains(t, byName, "broken-settings", "provider with undecodable settings must be skipped")
 
 	gotOpenAI := byName["openai"]
 	require.NotNil(t, gotOpenAI)
