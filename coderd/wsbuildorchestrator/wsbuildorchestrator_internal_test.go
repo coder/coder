@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -219,4 +221,90 @@ func TestWorkspaceBuildOrchestratorCloseStopsGoroutines(t *testing.T) {
 		t.Fatal("Close did not stop background goroutines")
 	case <-closed:
 	}
+}
+
+// lookupErrorStore returns a pending orchestration, then fails the
+// parent provisioner job lookup. This exercises the non-child-build
+// error path in processNext and captures the resulting retry update.
+type lookupErrorStore struct {
+	database.Store
+	orchestrationID uuid.UUID
+	jobErr          error
+
+	retryCalled bool
+	retryParams database.UpdateWorkspaceBuildOrchestrationRetryByIDParams
+}
+
+func (s *lookupErrorStore) InTx(fn func(database.Store) error, _ *database.TxOptions) error {
+	return fn(s)
+}
+
+func (s *lookupErrorStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(context.Context) (
+	database.WorkspaceBuildOrchestration, error,
+) {
+	return database.WorkspaceBuildOrchestration{
+		ID:            s.orchestrationID,
+		ParentBuildID: uuid.New(),
+	}, nil
+}
+
+func (s *lookupErrorStore) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (
+	database.WorkspaceBuild, error,
+) {
+	return database.WorkspaceBuild{ID: id, JobID: uuid.New()}, nil
+}
+
+func (s *lookupErrorStore) GetProvisionerJobByID(context.Context, uuid.UUID) (
+	database.ProvisionerJob, error,
+) {
+	return database.ProvisionerJob{}, s.jobErr
+}
+
+func (s *lookupErrorStore) UpdateWorkspaceBuildOrchestrationRetryByID(
+	_ context.Context,
+	arg database.UpdateWorkspaceBuildOrchestrationRetryByIDParams,
+) (database.WorkspaceBuildOrchestration, error) {
+	s.retryCalled = true
+	s.retryParams = arg
+	return database.WorkspaceBuildOrchestration{}, nil
+}
+
+// TestWorkspaceBuildOrchestratorRetriesUnexpectedError verifies that
+// an unexpected error while processing a row makes processNext
+// request a bounded retry rather than surfacing the error, which
+// would leave the row pending and block newer orchestrations.
+func TestWorkspaceBuildOrchestratorRetriesUnexpectedError(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a store that returns a pending orchestration, then fails
+	// the parent provisioner job lookup with an unexpected
+	// (non-child-build) error.
+	store := &lookupErrorStore{
+		orchestrationID: uuid.New(),
+		jobErr:          xerrors.New("boom"),
+	}
+	o := New(Options{
+		// The unexpected-error path logs at error level by design, so
+		// tolerate it here instead of failing via slogtest.
+		Logger:   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Database: store,
+		Pubsub:   pubsub.NewInMemory(),
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// WHEN: the orchestrator processes the row.
+	found, err := o.processNext(ctx)
+
+	// THEN: processNext requests a bounded retry (next_retry_after
+	// and maxAttempts passed) and returns without error, instead of
+	// surfacing the error, which would leave the row pending.
+	require.NoError(t, err)
+	require.True(t, found)
+	require.True(t, store.retryCalled)
+	require.Equal(t, store.orchestrationID, store.retryParams.ID)
+	require.Equal(t, int32(maxAttempts), store.retryParams.MaxAttemptCount)
+	require.False(t, store.retryParams.NextRetryAfter.IsZero())
+	require.True(t, store.retryParams.Error.Valid)
+	require.Contains(t, store.retryParams.Error.String, "boom")
 }

@@ -244,12 +244,10 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 		found = true
 		orchestrationID = orchestration.ID
 
-		// The dependent row lookups in this transaction rely on rows
-		// selected by the row-locking query and rows protected by
-		// foreign keys. Missing rows would indicate an invariant
-		// violation; other errors are treated as retryable database
-		// or runtime errors instead of resolving the orchestration
-		// row as failed.
+		// parentBuild and parentJob are guaranteed to exist by
+		// foreign keys on the locked orchestration row, so an error
+		// here is unexpected and likely transient. Return it to
+		// retry, rather than resolving the orchestration as failed.
 		parentBuild, err := tx.GetWorkspaceBuildByID(sysCtx, orchestration.ParentBuildID)
 		if err != nil {
 			return xerrors.Errorf("get parent workspace build: %w", err)
@@ -371,28 +369,55 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 		return nil
 	}, nil)
 	if err != nil {
-		if childBuildErr == nil {
+		if !found {
+			// A persistent error here blocks the whole queue, but
+			// that is systemic, not a poison row. Surface for retry.
 			return false, err
 		}
 
-		shouldFail := childBuildErrorShouldFailOrchestration(childBuildErr)
+		if ctx.Err() != nil {
+			// On shutdown, don't resolve or log it as unexpected
+			// error below.
+			return false, err
+		}
+
+		// A row was locked but processing failed. Resolve so it does
+		// not stay pending and block newer orchestrations.
+		errMsg := err.Error()
+		failNow := false
+		if childBuildErr != nil {
+			// The child build error carries an HTTP status we can
+			// classify into retryable vs permanent.
+			errMsg = childBuildErrorMessage(childBuildErr)
+			failNow = childBuildErrorShouldFailOrchestration(childBuildErr)
+		} else {
+			// An unexpected error (a parent lookup or status update
+			// that should not fail). Log it before the retry below
+			// records it on the row and fails it after maxAttempts.
+			o.logger.Error(ctx, "unexpected error processing workspace build orchestration",
+				slog.F("workspace_build_orchestration_id", orchestrationID),
+				slog.Error(err))
+		}
+
 		var markErr error
-		if shouldFail {
+		if failNow {
 			// Mark the orchestration failed so one bad row does not
 			// block later orchestrations.
 			_, markErr = o.db.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
 				Error: sql.NullString{
-					String: childBuildErrorMessage(childBuildErr),
+					String: errMsg,
 					Valid:  true,
 				},
 				UpdatedAt: dbtime.Now(),
 				ID:        orchestrationID,
 			})
 		} else {
+			// Back off and retry, eventually failing after maxAttempts
+			// so a persistently failing row stops blocking the queue.
 			now := dbtime.Now()
 			_, markErr = o.db.UpdateWorkspaceBuildOrchestrationRetryByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
 				Error: sql.NullString{
-					String: childBuildErrorMessage(childBuildErr),
+					String: errMsg,
 					Valid:  true,
 				},
 				NextRetryAfter:  now.Add(retryDelay),
@@ -404,17 +429,17 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 
 		if markErr != nil {
 			if xerrors.Is(markErr, sql.ErrNoRows) {
-				// This update runs after the child build transaction
-				// has ended, so another worker may have resolved the
-				// orchestration first. Treat that race as success
-				// because the row no longer needs processing.
+				// This update runs after the transaction has ended, so
+				// another worker may have resolved the orchestration
+				// first. Treat that race as success because the row no
+				// longer needs processing.
 				return found, nil
 			}
-			// Preserve the original child build error because the
-			// orchestration row could not be updated with it.
+			// Preserve the original error because the orchestration row
+			// could not be updated with it.
 			return false, errors.Join(
 				err,
-				xerrors.Errorf("update workspace build orchestration after child build failure: %w", markErr),
+				xerrors.Errorf("resolve workspace build orchestration: %w", markErr),
 			)
 		}
 
@@ -542,7 +567,7 @@ func childBuildErrorShouldFailOrchestration(err error) bool {
 	}
 }
 
-// childBuildErrorMessage returns the error text stored on the
+// childBuildErrorMessage returns the error text to be stored on the
 // orchestration row. Build errors can expose cleaner response
 // messages than Error(), which may contain only the wrapped cause.
 func childBuildErrorMessage(err error) string {
