@@ -105,7 +105,7 @@ the flag link into [`coder server` CLI reference](../../reference/cli/server.md)
 
 | Setting      | Env var             | Flag                                                             | YAML | Default | Description                                            |
 |--------------|---------------------|------------------------------------------------------------------|------|---------|--------------------------------------------------------|
-| Config Path  | `CODER_CONFIG_PATH` | [`--config`](../../reference/cli/server.md#--config)             | -    | -       | Specify a YAML file to load configuration from.        |
+| Config Path  | `CODER_CONFIG_PATH` | [`--config`](../../reference/cli/server.md#-c---config)          | -    | -       | Specify a YAML file to load configuration from.        |
 | Write Config | -                   | [`--write-config`](../../reference/cli/server.md#--write-config) | -    | -       | Write out the current server config as YAML to stdout. |
 
 ## Email
@@ -151,7 +151,7 @@ the flag link into [`coder server` CLI reference](../../reference/cli/server.md)
 | Enable Terraform debug mode | `CODER_ENABLE_TERRAFORM_DEBUG_MODE` | [`--enable-terraform-debug-mode`](../../reference/cli/server.md#--enable-terraform-debug-mode) | `introspection.logging.enableTerraformDebugMode` | `false`       | Allow administrators to enable Terraform debug output.                               |
 | Human Log Location          | `CODER_LOGGING_HUMAN`               | [`--log-human`](../../reference/cli/server.md#--log-human)                                     | `introspection.logging.humanPath`                | `/dev/stderr` | Output human-readable logs to a given file.                                          |
 | JSON Log Location           | `CODER_LOGGING_JSON`                | [`--log-json`](../../reference/cli/server.md#--log-json)                                       | `introspection.logging.jsonPath`                 | -             | Output JSON logs to a given file.                                                    |
-| Log Filter                  | `CODER_LOG_FILTER`                  | [`--log-filter`](../../reference/cli/server.md#--log-filter)                                   | `introspection.logging.filter`                   | -             | Filter debug logs by matching against a given regex. Use .* to match all debug logs. |
+| Log Filter                  | `CODER_LOG_FILTER`                  | [`--log-filter`](../../reference/cli/server.md#-l---log-filter)                                | `introspection.logging.filter`                   | -             | Filter debug logs by matching against a given regex. Use .* to match all debug logs. |
 | Stackdriver Log Location    | `CODER_LOGGING_STACKDRIVER`         | [`--log-stackdriver`](../../reference/cli/server.md#--log-stackdriver)                         | `introspection.logging.stackdriverPath`          | -             | Output Stackdriver compatible logs to a given file.                                  |
 
 ## Introspection / Prometheus

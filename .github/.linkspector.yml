@@ -34,5 +34,8 @@ ignorePatterns:
   - pattern: "platform.openai.com"
   - pattern: "api.openai.com"
   - pattern: "openai.com"
+  # AWS Bedrock base URL appears as an illustrative <region> placeholder in
+  # the generated configuration reference, not as a live link.
+  - pattern: "bedrock-runtime"
 aliveStatusCodes:
   - 200
