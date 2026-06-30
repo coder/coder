@@ -2946,9 +2946,9 @@ func warnDeprecatedChatAIGatewayRoutingFlag(ctx context.Context, logger slog.Log
 		switch opt.ValueSource {
 		case serpent.ValueSourceFlag, serpent.ValueSourceEnv, serpent.ValueSourceYAML:
 			logger.Warn(ctx,
-				"--chat-ai-gateway-routing-enabled is deprecated and has no effect; "+
+				"chat-ai-gateway-routing-enabled is deprecated and has no effect; "+
 					"AI Gateway routing is the only routing path. "+
-					"Remove the option from your configuration; it will be deleted in a future release.",
+					"Remove the option from your configuration; it will be deleted in a future release",
 				slog.F("source", opt.ValueSource),
 			)
 		}

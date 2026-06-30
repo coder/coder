@@ -2711,6 +2711,14 @@ export interface ChatModelsResponse {
 	 * cannot use, so the UI can explain the empty state.
 	 */
 	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
+	/**
+	 * AIGatewayDisabled reports that the in-memory AI Gateway is disabled
+	 * at the deployment level. When true, no chat operation can succeed
+	 * regardless of providers configured. The client should render a
+	 * banner instructing the user to contact their deployment
+	 * administrator.
+	 */
+	readonly ai_gateway_disabled: boolean;
 }
 
 // From codersdk/chats.go
