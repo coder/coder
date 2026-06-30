@@ -63,7 +63,7 @@ func TestCompose(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(result.ModulesTF), `coder_agent.dev.id`)
+		require.Contains(t, string(result.ModulesTF), `coder_agent.dev[0].id`)
 	})
 
 	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
@@ -397,11 +397,33 @@ func TestBundleTar(t *testing.T) {
 		require.NoError(t, err)
 
 		files := extractTar(t, data)
+		require.Contains(t, files, "cloud-init/", "directory entry should be present for subdirectories")
 		require.Contains(t, files, "main.tf")
 		require.Contains(t, files, "cloud-init/config.yaml.tftpl")
 		require.Contains(t, files, "cloud-init/userdata.sh.tftpl")
 		require.Equal(t, "cloud config", files["cloud-init/config.yaml.tftpl"])
 		require.Equal(t, "userdata", files["cloud-init/userdata.sh.tftpl"])
+	})
+
+	t.Run("NestedStaticFileDirEntries", func(t *testing.T) {
+		t.Parallel()
+		result := &templatebuilder.ComposeResult{
+			MainTF: []byte("resource {}"),
+			ExtraFiles: map[string][]byte{
+				"a/b/c/deep.txt": []byte("deep"),
+				"top.txt":        []byte("top"),
+			},
+		}
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "a/", "top-level parent dir entry")
+		require.Contains(t, files, "a/b/", "intermediate parent dir entry")
+		require.Contains(t, files, "a/b/c/", "leaf parent dir entry")
+		require.Contains(t, files, "a/b/c/deep.txt")
+		require.Contains(t, files, "top.txt")
+		// top.txt is at root, so no extra directory entry needed.
 	})
 
 	t.Run("AWSLinuxRoundTrip", func(t *testing.T) {

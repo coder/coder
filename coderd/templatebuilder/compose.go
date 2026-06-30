@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"maps"
+	"path"
 	"slices"
 	"time"
 
@@ -365,6 +366,27 @@ func BundleTar(result *ComposeResult) ([]byte, error) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
+
+	// Emit directory entries for any subdirectories so that
+	// extractors that do not implicitly create parents can
+	// unpack the archive.
+	dirs := make(map[string]bool)
+	for _, name := range names {
+		for dir := path.Dir(name); dir != "." && !dirs[dir]; dir = path.Dir(dir) {
+			dirs[dir] = true
+		}
+	}
+	sortedDirs := make([]string, 0, len(dirs))
+	for d := range dirs {
+		sortedDirs = append(sortedDirs, d)
+	}
+	slices.Sort(sortedDirs)
+	for _, d := range sortedDirs {
+		if err := writeTarDir(tw, d); err != nil {
+			return nil, xerrors.Errorf("write dir %s to tar: %w", d, err)
+		}
+	}
+
 	for _, name := range names {
 		if err := writeTarFile(tw, name, result.ExtraFiles[name]); err != nil {
 			return nil, xerrors.Errorf("write %s to tar: %w", name, err)
@@ -376,6 +398,17 @@ func BundleTar(result *ComposeResult) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// writeTarDir adds a directory entry to a tar writer.
+func writeTarDir(tw *tar.Writer, name string) error {
+	hdr := &tar.Header{
+		Typeflag: tar.TypeDir,
+		Name:     name + "/",
+		Mode:     0o755,
+		ModTime:  time.Unix(0, 0),
+	}
+	return tw.WriteHeader(hdr)
 }
 
 // writeTarFile adds a single file entry to a tar writer. It uses a zero
