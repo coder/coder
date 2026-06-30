@@ -4944,8 +4944,8 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 }
 
 // generateAndStoreChatSummary regenerates the whole-chat summary when the
-// cadence gate allows, then stores it and records its cost. It is best-effort
-// and never clears an existing summary on failure.
+// cadence gate allows, then stores it. Best-effort: it never clears an existing
+// summary on failure.
 func (p *Server) generateAndStoreChatSummary(
 	ctx context.Context,
 	chat database.Chat,

@@ -2216,9 +2216,7 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	// ExtractChatParam already authorized read access to the chat (an
-	// unauthorized caller gets 404 from the middleware), so this only needs to
-	// surface unexpected query failures, matching the sibling chat handlers.
+	// ExtractChatParam already authorized read (deny returns 404); only surface query errors.
 	row, err := api.Database.GetChatCostByChatID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

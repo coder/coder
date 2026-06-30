@@ -6,28 +6,17 @@ import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 const EMPTY_VALUE = "-";
 
 interface ChatSummaryProps {
-	/**
-	 * Short summary of the chat. Renders a muted empty state when null or blank
-	 * so the component can be wired to a real summary source later without UI
-	 * changes.
-	 */
 	summary: string | null;
 	createdAt: string;
 	updatedAt: string;
-	/** Cumulative chat cost in microdollars (1 USD = 1,000,000 micros). */
+	/** Cumulative chat cost in microdollars (1 USD = 1,000,000). */
 	costMicros?: number | null;
 	isCostLoading?: boolean;
-	/** True when the cost request failed; the row shows a placeholder instead of "-". */
 	costError?: boolean;
-	/**
-	 * Number of assistant messages with no model pricing. When greater than zero
-	 * the cost is a partial total, so the component surfaces a note to avoid
-	 * reading "$0.00" as "free".
-	 */
+	/** Assistant messages with no model pricing; when > 0 the cost is partial and a note is shown. */
 	unpricedMessageCount?: number;
 }
 
-/** Presentational summary of a chat: summary blurb, created/updated dates, and cost. */
 export const ChatSummary: FC<ChatSummaryProps> = ({
 	summary,
 	createdAt,

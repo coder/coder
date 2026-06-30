@@ -1822,10 +1822,8 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
- * ChatCost is the cumulative cost for a single chat, rolled up across its
- * root + child (subagent) chats. It is returned by the per-chat cost
- * endpoint and reflects the chat's running total (no per-turn figure is
- * persisted).
+ * ChatCost is the cumulative cost for a single chat, rolled up across its root
+ * and child (subagent) chats.
  */
 export interface ChatCost {
 	readonly root_chat_id: string;

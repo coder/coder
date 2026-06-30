@@ -1867,10 +1867,8 @@ type ChatCostChatBreakdown struct {
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
-// ChatCost is the cumulative cost for a single chat, rolled up across its
-// root + child (subagent) chats. It is returned by the per-chat cost
-// endpoint and reflects the chat's running total (no per-turn figure is
-// persisted).
+// ChatCost is the cumulative cost for a single chat, rolled up across its root
+// and child (subagent) chats.
 type ChatCost struct {
 	RootChatID           uuid.UUID `json:"root_chat_id" format:"uuid"`
 	TotalCostMicros      int64     `json:"total_cost_micros"`
@@ -2453,8 +2451,7 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
 }
 
-// GetChatCost returns the cumulative cost for a single chat, rolled up
-// across its root + child (subagent) chats.
+// GetChatCost returns the cumulative cost for a single chat.
 func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/cost", chatID), nil)
 	if err != nil {

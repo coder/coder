@@ -10461,7 +10461,6 @@ func TestGetChatCost(t *testing.T) {
 			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
 		})
 
-		// A subagent (child) chat points at the root via ParentChatID/RootChatID.
 		childChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
@@ -10479,14 +10478,14 @@ func TestGetChatCost(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Querying the root includes the child's cost in the rollup.
+		// Root query rolls up the child's cost.
 		rootCost, err := client.GetChatCost(ctx, rootChat.ID)
 		require.NoError(t, err)
 		require.Equal(t, rootChat.ID, rootCost.RootChatID)
 		require.Equal(t, int64(750), rootCost.TotalCostMicros)
 		require.Equal(t, int64(2), rootCost.PricedMessageCount)
 
-		// Querying the child resolves to the same root rollup.
+		// Child query resolves to the same root rollup.
 		childCost, err := client.GetChatCost(ctx, childChat.ID)
 		require.NoError(t, err)
 		require.Equal(t, rootChat.ID, childCost.RootChatID)
@@ -10513,8 +10512,7 @@ func TestGetChatCost(t *testing.T) {
 			Role:            database.ChatMessageRoleAssistant,
 			TotalCostMicros: sql.NullInt64{Int64: 400, Valid: true},
 		})
-		// A message that has token usage but no cost (e.g. no model pricing
-		// configured) is counted as unpriced, not priced.
+		// Token usage but no cost (no model pricing) counts as unpriced.
 		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 			ChatID:        chat.ID,
 			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
@@ -10564,10 +10562,8 @@ func TestGetChatCost(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// A chat with no assistant messages must still return a single row of
-		// zeros. The query relies on COALESCE + the :one annotation, so a
-		// regression that made the aggregate return zero rows would surface here
-		// as sql.ErrNoRows and a 500 instead of this clean zero total.
+		// No assistant messages must still return one zero-total row; a COALESCE
+		// or :one regression would surface as sql.ErrNoRows -> 500.
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
@@ -10604,9 +10600,7 @@ func TestGetChatCost(t *testing.T) {
 			Role:            database.ChatMessageRoleAssistant,
 			TotalCostMicros: sql.NullInt64{Int64: 600, Valid: true},
 		})
-		// A user-role message carrying a cost must be excluded from both the
-		// total and the priced/unpriced counts; the query only bills assistant
-		// messages, so dropping the role filter would change these assertions.
+		// User-role cost must be excluded; the query bills only assistant messages.
 		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 			ChatID:          chat.ID,
 			Role:            database.ChatMessageRoleUser,

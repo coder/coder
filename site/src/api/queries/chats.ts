@@ -1975,8 +1975,7 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 export const chatCostKey = (chatId: string) =>
 	[...chatsKey, chatId, "cost"] as const;
 
-// Per-chat cost changes only as new assistant messages are priced, so a short
-// window avoids refetching on every Summary tab activation.
+// Cost changes only as new assistant messages are priced; a short window avoids refetch churn.
 const COST_STALE_MS = 30_000;
 
 export const chatCost = (chatId: string) => ({

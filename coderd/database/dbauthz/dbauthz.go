@@ -3039,7 +3039,6 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 }
 
 func (q *querier) GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatCostByChatIDRow, error) {
-	// Authorize read on the chat.
 	if _, err := q.GetChatByID(ctx, chatID); err != nil {
 		return database.GetChatCostByChatIDRow{}, err
 	}

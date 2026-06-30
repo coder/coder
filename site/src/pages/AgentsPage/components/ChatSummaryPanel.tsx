@@ -7,25 +7,16 @@ import { ChatSummary } from "./ChatSummary";
 
 type ChatSummaryPanelProps = {
 	chatId: string;
-	/**
-	 * Gate the reads on tab visibility so opening a different right-panel tab
-	 * does not fetch the cost for every chat. Cached chat data still renders
-	 * immediately when the tab becomes visible.
-	 */
+	/** Gate reads on tab visibility so other tabs don't fetch every chat's cost. */
 	isVisible: boolean;
 };
 
-/**
- * ChatSummaryPanel is the data wrapper for the Summary right-panel tab. It owns
- * the React Query reads so ChatSummary stays presentational, and renders error,
- * loading, and empty states inline.
- */
+/** Data wrapper for the Summary tab; owns the React Query reads so ChatSummary stays presentational. */
 export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
 }) => {
-	// chat() stays live via AgentsPage's watchChats merge; cost is fetched
-	// separately. Both gate on isVisible (see prop docs).
+	// chat() stays live via AgentsPage's watchChats merge; cost is fetched on demand.
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 	const costQuery = useQuery({ ...chatCost(chatId), enabled: isVisible });
 
