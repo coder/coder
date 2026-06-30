@@ -457,12 +457,9 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	// last_turn_summary and the whole-chat summary each have a dedicated event,
-	// and both preserve the triggering turn's updated_at, so summary_change and
-	// chat_summary_change carry an equal timestamp. Scope each field strictly to
-	// its own event: keying off isFreshEnough would let a summary_change clobber
-	// summary (and a chat_summary_change clobber last_turn_summary) with the
-	// event's stale snapshot of the other field.
+	// summary_change and chat_summary_change share the triggering turn's
+	// updated_at, so isFreshEnough cannot distinguish them. Scope each field to
+	// its own event, else one event clobbers the other field's value.
 	const nextLastTurnSummary = isSummaryEvent
 		? watchedChat.last_turn_summary
 		: cachedChat.last_turn_summary;
@@ -1975,8 +1972,7 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 export const chatCostKey = (chatId: string) =>
 	[...chatsKey, chatId, "cost"] as const;
 
-// Per-chat cost changes only as new assistant messages are priced, so a short
-// window avoids refetching on every Summary tab activation.
+// Cost changes only as new assistant messages are priced; a short window avoids refetch churn.
 const COST_STALE_MS = 30_000;
 
 export const chatCost = (chatId: string) => ({

@@ -123,8 +123,8 @@ type Chat struct {
 	PlanMode          ChatPlanMode `json:"plan_mode,omitempty"`
 	LastError         *ChatError   `json:"last_error,omitempty"`
 	LastTurnSummary   *string      `json:"last_turn_summary"`
-	// Summary is the persisted whole-chat summary, generated asynchronously in
-	// the background. It is nil until the first summary has been produced.
+	// Summary is the persisted whole-chat summary, generated in the background.
+	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
 	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
@@ -1771,10 +1771,9 @@ type ChatWatchEventKind string
 const (
 	ChatWatchEventKindStatusChange  ChatWatchEventKind = "status_change"
 	ChatWatchEventKindSummaryChange ChatWatchEventKind = "summary_change"
-	// ChatWatchEventKindChatSummaryChange delivers updates to the persisted
-	// whole-chat summary field. It is distinct from SummaryChange, which is
-	// bound to last_turn_summary, so the frontend can apply only the summary
-	// field without disturbing last_turn_summary.
+	// ChatWatchEventKindChatSummaryChange carries the persisted whole-chat
+	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
+	// the frontend updates one field without disturbing the other.
 	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
 	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
@@ -1870,10 +1869,8 @@ type ChatCostChatBreakdown struct {
 	TotalRuntimeMs           int64     `json:"total_runtime_ms"`
 }
 
-// ChatCost is the cumulative cost for a single chat, rolled up across its
-// root + child (subagent) chats. It is returned by the per-chat cost
-// endpoint and reflects the chat's running total (no per-turn figure is
-// persisted).
+// ChatCost is the cumulative cost for a single chat, rolled up across its root
+// and child (subagent) chats.
 type ChatCost struct {
 	RootChatID           uuid.UUID `json:"root_chat_id" format:"uuid"`
 	TotalCostMicros      int64     `json:"total_cost_micros"`
@@ -2456,8 +2453,7 @@ func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
 }
 
-// GetChatCost returns the cumulative cost for a single chat, rolled up
-// across its root + child (subagent) chats.
+// GetChatCost returns the cumulative cost for a single chat.
 func (c *ExperimentalClient) GetChatCost(ctx context.Context, chatID uuid.UUID) (ChatCost, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/cost", chatID), nil)
 	if err != nil {

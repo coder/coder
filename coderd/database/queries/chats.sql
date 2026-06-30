@@ -1359,14 +1359,10 @@ WHERE
     AND history_version = @expected_history_version::bigint;
 
 -- name: UpdateChatSummary :execrows
--- Updates the persisted whole-chat summary shown in the chat summary popover.
--- Empty or whitespace-only summaries are stored as NULL so callers cannot
--- accidentally persist blank text. summary_generated_at records when the
--- summary was produced and drives the background regeneration cadence.
--- This intentionally preserves updated_at. The staleness guard uses
--- history_version, mirroring UpdateChatLastTurnSummary, so background writes
--- racing a newer durable history change lose while worker lifecycle
--- transitions that do not change message history cannot reject a fresh write.
+-- Stores blank summaries as NULL. summary_generated_at drives the regeneration
+-- cadence. The staleness guard is history_version (not updated_at, which is
+-- preserved), mirroring UpdateChatLastTurnSummary: a background write racing a
+-- newer message change loses, but worker transitions cannot reject a fresh write.
 UPDATE chats
 SET
     summary = NULLIF(REGEXP_REPLACE(
@@ -2345,13 +2341,8 @@ LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
 
 -- name: GetChatCostByChatID :one
--- Cumulative cost for a single chat, rolled up across its root + child
--- (subagent) chats. Only counts assistant-role messages. Mirrors
--- GetChatCostPerChat's root rollup but scoped to one chat and with no date
--- range. Returns exactly one row when the chat exists (zero totals when it has
--- no priced messages); the dbauthz wrapper resolves the chat first, so the
--- empty-family case is unreachable in practice. priced/unpriced counts let
--- callers flag a partial total.
+-- Cumulative cost across a chat's root + child (subagent) chats, counting only
+-- assistant messages. Returns one row, with zero totals when nothing is priced.
 WITH target AS (
     SELECT COALESCE(root_chat_id, id) AS root_chat_id
     FROM chats
@@ -2374,8 +2365,7 @@ WITH target AS (
         )::bigint AS unpriced_message_count
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
-    -- Match the family by indexed columns (the root itself plus its children)
-    -- instead of COALESCE(root_chat_id, id), which would force a full scan.
+    -- Match by indexed columns, not COALESCE(root_chat_id, id), to avoid a full scan.
     WHERE (
         c.id = (SELECT root_chat_id FROM target)
         OR c.root_chat_id = (SELECT root_chat_id FROM target)

@@ -384,13 +384,8 @@ type sqlcQuerier interface {
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
-	// Cumulative cost for a single chat, rolled up across its root + child
-	// (subagent) chats. Only counts assistant-role messages. Mirrors
-	// GetChatCostPerChat's root rollup but scoped to one chat and with no date
-	// range. Returns exactly one row when the chat exists (zero totals when it has
-	// no priced messages); the dbauthz wrapper resolves the chat first, so the
-	// empty-family case is unreachable in practice. priced/unpriced counts let
-	// callers flag a partial total.
+	// Cumulative cost across a chat's root + child (subagent) chats, counting only
+	// assistant messages. Returns one row, with zero totals when nothing is priced.
 	GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatCostByChatIDRow, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
 	// Groups by root_chat_id so forked chats roll up under their root.
@@ -1384,14 +1379,10 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error)
-	// Updates the persisted whole-chat summary shown in the chat summary popover.
-	// Empty or whitespace-only summaries are stored as NULL so callers cannot
-	// accidentally persist blank text. summary_generated_at records when the
-	// summary was produced and drives the background regeneration cadence.
-	// This intentionally preserves updated_at. The staleness guard uses
-	// history_version, mirroring UpdateChatLastTurnSummary, so background writes
-	// racing a newer durable history change lose while worker lifecycle
-	// transitions that do not change message history cannot reject a fresh write.
+	// Stores blank summaries as NULL. summary_generated_at drives the regeneration
+	// cadence. The staleness guard is history_version (not updated_at, which is
+	// preserved), mirroring UpdateChatLastTurnSummary: a background write racing a
+	// newer message change loses, but worker transitions cannot reject a fresh write.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)

@@ -197,9 +197,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
-	// The Summary tab is the default right-panel tab and reads the chat and its
-	// cost. Mock both so opening the sidebar renders real content instead of an
-	// error. Stories that need other behavior can override in their own hooks.
+	// Summary is the default tab and reads chat + cost; mock both so the sidebar renders.
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
 		spyOn(API.experimental, "getChatCost").mockResolvedValue({
@@ -492,8 +490,7 @@ index abc1234..def5678 100644
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Summary is the default right-panel tab, so switch to Git to view and
-		// refresh the PR diff.
+		// Summary is the default tab; switch to Git to view the PR diff.
 		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
 
 		// Wait for the initial diff fetch triggered by React Query.
@@ -1543,8 +1540,7 @@ export const TerminalFocusOnTabSwitch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The sidebar opens on the Summary tab by default; this story drives the
-		// Terminal tab regardless of which tab is initially active.
+		// Sidebar defaults to Summary; this story drives the Terminal tab instead.
 		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
 
 		// 1. Click the Terminal tab.
@@ -1658,15 +1654,11 @@ export const PersistsSidebarTabClick: Story = {
 };
 
 /**
- * When localStorage holds a tab ID whose tab is not currently available
- * (e.g. `"terminal"` while the workspace is stopped), the sidebar
- * should fall back to the first available tab (Summary) and the stored
- * value must be preserved so it can be honoured once the tab reappears.
- *
- * This locks down the contract described in the PR: `getEffectiveTabId`
- * only reads `sidebarTabId` and never writes back. A future write-back
- * in the fallback path would silently break restore-after-recovery, so
- * this story exists to catch that regression.
+ * When localStorage holds an unavailable tab ID (e.g. `"terminal"` while the
+ * workspace is stopped), the sidebar falls back to the first available tab
+ * (Summary) while preserving the stored value for when the tab reappears.
+ * Guards the `getEffectiveTabId` contract: it only reads `sidebarTabId`, never
+ * writes back, so restore-after-recovery cannot silently break.
  */
 export const PreservesUnavailableSidebarTab: Story = {
 	beforeEach: () => {

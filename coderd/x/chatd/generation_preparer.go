@@ -680,8 +680,8 @@ func (server *Server) afterInterruptionOutcome(
 	chat := outcome.Chat
 	logger := server.logger.With(slog.F("chat_id", chat.ID), slog.F("owner_id", chat.OwnerID))
 
-	if outcome.Kind == runnerActionKindFinishInterruption {
-		server.maybeClearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
+	if outcome.Kind == runnerActionKindFinishInterruption && !chat.ParentChatID.Valid {
+		server.clearLastTurnSummaryAsync(context.WithoutCancel(ctx), chat, logger)
 	}
 	return nil
 }

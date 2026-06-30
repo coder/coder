@@ -1567,8 +1567,8 @@ export interface Chat {
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
 	/**
-	 * Summary is the persisted whole-chat summary, generated asynchronously in
-	 * the background. It is nil until the first summary has been produced.
+	 * Summary is the persisted whole-chat summary, generated in the background.
+	 * It is nil until the first summary has been produced.
 	 */
 	readonly summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
@@ -1822,10 +1822,8 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
- * ChatCost is the cumulative cost for a single chat, rolled up across its
- * root + child (subagent) chats. It is returned by the per-chat cost
- * endpoint and reflects the chat's running total (no per-turn figure is
- * persisted).
+ * ChatCost is the cumulative cost for a single chat, rolled up across its root
+ * and child (subagent) chats.
  */
 export interface ChatCost {
 	readonly root_chat_id: string;
