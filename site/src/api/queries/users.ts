@@ -4,7 +4,7 @@ import type {
 	UseMutationOptions,
 	UseQueryOptions,
 } from "react-query";
-import { API } from "#/api/api";
+import { API, type UserAISpend } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	AuthorizationRequest,
@@ -155,6 +155,17 @@ export const me = (metadata: MetadataState<User>) => {
 		queryKey: meKey,
 		queryFn: API.getAuthenticatedUser,
 	});
+};
+
+export const meAISpendKey = [...meKey, "aiSpend"] as const;
+
+export const meAISpend = (): UseQueryOptions<UserAISpend> => {
+	return {
+		queryKey: meAISpendKey,
+		queryFn: () => API.getUserAISpend(),
+		// Polled so the avatar border reflects spend without opening the dropdown.
+		refetchInterval: 60_000,
+	};
 };
 
 const userKey = (usernameOrId: string) => ["user", usernameOrId];

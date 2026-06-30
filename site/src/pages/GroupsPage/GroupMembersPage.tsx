@@ -13,6 +13,7 @@ import type {
 	Group,
 	OrganizationMemberWithUserData,
 } from "#/api/typesGenerated";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -47,7 +48,6 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
-import { AIBudgetUsage } from "./AIBudgetUsage";
 import type { GroupPageOutletContext } from "./GroupPage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";

@@ -161,9 +161,8 @@ func workspaceAgent() *serpent.Command {
 			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
-				// Per customer incident on November 17th, 2023, its helpful
-				// to have the log of the last few restarts to debug a failing agent.
-				MaxBackups: 10,
+				// Keep up to the debug logs response cap across the active log and rotations.
+				MaxBackups: 19,
 			}}
 			defer logWriter.Close()
 

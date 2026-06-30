@@ -3192,15 +3192,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider": "string",
       "unavailable_reason": "missing_api_key"
     }
+  ],
+  "unsupported_providers": [
+    {
+      "display_name": "string",
+      "provider": "string"
+    }
   ]
 }
 ```
 
 ### Properties
 
-| Name        | Type                                                              | Required | Restrictions | Description |
-|-------------|-------------------------------------------------------------------|----------|--------------|-------------|
-| `providers` | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider) | false    |              |             |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                            |
+|-------------------------|-------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                        |
+| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state. |
 
 ## codersdk.ChatPlanMode
 
@@ -3825,6 +3832,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatUnsupportedProvider
+
+```json
+{
+  "display_name": "string",
+  "provider": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description                                    |
+|----------------|--------|----------|--------------|------------------------------------------------|
+| `display_name` | string | false    |              |                                                |
+| `provider`     | string | false    |              | Provider is the provider type, e.g. "copilot". |
 
 ## codersdk.ChatUser
 

@@ -261,7 +261,6 @@ const AgentTopBarRouteElement = () => {
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
 			onArchiveAgent={fn()}
 			onArchiveAndDeleteWorkspace={fn()}
-			onRegenerateTitle={fn()}
 			onUnarchiveAgent={fn()}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -405,6 +404,7 @@ const meta: Meta<typeof AgentsPageView> = {
 					],
 				},
 			],
+			unsupported_providers: [],
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
