@@ -1179,6 +1179,18 @@ type SendMessageResult struct {
 	Chat          database.Chat
 }
 
+// CompactChatOptions controls manual compaction request admission.
+type CompactChatOptions struct {
+	ChatID      uuid.UUID
+	RequestedBy uuid.UUID
+	APIKeyID    string
+}
+
+// CompactChatResult contains the post-request chat status.
+type CompactChatResult struct {
+	Chat database.Chat
+}
+
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
 type EditMessageOptions struct {
 	ChatID          uuid.UUID
@@ -1483,6 +1495,50 @@ func (p *Server) SendMessage(
 
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
+	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	return result, nil
+}
+
+// CompactChat records a manual compaction request for an idle chat and
+// wakes the worker through the chatstate running transition.
+func (p *Server) CompactChat(ctx context.Context, opts CompactChatOptions) (CompactChatResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return CompactChatResult{}, xerrors.New("chat_id is required")
+	}
+	if opts.RequestedBy == uuid.Nil {
+		return CompactChatResult{}, xerrors.New("requested_by is required")
+	}
+	if err := validateChatUserMessageAPIKeyID(opts.APIKeyID); err != nil {
+		return CompactChatResult{}, err
+	}
+
+	var result CompactChatResult
+	machine := p.newChatMachine(opts.ChatID)
+	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		if limitErr := p.checkUsageLimit(ctx, store, lockedChat.OwnerID, uuid.NullUUID{UUID: lockedChat.OrganizationID, Valid: true}); limitErr != nil {
+			return limitErr
+		}
+		requestResult, err := tx.RequestManualCompaction(chatstate.RequestManualCompactionInput{
+			RequestedBy: opts.RequestedBy,
+			APIKeyID:    opts.APIKeyID,
+		})
+		if err != nil {
+			return err
+		}
+		result.Chat = requestResult.Chat
+		return nil
+	})
+	if updateErr != nil {
+		return CompactChatResult{}, updateErr
+	}
+
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
 	return result, nil
 }

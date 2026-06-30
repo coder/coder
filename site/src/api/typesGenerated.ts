@@ -3287,6 +3287,14 @@ export interface ClusterConfig {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/chats.go
+/**
+ * CompactChatResponse is the response from requesting manual compaction.
+ */
+export interface CompactChatResponse {
+	readonly chat: Chat;
+}
+
 // From codersdk/disconnect.go
 export type ConnectionDirection =
 	| "agent_to_client"

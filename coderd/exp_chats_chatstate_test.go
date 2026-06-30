@@ -359,6 +359,150 @@ func TestInterruptChatIdleReturnsConflict(t *testing.T) {
 	requireSDKError(t, err, http.StatusConflict)
 }
 
+func TestCompactChatStateTransitions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "compact me"}},
+		})
+		require.NoError(t, err)
+		driveChatToWaiting(ctx, t, api, chat.ID)
+
+		beforeMessages, err := api.Database.GetChatMessagesByChatID(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetChatMessagesByChatIDParams{ChatID: chat.ID},
+		)
+		require.NoError(t, err)
+
+		resp, err := client.CompactChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, resp.Chat.ID)
+		require.Equal(t, codersdk.ChatStatusRunning, resp.Chat.Status)
+
+		persisted, err := api.Database.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.True(t, persisted.ManualCompactionRequestedBy.Valid)
+		require.Equal(t, firstUser.UserID, persisted.ManualCompactionRequestedBy.UUID)
+		require.True(t, persisted.ManualCompactionApiKeyID.Valid)
+		require.Equal(t, currentTestAPIKeyID(t, client), persisted.ManualCompactionApiKeyID.String)
+		require.True(t, persisted.ManualCompactionRequestedAt.Valid)
+
+		afterMessages, err := api.Database.GetChatMessagesByChatID(
+			dbauthz.AsSystemRestricted(ctx),
+			database.GetChatMessagesByChatIDParams{ChatID: chat.ID},
+		)
+		require.NoError(t, err)
+		require.Len(t, afterMessages, len(beforeMessages),
+			"compact request records metadata without inserting messages")
+	})
+
+	t.Run("ArchivedChatReturnsConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "archive me"}},
+		})
+		require.NoError(t, err)
+		driveChatToWaiting(ctx, t, api, chat.ID)
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Cannot compact an archived chat.", sdkErr.Message)
+	})
+
+	t.Run("RunningChatReturnsConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "still running"}},
+		})
+		require.NoError(t, err)
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Chat is not in a state that accepts manual compaction.", sdkErr.Message)
+
+		persisted, err := api.Database.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.False(t, persisted.ManualCompactionRequestedBy.Valid)
+		require.False(t, persisted.ManualCompactionApiKeyID.Valid)
+		require.False(t, persisted.ManualCompactionRequestedAt.Valid)
+	})
+
+	t.Run("QueuedBacklogReturnsConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "busy"}},
+		})
+		require.NoError(t, err)
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "queued"}},
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Chat is not in a state that accepts manual compaction.", sdkErr.Message)
+	})
+
+	t.Run("RequiresActionReturnsConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		dynamicTools := []codersdk.DynamicTool{{
+			Name:        "echo",
+			Description: "test echo tool",
+			InputSchema: json.RawMessage(`{"type":"object"}`),
+		}}
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID:     firstUser.OrganizationID,
+			Content:            []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "needs action"}},
+			UnsafeDynamicTools: dynamicTools,
+		})
+		require.NoError(t, err)
+		_ = driveChatToRequiresAction(ctx, t, api, chat, "echo")
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Chat is not in a state that accepts manual compaction.", sdkErr.Message)
+	})
+}
+
 // TestSubmitToolResultsWrongStateReturnsConflict covers the wrong
 // chat-status response when the chat is not in requires_action.
 func TestSubmitToolResultsWrongStateReturnsConflict(t *testing.T) {

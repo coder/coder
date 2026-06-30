@@ -25,6 +25,7 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatProviderConfigs,
+	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -85,6 +86,7 @@ import {
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
+import { parseBuiltInSlashCommand } from "./utils/builtInSlashCommands";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -985,6 +987,8 @@ const AgentChatPage: FC = () => {
 	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
 	);
+	const { isPending: isCompactPending, mutateAsync: requestCompact } =
+		useMutation(compactChat(queryClient, agentId ?? ""));
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
 		editChatMessage(queryClient, agentId ?? ""),
 	);
@@ -1146,7 +1150,7 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		isSendPending || isEditPending || isInterruptPending;
+		isSendPending || isCompactPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
@@ -1398,6 +1402,31 @@ const AgentChatPage: FC = () => {
 			pendingPlanModeSyncRef.current,
 			pendingWorkspaceSyncRef.current,
 		]);
+
+		const builtInCommand =
+			useComposerContent && editedMessageID === undefined
+				? parseBuiltInSlashCommand({
+						message,
+						content,
+						hasAttachments: Boolean(attachments?.length),
+					})
+				: null;
+		if (builtInCommand === "compact") {
+			clearChatErrorReason(agentId);
+			clearStreamError();
+			scrollToBottomRef.current?.();
+			try {
+				await requestCompact();
+			} catch (error) {
+				handleUsageLimitError(error);
+				throw error;
+			}
+			store.batch(() => {
+				store.clearStreamState();
+				store.setChatStatus("running");
+			});
+			return;
+		}
 
 		if (editedMessageID !== undefined) {
 			const originalEditedMessage = chatMessagesList?.find(

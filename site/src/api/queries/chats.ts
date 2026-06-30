@@ -1376,6 +1376,14 @@ export const createChatMessage = (
 	},
 });
 
+export const compactChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.compactChat(chatId),
+	onSuccess: (response: TypesGen.CompactChatResponse) => {
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), response.chat);
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 type EditChatMessageMutationArgs = {
 	messageId: number;
 	optimisticMessage?: TypesGen.ChatMessage;

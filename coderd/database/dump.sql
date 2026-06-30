@@ -2020,6 +2020,9 @@ CREATE TABLE chats (
     context_dirty_since timestamp with time zone,
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
+    manual_compaction_requested_by uuid,
+    manual_compaction_api_key_id text,
+    manual_compaction_requested_at timestamp with time zone,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2135,7 +2138,10 @@ CREATE VIEW chats_expanded AS
     c.context_aggregate_hash,
     c.context_dirty_since,
     c.context_dirty_resources,
-    c.context_error
+    c.context_error,
+    c.manual_compaction_requested_by,
+    c.manual_compaction_api_key_id,
+    c.manual_compaction_requested_at
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -5023,6 +5029,9 @@ ALTER TABLE ONLY chats
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chats
+    ADD CONSTRAINT chats_manual_compaction_requested_by_fkey FOREIGN KEY (manual_compaction_requested_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

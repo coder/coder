@@ -1861,6 +1861,10 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
 }
 
+func (q *querier) ClearChatManualCompactionRequest(ctx context.Context, id uuid.UUID) error {
+	panic("not implemented")
+}
+
 func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -3289,6 +3293,10 @@ func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, 
 		return false, ErrNoActor
 	}
 	return q.db.GetChatIncludeDefaultSystemPrompt(ctx)
+}
+
+func (q *querier) GetChatManualCompactionRequest(ctx context.Context, id uuid.UUID) (database.GetChatManualCompactionRequestRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
@@ -6848,6 +6856,10 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) RequestChatManualCompaction(ctx context.Context, arg database.RequestChatManualCompactionParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, arg database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {

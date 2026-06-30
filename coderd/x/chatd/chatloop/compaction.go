@@ -58,6 +58,8 @@ const (
 )
 
 type CompactionOptions struct {
+	Force               bool
+	Source              CompactionSource
 	ThresholdPercent    int32
 	ContextLimit        int64
 	SummaryPrompt       string
@@ -116,7 +118,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		contextLimit,
 		config.ThresholdPercent,
 	)
-	if !compact {
+	if !compact && !config.Force {
 		return CompactionResult{}, nil
 	}
 
@@ -150,7 +152,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
 			"summary":              summary,
-			"source":               "automatic",
+			"source":               config.Source.String(),
 			"threshold_percent":    config.ThresholdPercent,
 			"usage_percent":        usagePercent,
 			"context_tokens":       contextTokens,
@@ -166,6 +168,8 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 
 func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (CompactionOptions, bool) {
 	config := CompactionOptions{
+		Force:               opts.Force,
+		Source:              opts.Source,
 		ThresholdPercent:    opts.ThresholdPercent,
 		ContextLimit:        opts.ContextLimit,
 		SummaryPrompt:       opts.SummaryPrompt,
@@ -191,7 +195,10 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		config.ThresholdPercent > maxCompactionThresholdPercent {
 		config.ThresholdPercent = defaultCompactionThresholdPercent
 	}
-	if config.ThresholdPercent == maxCompactionThresholdPercent {
+	if config.Source == "" {
+		config.Source = CompactionSourceAutomatic
+	}
+	if config.ThresholdPercent == maxCompactionThresholdPercent && !config.Force {
 		return CompactionOptions{}, false
 	}
 	return config, true

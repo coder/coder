@@ -24,6 +24,7 @@ We say that the following data constitutes a chat's **execution state**:
 - the `retry_state` field on the `chats` table, a JSONB object that stores the last error message encountered by the agent loop, and information about when the next retry will be attempted;
 - the `snapshot_version`, `history_version`, `queue_version`, `generation_attempt`, `retry_state_version` fields on the `chats` table, defined later in the document;
 - the `requires_action_deadline_at` field on the `chats` table (pending-action deadline, defined later in the document);
+- the `manual_compaction_requested_by`, `manual_compaction_api_key_id`, and `manual_compaction_requested_at` fields on the `chats` table, which durably identify a pending user-requested context compaction;
 
 There is other data that is held in the database and is associated with a chat, but it's not part of the execution state:
 
@@ -50,21 +51,21 @@ A chat's execution state lets the chat worker and the HTTP endpoints decide what
 
 The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, and then `1` or `0` indicate the presence or absence of queued messages.
 
-| Shorthand | Status | Queue | Archived | Meaning |
-| --- | --- | --- | --- | --- |
-| `N` | - | - | - | Chat does not exist |
-| `W` | `waiting` | empty | `false` | There's no work to be done by the chat worker |
-| `E0` | `error` | empty | `false` | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker |
-| `E1` | `error` | non-empty | `false` | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
-| `R0` | `running` | empty | `false` | Running state with no queued messages: a chat worker should be processing the chat |
-| `R1` | `running` | non-empty | `false` | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next |
-| `I0` | `interrupting` | empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption |
-| `I1` | `interrupting` | non-empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next |
-| `A0` | `requires_action` | empty | `false` | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature |
-| `A1` | `requires_action` | non-empty | `false` | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature |
-| `XW` | `waiting` | empty | `true` | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived |
-| `XE0` | `error` | empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived |
-| `XE1` | `error` | non-empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared |
+| Shorthand | Status            | Queue     | Archived | Meaning                                                                                                                                                                                                           |
+|-----------|-------------------|-----------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `N`       | -                 | -         | -        | Chat does not exist                                                                                                                                                                                               |
+| `W`       | `waiting`         | empty     | `false`  | There's no work to be done by the chat worker                                                                                                                                                                     |
+| `E0`      | `error`           | empty     | `false`  | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker                                                                                       |
+| `E1`      | `error`           | non-empty | `false`  | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
+| `R0`      | `running`         | empty     | `false`  | Running state with no queued messages: a chat worker should be processing the chat                                                                                                                                |
+| `R1`      | `running`         | non-empty | `false`  | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next                                                                       |
+| `I0`      | `interrupting`    | empty     | `false`  | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption                                                                       |
+| `I1`      | `interrupting`    | non-empty | `false`  | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next           |
+| `A0`      | `requires_action` | empty     | `false`  | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature                                                                                            |
+| `A1`      | `requires_action` | non-empty | `false`  | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature                                |
+| `XW`      | `waiting`         | empty     | `true`   | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived                                                                                                           |
+| `XE0`     | `error`           | empty     | `true`   | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived                                                                                                               |
+| `XE1`     | `error`           | non-empty | `true`   | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared                              |
 
 If these states seem arbitrary and abstract at this point, that's expected. Each one of these states is needed by some runtime component of chatd for some specific use case, and their purpose will emerge as we discuss the implementation of the HTTP endpoints and the chat worker.
 
@@ -74,10 +75,10 @@ At a high-level, these states let us reason about what should be possible to hap
 
 A chat's ownership state lets the chat worker decide whether a chat can be acquired or not. It's decided by the `worker_id` field on the `chats` table. In total there are 2 ownership states.
 
-| Shorthand | Worker ID | Meaning |
-| --- | --- | --- |
-| `U` | null | Unowned chat |
-| `O` | not null | Owned chat |
+| Shorthand | Worker ID | Meaning      |
+|-----------|-----------|--------------|
+| `U`       | null      | Unowned chat |
+| `O`       | not null  | Owned chat   |
 
 ## Transitions
 
@@ -102,6 +103,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
+- `RequestManualCompaction(requester, api_key_id)` records a pending user-requested context compaction and lands in `running` for worker pickup. It is accepted only from idle chats without queued backlog.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
@@ -116,6 +118,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
+- `FinishManualCompaction(optionalCompactionMessages)` clears the pending manual compaction request, optionally inserts the compressed summary boundary and visible compaction messages, and completes the running turn without requesting a follow-up assistant response. If queued messages arrived while the worker compacted, it promotes the queue head just like `FinishTurn`.
 - `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
 - `FinishError(err)` ends a running chat in `error` and persists `last_error = err`, overwriting any prior stored error.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
@@ -137,10 +140,12 @@ stateDiagram-v2
 
     W --> R0: SendMessage
     W --> R0: EditMessage
+    W --> R0: RequestManualCompaction
     W --> XW: SetArchived(true)
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
+    E0 --> R0: RequestManualCompaction
     E0 --> XE0: SetArchived(true)
 
     E1 --> R1: SendMessage
@@ -159,6 +164,7 @@ stateDiagram-v2
     R0 --> I1: SendMessage(interrupt)
     R0 --> R0: EditMessage
     R0 --> W: FinishTurn / queue empty
+    R0 --> W: FinishManualCompaction / queue empty
     R0 --> E0: FinishError
     R0 --> R1: SendMessage(queue)
 
@@ -176,6 +182,8 @@ stateDiagram-v2
     R1 --> I1: PromoteQueuedMessage
     R1 --> R0: FinishTurn / promoted last queued
     R1 --> R1: FinishTurn / queue still non-empty after promoting head
+    R1 --> R0: FinishManualCompaction / promoted last queued
+    R1 --> R1: FinishManualCompaction / queue still non-empty after promoting head
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
@@ -922,10 +930,10 @@ Initial null state:
 
 The loop has two operations:
 
-| Operation | Description |
-| --- | --- |
-| `Sync(hints)` | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
-| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder. |
+| Operation                                                 | Description                                                                                                                                                                                       |
+|-----------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Sync(hints)`                                             | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
+| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder.                    |
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 

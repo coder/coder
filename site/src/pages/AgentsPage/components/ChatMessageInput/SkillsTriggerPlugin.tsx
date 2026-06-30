@@ -12,7 +12,6 @@ import {
 	type NodeKey,
 } from "lexical";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
-import type * as TypesGen from "#/api/typesGenerated";
 import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
 import type { CaretAnchorRect } from "./PersonalSkillsTriggerMenu";
 
@@ -30,11 +29,11 @@ type DismissedSkillsTrigger = Pick<
 
 type SkillsTriggerPluginProps = {
 	open: boolean;
-	skills: readonly TypesGen.UserSkillMetadata[];
+	itemCount: number;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onTriggerChange: (trigger: ActiveSkillsTrigger | null) => void;
-	onSkillSelect: (skill: TypesGen.UserSkillMetadata) => void;
+	onItemSelect: (index: number) => void;
 };
 
 const currentCaretRect = (): CaretAnchorRect | null => {
@@ -112,11 +111,11 @@ const activeTriggerFromSelection = (): Omit<
 
 export const SkillsTriggerPlugin = ({
 	open,
-	skills,
+	itemCount,
 	selectedIndex,
 	onSelectedIndexChange,
 	onTriggerChange,
-	onSkillSelect,
+	onItemSelect,
 }: SkillsTriggerPluginProps) => {
 	const [editor] = useLexicalComposerContext();
 	const dismissedTriggerRef = useRef<DismissedSkillsTrigger | null>(null);
@@ -177,12 +176,11 @@ export const SkillsTriggerPlugin = ({
 				return false;
 			}
 			event.preventDefault();
-			const count = skills.length;
-			if (count === 0) {
+			if (itemCount === 0) {
 				return true;
 			}
 			const currentIndex = Math.max(0, selectedIndex);
-			onSelectedIndexChange((currentIndex + delta + count) % count);
+			onSelectedIndexChange((currentIndex + delta + itemCount) % itemCount);
 			return true;
 		},
 	);
@@ -192,9 +190,8 @@ export const SkillsTriggerPlugin = ({
 			return false;
 		}
 		event?.preventDefault();
-		const skill = skills[selectedIndex];
-		if (skill) {
-			onSkillSelect(skill);
+		if (selectedIndex >= 0 && selectedIndex < itemCount) {
+			onItemSelect(selectedIndex);
 		}
 		return true;
 	});
@@ -203,12 +200,11 @@ export const SkillsTriggerPlugin = ({
 		if (!open) {
 			return false;
 		}
-		const skill = skills[selectedIndex];
-		if (!skill) {
+		if (selectedIndex < 0 || selectedIndex >= itemCount) {
 			return false;
 		}
 		event?.preventDefault();
-		onSkillSelect(skill);
+		onItemSelect(selectedIndex);
 		return true;
 	});
 

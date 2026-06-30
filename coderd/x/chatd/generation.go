@@ -105,6 +105,7 @@ const (
 	generationActionEnterRequiresAction generationActionKind = "enter_requires_action"
 	generationActionFinishTurn          generationActionKind = "finish_turn"
 	generationActionCompact             generationActionKind = "compact"
+	generationActionManualCompact       generationActionKind = "manual_compact"
 	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
 )
 
@@ -174,6 +175,7 @@ type generationDecisionInput struct {
 	maxSteps                   int
 	compactionEnabled          bool
 	compactionNeeded           bool
+	manualCompactionRequested  bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
 }
@@ -206,6 +208,9 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	}
 	if stopAfter {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonStopAfterTool}, nil
+	}
+	if input.manualCompactionRequested {
+		return generationDecision{kind: generationActionManualCompact}, nil
 	}
 	complete, err := currentHistoryComplete(input.messages)
 	if err != nil {
@@ -332,6 +337,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				maxSteps:                   prepared.MaxSteps,
 				compactionEnabled:          prepared.Compaction != nil,
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+				manualCompactionRequested:  prepared.Compaction != nil && prepared.Compaction.Options.Source == chatloop.CompactionSourceManual,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     prepared.ContextLimitFallback,
 			})
@@ -366,6 +372,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
 			actionErr = s.generateCompaction(ctx, machine, input, prepared)
+		case generationActionManualCompact:
+			actionErr = s.generateManualCompaction(ctx, machine, input, prepared)
 		default:
 			return s.finishGenerationError(ctx, machine, input, 0, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
 		}
@@ -724,6 +732,7 @@ func (s *taskStarter) generateCompaction(
 		activeAPIKeyID: prepared.ModelBuildOptions.ActiveAPIKeyID,
 		toolCallID:     compactionOpts.ToolCallID,
 		toolName:       compactionOpts.ToolName,
+		source:         compactionOpts.Source.String(),
 		compaction:     compactionOutcome(outcome),
 		contentVersion: chatprompt.CurrentContentVersion,
 	})
@@ -742,6 +751,72 @@ func (s *taskStarter) generateCompaction(
 	return nil
 }
 
+func (s *taskStarter) generateManualCompaction(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	prepared generationPrepared,
+) error {
+	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
+	if err != nil {
+		return xerrors.Errorf("beginGenerationAttempt: %w", err)
+	}
+	defer closeEpisode()
+	if prepared.Compaction == nil {
+		return s.finishGenerationError(ctx, machine, input, attempt, xerrors.New("manual compaction action missing options"), generationAttemptRequired)
+	}
+	if !manualCompactionHasWork(prepared.Messages) {
+		return s.finishManualCompaction(ctx, machine, input, attempt, stepMessagesForCommit{})
+	}
+	compactionOpts := prepared.Compaction.Options
+	compactionOpts.Force = true
+	compactionOpts.Source = chatloop.CompactionSourceManual
+	compactionOpts.PublishMessagePart = publish
+	outcome, err := chatloop.GenerateCompaction(ctx, compactionOpts)
+	if err != nil {
+		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		return xerrors.Errorf("generate manual compaction: %w", err)
+	}
+	if strings.TrimSpace(outcome.SystemSummary) == "" && strings.TrimSpace(outcome.SummaryReport) == "" {
+		return s.finishManualCompaction(ctx, machine, input, attempt, stepMessagesForCommit{})
+	}
+	if strings.TrimSpace(outcome.SystemSummary) == "" || strings.TrimSpace(outcome.SummaryReport) == "" {
+		err := xerrors.New("manual compaction produced no summary")
+		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
+	}
+	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID:  prepared.ModelConfigID,
+		activeAPIKeyID: prepared.ModelBuildOptions.ActiveAPIKeyID,
+		toolCallID:     compactionOpts.ToolCallID,
+		toolName:       compactionOpts.ToolName,
+		source:         compactionOpts.Source.String(),
+		compaction:     compactionOutcome(outcome),
+		contentVersion: chatprompt.CurrentContentVersion,
+	})
+	if err != nil {
+		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
+	}
+	err = s.finishManualCompaction(ctx, machine, input, attempt, stepMessagesForCommit{
+		Messages:       messages.Messages,
+		VisibleIndexes: visibleMessageIndexes(messages.Messages),
+	})
+	s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), err == nil, err)
+	if err != nil {
+		return xerrors.Errorf("finish manual compaction: %w", err)
+	}
+	return nil
+}
+
+func manualCompactionHasWork(messages []database.ChatMessage) bool {
+	if latestPromptUsage(messages) == (fantasy.Usage{}) {
+		return false
+	}
+	boundaryIndex := latestCompactionBoundaryIndex(messages)
+	return boundaryIndex == -1 || hasUncompressedMessageAfter(messages, boundaryIndex)
+}
+
 func compactionProvider(opts chatloop.GenerateCompactionOptions) string {
 	if opts.Model == nil {
 		return ""
@@ -754,6 +829,58 @@ func compactionModel(opts chatloop.GenerateCompactionOptions) string {
 		return ""
 	}
 	return opts.Model.Model()
+}
+
+func (s *taskStarter) finishManualCompaction(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	attempt int64,
+	messages stepMessagesForCommit,
+) error {
+	var committed database.Chat
+	var promotedMessageID int64
+	insertedMessages := []runnerActionMessage{}
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		locked, err := store.GetChatByID(ctx, input.ChatID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
+		}
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if err := verifyGenerationFence(locked, input, attempt); err != nil {
+			return xerrors.Errorf("verifyGenerationFence: %w", err)
+		}
+		finishResult, err := tx.FinishManualCompaction(chatstate.FinishManualCompactionInput{
+			Messages: messages.Messages,
+		})
+		if err != nil {
+			return xerrors.Errorf("tx.FinishManualCompaction: %w", err)
+		}
+		insertedMessages = make([]runnerActionMessage, 0, len(finishResult.InsertedMessages))
+		for _, msg := range finishResult.InsertedMessages {
+			insertedMessages = append(insertedMessages, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
+		}
+		if finishResult.PromotedMessage != nil {
+			promotedMessageID = finishResult.PromotedMessage.ID
+		}
+		committed = finishResult.Chat
+		return nil
+	})
+	if err != nil {
+		return normalizeTaskTransitionError(err, "finish manual compaction")
+	}
+	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+		return xerrors.Errorf("publish watch and route: %w", err)
+	}
+	return s.afterGenerationOutcome(ctx, generationOutcome{
+		Chat:              committed,
+		Kind:              runnerActionKind(generationActionManualCompact),
+		WatchEventKind:    codersdk.ChatWatchEventKindStatusChange,
+		PromotedMessageID: promotedMessageID,
+		InsertedMessages:  insertedMessages,
+	})
 }
 
 func (s *taskStarter) beginGenerationAttempt(
@@ -993,6 +1120,11 @@ func (s *taskStarter) finishGenerationError(
 			}
 		} else if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("verifyTaskFence: %w", err)
+		}
+		if locked.ManualCompactionRequestedAt.Valid {
+			if err := store.ClearChatManualCompactionRequest(ctx, input.ChatID); err != nil {
+				return xerrors.Errorf("clear manual compaction request: %w", err)
+			}
 		}
 		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
 			return xerrors.Errorf("tx.FinishError: %w", err)

@@ -2,7 +2,9 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -82,10 +84,17 @@ func (server *Server) prepareGeneration(
 		return generationPrepared{}, err
 	}
 
+	var err error
+	manualCompactionRequest, manualCompactionRequested, err := loadManualCompactionRequest(ctx, server.db, chat.ID)
+	if err != nil {
+		return generationPrepared{}, err
+	}
 	modelOpts = modelBuildOptionsFromMessages(promptRows)
+	if manualCompactionRequested {
+		modelOpts.ActiveAPIKeyID = manualCompactionRequest.ManualCompactionApiKeyID.String
+	}
 	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
 
-	var err error
 	model, modelConfig, providerKeys, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
@@ -593,9 +602,15 @@ func (server *Server) prepareGeneration(
 		DebugSvc:             debugSvc,
 		ChatID:               chat.ID,
 		HistoryTipMessageID:  historyTipMessageID,
+		Source:               chatloop.CompactionSourceAutomatic,
 	}
 	compactionOptions.StepUsage = latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionOptions.StepUsage, modelConfig.ContextLimit, effectiveThreshold)
+	if manualCompactionRequested {
+		compactionOptions.Force = true
+		compactionOptions.Source = chatloop.CompactionSourceManual
+		compactionNeeded = true
+	}
 
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
 	// AgentID/BuildID binding from the getWorkspaceAgent call above.
@@ -635,6 +650,21 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+func loadManualCompactionRequest(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+) (database.GetChatManualCompactionRequestRow, bool, error) {
+	req, err := store.GetChatManualCompactionRequest(ctx, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.GetChatManualCompactionRequestRow{}, false, nil
+	}
+	if err != nil {
+		return database.GetChatManualCompactionRequestRow{}, false, xerrors.Errorf("get manual compaction request: %w", err)
+	}
+	return req, true, nil
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

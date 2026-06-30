@@ -125,6 +125,20 @@ are queued and delivered when the agent completes its current step, so there is
 no need to wait for a response before providing additional context or changing
 direction.
 
+### Context compaction
+
+Coder Agents automatically summarizes older chat history when context usage crosses the configured compression threshold for the selected model.
+The full transcript stays visible in the chat, but the model receives a summary boundary instead of the older messages.
+
+To compact an idle chat manually, type the exact built-in slash command `/compact` and submit it.
+The command summarizes earlier history without sending `/compact` as a user message to the model.
+Manual compaction is available only to the chat owner, and only when the chat is not archived, not running, and has no queued messages.
+The command is ignored as a built-in command when the draft includes attachments or file references, when you are editing an existing message, or when the text includes anything besides `/compact`.
+
+The chat context indicator shows the active threshold with text such as `Compacts at 70%`.
+For per-model user overrides, go to **Agents** > **Settings** > **Compaction**.
+For deployment-wide model defaults, refer to [Models](./models.md#model-options).
+
 ### Image attachments
 
 Users can attach images to chat messages by pasting from the clipboard, dragging

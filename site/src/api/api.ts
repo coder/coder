@@ -3446,6 +3446,15 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	compactChat = async (
+		chatId: string,
+	): Promise<TypesGen.CompactChatResponse> => {
+		const response = await this.axios.post<TypesGen.CompactChatResponse>(
+			`/api/experimental/chats/${chatId}/compact`,
+		);
+		return response.data;
+	};
+
 	editChatMessage = async (
 		chatId: string,
 		messageId: number,

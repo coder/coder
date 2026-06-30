@@ -158,22 +158,22 @@ configuration schema, so the available options always match the provider type.
 
 These options apply to all providers:
 
-| Option                | Description                                                                                      |
-|-----------------------|--------------------------------------------------------------------------------------------------|
-| Model Identifier      | The API model string sent to the provider (e.g., `claude-opus-4-6`).                             |
-| Display Name          | The label shown to developers in the model selector.                                             |
-| Context Limit         | Maximum tokens in the context window. Used to determine when context compaction triggers.        |
-| Compression Threshold | Percentage (0-100) of context usage at which the agent compresses older messages into a summary. |
-| Max Output Tokens     | Maximum tokens generated per model response.                                                     |
-| Temperature           | Controls randomness. Lower values produce more deterministic output.                             |
-| Top P                 | Nucleus sampling threshold.                                                                      |
-| Top K                 | Limits token selection to the top K candidates.                                                  |
-| Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
-| Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
-| Input Price           | Optional USD price metadata for input tokens, recorded per 1M tokens.                            |
-| Output Price          | Optional USD price metadata for output tokens, recorded per 1M tokens.                           |
-| Cache Read Price      | Optional USD price metadata for cache read tokens, recorded per 1M tokens.                       |
-| Cache Write Price     | Optional USD price metadata for cache creation/write tokens, recorded per 1M tokens.             |
+| Option                | Description                                                                                                                                            |
+|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Model Identifier      | The API model string sent to the provider (e.g., `claude-opus-4-6`).                                                                                   |
+| Display Name          | The label shown to developers in the model selector.                                                                                                   |
+| Context Limit         | Maximum tokens in the context window. Used to determine when context compaction triggers.                                                              |
+| Compression Threshold | Percentage (0-100) of context usage at which the agent compresses older messages into a summary. Users can override this per model in Agents settings. |
+| Max Output Tokens     | Maximum tokens generated per model response.                                                                                                           |
+| Temperature           | Controls randomness. Lower values produce more deterministic output.                                                                                   |
+| Top P                 | Nucleus sampling threshold.                                                                                                                            |
+| Top K                 | Limits token selection to the top K candidates.                                                                                                        |
+| Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                                                                       |
+| Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                                                                         |
+| Input Price           | Optional USD price metadata for input tokens, recorded per 1M tokens.                                                                                  |
+| Output Price          | Optional USD price metadata for output tokens, recorded per 1M tokens.                                                                                 |
+| Cache Read Price      | Optional USD price metadata for cache read tokens, recorded per 1M tokens.                                                                             |
+| Cache Write Price     | Optional USD price metadata for cache creation/write tokens, recorded per 1M tokens.                                                                   |
 
 ### Provider-specific options
 
@@ -273,6 +273,19 @@ and resolution falls through to the next.
 > Both override layers are experimental and may change between releases.
 > The same values are available through the experimental chat
 > configuration API under `/api/experimental/chats/config/`.
+
+### User compaction thresholds
+
+Developers can override automatic compaction thresholds per enabled model from **Agents** > **Settings** > **Compaction**.
+Set a threshold from 0-100%.
+A value of `100%` disables automatic compaction for that model.
+
+When a chat runs, Coder resolves the threshold in this order:
+
+1. The user's per-model compaction threshold.
+1. The administrator's **Compression Threshold** on the model.
+
+The same values are available through the experimental chat configuration API under `/api/experimental/chats/config/user-compaction-thresholds`.
 
 ## User API keys (BYOK)
 

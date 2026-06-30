@@ -609,6 +609,50 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	}, nil
 }
 
+// RequestManualCompactionInput configures [Tx.RequestManualCompaction].
+type RequestManualCompactionInput struct {
+	RequestedBy uuid.UUID
+	APIKeyID    string
+}
+
+// RequestManualCompactionResult is returned by [Tx.RequestManualCompaction].
+type RequestManualCompactionResult struct {
+	Chat database.Chat
+}
+
+// RequestManualCompaction records a pending manual compaction request
+// and moves an idle chat into running status for worker pickup.
+func (tx *Tx) RequestManualCompaction(input RequestManualCompactionInput) (RequestManualCompactionResult, error) {
+	_, from, err := tx.requireFromAllowed(TransitionRequestManualCompaction)
+	if err != nil {
+		return RequestManualCompactionResult{}, err
+	}
+	if input.RequestedBy == uuid.Nil {
+		return RequestManualCompactionResult{}, newTransitionError(
+			TransitionRequestManualCompaction, from,
+			"requested_by is required",
+		)
+	}
+	if input.APIKeyID == "" {
+		return RequestManualCompactionResult{}, newTransitionError(
+			TransitionRequestManualCompaction, from,
+			"api_key_id is required",
+		)
+	}
+	if err := tx.store.RequestChatManualCompaction(tx.ctx, database.RequestChatManualCompactionParams{
+		ID:          tx.chatID,
+		RequestedBy: input.RequestedBy,
+		APIKeyID:    input.APIKeyID,
+	}); err != nil {
+		return RequestManualCompactionResult{}, xerrors.Errorf("request manual compaction: %w", err)
+	}
+	updated, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
+	if err != nil {
+		return RequestManualCompactionResult{}, xerrors.Errorf("reload chat after manual compaction request: %w", err)
+	}
+	return RequestManualCompactionResult{Chat: updated}, nil
+}
+
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
 	QueuedMessageID int64
@@ -1231,6 +1275,92 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}
 	return FinishInterruptionResult{
 		InsertedMessages: insertedPartial,
+		PromotedMessage:  promoted,
+	}, nil
+}
+
+// FinishManualCompactionInput configures [Tx.FinishManualCompaction].
+type FinishManualCompactionInput struct {
+	Messages []Message
+}
+
+// FinishManualCompactionResult is returned by [Tx.FinishManualCompaction].
+type FinishManualCompactionResult struct {
+	InsertedMessages []database.ChatMessage
+	Chat             database.Chat
+	PromotedMessage  *database.ChatMessage
+}
+
+// FinishManualCompaction clears a pending manual compaction request,
+// optionally commits generated compaction messages, and completes the
+// running turn without requesting a follow-up assistant response.
+func (tx *Tx) FinishManualCompaction(input FinishManualCompactionInput) (FinishManualCompactionResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionFinishManualCompaction)
+	if err != nil {
+		return FinishManualCompactionResult{}, err
+	}
+	insertedCompaction, err := tx.insertMessages(input.Messages)
+	if err != nil {
+		return FinishManualCompactionResult{}, xerrors.Errorf("insert manual compaction messages: %w", err)
+	}
+	if err := tx.store.ClearChatManualCompactionRequest(tx.ctx, tx.chatID); err != nil {
+		return FinishManualCompactionResult{}, xerrors.Errorf("clear manual compaction request: %w", err)
+	}
+	if from == StateR0 {
+		updated, err := tx.applyExecutionState(executionStateUpdate{
+			Status:                   database.ChatStatusWaiting,
+			Archived:                 false,
+			WorkerID:                 chat.WorkerID,
+			RunnerID:                 chat.RunnerID,
+			LastError:                chat.LastError,
+			RequiresActionDeadlineAt: sql.NullTime{},
+		})
+		if err != nil {
+			return FinishManualCompactionResult{}, xerrors.Errorf("set waiting: %w", err)
+		}
+		return FinishManualCompactionResult{
+			InsertedMessages: insertedCompaction,
+			Chat:             updated,
+		}, nil
+	}
+	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
+	if err != nil {
+		return FinishManualCompactionResult{}, xerrors.Errorf("get queue head: %w", err)
+	}
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
+	if err != nil {
+		return FinishManualCompactionResult{}, err
+	}
+	promotedMsg := messageFromQueuedRow(head)
+	insertedQueue, err := tx.insertMessages(append(cancels, promotedMsg))
+	if err != nil {
+		return FinishManualCompactionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
+	}
+	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
+		ID:     head.ID,
+		ChatID: tx.chatID,
+	}); err != nil {
+		return FinishManualCompactionResult{}, xerrors.Errorf("delete promoted head: %w", err)
+	}
+	updated, err := tx.applyExecutionState(executionStateUpdate{
+		Status:                   database.ChatStatusRunning,
+		Archived:                 false,
+		WorkerID:                 chat.WorkerID,
+		RunnerID:                 chat.RunnerID,
+		LastError:                chat.LastError,
+		RequiresActionDeadlineAt: sql.NullTime{},
+	})
+	if err != nil {
+		return FinishManualCompactionResult{}, xerrors.Errorf("set running: %w", err)
+	}
+	var promoted *database.ChatMessage
+	if len(insertedQueue) > 0 {
+		promoted = &insertedQueue[len(insertedQueue)-1]
+	}
+	insertedCompaction = append(insertedCompaction, insertedQueue...)
+	return FinishManualCompactionResult{
+		InsertedMessages: insertedCompaction,
+		Chat:             updated,
 		PromotedMessage:  promoted,
 	}, nil
 }

@@ -1354,6 +1354,7 @@ func New(options *Options) *API {
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
+				r.Post("/compact", api.compactChat)
 				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)

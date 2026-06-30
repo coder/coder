@@ -635,6 +635,11 @@ type CreateChatMessageResponse struct {
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
+// CompactChatResponse is the response from requesting manual compaction.
+type CompactChatResponse struct {
+	Chat Chat `json:"chat"`
+}
+
 // EditChatMessageResponse is the response from editing a message in a chat.
 // Edits are always synchronous (no queueing), so the message is returned
 // directly.
@@ -3312,6 +3317,20 @@ func (c *ExperimentalClient) CreateChatMessage(ctx context.Context, chatID uuid.
 	}
 	defer res.Body.Close()
 	var resp CreateChatMessageResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// CompactChat requests manual compaction for an idle chat.
+func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) (CompactChatResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/compact", chatID), nil)
+	if err != nil {
+		return CompactChatResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CompactChatResponse{}, readBodyAsChatUsageLimitError(res)
+	}
+	var resp CompactChatResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

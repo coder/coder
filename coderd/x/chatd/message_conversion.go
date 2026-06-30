@@ -261,6 +261,7 @@ type buildCompactionMessagesInput struct {
 	activeAPIKeyID string
 	toolCallID     string
 	toolName       string
+	source         string
 	compaction     compactionOutcome
 	contentVersion int16
 }
@@ -279,13 +280,17 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	if toolName == "" {
 		toolName = "chat_summarized"
 	}
+	source := input.source
+	if source == "" {
+		source = "automatic"
+	}
 
 	systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(input.compaction.SystemSummary)})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction system summary: %w", err)
 	}
 	args, err := json.Marshal(map[string]any{
-		"source":            "automatic",
+		"source":            source,
 		"threshold_percent": input.compaction.ThresholdPercent,
 	})
 	if err != nil {
@@ -299,7 +304,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	summaryResult, err := json.Marshal(map[string]any{
 		"summary":              input.compaction.SummaryReport,
-		"source":               "automatic",
+		"source":               source,
 		"threshold_percent":    input.compaction.ThresholdPercent,
 		"usage_percent":        input.compaction.UsagePercent,
 		"context_tokens":       input.compaction.ContextTokens,

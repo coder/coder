@@ -276,11 +276,30 @@ type ToolExecutionOutcome struct {
 	Step PersistedStep
 }
 
+// CompactionSource identifies why a compaction was requested.
+type CompactionSource string
+
+const (
+	CompactionSourceAutomatic CompactionSource = "automatic"
+	CompactionSourceManual    CompactionSource = "manual"
+)
+
+func (s CompactionSource) String() string {
+	switch s {
+	case CompactionSourceManual:
+		return string(CompactionSourceManual)
+	default:
+		return string(CompactionSourceAutomatic)
+	}
+}
+
 // GenerateCompactionOptions configures one context compaction call.
 type GenerateCompactionOptions struct {
 	Model    fantasy.LanguageModel
 	Messages []fantasy.Message
 
+	Force                bool
+	Source               CompactionSource
 	ThresholdPercent     int32
 	ContextLimit         int64
 	ContextLimitFallback int64

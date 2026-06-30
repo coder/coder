@@ -14,6 +14,7 @@ const (
 	TransitionSetArchived             Transition = "SetArchived"
 	TransitionSendMessage             Transition = "SendMessage"
 	TransitionEditMessage             Transition = "EditMessage"
+	TransitionRequestManualCompaction Transition = "RequestManualCompaction"
 	TransitionDeleteQueuedMessage     Transition = "DeleteQueuedMessage"
 	TransitionPromoteQueuedMessage    Transition = "PromoteQueuedMessage"
 	TransitionInterrupt               Transition = "Interrupt"
@@ -25,6 +26,7 @@ const (
 	TransitionCommitStep              Transition = "CommitStep"
 	TransitionEnterRequiresAction     Transition = "EnterRequiresAction"
 	TransitionFinishInterruption      Transition = "FinishInterruption"
+	TransitionFinishManualCompaction  Transition = "FinishManualCompaction"
 	TransitionFinishTurn              Transition = "FinishTurn"
 	TransitionFinishError             Transition = "FinishError"
 	TransitionCancelRequiresAction    Transition = "CancelRequiresAction"
@@ -44,6 +46,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionSetArchived,
 	TransitionSendMessage,
 	TransitionEditMessage,
+	TransitionRequestManualCompaction,
 	TransitionDeleteQueuedMessage,
 	TransitionPromoteQueuedMessage,
 	TransitionInterrupt,
@@ -53,6 +56,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionCommitStep,
 	TransitionEnterRequiresAction,
 	TransitionFinishInterruption,
+	TransitionFinishManualCompaction,
 	TransitionFinishTurn,
 	TransitionFinishError,
 	TransitionCancelRequiresAction,
@@ -75,14 +79,16 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCreateChat: {StateR0},
 	},
 	StateW: {
-		TransitionSetArchived: {StateXW},
-		TransitionSendMessage: {StateR0},
-		TransitionEditMessage: {StateR0},
+		TransitionSetArchived:             {StateXW},
+		TransitionSendMessage:             {StateR0},
+		TransitionEditMessage:             {StateR0},
+		TransitionRequestManualCompaction: {StateR0},
 	},
 	StateE0: {
-		TransitionSetArchived: {StateXE0},
-		TransitionSendMessage: {StateR0},
-		TransitionEditMessage: {StateR0},
+		TransitionSetArchived:             {StateXE0},
+		TransitionSendMessage:             {StateR0},
+		TransitionEditMessage:             {StateR0},
+		TransitionRequestManualCompaction: {StateR0},
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
@@ -100,6 +106,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCommitStep:              {StateR0},
 		TransitionEnterRequiresAction:     {StateA0},
 		TransitionFinishTurn:              {StateW},
+		TransitionFinishManualCompaction:  {StateW},
 		TransitionFinishError:             {StateE0},
 	},
 	StateR1: {
@@ -113,6 +120,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCommitStep:              {StateR1},
 		TransitionEnterRequiresAction:     {StateA1},
 		TransitionFinishTurn:              {StateR0, StateR1},
+		TransitionFinishManualCompaction:  {StateR0, StateR1},
 		TransitionFinishError:             {StateE1},
 	},
 	StateI0: {

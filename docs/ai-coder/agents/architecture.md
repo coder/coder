@@ -91,6 +91,7 @@ agent generates a compressed summary and inserts it as a new message. Earlier
 messages remain in the database and are still visible to users, but are excluded
 from the model's context window. This happens transparently and keeps
 long-running sessions productive.
+Users can also trigger compaction manually with `/compact` when the chat is idle; refer to [Coder Agents](./index.md#context-compaction) for usage details.
 
 ### Message queuing
 
@@ -232,9 +233,9 @@ All chat data is stored in the control plane database, not in the workspace.
   parent/child relationships for sub-agents.
 - **Messages** — every message (user, assistant, tool calls, tool results) is
   stored as a separate record with role, content, and token usage.
-- **Compressed context** — when the agent compacts the conversation, summaries
-  are stored with a compression flag so the original context budget is
-  preserved.
+- **Compressed context**: when the agent compacts the conversation automatically
+  or through `/compact`, summaries are stored with a compression flag so the
+  original context budget is preserved.
 - **Queued messages** — follow-up messages sent while the agent is working are
   held in a queue and delivered in order.
 
