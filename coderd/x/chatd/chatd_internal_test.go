@@ -3485,3 +3485,40 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 	require.True(t, updatedBuild.Deadline.After(now.Add(time.Hour-2*time.Minute)))
 	require.True(t, updatedBuild.Deadline.Before(now.Add(time.Hour+2*time.Minute)))
 }
+
+func TestServer_inflightContext(t *testing.T) {
+	t.Parallel()
+
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx}
+
+	type ctxKey string
+	const key ctxKey = "inflight-test"
+	reqCtx, reqCancel := context.WithCancel(context.WithValue(context.Background(), key, "value"))
+	t.Cleanup(reqCancel)
+
+	inflightCtx, stop := server.inflightContext(reqCtx)
+	t.Cleanup(stop)
+
+	// Auth and routing values must carry over from the request.
+	require.Equal(t, "value", inflightCtx.Value(key))
+
+	// Request cancellation must not cancel in-flight work: it has to outlive
+	// the originating request.
+	reqCancel()
+	select {
+	case <-inflightCtx.Done():
+		t.Fatal("inflight context canceled by request cancellation")
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	// Server shutdown must cancel in-flight work so Close does not block
+	// on long-running callees while a provider is unreachable.
+	serverCancel()
+	select {
+	case <-inflightCtx.Done():
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("inflight context not canceled on server shutdown")
+	}
+}

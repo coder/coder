@@ -178,7 +178,7 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 
 	dispatcher := &recordingWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{db: db, pubsub: ps, webpushDispatcher: dispatcher}
+	server := &Server{ctx: t.Context(), db: db, pubsub: ps, webpushDispatcher: dispatcher}
 	server.maybeFinalizeTurnStatusLabelAndPush(
 		context.WithoutCancel(ctx),
 		chat,
@@ -260,6 +260,7 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 
 	dispatcher := &recordingWebpushDispatcher{}
 	server := &Server{
+		ctx:               t.Context(),
 		db:                db,
 		pubsub:            ps,
 		logger:            slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
