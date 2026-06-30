@@ -1919,7 +1919,7 @@ Once enabled, extra headers will be added to upstream requests to identify the u
 | Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
 | YAML        | <code>ai_gateway.api_dump_dir</code>    |
 
-Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
+Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
 
 ### --ai-gateway-allow-byok
 

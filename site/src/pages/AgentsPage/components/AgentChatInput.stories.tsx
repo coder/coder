@@ -613,9 +613,7 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -648,9 +646,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);

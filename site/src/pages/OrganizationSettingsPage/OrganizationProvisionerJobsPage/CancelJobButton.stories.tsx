@@ -30,7 +30,7 @@ export const NotCancellable: Story = {
 
 export const ConfirmOnClick: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();

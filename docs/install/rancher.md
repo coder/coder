@@ -127,7 +127,7 @@ kubectl create secret generic coder-db-url -n coder \
      #    - my-tls-secret-name
    ```
 
-   For available configuration options, refer to the [Helm chart documentation](../../helm#readme)
+   For available configuration options, refer to the [Helm chart documentation](../../helm)
    or [values.yaml file](../../helm/coder/values.yaml).
 
    </details>

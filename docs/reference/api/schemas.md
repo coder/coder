@@ -13436,6 +13436,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "avatar_url": "http://example.com",
   "name": "string",
   "username": "string"
 }
@@ -13443,10 +13444,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name       | Type   | Required | Restrictions | Description |
-|------------|--------|----------|--------------|-------------|
-| `name`     | string | false    |              |             |
-| `username` | string | true     |              |             |
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                 |
+|--------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url` | string | false    |              | Avatar URL is only applied for users whose login type is password or none. For other login types the avatar is synced from the identity provider on login, so a submitted value is ignored. |
+| `name`       | string | false    |              |                                                                                                                                                                                             |
+| `username`   | string | true     |              |                                                                                                                                                                                             |
 
 ## codersdk.UpdateUserQuietHoursScheduleRequest
 

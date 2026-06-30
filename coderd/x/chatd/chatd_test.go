@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -81,14 +82,6 @@ func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *at
 	var ptr atomic.Pointer[aibridge.TransportFactory]
 	ptr.Store(&factory)
 	return &ptr
-}
-
-func directChatRoutingDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
-	t.Helper()
-
-	values := coderdtest.DeploymentValues(t)
-	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-	return values
 }
 
 func openAIToolName(tool chattest.OpenAITool) string {
@@ -202,11 +195,11 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -359,11 +352,11 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -526,11 +519,12 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4650,11 +4644,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4815,11 +4809,11 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -5284,7 +5278,7 @@ func highUsageReadFileResponse(path string) chattest.AnthropicResponse {
 	return chattest.AnthropicStreamingResponse(chunks...)
 }
 
-func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
+func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -9694,7 +9688,7 @@ func seedAIGatewayOpenAITestDependencies(
 	return user, org, provider, model, apiKey
 }
 
-func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
+func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -9758,7 +9752,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	}
 }
 
-func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
+func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -11264,12 +11258,13 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:              deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:              coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon:      true,
 		ChatdInstructionLookupTimeout: testutil.WaitLong,
 	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -12491,6 +12486,162 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		"advisor snapshot must retain the turn 1 user message even when chain mode is active")
 	require.Contains(t, string(gotAdvisorBody), turn1Reply,
 		"advisor snapshot must retain the turn 1 assistant message even when chain mode is active")
+}
+
+// TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
+// provider-switch contract:
+//
+//  1. A turn using model MA (backed by provider A) produces a
+//     provider-executed (PE) tool call in the DB.
+//  2. A subsequent turn using model MB (backed by provider B) does NOT
+//     send that PE tool call to provider B.
+//  3. A further turn back to MA sends the PE tool call to provider A again.
+//  4. The DB row is never mutated; the filter is read-time only.
+func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// Given: two AI providers A and B
+	const peToolCallID = "pe_switch_test_id"
+
+	chanA := make(chan string, 4)
+	chanB := make(chan string, 4)
+
+	serverAURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		chanA <- string(req.RawBody)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from A")...)
+	})
+	serverBURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		chanB <- string(req.RawBody)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from B")...)
+	})
+	cpA := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverAURL,
+	})
+	cpB := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverBURL,
+	})
+
+	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model A",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
+	})
+	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model B",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
+	})
+
+	server := newActiveTestServer(t, db, ps)
+
+	// Given: an initial conversation turn with model A that produces provider-executed
+	// tool call results
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
+		Title:              "provider-switch-test",
+		ModelConfigID:      mA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, mA.ID, uuid.Nil,
+		[]codersdk.ChatMessagePart{
+			{
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Args:             json.RawMessage(`{"query":"coder"}`),
+				ProviderExecuted: true,
+			},
+			{
+				Type:             codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Result:           json.RawMessage(`"search results"`),
+				ProviderExecuted: true,
+			},
+			codersdk.ChatMessageText("here is the answer"),
+		},
+	)
+
+	// When: a conversation turn is executed with model B
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mB.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue with B")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// When: a further conversation turn is executed with model A again
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mA.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("back to A")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// Then: the provider-executed tool call results should still be in the database
+	allMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: chat.ID,
+	})
+	require.NoError(t, err)
+	var peRowFound bool
+	for _, msg := range allMessages {
+		if msg.Role != database.ChatMessageRoleAssistant || msg.ModelConfigID.UUID != mA.ID {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, p := range parts {
+			if p.ProviderExecuted && p.ToolCallID == peToolCallID {
+				peRowFound = true
+			}
+		}
+	}
+	require.True(t, peRowFound, "PE tool call must still be in the DB after provider switches")
+
+	// Skip initial generation request
+	_ = testutil.TryReceive(ctx, t, chanA)
+
+	// Then: PE tool call ID from A must not appear in the request to provider B
+	turn2Body := testutil.TryReceive(ctx, t, chanB)
+	require.NotContains(t, turn2Body, peToolCallID,
+		"provider B must not receive the PE tool call from provider A")
+
+	// Then: PE tool call ID must appear in the second request to provider A
+	turn3Body := testutil.TryReceive(ctx, t, chanA)
+	require.Contains(t, turn3Body, peToolCallID,
+		"provider A must receive its own PE tool call when switching back")
 }
 
 func seedAdvisorConfig(
