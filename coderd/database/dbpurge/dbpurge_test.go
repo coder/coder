@@ -247,6 +247,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -297,6 +298,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
@@ -1115,6 +1117,144 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 		t.Logf("eventually: total count: %d, old count: %d", totalCount, oldCount)
 		return totalCount == 2 && oldCount == 0
 	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
+}
+
+func TestDeleteOldWorkspaceBuildOrchestrations(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		JobID:          versionJob.ID,
+		CreatedBy:      user.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+	})
+
+	now := dbtime.Now()
+	cutoff := now.Add(-24 * time.Hour)
+	buildTime := cutoff.Add(-time.Hour)
+	oldCompletedTime := cutoff.Add(-3 * time.Minute)
+	oldFailedTime := cutoff.Add(-2 * time.Minute)
+	oldCanceledTime := cutoff.Add(-time.Minute)
+	oldPendingTime := cutoff.Add(-time.Minute)
+	recentTime := cutoff.Add(time.Minute)
+
+	createBuild := func(buildNumber int32, createdAt time.Time) database.WorkspaceBuild {
+		return mustCreateWorkspaceBuild(t, db, org, version, workspace.ID, createdAt, buildNumber)
+	}
+	insertOrchestration := func(parentBuild database.WorkspaceBuild, updatedAt time.Time) database.WorkspaceBuildOrchestration {
+		orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+			ID:                       uuid.New(),
+			CreatedAt:                updatedAt,
+			UpdatedAt:                updatedAt,
+			ParentBuildID:            parentBuild.ID,
+			ChildTransition:          database.WorkspaceTransitionStart,
+			ChildRichParameterValues: json.RawMessage("[]"),
+		})
+		require.NoError(t, err)
+		return orchestration
+	}
+
+	// Given: old terminal orchestration rows (completed, failed,
+	// canceled), an old pending row, and a recent terminal row.
+	oldCompletedParent := createBuild(1, buildTime)
+	oldCompletedChild := createBuild(2, buildTime)
+	oldCompleted := insertOrchestration(oldCompletedParent, oldCompletedTime)
+	_, err := db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams{
+		ID:           oldCompleted.ID,
+		ChildBuildID: uuid.NullUUID{UUID: oldCompletedChild.ID, Valid: true},
+		UpdatedAt:    oldCompletedTime,
+	})
+	require.NoError(t, err)
+
+	oldFailedParent := createBuild(3, buildTime)
+	oldFailed := insertOrchestration(oldFailedParent, oldFailedTime)
+	_, err = db.UpdateWorkspaceBuildOrchestrationFailedByID(ctx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
+		ID:        oldFailed.ID,
+		Error:     sql.NullString{String: "failed", Valid: true},
+		UpdatedAt: oldFailedTime,
+	})
+	require.NoError(t, err)
+
+	oldCanceledParent := createBuild(4, buildTime)
+	oldCanceled := insertOrchestration(oldCanceledParent, oldCanceledTime)
+	_, err = db.UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams{
+		ID:        oldCanceled.ID,
+		UpdatedAt: oldCanceledTime,
+	})
+	require.NoError(t, err)
+
+	oldPendingParent := createBuild(5, buildTime)
+	oldPending := insertOrchestration(oldPendingParent, oldPendingTime)
+
+	recentCompletedParent := createBuild(6, buildTime)
+	recentCompletedChild := createBuild(7, buildTime)
+	recentCompleted := insertOrchestration(recentCompletedParent, recentTime)
+	_, err = db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams{
+		ID:           recentCompleted.ID,
+		ChildBuildID: uuid.NullUUID{UUID: recentCompletedChild.ID, Valid: true},
+		UpdatedAt:    recentTime,
+	})
+	require.NoError(t, err)
+
+	// When: old workspace build orchestrations are deleted with LimitCount 1
+	err = db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+		BeforeTime: cutoff,
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+
+	// Then: only the oldest terminal row is deleted.
+	assertOrchestrationDeleted(ctx, t, rawDB, oldCompletedParent.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldFailedParent.ID, oldFailed.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldCanceledParent.ID, oldCanceled.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldPendingParent.ID, oldPending.ID)
+	assertOrchestrationExists(ctx, t, rawDB, recentCompletedParent.ID, recentCompleted.ID)
+
+	// When: old workspace build orchestrations are deleted again.
+	err = db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+		BeforeTime: cutoff,
+		LimitCount: 10,
+	})
+	require.NoError(t, err)
+
+	// Then: the remaining old terminal rows are deleted.
+	assertOrchestrationDeleted(ctx, t, rawDB, oldFailedParent.ID)
+	assertOrchestrationDeleted(ctx, t, rawDB, oldCanceledParent.ID)
+	assertOrchestrationExists(ctx, t, rawDB, oldPendingParent.ID, oldPending.ID)
+	assertOrchestrationExists(ctx, t, rawDB, recentCompletedParent.ID, recentCompleted.ID)
+}
+
+func assertOrchestrationDeleted(ctx context.Context, t *testing.T, rawDB *sql.DB, parentBuildID uuid.UUID) {
+	t.Helper()
+
+	_, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuildID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func assertOrchestrationExists(ctx context.Context, t *testing.T, rawDB *sql.DB, parentBuildID uuid.UUID, orchestrationID uuid.UUID) {
+	t.Helper()
+
+	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuildID)
+	require.NoError(t, err)
+	require.Equal(t, orchestrationID, orchestration.ID)
 }
 
 func TestDeleteOldConnectionLogs(t *testing.T) {

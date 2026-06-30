@@ -222,6 +222,7 @@ type sqlcQuerier interface {
 	// Logs can take up a lot of space, so it's important we clean up frequently.
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
+	DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) error
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error

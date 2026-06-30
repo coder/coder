@@ -35299,6 +35299,34 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 	return err
 }
 
+const deleteOldWorkspaceBuildOrchestrations = `-- name: DeleteOldWorkspaceBuildOrchestrations :exec
+WITH deletable AS (
+    SELECT
+        id
+    FROM
+        workspace_build_orchestrations
+    WHERE
+        status IN ('completed', 'failed', 'canceled')
+        AND updated_at < $1::timestamptz
+    ORDER BY
+        updated_at ASC
+    LIMIT $2::int
+)
+DELETE FROM workspace_build_orchestrations
+USING deletable
+WHERE workspace_build_orchestrations.id = deletable.id
+`
+
+type DeleteOldWorkspaceBuildOrchestrationsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceBuildOrchestrations, arg.BeforeTime, arg.LimitCount)
+	return err
+}
+
 const getNextPendingWorkspaceBuildOrchestrationForUpdate = `-- name: GetNextPendingWorkspaceBuildOrchestrationForUpdate :one
 SELECT
     wbo.id, wbo.created_at, wbo.updated_at, wbo.workspace_id, wbo.parent_build_id, wbo.child_build_id, wbo.child_transition, wbo.child_template_version_id, wbo.child_template_version_preset_id, wbo.child_rich_parameter_values, wbo.child_log_level, wbo.child_reason, wbo.attempt_count, wbo.next_retry_after, wbo.status, wbo.error

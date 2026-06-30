@@ -4156,6 +4156,14 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionUpdate).
 			Returns(orchestration)
 	}))
+	s.Run("DeleteOldWorkspaceBuildOrchestrations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.DeleteOldWorkspaceBuildOrchestrationsParams{
+			BeforeTime: dbtime.Now(),
+			LimitCount: 100,
+		}
+		dbm.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionDelete)
+	}))
 	s.Run("Start/InsertWorkspaceBuildParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
 		b := testutil.Fake(s.T(), faker, database.WorkspaceBuild{

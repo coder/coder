@@ -39,6 +39,11 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
+	// Workspace build orchestration rows are operational handoff state.
+	// Keep terminal rows briefly for debugging, then purge them so the
+	// table remains small.
+	workspaceBuildOrchestrationTerminalRetention = 24 * time.Hour
+	workspaceBuildOrchestrationsBatchSize        = 1000
 	// Chat and chat file batch sizes stay smaller than audit/connection
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
@@ -273,6 +278,15 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			if err != nil {
 				return xerrors.Errorf("failed to delete old boundary sessions: %w", err)
 			}
+		}
+
+		deleteOldWorkspaceBuildOrchestrationsBefore := start.Add(-workspaceBuildOrchestrationTerminalRetention)
+		err = tx.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+			BeforeTime: deleteOldWorkspaceBuildOrchestrationsBefore,
+			LimitCount: workspaceBuildOrchestrationsBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
 		}
 
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64

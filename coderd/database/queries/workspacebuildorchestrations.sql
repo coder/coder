@@ -114,3 +114,20 @@ WHERE
     id = @id
     AND status = 'pending'
 RETURNING *;
+
+-- name: DeleteOldWorkspaceBuildOrchestrations :exec
+WITH deletable AS (
+    SELECT
+        id
+    FROM
+        workspace_build_orchestrations
+    WHERE
+        status IN ('completed', 'failed', 'canceled')
+        AND updated_at < @before_time::timestamptz
+    ORDER BY
+        updated_at ASC
+    LIMIT @limit_count::int
+)
+DELETE FROM workspace_build_orchestrations
+USING deletable
+WHERE workspace_build_orchestrations.id = deletable.id;
