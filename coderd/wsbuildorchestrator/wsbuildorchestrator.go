@@ -558,8 +558,8 @@ func (o *Orchestrator) createBuild(
 // childBuildErrorShouldFailOrchestration reports whether a child build
 // error should be persisted as a failed orchestration instead of retried.
 func childBuildErrorShouldFailOrchestration(err error) bool {
-	var buildErr wsbuilder.BuildError
-	if !errors.As(err, &buildErr) {
+	buildErr, ok := errors.AsType[wsbuilder.BuildError](err)
+	if !ok {
 		return false
 	}
 
@@ -578,16 +578,17 @@ func childBuildErrorShouldFailOrchestration(err error) bool {
 // orchestration row. Build errors can expose cleaner response
 // messages than Error(), which may contain only the wrapped cause.
 func childBuildErrorMessage(err error) string {
-	var buildErr wsbuilder.BuildError
-	if errors.As(err, &buildErr) {
-		_, response := buildErr.Response()
-		if response.Detail != "" && response.Detail != response.Message {
-			return fmt.Sprintf("%s: %s", response.Message, response.Detail)
-		}
-		if response.Message != "" {
-			return response.Message
-		}
-		return buildErr.Error()
+	buildErr, ok := errors.AsType[wsbuilder.BuildError](err)
+	if !ok {
+		return err.Error()
 	}
-	return err.Error()
+
+	_, response := buildErr.Response()
+	if response.Detail != "" && response.Detail != response.Message {
+		return fmt.Sprintf("%s: %s", response.Message, response.Detail)
+	}
+	if response.Message != "" {
+		return response.Message
+	}
+	return buildErr.Error()
 }
