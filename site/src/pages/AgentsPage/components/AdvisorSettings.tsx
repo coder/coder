@@ -300,7 +300,11 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				variant="outline"
 				type="button"
 				onClick={() => {
-					void form.setFieldValue("model_config_id", "");
+					void form.setValues({
+						max_uses_per_run: "0",
+						max_output_tokens: "0",
+						model_config_id: "",
+					});
 				}}
 				disabled={isFormDisabled}
 				className="h-10"
