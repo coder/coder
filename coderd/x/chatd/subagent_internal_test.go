@@ -911,6 +911,15 @@ func createInternalParentChat(
 	return parentChat
 }
 
+// withSubagentDelegatedKey enriches ctx with a delegated API key ID for
+// subagent tool callbacks. AI Gateway routing requires this key on the
+// context; tests that do not otherwise set it should call this helper
+// before invoking runSpawnAgentTool or runSubagentTool with spawn_agent.
+func withSubagentDelegatedKey(ctx context.Context, t *testing.T, db database.Store, ownerID uuid.UUID) context.Context {
+	t.Helper()
+	return aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, db, ownerID))
+}
+
 func runSubagentTool(
 	ctx context.Context,
 	t *testing.T,
@@ -1058,6 +1067,7 @@ func TestSpawnAgent_GeneralInheritsParentModelWhenOmitted(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-inherited-model",
 	)
 
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeGeneral,
 		Prompt: "delegate work",
@@ -1088,6 +1098,7 @@ func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-general-override",
 	)
 
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeGeneral,
 		Prompt: "delegate general work",
@@ -1280,6 +1291,7 @@ func TestSpawnAgent_GeneralHonorsPersonalModelOverrides(t *testing.T) {
 				"parent-general-personal-override",
 			)
 
+			ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 				Type:   subagentTypeGeneral,
 				Prompt: "delegate general work",
@@ -1341,6 +1353,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeGeneral,
 		Prompt: "inspect provider credentials",
@@ -1411,6 +1424,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 		Type:   subagentTypeGeneral,
 		Prompt: "inspect disabled providers",
@@ -1527,6 +1541,7 @@ func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-explore-override",
 	)
 
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSubagentTool(
 		ctx,
 		t,
@@ -1564,6 +1579,7 @@ func TestSpawnAgent_ExploreFallsBackToCurrentTurnModel(t *testing.T) {
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-fallback",
 	)
 
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSubagentTool(
 		ctx,
 		t,
@@ -2628,6 +2644,7 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 				model.ID,
 				"parent-lifecycle-"+tt.variant,
 			)
+			ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 
 			spawnResp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 				Type:   tt.variant,

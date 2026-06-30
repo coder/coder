@@ -5231,17 +5231,22 @@ func newTestServer(
 	db database.Store,
 	ps dbpubsub.Pubsub,
 	replicaID uuid.UUID,
+	overrides ...func(*chatd.Config),
 ) *chatd.Server {
 	t.Helper()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	cfg := chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		Experiments:                codersdk.ExperimentsKnown,
-	})
+	}
+	for _, o := range overrides {
+		o(&cfg)
+	}
+	server := chatd.New(ps, cfg)
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -11644,6 +11649,9 @@ func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
 	)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.Experiments = experiments
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
 	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
@@ -11740,7 +11748,11 @@ func TestAdvisorGating_RootChat(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -11915,7 +11927,11 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newTestServer(t, db, ps, uuid.New())
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12105,7 +12121,11 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 		Title:             "advisor-root-parent",
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	childChat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12184,7 +12204,11 @@ func TestAdvisorGating_PlanMode(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12264,7 +12288,11 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12413,7 +12441,11 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,

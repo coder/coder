@@ -394,16 +394,18 @@ func newOpenAIResponsesTestServer(
 	t *testing.T,
 	db database.Store,
 	ps dbpubsub.Pubsub,
+	overrides ...func(*chatd.Config),
 ) *chatd.Server {
 	t.Helper()
-	return newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+	allOverrides := append([]func(*chatd.Config){func(cfg *chatd.Config) {
 		// Let CreateChat and SendMessage publish their pending status
 		// before wake-driven processing starts. The responses tests are
 		// not exercising periodic polling, and PostgreSQL can otherwise
 		// deliver that stale pending notification after processChat
 		// subscribes to control events.
 		cfg.PendingChatAcquireInterval = testutil.WaitLong
-	})
+	}}, overrides...)
+	return newActiveTestServer(t, db, ps, allOverrides...)
 }
 
 func insertOpenAIResponsesModelConfig(

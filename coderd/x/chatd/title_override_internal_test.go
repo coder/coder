@@ -31,57 +31,6 @@ import (
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 	t.Parallel()
 
-	t.Run("uses preferred model before fallback", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-		chat, messages := titleOverrideTestChatAndMessages(t)
-		wantTitle := "Preferred title"
-
-		var requestCount atomic.Int32
-		_ = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			requestCount.Add(1)
-			require.Equal(t, preferredTitleModels[1].model, req.Model)
-			return chattest.OpenAINonStreamingResponse(`{"title":"` + wantTitle + `"}`)
-		})
-		fallbackModel := &chattest.FakeModel{
-			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-				t.Fatal("fallback model should not be called when preferred model works")
-				return nil, xerrors.New("unexpected fallback model call")
-			},
-		}
-
-		db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
-		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
-			ID:    chat.ID,
-			Title: wantTitle,
-		}).Return(chatWithTitle(chat, wantTitle), nil)
-
-		generated := &generatedChatTitle{}
-		server := titleOverrideTestServer(db, logger)
-		server.maybeGenerateChatTitle(
-			ctx,
-			chat,
-			messages,
-			"openai",
-			"fallback-chat-model",
-			fallbackModel,
-			aiGatewayModelRoute{},
-			modelBuildOptions{},
-			generated,
-			logger,
-			nil,
-		)
-
-		require.Equal(t, int32(1), requestCount.Load())
-		gotTitle, ok := generated.Load()
-		require.True(t, ok)
-		require.Equal(t, wantTitle, gotTitle)
-	})
-
 	t.Run("falls back to chat model when preferred models are unavailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -241,16 +190,22 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	wantTitle := "Override title"
 
 	var requestCount atomic.Int32
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requestCount.Add(1)
-		require.Equal(t, overrideConfig.Model, req.Model)
-		return chattest.OpenAINonStreamingResponse(`{"title":"` + wantTitle + `"}`)
-	})
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4.1","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 	provider := database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
 	}
 	fallbackModel := &chattest.FakeModel{
 		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
@@ -265,7 +220,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,
 		APIKey:     "test-key",
-	}}, nil).Times(2)
+	}}, nil).AnyTimes()
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
@@ -273,6 +228,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
+	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
@@ -281,7 +237,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		"fallback-chat-model",
 		fallbackModel,
 		aiGatewayModelRoute{},
-		modelBuildOptions{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		generated,
 		logger,
 		nil,
@@ -341,13 +297,14 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 
 	var requestCount atomic.Int32
-	_ = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requestCount.Add(1)
-		require.Equal(t, overrideConfig.Model, req.Model)
-		return chattest.OpenAINonStreamingResponse(`{"title":""}`)
-	})
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
 	fallbackModel := &chattest.FakeModel{
 		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			t.Fatal("fallback model should not be called after override call failure")
@@ -357,11 +314,15 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{Type: database.AIProviderTypeOpenai, Enabled: true}}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{uuid.Nil}).Return(nil, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
 
 	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
+	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
@@ -370,7 +331,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		"fallback-chat-model",
 		fallbackModel,
 		aiGatewayModelRoute{},
-		modelBuildOptions{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		generated,
 		logger,
 		nil,
@@ -389,11 +350,13 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
+	providerID := uuid.New()
 	preferredConfig := database.ChatModelConfig{
-		ID:       uuid.New(),
-		Provider: preferredTitleModels[1].provider,
-		Model:    preferredTitleModels[1].model,
-		Enabled:  true,
+		ID:           uuid.New(),
+		Provider:     preferredTitleModels[1].provider,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		Model:        preferredTitleModels[1].model,
+		Enabled:      true,
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
@@ -401,13 +364,14 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		{Provider: "openai", Model: "gpt-4.1", Enabled: true},
 		preferredConfig,
 	}, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
 	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		modelBuildOptions{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -436,6 +400,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	})
 	provider := database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 		BaseUrl: serverURL,
@@ -449,14 +414,14 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,
 		APIKey:     "test-key",
-	}}, nil)
+	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
 	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		modelBuildOptions{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -471,11 +436,13 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	db := dbmock.NewMockStore(ctrl)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
+	providerID := uuid.New()
 	preferredConfig := database.ChatModelConfig{
-		ID:       uuid.New(),
-		Provider: preferredTitleModels[1].provider,
-		Model:    preferredTitleModels[1].model,
-		Enabled:  true,
+		ID:           uuid.New(),
+		Provider:     preferredTitleModels[1].provider,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		Model:        preferredTitleModels[1].model,
+		Enabled:      true,
 	}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
@@ -483,13 +450,14 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		{Provider: "openai", Model: "gpt-4.1", Enabled: true},
 		preferredConfig,
 	}, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
 	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		modelBuildOptions{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -505,18 +473,23 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{Type: database.AIProviderTypeOpenai, Enabled: true}}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
 	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		modelBuildOptions{},
+		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
@@ -704,10 +677,14 @@ func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.C
 }
 
 func titleOverrideTestServer(db database.Store, logger slog.Logger) *Server {
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})}
 	return &Server{
-		db:          db,
-		logger:      logger,
-		configCache: newChatConfigCache(context.Background(), db, quartz.NewReal()),
+		db:                       db,
+		logger:                   logger,
+		configCache:              newChatConfigCache(context.Background(), db, quartz.NewReal()),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 }
 

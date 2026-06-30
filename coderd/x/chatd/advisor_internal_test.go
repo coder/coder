@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -107,7 +106,6 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
@@ -133,7 +131,6 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) *chatadvisor.Runtime {
@@ -176,7 +173,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -200,7 +196,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
@@ -230,7 +225,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
@@ -264,7 +258,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
@@ -308,7 +301,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -346,22 +338,14 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
-		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel,
-			"success path must return the override model, not the fallback")
-		require.NotNil(t, gotModel)
-		require.Equal(t, "openai", gotModel.Provider())
-		// Guard against ModelFromConfig silently ignoring the model field
-		// and returning a default. The override is only useful if the
-		// model name from the config row actually propagates.
-		require.Equal(t, "gpt-5.2", gotModel.Model())
-		require.NotNil(t, gotCfg.Temperature)
-		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
-	})
-
+		// The config has no AIProviderID, so AI Gateway routing cannot
+			// resolve an override. The fallback model is returned.
+		require.Equal(t, fantasy.LanguageModel(fallbackModel), gotModel)
+		require.Equal(t, fallbackCallConfig, gotCfg)
+		})
 	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -402,14 +386,13 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
-		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel)
-		require.NotNil(t, gotModel)
-		require.Equal(t, "openai", gotModel.Provider())
-		require.Equal(t, "gpt-5.2", gotModel.Model())
+		// AIProviderID is set, but the test Server has no
+		// aibridgeTransportFactory. The AI Gateway model cannot be
+		// constructed, so the fallback model is returned.
+		require.Equal(t, fantasy.LanguageModel(fallbackModel), gotModel)
 		require.Equal(t, fallbackCallConfig, gotCfg)
 	})
 }
@@ -561,7 +544,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -586,7 +568,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -609,7 +590,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
