@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
-export type BuiltInSlashCommandID = "compact";
+type BuiltInSlashCommandID = "compact";
 
 export type BuiltInSlashCommand = {
 	id: BuiltInSlashCommandID;
@@ -18,7 +18,7 @@ export const builtInSlashCommands: readonly BuiltInSlashCommand[] = [
 	},
 ];
 
-export type BuiltInSlashCommandParseInput = {
+type BuiltInSlashCommandParseInput = {
 	message: string;
 	content: readonly TypesGen.ChatInputPart[];
 	isEditing?: boolean;

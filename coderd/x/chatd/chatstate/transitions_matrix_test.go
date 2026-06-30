@@ -1877,10 +1877,8 @@ func finishManualCompactionCase(from, want chatstate.ExecutionState, shape queue
 		transition: chatstate.TransitionFinishManualCompaction,
 		from:       from,
 		want:       want,
-		seed: func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
-			return seedWithManualCompactionRequest(t, f, from)
-		},
-		apply: applyFinishManualCompaction,
+		seed:       seedWithManualCompactionRequest,
+		apply:      applyFinishManualCompaction,
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
 			require.NoError(t, err)
