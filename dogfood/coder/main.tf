@@ -404,7 +404,7 @@ module "windsurf" {
 module "zed" {
   count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
-  version    = "1.1.4"
+  version    = "1.1.5"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
   folder     = local.repo_dir
