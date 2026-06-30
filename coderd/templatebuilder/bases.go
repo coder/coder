@@ -59,7 +59,7 @@ type parsedBase struct {
 	FS            fs.FS
 	Readme        string            // full README.md content (including frontmatter)
 	Prerequisites string            // content between prerequisite comment markers
-	StaticFiles   map[string][]byte // non-template, non-manifest files (e.g. .tftpl)
+	ExtraFiles    map[string][]byte // non-template, non-manifest files (e.g. .tftpl)
 }
 
 var loadBases = sync.OnceValues(func() (map[string]*parsedBase, error) {
@@ -101,7 +101,7 @@ func parseBasesFromFS(fsys fs.FS) (map[string]*parsedBase, error) {
 
 // parseBaseDir loads a single base template directory: reads the
 // manifest, pre-parses Go templates, reads the README, and collects
-// static files.
+// extra files.
 func parseBaseDir(parent fs.FS, dirName string) (*parsedBase, error) {
 	manifest, err := parseManifest(parent, dirName)
 	if err != nil {
@@ -124,9 +124,9 @@ func parseBaseDir(parent fs.FS, dirName string) (*parsedBase, error) {
 	}
 	readme := string(readmeData)
 
-	staticFiles, err := collectStaticFilesFromFS(baseFS)
+	extraFiles, err := collectExtraFilesFromFS(baseFS)
 	if err != nil {
-		return nil, xerrors.Errorf("collect static files for base %q: %w", manifest.ID, err)
+		return nil, xerrors.Errorf("collect extra files for base %q: %w", manifest.ID, err)
 	}
 
 	return &parsedBase{
@@ -135,7 +135,7 @@ func parseBaseDir(parent fs.FS, dirName string) (*parsedBase, error) {
 		FS:            baseFS,
 		Readme:        readme,
 		Prerequisites: ExtractPrerequisites(readme),
-		StaticFiles:   staticFiles,
+		ExtraFiles:    extraFiles,
 	}, nil
 }
 
@@ -296,22 +296,22 @@ func BasePrerequisites(exampleID string) string {
 	return bases[exampleID].Prerequisites
 }
 
-// BaseStaticFiles returns the non-template, non-manifest files embedded
+// BaseExtraFiles returns the non-template, non-manifest files embedded
 // in the base template directory (e.g. cloud-init .tftpl files). Returns
-// nil if the base is unknown or has no static files.
-func BaseStaticFiles(exampleID string) map[string][]byte {
+// nil if the base is unknown or has no extra files.
+func BaseExtraFiles(exampleID string) map[string][]byte {
 	bases, err := loadBases()
 	if err != nil || bases[exampleID] == nil {
 		return nil
 	}
-	return bases[exampleID].StaticFiles
+	return bases[exampleID].ExtraFiles
 }
 
-// collectStaticFilesFromFS walks a base template filesystem and returns
+// collectExtraFilesFromFS walks a base template filesystem and returns
 // all files that are not Go templates (.tf.tmpl), the manifest
 // (base.json), or the README. These are raw files that must be included
 // in the output archive (e.g. Terraform templatefile() inputs).
-func collectStaticFilesFromFS(baseFS fs.FS) (map[string][]byte, error) {
+func collectExtraFilesFromFS(baseFS fs.FS) (map[string][]byte, error) {
 	files := make(map[string][]byte)
 	err := fs.WalkDir(baseFS, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
