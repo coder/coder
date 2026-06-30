@@ -264,7 +264,7 @@ export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	render: (args) => {
 		const initialSummary = "Added Docker and Terraform validation";

@@ -140,6 +140,7 @@ interface AgentChatPageViewProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
@@ -331,6 +332,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
@@ -944,6 +946,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								canConfigureAgentSetup={canConfigureAgentSetup}
 								providerCount={providerCount}
 								modelCount={modelCount}
+								unsupportedProviderNames={unsupportedProviderNames}
 								selectedModel={effectiveSelectedModel}
 								onModelChange={setSelectedModel}
 								modelOptions={modelOptions}

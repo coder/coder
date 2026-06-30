@@ -1111,7 +1111,7 @@ const inverseScrollFetchSpy = fn(() => {
  * top of the transcript.
  */
 export const InverseScrollLoadsOlderMessages: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView
@@ -1146,7 +1146,7 @@ const multiPageFetchSpy = fn(() => {
  * second upward reveal can load another page.
  */
 export const InverseScrollCanLoadMultiplePages: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView
@@ -1188,7 +1188,7 @@ const scrollToBottomButtonStoryStore = buildStoreWithMessages(
  * user from older history to the newest messages.
  */
 export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView store={scrollToBottomButtonStoryStore} />
@@ -1238,7 +1238,7 @@ const scrollToBottomStoryRef: { current: (() => void) | null } = {
  * hook, so the replacement container must keep that contract working.
  */
 export const ScrollToBottomRefStillWorks: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView
@@ -1282,7 +1282,7 @@ const messageOrderStore = buildStoreWithMessages([
  * The reversed container layout must not invert the transcript's visible order.
  */
 export const MessageOrderIsStillCorrect: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={messageOrderStore} />,
 	play: async ({ canvasElement }) => {
@@ -1315,7 +1315,7 @@ const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
  * message is pinned within a few pixels of the scroll container's top.
  */
 export const StickyUserMessagePinsOnScroll: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={stickyPinningStore} />,
 	play: async ({ canvasElement }) => {
@@ -1420,7 +1420,7 @@ const stickyClipUpdateStore = buildStoreWithMessages(
  * the new geometry without any scroll event.
  */
 export const StickyUserMessageClipUpdatesWhilePinned: Story = {
-	parameters: { chromatic: { disableSnapshot: true } },
+	parameters: { pixel: { exclude: true } },
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
 	play: async ({ canvasElement }) => {
@@ -1512,7 +1512,7 @@ export const StickyUserMessageClipUpdatesWhilePinned: Story = {
  */
 export const TerminalFocusOnTabSwitch: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
 	},
 	decorators: [withWebSocket],

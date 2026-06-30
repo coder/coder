@@ -437,7 +437,7 @@ const AISettingsAddProviderPage = lazy(
 			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
 		),
 );
-const AISettingsGatewayKeysPage = lazy(
+const _AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
 );
 const AISettingsModelsPage = lazy(
@@ -477,10 +477,6 @@ const AISettingsIndexRedirect = () => {
 
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
-	}
-
-	if (permissions.viewAIGatewayKeys) {
-		return <Navigate to="/ai/settings/gateway-keys" replace />;
 	}
 
 	if (permissions.editDeploymentConfig) {
@@ -763,10 +759,6 @@ export const router = createBrowserRouter(
 						<Route element={<DeploymentConfigProvider />}>
 							<Route path="governance" element={<AIGovernanceSettingsPage />} />
 						</Route>
-						<Route
-							path="gateway-keys"
-							element={<AISettingsGatewayKeysPage />}
-						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
 						<Route path="spend" element={<AISettingsSpendPage />} />

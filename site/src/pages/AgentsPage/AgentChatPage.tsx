@@ -90,6 +90,7 @@ import {
 	countConfiguredProviderConfigs,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
+	getUnsupportedProviderNames,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 	resolveModelOptionId,
@@ -824,6 +825,9 @@ const AgentChatPage: FC = () => {
 		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
 			? modelOptions.length
 			: undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		chatModelsQuery.data,
+	);
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
@@ -1644,6 +1648,7 @@ const AgentChatPage: FC = () => {
 			canConfigureAgentSetup={permissions.editDeploymentConfig}
 			providerCount={providerCount}
 			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

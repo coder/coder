@@ -43,7 +43,9 @@ export const Add: Story = {
 			canvas.getByRole("heading", { name: /add an? OpenAI model/i }),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("checkbox", { name: /set as default model/i }),
+			canvas.getByRole("checkbox", {
+				name: /set as coder agents default model/i,
+			}),
 		).toBeInTheDocument();
 		const submit = canvas.getByRole("button", { name: /add model/i });
 		await expect(submit).toBeDisabled();
@@ -70,7 +72,9 @@ export const AddSetAsDefault: Story = {
 		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
 		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
-			canvas.getByRole("checkbox", { name: /set as default model/i }),
+			canvas.getByRole("checkbox", {
+				name: /set as coder agents default model/i,
+			}),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(args.onCreateModel).toHaveBeenCalledTimes(1);
@@ -106,7 +110,9 @@ export const ReplaceDefaultWarning: Story = {
 		);
 		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
 		await userEvent.click(
-			canvas.getByRole("checkbox", { name: /set as default model/i }),
+			canvas.getByRole("checkbox", {
+				name: /set as coder agents default model/i,
+			}),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
 		await expect(
@@ -135,7 +141,9 @@ export const Edit: Story = {
 			canvas.getByRole("button", { name: /^cancel$/i }),
 		).toBeVisible();
 		await expect(
-			canvas.getByRole("checkbox", { name: /set as default model/i }),
+			canvas.getByRole("checkbox", {
+				name: /set as coder agents default model/i,
+			}),
 		).toBeInTheDocument();
 		await expect(canvas.getByLabelText(/model identifier/i)).toBeEnabled();
 		await expect(

@@ -31,7 +31,7 @@ export const Open: Story = {
 
 export const OnTagsChange: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	args: {
 		tags: {},
