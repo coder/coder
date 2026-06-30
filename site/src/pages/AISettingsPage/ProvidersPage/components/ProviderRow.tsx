@@ -24,11 +24,14 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 
 	return (
 		<TableRow key={provider.name} {...clickableProps}>
-			<TableCell className="min-w-0">
+			<TableCell className="min-w-0 px-4 py-3">
 				<AvatarData
 					title={displayName}
 					avatar={
-						<Avatar className="flex shrink-0 items-center justify-center">
+						<Avatar
+							size="lg"
+							className="flex shrink-0 items-center justify-center"
+						>
 							<ProviderIcon provider={getProviderDisplayType(provider)} />
 						</Avatar>
 					}

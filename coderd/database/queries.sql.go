@@ -113,15 +113,15 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 
 const deleteAIGatewayKey = `-- name: DeleteAIGatewayKey :one
 DELETE FROM ai_gateway_keys WHERE id = $1
-RETURNING id, name, secret_prefix, created_at, last_used_at
+RETURNING id, name, secret_prefix, created_at, last_heartbeat_at
 `
 
 type DeleteAIGatewayKeyRow struct {
-	ID           uuid.UUID    `db:"id" json:"id"`
-	Name         string       `db:"name" json:"name"`
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	ID              uuid.UUID    `db:"id" json:"id"`
+	Name            string       `db:"name" json:"name"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error) {
@@ -132,7 +132,30 @@ func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (Dele
 		&i.Name,
 		&i.SecretPrefix,
 		&i.CreatedAt,
-		&i.LastUsedAt,
+		&i.LastHeartbeatAt,
+	)
+	return i, err
+}
+
+const getAIGatewayKeyByHashedSecret = `-- name: GetAIGatewayKeyByHashedSecret :one
+SELECT id, created_at, name, secret_prefix, hashed_secret, last_heartbeat_at
+FROM ai_gateway_keys
+WHERE hashed_secret = $1
+`
+
+// Authenticates a standalone AI Gateway replica by its hashed key secret,
+// returning the matched key. The lookup is an exact match on a unique index,
+// so a returned row is itself proof the secret is valid.
+func (q *sqlQuerier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayKeyByHashedSecret, hashedSecret)
+	var i AIGatewayKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.LastHeartbeatAt,
 	)
 	return i, err
 }
@@ -175,17 +198,17 @@ func (q *sqlQuerier) InsertAIGatewayKey(ctx context.Context, arg InsertAIGateway
 }
 
 const listAIGatewayKeys = `-- name: ListAIGatewayKeys :many
-SELECT id, name, secret_prefix, created_at, last_used_at
+SELECT id, name, secret_prefix, created_at, last_heartbeat_at
 FROM ai_gateway_keys
 ORDER BY created_at ASC
 `
 
 type ListAIGatewayKeysRow struct {
-	ID           uuid.UUID    `db:"id" json:"id"`
-	Name         string       `db:"name" json:"name"`
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	ID              uuid.UUID    `db:"id" json:"id"`
+	Name            string       `db:"name" json:"name"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error) {
@@ -202,7 +225,7 @@ func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeys
 			&i.Name,
 			&i.SecretPrefix,
 			&i.CreatedAt,
-			&i.LastUsedAt,
+			&i.LastHeartbeatAt,
 		); err != nil {
 			return nil, err
 		}
@@ -215,6 +238,23 @@ func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeys
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAIGatewayKeyLastHeartbeatAt = `-- name: UpdateAIGatewayKeyLastHeartbeatAt :execrows
+UPDATE ai_gateway_keys
+SET last_heartbeat_at = NOW()
+WHERE id = $1
+`
+
+// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
+// timestamp so it stays consistent regardless of clock drift between API
+// replicas.
+func (q *sqlQuerier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateAIGatewayKeyLastHeartbeatAt, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
@@ -36200,6 +36240,31 @@ func (q *sqlQuerier) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg Upda
 	return err
 }
 
+const updateWorkspaceBuildNotifiedAutostopDeadline = `-- name: UpdateWorkspaceBuildNotifiedAutostopDeadline :exec
+UPDATE
+	workspace_builds
+SET
+	notified_autostop_deadline = $1::timestamptz,
+	updated_at = $2::timestamptz
+WHERE id = $3::uuid
+`
+
+type UpdateWorkspaceBuildNotifiedAutostopDeadlineParams struct {
+	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
+	ID                       uuid.UUID `db:"id" json:"id"`
+}
+
+// Stamps the deadline value that an autostop reminder was last sent for. Once
+// this equals the build's deadline the reminder is considered handled and the
+// lifecycle executor will not send another for this deadline, which makes the
+// reminder idempotent and HA-safe. It re-arms automatically when the deadline
+// changes (e.g. an activity bump).
+func (q *sqlQuerier) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildNotifiedAutostopDeadline, arg.NotifiedAutostopDeadline, arg.UpdatedAt, arg.ID)
+	return err
+}
+
 const updateWorkspaceBuildProvisionerStateByID = `-- name: UpdateWorkspaceBuildProvisionerStateByID :exec
 UPDATE
 	workspace_builds
@@ -38083,7 +38148,7 @@ func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID u
 	return items, nil
 }
 
-const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
+const getWorkspacesEligibleForLifecycleAction = `-- name: GetWorkspacesEligibleForLifecycleAction :many
 SELECT
 	workspaces.id,
 	workspaces.name,
@@ -38206,6 +38271,57 @@ WHERE
 			provisioner_jobs.job_status = 'failed'::provisioner_job_status AND
 			provisioner_jobs.completed_at IS NOT NULL AND
 			($1 :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
+		) OR
+
+		-- A workspace may be eligible for an autostop reminder if the following are true:
+		--   * The latest build is a successfully provisioned start build.
+		--   * The workspace is not dormant and its owner is not suspended.
+		--   * The build has a deadline in the future (we never remind about a stop already due).
+		--   * The template opts in (time_til_autostop_notify > 0) and now is within the lead window.
+		--   * The owner is not active in a way that can keep the workspace
+		--     alive: either they have not used it within the active threshold
+		--     (15 minutes), or activity bumps are disabled, or the max_deadline
+		--     ceiling pins the stop inside the lead window so a bump cannot save it.
+		--   * A reminder has not yet been sent for THIS deadline.
+		--
+		-- NOTE: time_til_autostop_notify has no upper bound. If it exceeds a
+		-- workspace's remaining lifetime, the notify window already includes "now"
+		-- at build creation. This arm intentionally still only matches builds whose
+		-- deadline is in the future (deadline > now) and whose marker has not yet
+		-- been stamped (notified_autostop_deadline != deadline), so at most ONE
+		-- reminder is ever produced for a given deadline regardless of how large the
+		-- field is. The field is stored in nanoseconds, so convert to an interval
+		-- the same way the dormancy arm does: nanoseconds / 1000000 yields
+		-- milliseconds.
+		(
+			provisioner_jobs.job_status = 'succeeded'::provisioner_job_status AND
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspaces.dormant_at IS NULL AND
+			users.status != 'suspended'::user_status AND
+			workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamptz AND
+			workspace_builds.deadline > $1::timestamptz AND
+			templates.time_til_autostop_notify > 0 AND
+			workspace_builds.deadline <= ($1::timestamptz) + (INTERVAL '1 millisecond' * (templates.time_til_autostop_notify / 1000000)) AND
+			workspace_builds.notified_autostop_deadline != workspace_builds.deadline AND
+			-- Keep the reminder unless the user is active AND an activity bump can
+			-- still move the deadline out of the lead window. This block is the
+			-- exact complement of the skip-guard in shouldRemindAutostop (Go)
+			-- (userActive AND bumpEnabled AND NOT maxDeadlineTraps), so the
+			-- pre-filter and the re-check agree on the boundary.
+			(
+				-- Not used within the active threshold (15 minutes). This is the exact
+				-- complement of the < autostopReminderActiveThreshold guard in
+				-- shouldRemindAutostop (Go); keep the two in sync.
+				($1 :: timestamptz) - workspaces.last_used_at >= INTERVAL '15 minutes'
+				-- ...or activity bumps are disabled (deadline can't move)...
+				OR templates.activity_bump <= 0
+				-- ...or the hard max_deadline ceiling is within the lead window, so
+				-- the workspace will stop regardless of activity.
+				OR (
+					workspace_builds.max_deadline != '0001-01-01 00:00:00+00'::timestamptz
+					AND workspace_builds.max_deadline <= ($1::timestamptz) + (INTERVAL '1 millisecond' * (templates.time_til_autostop_notify / 1000000))
+				)
+			)
 		)
 	)
   	AND workspaces.deleted = 'false'
@@ -38215,21 +38331,25 @@ WHERE
   	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID
 `
 
-type GetWorkspacesEligibleForTransitionRow struct {
+type GetWorkspacesEligibleForLifecycleActionRow struct {
 	ID                     uuid.UUID     `db:"id" json:"id"`
 	Name                   string        `db:"name" json:"name"`
 	BuildTemplateVersionID uuid.NullUUID `db:"build_template_version_id" json:"build_template_version_id"`
 }
 
-func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
+// Returns workspaces the lifecycle executor must act on this tick. An
+// "action" is a state transition (autostart/autostop/dormancy/delete), a
+// dormancy mark (which has no build transition), or a one-time autostop
+// reminder notification (which only stamps a marker, no transition).
+func (q *sqlQuerier) GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForLifecycleActionRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForLifecycleAction, now)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetWorkspacesEligibleForTransitionRow
+	var items []GetWorkspacesEligibleForLifecycleActionRow
 	for rows.Next() {
-		var i GetWorkspacesEligibleForTransitionRow
+		var i GetWorkspacesEligibleForLifecycleActionRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.BuildTemplateVersionID); err != nil {
 			return nil, err
 		}

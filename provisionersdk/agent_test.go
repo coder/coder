@@ -94,15 +94,12 @@ func TestAgentScript(t *testing.T) {
 
 		done := make(chan error, 1)
 		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			// The bootstrap scripts trap exit codes to allow operators to view the script logs and debug the process
 			// while it is still running. We do not expect Wait() to complete.
 			err := cmd.Wait()
 			done <- err
-		}()
+		})
 
 		select {
 		case <-ctx.Done():

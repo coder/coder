@@ -585,6 +585,46 @@ func TestTelemetry(t *testing.T) {
 		deployment, _ = collectSnapshot(ctx, t, db, nil)
 		require.True(t, *deployment.IDPOrgSync)
 	})
+	t.Run("SCIM", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// 1. Default Options: both flags false (and reported as such).
+		deployment, _ := collectSnapshot(ctx, t, db, nil)
+		require.NotNil(t, deployment.SCIMEnabled)
+		require.False(t, *deployment.SCIMEnabled)
+		require.NotNil(t, deployment.SCIMUseLegacy)
+		require.False(t, *deployment.SCIMUseLegacy)
+
+		// 2. Both Options flags true: both reported true.
+		deployment, _ = collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.SCIMEnabled = true
+			opts.SCIMUseLegacy = true
+			return opts
+		})
+		require.True(t, *deployment.SCIMEnabled)
+		require.True(t, *deployment.SCIMUseLegacy)
+
+		// 3. Enabled only: enabled true, legacy false.
+		deployment, _ = collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.SCIMEnabled = true
+			return opts
+		})
+		require.True(t, *deployment.SCIMEnabled)
+		require.False(t, *deployment.SCIMUseLegacy)
+
+		// 4. The reporter never reads DeploymentConfig.SCIMAPIKey directly:
+		//    even if a non-empty key sneaks through (it would not in production
+		//    because of WithoutSecrets), SCIMEnabled reflects only Options.
+		deployment, _ = collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.DeploymentConfig = &codersdk.DeploymentValues{
+				SCIMAPIKey: "a-secret-bearer-token",
+			}
+			return opts
+		})
+		require.False(t, *deployment.SCIMEnabled)
+	})
 }
 
 // nolint:paralleltest

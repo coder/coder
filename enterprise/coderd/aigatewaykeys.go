@@ -186,27 +186,27 @@ func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.Old = database.AIGatewayKey{
-		ID:           deleted.ID,
-		Name:         deleted.Name,
-		SecretPrefix: deleted.SecretPrefix,
-		CreatedAt:    deleted.CreatedAt,
-		LastUsedAt:   deleted.LastUsedAt,
+		ID:              deleted.ID,
+		Name:            deleted.Name,
+		SecretPrefix:    deleted.SecretPrefix,
+		CreatedAt:       deleted.CreatedAt,
+		LastHeartbeatAt: deleted.LastHeartbeatAt,
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
 func convertAIGatewayKey(row database.ListAIGatewayKeysRow) codersdk.AIGatewayKey {
-	var lastUsed *time.Time
-	if row.LastUsedAt.Valid {
-		t := row.LastUsedAt.Time
-		lastUsed = &t
+	var lastHeartbeat *time.Time
+	if row.LastHeartbeatAt.Valid {
+		t := row.LastHeartbeatAt.Time
+		lastHeartbeat = &t
 	}
 	return codersdk.AIGatewayKey{
-		ID:         row.ID,
-		Name:       row.Name,
-		KeyPrefix:  row.SecretPrefix,
-		CreatedAt:  row.CreatedAt,
-		LastUsedAt: lastUsed,
+		ID:              row.ID,
+		Name:            row.Name,
+		KeyPrefix:       row.SecretPrefix,
+		CreatedAt:       row.CreatedAt,
+		LastHeartbeatAt: lastHeartbeat,
 	}
 }

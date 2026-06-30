@@ -542,7 +542,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				)}
 
 				<div className="flex justify-end gap-4">
-					<Link to="/ai/settings">
+					<Link to="/ai/settings/providers">
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>

@@ -1778,12 +1778,22 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-outdated-workspace-require-active-version",
-	outdated: true,
-	template_require_active_version: true,
-};
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockWorkspace,
+		id: "test-outdated-workspace-require-active-version",
+		outdated: true,
+		template_require_active_version: true,
+	};
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockOutdatedRunningWorkspaceRequireActiveVersion,
+		latest_build: {
+			...MockWorkspaceBuild,
+			status: "stopped",
+		},
+	};
 
 const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1795,15 +1805,6 @@ const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 		status: "running",
 	},
 };
-
-export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockOutdatedRunningWorkspaceRequireActiveVersion,
-		latest_build: {
-			...MockWorkspaceBuild,
-			status: "stopped",
-		},
-	};
 
 export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
@@ -5573,13 +5574,14 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 };
 
 /**
- * Bedrock providers come over the wire with `type: "anthropic"` and a
- * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
- * backend (see `coderd/ai_providers.go`) enforce this convention.
+ * Bedrock providers come over the wire with `type: "bedrock"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` checks
+ * both the type and the settings discriminator, and also accepts legacy
+ * providers stored as `type: "anthropic"` with Bedrock settings.
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
-	type: "anthropic",
+	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
@@ -5622,7 +5624,7 @@ export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
 		name: "primary-gateway",
 		key_prefix: "a1B2c3D4e5F",
 		created_at: "2024-05-01T14:00:00Z",
-		last_used_at: "2024-05-20T09:30:00Z",
+		last_heartbeat_at: "2024-05-20T09:30:00Z",
 	},
 	{
 		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",

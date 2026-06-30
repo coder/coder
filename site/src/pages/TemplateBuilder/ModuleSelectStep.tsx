@@ -1,4 +1,5 @@
-import { type FC, type PropsWithChildren, useMemo } from "react";
+import { PackageIcon, SearchIcon } from "lucide-react";
+import { type FC, type PropsWithChildren, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -8,6 +9,14 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { SearchField } from "#/components/SearchField/SearchField";
+import { Tabs, TabsList, TabsTrigger } from "#/components/Tabs/Tabs";
+import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
+import { useFuzzySearch } from "#/pages/TemplateBuilder/hooks/useFuzzySearch";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { ModuleCard } from "./ModuleCard";
 import {
 	moduleHasConfigurableVars,
@@ -61,19 +70,92 @@ const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	);
 };
 
+// Preferred display order for modules. Modules in this list appear first,
+// in this order. Unlisted modules appear after, in their original order.
+const MODULE_PRIORITY: readonly string[] = [
+	"claude-code",
+	"codex",
+	"cursor",
+	"vscode-desktop",
+	"code-server",
+	"jetbrains",
+	"vscode-web",
+	"zed",
+	"antigravity",
+	"windsurf",
+	"git-clone",
+	"dotfiles",
+	"git-config",
+	"personalize",
+	"filebrowser",
+	"kasmvnc",
+];
+
+function sortByPriority<T extends { id: string }>(
+	items: readonly T[],
+	priority: readonly string[],
+): T[] {
+	const indexMap = new Map(priority.map((id, i) => [id, i]));
+	const fallback = priority.length;
+	return [...items].sort((a, b) => {
+		const ai = indexMap.get(a.id) ?? fallback;
+		const bi = indexMap.get(b.id) ?? fallback;
+		return ai - bi;
+	});
+}
+
 export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	onChangeModules,
 }) => {
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
+	const [moduleSearchText, setModuleSearchText] = useState("");
+	const modules = data?.modules ?? [];
+	const sortedModules = sortByPriority(modules, MODULE_PRIORITY);
+	const categories = [
+		...new Set(sortedModules.map((module) => module.category)),
+	].sort((a, b) => a.localeCompare(b));
+
+	const [selectedFilterTab, setSelectedFilterTab] = useState("All");
+
+	const searchedModules = useFuzzySearch({
+		allItems: sortedModules,
+		searchText: moduleSearchText,
+		searchProperties: ["display_name", "description"],
+	});
+
+	const searchedCategoryCounts = new Map<string, number>();
+	for (const module of searchedModules) {
+		searchedCategoryCounts.set(
+			module.category,
+			(searchedCategoryCounts.get(module.category) ?? 0) + 1,
+		);
+	}
+	const filterTabs = [
+		{ value: "All", count: searchedModules.length },
+		...categories.map((value) => ({
+			value,
+			count: searchedCategoryCounts.get(value) ?? 0,
+		})),
+	];
+	const { containerRef, visibleTabs: visibleFilterTabs } = useKebabMenu({
+		tabs: filterTabs,
+		enabled: true,
+		isActive: true,
+	});
+
+	const visibleModules =
+		selectedFilterTab === "All"
+			? searchedModules
+			: searchedModules.filter(
+					(module) => module.category === selectedFilterTab,
+				);
 
 	const selectedSet = useMemo(
 		() => new Set(selectedModuleIds),
 		[selectedModuleIds],
 	);
-
-	const modules = data?.modules ?? [];
 
 	const conflicts = useMemo<ModuleConflict[]>(() => {
 		const warnings: string[] = [];
@@ -133,23 +215,55 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 
 	return (
 		<div>
-			<h2 className="text-lg font-semibold mb-1">Select modules</h2>
-			<p className="text-sm text-content-secondary mb-4">
-				Add functionality to your template.
-			</p>
+			<TemplateBuilderTitle>Select modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
+				Add pre-built tools and integrations. Module versions are pinned at
+				selection.
+			</TemplateBuilderSubtitle>
+
+			<SearchField
+				value={moduleSearchText}
+				onChange={setModuleSearchText}
+				placeholder="Search modules..."
+				className="my-4"
+			/>
+
+			<Tabs
+				value={selectedFilterTab}
+				onValueChange={setSelectedFilterTab}
+				className="my-4"
+			>
+				<TabsList ref={containerRef}>
+					{visibleFilterTabs.map((tab) => (
+						<TabsTrigger key={tab.value} value={tab.value}>
+							<PackageIcon className="size-icon-sm" />
+							{tab.value} ({tab.count})
+						</TabsTrigger>
+					))}
+				</TabsList>
+			</Tabs>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-				{modules.map((m) => (
-					<ModuleCard
-						key={m.id}
-						name={m.display_name}
-						description={m.description}
-						iconUrl={m.icon}
-						detailsUrl={moduleDetailsUrl(m.id)}
-						selected={selectedSet.has(m.id)}
-						onSelect={() => handleToggle(m)}
-					/>
-				))}
+				{visibleModules.length ? (
+					visibleModules.map((m) => (
+						<ModuleCard
+							key={m.id}
+							name={m.display_name}
+							description={m.description}
+							iconUrl={m.icon}
+							detailsUrl={moduleDetailsUrl(m.id)}
+							selected={selectedSet.has(m.id)}
+							onSelect={() => handleToggle(m)}
+						/>
+					))
+				) : (
+					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
+						<SearchIcon />
+						<p className="m-0 text-sm font-normal">
+							No module matched your search
+						</p>
+					</div>
+				)}
 			</div>
 
 			{conflicts.length > 0 && (

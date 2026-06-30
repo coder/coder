@@ -45,7 +45,7 @@
     {
       "name": "open_recent",
       "type": "bool",
-      "description": "Open the most recent workspace or folder. Falls back to the folder if there is no recent workspace or folder to open.",
+      "description": "Open the most recent workspace or folder.",
       "default": false,
       "required": false,
       "sensitive": false,

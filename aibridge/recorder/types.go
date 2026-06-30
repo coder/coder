@@ -39,6 +39,14 @@ type InterceptionRecord struct {
 	Client                string
 	UserAgent             string
 	CorrelatingToolCallID *string
+	// AgentFirewallSessionID is the UUID of the Agent Firewall session
+	// that produced this request. Nil when the request did not pass
+	// through Agent Firewall.
+	AgentFirewallSessionID *string
+	// AgentFirewallSequenceNumber is the monotonically increasing
+	// sequence number assigned by Agent Firewall. Nil when the request
+	// did not pass through Agent Firewall.
+	AgentFirewallSequenceNumber *int32
 	// CredentialKind is always set: either BYOK or centralized.
 	CredentialKind string
 	// CredentialHint is only set for BYOK, where the key is known

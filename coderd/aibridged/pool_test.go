@@ -356,6 +356,67 @@ func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
 	return &mockMCPFactory{proxy: proxy}
 }
 
+// TestPoolShutdownReplaceProviders ensures that concurrent
+// pool shutdown does not race with provider replacement.
+func TestPoolShutdownReplaceProviders(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	}))
+	t.Cleanup(upstream.Close)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	client := mock.NewMockDRPCClient(ctrl)
+	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
+	mcpProxy.EXPECT().Init(gomock.Any()).AnyTimes().Return(nil)
+	mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clk := quartz.NewMock(t)
+	trap := clk.Trap().Now("provider_reload_version")
+	defer trap.Close()
+
+	opts := aibridged.PoolOptions{MaxItems: 16, TTL: time.Minute, Clock: clk}
+	pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "p", BaseURL: upstream.URL}),
+	}, logger, nil, testTracer)
+	require.NoError(t, err)
+
+	clientFn := func() (aibridged.DRPCClient, error) { return client, nil }
+
+	// Populate the cache so ReplaceProviders' Clear has an entry to evict.
+	_, err = pool.Acquire(ctx, aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: uuid.New(),
+		APIKeyID:    uuid.New().String(),
+	}, clientFn, newMockMCPFactory(mcpProxy))
+	require.NoError(t, err)
+
+	replaceDone := make(chan struct{})
+	go func() {
+		defer close(replaceDone)
+		pool.ReplaceProviders([]aibridge.Provider{
+			aibridge.NewOpenAIProvider(config.OpenAI{Name: "p2", BaseURL: upstream.URL}),
+		})
+	}()
+
+	// ReplaceProviders is now parked at clock.Now, i.e. immediately before
+	// cache.Clear/cache.Wait. Deterministic readiness, no require.Eventually.
+	call := trap.MustWait(ctx)
+
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		_ = pool.Shutdown(context.Background())
+	}()
+	call.MustRelease(ctx)
+
+	_ = testutil.TryReceive(ctx, t, replaceDone)
+	_ = testutil.TryReceive(ctx, t, shutdownDone)
+}
+
 func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, tracer trace.Tracer) (mcp.ServerProxier, error) {
 	return m.proxy, nil
 }

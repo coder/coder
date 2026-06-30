@@ -29,6 +29,16 @@ describe("externalImage parameters", () => {
 		expect(someoneElsesWidgetsStyles).toBeUndefined();
 	});
 
+	test("incomplete or invalid URLs return no styles", () => {
+		// A user typing a URL produces invalid intermediate values that
+		// new URL() would throw on. These must not crash.
+		for (const value of ["https:", "http:/", "://", "not a url"]) {
+			expect(
+				getExternalImageStylesFromUrl(forDarkThemes, value),
+			).toBeUndefined();
+		}
+	});
+
 	test("blackWithColor brightness", () => {
 		const tryCase = (params: string) =>
 			parseImageParameters(forDarkThemes, params);
