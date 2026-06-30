@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	clampPercentage,
 	getSeverity,
+	severityBorderClassName,
 	severityProgressClassName,
 	severityRingClassName,
 	severityTextClassName,
@@ -64,6 +65,17 @@ describe("severityRingClassName", () => {
 		expect(severityRingClassName("warning")).toBe("stroke-content-warning");
 		expect(severityRingClassName("normal")).toBe("stroke-content-secondary");
 		expect(severityRingClassName()).toBe("stroke-content-secondary");
+	});
+});
+
+describe("severityBorderClassName", () => {
+	it("maps each severity to its border color, defaulting to normal", () => {
+		expect(severityBorderClassName("exceeded")).toBe(
+			"border-content-destructive",
+		);
+		expect(severityBorderClassName("warning")).toBe("border-content-warning");
+		expect(severityBorderClassName("normal")).toBe("border-content-secondary");
+		expect(severityBorderClassName()).toBe("border-content-secondary");
 	});
 });
 

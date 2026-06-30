@@ -23,20 +23,23 @@ const SEVERITY_CLASSES = {
 		text: "text-content-secondary",
 		progress: "bg-content-secondary",
 		ring: "stroke-content-secondary",
+		border: "border-content-secondary",
 	},
 	warning: {
 		text: "text-content-warning",
 		progress: "bg-content-warning",
 		ring: "stroke-content-warning",
+		border: "border-content-warning",
 	},
 	exceeded: {
 		text: "text-content-destructive",
 		progress: "bg-content-destructive",
 		ring: "stroke-content-destructive",
+		border: "border-content-destructive",
 	},
 } as const satisfies Record<
 	UsageSeverity,
-	{ text: string; progress: string; ring: string }
+	{ text: string; progress: string; ring: string; border: string }
 >;
 
 export function severityTextClassName(
@@ -55,6 +58,12 @@ export function severityRingClassName(
 	severity: UsageSeverity = "normal",
 ): string {
 	return SEVERITY_CLASSES[severity].ring;
+}
+
+export function severityBorderClassName(
+	severity: UsageSeverity = "normal",
+): string {
+	return SEVERITY_CLASSES[severity].border;
 }
 
 export function usageProgressPercentage(used: number, budget: number): number {

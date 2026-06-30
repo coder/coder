@@ -15,6 +15,10 @@ const meta: Meta<typeof UsageBar> = {
 export default meta;
 type Story = StoryObj<typeof UsageBar>;
 
+export const Empty: Story = {
+	args: { percent: 0, severity: "normal" },
+};
+
 export const Normal: Story = {
 	args: { percent: 50, severity: "normal" },
 };

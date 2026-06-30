@@ -163,7 +163,8 @@ export const meAISpend = (): UseQueryOptions<UserAISpend> => {
 	return {
 		queryKey: meAISpendKey,
 		queryFn: () => API.getUserAISpend(),
-		// Mounts only while the dropdown is open, so it refetches on each open.
+		// Polled so the avatar border reflects spend without opening the dropdown.
+		refetchInterval: 60_000,
 	};
 };
 

@@ -108,6 +108,25 @@ export const AISpendWarning: Story = {
 	},
 };
 
+// Spend exactly at the limit is exceeded (used >= budget).
+export const AISpendAtLimit: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_200_000_000 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("marks spend at the limit as exceeded", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$1,200 / $1,200 USD"),
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "100");
+		});
+	},
+};
+
 // Spend past the limit clamps the bar to 100% and marks it exceeded.
 export const AISpendExceeded: Story = {
 	parameters: {
@@ -144,6 +163,58 @@ export const AISpendUnlimited: Story = {
 			expect(
 				screen.queryByRole("progressbar", { name: "AI spend usage" }),
 			).not.toBeInTheDocument();
+		});
+	},
+};
+
+// $0 spend against a limit shows an empty bar.
+export const AISpendZeroSpend: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 0 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows zero spend with an empty bar", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$0 / $1,200 USD"),
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "0");
+		});
+	},
+};
+
+// $0 limit with $0 spend stays normal, not exceeded.
+export const AISpendZeroLimit: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 0, spend_limit_micros: 0 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows a zero limit without exceeding", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$0 / $0 USD"),
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "0");
+		});
+	},
+};
+
+// Invalid (negative) spend hides the section.
+export const AISpendHiddenOnInvalidData: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: -1 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("hides AI spend on invalid data", async () => {
+			await openDropdown(canvasElement);
+			expect(screen.queryByText("(AI spend/month)")).not.toBeInTheDocument();
 		});
 	},
 };
