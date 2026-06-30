@@ -231,7 +231,7 @@ Templates define what's in your development environment. The following is a basi
 
 4. Select **Save**.
 
-   ![Create template](../images/screenshots/create-template.png)
+   ![Create template](../images/screenshots/create-quickstart-template.png)
 
 **What just happened?**
 You defined a template, a reusable blueprint for dev environments, in your Coder deployment.
@@ -263,6 +263,8 @@ Now it's time to launch a workspace.
    - **Git Repository (Optional)**: the Git repository you want to clone into your workspace. Leave this field blank to skip it.
 
    **Note:** If you use any of the JetBrains IDEs as your preferred IDE (such as PyCharm, GoLand, or RustRover), select **JetBrains IDEs** as the value. A new parameter will appear, with which you can choose your preferred JetBrains IDE.
+
+     ![Workspace creation screen](../images/screenshots/create-workspace.png)_Workspace creation screen_
 
 4. Launch your workspace by selecting **Create workspace**.
 
@@ -305,7 +307,7 @@ workspace, you can clone it manually if you want:
 
 4. You are now using VS Code in your Coder environment!
 
-## Success! You're coding in Coder
+## What's next?
 
 You now have:
 
@@ -314,10 +316,9 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-### What's next?
+Now that you have your own workspace running, you can [customize your template](./customize-your-template/index.md) to fit your needs.
 
-Now that you have your own workspace running, you can start exploring more
-advanced capabilities that Coder offers.
+## Learn more
 
 - [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
   interface and API for delegating development work to coding agents in your
@@ -345,34 +346,6 @@ This is common with Colima on macOS and with rootless Docker on Linux.
 In that case, point Coder at the socket with the `DOCKER_HOST` environment variable, then restart the Coder server.
 
 <div class="tabs">
-
-#### macOS
-
-1. If Colima is not installed, install it with [Homebrew](https://brew.sh):
-
-   ```sh
-   brew install colima docker
-   ```
-
-1. Start Colima to launch the Docker daemon:
-
-   ```sh
-   colima start
-   ```
-
-1. Verify that the daemon is reachable:
-
-   ```sh
-   docker ps
-   ```
-
-1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
-
-   ```sh
-   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
-   ```
-
-   To persist the setting across restarts, add that `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
 
 #### Linux
 
@@ -403,6 +376,34 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
    docker sudo users
    ```
 
+#### macOS
+
+1. If Colima is not installed, install it with [Homebrew](https://brew.sh):
+
+   ```sh
+   brew install colima docker
+   ```
+
+1. Start Colima to launch the Docker daemon:
+
+   ```sh
+   colima start
+   ```
+
+1. Verify that the daemon is reachable:
+
+   ```sh
+   docker ps
+   ```
+
+1. If `docker ps` works but Coder still cannot connect, point `DOCKER_HOST` at the Colima socket, then restart the Coder server:
+
+   ```sh
+   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+   ```
+
+   To persist the setting across restarts, add that `export` line to your shell's startup file, such as `~/.zshrc`, `~/.bashrc`, or `~/.config/fish/config.fish`.
+
 #### Windows
 
 1. If Podman Desktop is not installed,
@@ -421,6 +422,8 @@ error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in us
 
 Another process is already listening on port 3000. Identify and stop it,
 then start the server again.
+
+<div class="tabs">
 
 #### Linux
 
@@ -481,3 +484,5 @@ then start the server again.
    ```sh
    coder server
    ```
+
+</div>
