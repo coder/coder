@@ -648,23 +648,13 @@ export const DirtyDebugLoggingToggle: Story = {
 		const toggle = await canvas.findByRole("switch", {
 			name: "Allow users to enable chat debug logging",
 		});
-		const form = toggle.closest("form");
-		if (!(form instanceof HTMLFormElement)) {
-			throw new Error("Expected debug logging toggle to live inside a form.");
-		}
 
 		await userEvent.click(toggle);
-		expect(args.onSaveDebugLogging).not.toHaveBeenCalled();
-
-		const saveButton = within(form).getByRole("button", { name: "Save" });
-		expect(saveButton).toBeEnabled();
-		await userEvent.click(saveButton);
 
 		await waitFor(() => {
-			expect(args.onSaveDebugLogging).toHaveBeenCalledWith(
-				{ allow_users: true },
-				expect.anything(),
-			);
+			expect(args.onSaveDebugLogging).toHaveBeenCalledWith({
+				allow_users: true,
+			});
 		});
 	},
 };

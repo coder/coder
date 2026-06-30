@@ -7,7 +7,6 @@ import type {
 	UpdateAdvisorConfigRequest,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
 import {
 	Select,
 	SelectContent,
@@ -17,6 +16,7 @@ import {
 } from "#/components/Select/Select";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
+import { cn } from "#/utils/cn";
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 const chatModelFallbackValue = "__use-chat-model__";
@@ -214,7 +214,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Advisor"
-			description="Cap advisor usage per run and optionally use an override model. The advisor provides strategic guidance to root agent chats."
+			description="Cap advisor usage per run and optionally use an override model. The advisor provides strategic guidance to root agent chats. Set limits to 0 for unlimited."
 			showSave={canSave}
 			isSaving={isSavingAdvisorConfig}
 			isSavedVisible={isSavedVisible}
@@ -233,118 +233,131 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				) : undefined
 			}
 		>
-			<div className="flex flex-col gap-6">
-				<div className="flex flex-col gap-2">
-					<label
-						htmlFor={maxUsesId}
-						className="text-sm font-normal leading-6 text-content-secondary"
-					>
-						Max uses per run
-					</label>
-					<Input
-						id={maxUsesId}
-						name="max_uses_per_run"
-						type="number"
-						min={0}
-						step={1}
-						inputMode="numeric"
-						aria-label="Max uses per run"
-						value={form.values.max_uses_per_run}
-						onChange={(event) =>
-							void form.setFieldValue(
-								"max_uses_per_run",
-								event.currentTarget.value,
-							)
-						}
-						onBlur={form.handleBlur}
-						aria-invalid={Boolean(form.errors.max_uses_per_run)}
-						disabled={isFormDisabled}
-						className="h-10 w-24 shadow-none"
-					/>
-				</div>
-
-				<div className="flex flex-col gap-2">
-					<label
-						htmlFor={maxOutputTokensId}
-						className="text-sm font-normal leading-6 text-content-secondary"
-					>
-						Max output tokens
-					</label>
-					<Input
-						id={maxOutputTokensId}
-						name="max_output_tokens"
-						type="number"
-						min={0}
-						step={1}
-						inputMode="numeric"
-						aria-label="Max output tokens"
-						value={form.values.max_output_tokens}
-						onChange={(event) =>
-							void form.setFieldValue(
-								"max_output_tokens",
-								event.currentTarget.value,
-							)
-						}
-						onBlur={form.handleBlur}
-						aria-invalid={Boolean(form.errors.max_output_tokens)}
-						disabled={isFormDisabled}
-						className="h-10 w-24 shadow-none"
-					/>
-				</div>
-
-				<div className="flex items-center gap-2">
-					<Select
-						value={selectedModelValue}
-						onValueChange={(value) => {
-							if (value === chatModelFallbackValue) {
-								void form.setFieldValue("model_config_id", "");
-								return;
-							}
-							if (value === unavailableModelValue) {
-								return;
-							}
-							void form.setFieldValue("model_config_id", value);
-						}}
-						disabled={isModelSelectDisabled}
-					>
-						<SelectTrigger
-							className="h-10 w-[22rem] max-w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
-							aria-label="Advisor model"
-						>
-							<SelectValue placeholder="Use chat model">
-								{selectedModelLabel}
-							</SelectValue>
-						</SelectTrigger>
-						<SelectContent>
-							{hasUnavailableSelectedModel && (
-								<SelectItem value={unavailableModelValue}>
-									{selectedModelLabel}
-								</SelectItem>
-							)}
-							<SelectItem value={chatModelFallbackValue}>
-								Use chat model
-							</SelectItem>
-							{enabledModelConfigs.map((config) => (
-								<SelectItem key={config.id} value={config.id}>
-									{getModelDisplayName(config)}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					<Button
-						size="lg"
-						variant="outline"
-						type="button"
-						onClick={() => {
-							void form.setFieldValue("model_config_id", "");
-						}}
-						disabled={isFormDisabled}
-						className="h-10"
-					>
-						Clear
-					</Button>
-				</div>
-			</div>
+			<CompactIntegerField
+				id={maxUsesId}
+				name="max_uses_per_run"
+				label="Uses"
+				ariaLabel="Max uses per run"
+				value={form.values.max_uses_per_run}
+				onChange={(value) => void form.setFieldValue("max_uses_per_run", value)}
+				onBlur={form.handleBlur}
+				error={Boolean(form.errors.max_uses_per_run)}
+				disabled={isFormDisabled}
+			/>
+			<CompactIntegerField
+				id={maxOutputTokensId}
+				name="max_output_tokens"
+				label="Tokens"
+				ariaLabel="Max output tokens"
+				value={form.values.max_output_tokens}
+				onChange={(value) =>
+					void form.setFieldValue("max_output_tokens", value)
+				}
+				onBlur={form.handleBlur}
+				error={Boolean(form.errors.max_output_tokens)}
+				disabled={isFormDisabled}
+			/>
+			<Select
+				value={selectedModelValue}
+				onValueChange={(value) => {
+					if (value === chatModelFallbackValue) {
+						void form.setFieldValue("model_config_id", "");
+						return;
+					}
+					if (value === unavailableModelValue) {
+						return;
+					}
+					void form.setFieldValue("model_config_id", value);
+				}}
+				disabled={isModelSelectDisabled}
+			>
+				<SelectTrigger
+					className="h-10 w-[22rem] max-w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
+					aria-label="Advisor model"
+				>
+					<SelectValue placeholder="Use chat model">
+						{selectedModelLabel}
+					</SelectValue>
+				</SelectTrigger>
+				<SelectContent>
+					{hasUnavailableSelectedModel && (
+						<SelectItem value={unavailableModelValue}>
+							{selectedModelLabel}
+						</SelectItem>
+					)}
+					<SelectItem value={chatModelFallbackValue}>Use chat model</SelectItem>
+					{enabledModelConfigs.map((config) => (
+						<SelectItem key={config.id} value={config.id}>
+							{getModelDisplayName(config)}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+			<Button
+				size="lg"
+				variant="outline"
+				type="button"
+				onClick={() => {
+					void form.setFieldValue("model_config_id", "");
+				}}
+				disabled={isFormDisabled}
+				className="h-10"
+			>
+				Clear
+			</Button>
 		</AgentSettingLayout>
+	);
+};
+
+interface CompactIntegerFieldProps {
+	id: string;
+	name: string;
+	label: string;
+	ariaLabel: string;
+	value: string;
+	onChange: (value: string) => void;
+	onBlur: (event: React.FocusEvent<HTMLInputElement>) => void;
+	error?: boolean;
+	disabled?: boolean;
+}
+
+const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
+	id,
+	name,
+	label,
+	ariaLabel,
+	value,
+	onChange,
+	onBlur,
+	error,
+	disabled,
+}) => {
+	return (
+		<label
+			className={cn(
+				"grid h-10 w-24 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
+				error && "border-border-destructive",
+				disabled && "opacity-50",
+			)}
+		>
+			<input
+				id={id}
+				type="number"
+				name={name}
+				min={0}
+				step={1}
+				inputMode="numeric"
+				aria-label={ariaLabel}
+				value={value}
+				onChange={(event) => onChange(event.currentTarget.value)}
+				onBlur={onBlur}
+				aria-invalid={error}
+				disabled={disabled}
+				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+			/>
+			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-placeholder">
+				{label}
+			</span>
+		</label>
 	);
 };
