@@ -95,9 +95,9 @@ const AgentsPage: FC = () => {
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
-	const aiGatewayEnabled = metadata["ai-gateway-enabled"].available
-		? metadata["ai-gateway-enabled"].value
-		: true;
+	const aiGatewayDisabled = metadata["ai-gateway-enabled"].available
+		? !metadata["ai-gateway-enabled"].value
+		: false;
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
@@ -737,7 +737,7 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				sidebarFilters={sidebarFilters}
 				onSidebarFiltersChange={setSidebarFilters}
-				aiGatewayDisabled={!aiGatewayEnabled}
+				aiGatewayDisabled={aiGatewayDisabled}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}
