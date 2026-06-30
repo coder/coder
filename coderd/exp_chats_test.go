@@ -13064,11 +13064,11 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	require.Equal(t, sparse, resp)
 }
 
-// TestChatAdvisorConfig_CanBeDisabledAfterEnabled pins that the Enabled
+// TestChatAdvisorConfig_EnabledReflectsExperiment pins that the Enabled
 // field in the GET response reflects the experiment state, not the DB-stored
 // value. Setting Enabled: false via PUT stores false in the DB, but the GET
 // handler overrides it with the experiment check.
-func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
+func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)

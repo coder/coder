@@ -586,6 +586,11 @@ export const VirtualDesktopProviderChange: Story = {
 		await userEvent.click(trigger);
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(await body.findByRole("option", { name: "OpenAI" }));
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
 		await waitFor(() => {
 			expect(args.onSaveComputerUseProvider).toHaveBeenCalledWith(
 				{ provider: "openai" },
