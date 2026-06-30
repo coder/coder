@@ -9,12 +9,10 @@ import { API } from "#/api/api";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
-	chatDesktopEnabled,
 	chatModelConfigs,
 	chatPersonalModelOverridesAdminSettings,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
-	updateChatDesktopEnabled,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -84,10 +82,6 @@ const CoderAgentsPage: FC = () => {
 		...chatAdvisorConfig(),
 		enabled: canEditDeploymentConfig && showAdvisorSettings,
 	});
-	const desktopEnabledQuery = useQuery({
-		...chatDesktopEnabled(),
-		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
-	});
 	const computerUseProviderQuery = useQuery({
 		...chatComputerUseProvider(),
 		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
@@ -109,9 +103,6 @@ const CoderAgentsPage: FC = () => {
 	);
 	const saveAdvisorConfigMutation = useMutation(
 		updateChatAdvisorConfig(queryClient),
-	);
-	const saveDesktopEnabledMutation = useMutation(
-		updateChatDesktopEnabled(queryClient),
 	);
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
@@ -176,11 +167,6 @@ const CoderAgentsPage: FC = () => {
 				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
 				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
 				showVirtualDesktopSettings={showVirtualDesktopSettings}
-				desktopEnabledData={desktopEnabledQuery.data}
-				isLoadingDesktopEnabled={desktopEnabledQuery.isLoading}
-				onSaveDesktopEnabled={saveDesktopEnabledMutation.mutate}
-				isSavingDesktopEnabled={saveDesktopEnabledMutation.isPending}
-				isSaveDesktopEnabledError={saveDesktopEnabledMutation.isError}
 				computerUseProviderData={computerUseProviderQuery.data}
 				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
 				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}

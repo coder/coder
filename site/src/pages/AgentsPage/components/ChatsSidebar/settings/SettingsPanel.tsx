@@ -145,8 +145,8 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						<SettingsNavItem
 							icon={Settings2Icon}
 							label="Manage agents"
-							active={settingsSection === "experiments"}
-							to="/agents/settings/experiments"
+							active={settingsSection === "coder-agents"}
+							to="/agents/settings/coder-agents"
 							state={location.state}
 						/>
 					)}

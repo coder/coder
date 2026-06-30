@@ -199,11 +199,6 @@ const AgentsRouteElement = () => (
 		isSaveAdvisorConfigError={false}
 		saveAdvisorConfigError={undefined}
 		showVirtualDesktopSettings={false}
-		desktopEnabledData={undefined}
-		isLoadingDesktopEnabled={false}
-		onSaveDesktopEnabled={fn()}
-		isSavingDesktopEnabled={false}
-		isSaveDesktopEnabledError={false}
 		computerUseProviderData={undefined}
 		isLoadingComputerUseProvider={false}
 		onSaveComputerUseProvider={fn()}
@@ -231,8 +226,15 @@ const agentsRouting = {
 					path: "lifecycle",
 					element: <Navigate to="/ai/settings/lifecycle" replace />,
 				},
-				{ path: "admin", element: <AgentsRouteElement /> },
-				{ path: "agents", element: <AgentsRouteElement /> },
+				{
+					path: "admin",
+					element: <Navigate to="/agents/settings/coder-agents" replace />,
+				},
+				{ path: "coder-agents", element: <AgentsRouteElement /> },
+				{
+					path: "agents",
+					element: <Navigate to="/agents/settings/coder-agents" replace />,
+				},
 				{
 					path: "spend",
 					element: <Navigate to="/ai/settings/spend" replace />,
@@ -440,10 +442,6 @@ const meta: Meta<typeof AgentsPageView> = {
 			},
 		]);
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
-		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
-			enable_desktop: false,
-		});
-		spyOn(API.experimental, "updateChatDesktopEnabled").mockResolvedValue();
 		spyOn(API.experimental, "getChatDebugLogging").mockResolvedValue({
 			allow_users: false,
 			forced_by_deployment: false,
@@ -1162,7 +1160,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
-export const OpensExperimentsFromManageAgentsOnMobile: Story = {
+export const OpensCoderAgentsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1179,12 +1177,12 @@ export const OpensExperimentsFromManageAgentsOnMobile: Story = {
 		);
 
 		await expect(
-			await screen.findByRole("heading", { name: "Experiments" }),
+			await screen.findByRole("heading", { name: "Coder Agents" }),
 		).toBeInTheDocument();
 	},
 };
 
-export const SettingsViewExperimentsLink: Story = {
+export const SettingsViewCoderAgentsLink: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1204,7 +1202,9 @@ export const SettingsViewExperimentsLink: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText("Opt in to experimental features."),
+				screen.getByText(
+					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
+				),
 			).toBeInTheDocument();
 		});
 	},

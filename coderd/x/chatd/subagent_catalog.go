@@ -114,7 +114,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isDesktopEnabled(ctx) {
+				if !p.isDesktopEnabled() {
 					return `type "computer_use" is unavailable because desktop access is not enabled`
 				}
 				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)

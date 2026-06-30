@@ -1282,8 +1282,6 @@ func New(options *Options) *API {
 				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Group(func(r chi.Router) {
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
-					r.Get("/desktop-enabled", api.getChatDesktopEnabled)
-					r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
 					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
 				})

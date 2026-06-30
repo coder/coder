@@ -41,9 +41,7 @@ export const AdminChatDebugLoggingSettings: FC<
 				}
 				aria-label="Allow users to enable chat debug logging"
 				disabled={
-					forcedByDeployment ||
-					isSavingAdminSetting ||
-					isLoadingAdminSetting
+					forcedByDeployment || isSavingAdminSetting || isLoadingAdminSetting
 				}
 				className="mt-0.5"
 			/>

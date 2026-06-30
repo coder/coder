@@ -6,16 +6,16 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
+import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
 } from "./components/AdminPersonalModelOverridesSettings";
-import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,
 } from "./components/SubagentModelOverrideSettings";
-import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 
 type SaveModelOverride = (
 	req: { readonly model_config_id: string },
@@ -59,16 +59,6 @@ export interface CoderAgentsPageViewProps {
 	isSaveAdvisorConfigError: boolean;
 	saveAdvisorConfigError: unknown;
 	showVirtualDesktopSettings: boolean;
-	desktopEnabledData: TypesGen.ChatDesktopEnabledResponse | undefined;
-	isLoadingDesktopEnabled: boolean;
-	onSaveDesktopEnabled: UseMutateFunction<
-		void,
-		Error,
-		TypesGen.UpdateChatDesktopEnabledRequest,
-		unknown
-	>;
-	isSavingDesktopEnabled: boolean;
-	isSaveDesktopEnabledError: boolean;
 	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
 	isLoadingComputerUseProvider: boolean;
 	onSaveComputerUseProvider: UseMutateFunction<
@@ -115,11 +105,6 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isSaveAdvisorConfigError,
 	saveAdvisorConfigError,
 	showVirtualDesktopSettings,
-	desktopEnabledData,
-	isLoadingDesktopEnabled,
-	onSaveDesktopEnabled,
-	isSavingDesktopEnabled,
-	isSaveDesktopEnabledError,
 	computerUseProviderData,
 	isLoadingComputerUseProvider,
 	onSaveComputerUseProvider,
@@ -194,37 +179,32 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					isSaveError={isSaveExploreModelOverrideError}
 					saveErrorMessage="Failed to save Explore model override."
 				/>
-					{showVirtualDesktopSettings && (
-						<VirtualDesktopSettings
-							desktopEnabledData={desktopEnabledData}
-							isLoadingDesktopEnabled={isLoadingDesktopEnabled}
-							onSaveDesktopEnabled={onSaveDesktopEnabled}
-							isSavingDesktopEnabled={isSavingDesktopEnabled}
-							isSaveDesktopEnabledError={isSaveDesktopEnabledError}
-							computerUseProviderData={computerUseProviderData}
-							isLoadingComputerUseProvider={isLoadingComputerUseProvider}
-							onSaveComputerUseProvider={onSaveComputerUseProvider}
-							isSavingComputerUseProvider={isSavingComputerUseProvider}
-							computerUseProviderSaveError={computerUseProviderSaveError}
-						/>
-					)}
-					{showAdvisorSettings && (
-						<AdvisorSettings
-							advisorConfigData={advisorConfigData}
-							isAdvisorConfigLoading={isAdvisorConfigLoading}
-							isAdvisorConfigFetching={isAdvisorConfigFetching}
-							isAdvisorConfigLoadError={isAdvisorConfigLoadError}
-							modelConfigs={modelConfigsData ?? []}
-							modelConfigsError={modelConfigsError}
-							isLoadingModelConfigs={isLoadingModelConfigs}
-							isFetchingModelConfigs={isFetchingModelConfigs}
-							onSaveAdvisorConfig={onSaveAdvisorConfig}
-							isSavingAdvisorConfig={isSavingAdvisorConfig}
-							isSaveAdvisorConfigError={isSaveAdvisorConfigError}
-							saveAdvisorConfigError={saveAdvisorConfigError}
-						/>
-					)}
-				</div>
+				{showVirtualDesktopSettings && (
+					<VirtualDesktopSettings
+						computerUseProviderData={computerUseProviderData}
+						isLoadingComputerUseProvider={isLoadingComputerUseProvider}
+						onSaveComputerUseProvider={onSaveComputerUseProvider}
+						isSavingComputerUseProvider={isSavingComputerUseProvider}
+						computerUseProviderSaveError={computerUseProviderSaveError}
+					/>
+				)}
+				{showAdvisorSettings && (
+					<AdvisorSettings
+						advisorConfigData={advisorConfigData}
+						isAdvisorConfigLoading={isAdvisorConfigLoading}
+						isAdvisorConfigFetching={isAdvisorConfigFetching}
+						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+						modelConfigs={modelConfigsData ?? []}
+						modelConfigsError={modelConfigsError}
+						isLoadingModelConfigs={isLoadingModelConfigs}
+						isFetchingModelConfigs={isFetchingModelConfigs}
+						onSaveAdvisorConfig={onSaveAdvisorConfig}
+						isSavingAdvisorConfig={isSavingAdvisorConfig}
+						isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+						saveAdvisorConfigError={saveAdvisorConfigError}
+					/>
+				)}
 			</div>
+		</div>
 	);
 };
