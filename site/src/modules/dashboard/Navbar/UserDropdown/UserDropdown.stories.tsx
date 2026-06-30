@@ -205,6 +205,39 @@ export const AISpendZeroLimit: Story = {
 	},
 };
 
+// Dropdown closed to isolate the avatar border, which reflects spend severity.
+
+// No cost control: default border.
+export const AvatarBorderDisabled: Story = {
+	parameters: {
+		queries: [aiSpendQuery()],
+	},
+};
+
+// 68% of the limit.
+export const AvatarBorderNormal: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery()],
+	},
+};
+
+// 90% of the limit.
+export const AvatarBorderWarning: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_080_000_000 })],
+	},
+};
+
+// Over the limit.
+export const AvatarBorderExceeded: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_500_000_000 })],
+	},
+};
+
 // Invalid (negative) spend hides the section.
 export const AISpendHiddenOnInvalidData: Story = {
 	parameters: {
