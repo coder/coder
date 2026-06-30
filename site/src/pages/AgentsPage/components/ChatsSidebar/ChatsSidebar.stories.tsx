@@ -68,6 +68,20 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
+const buildGoal = (
+	overrides: Partial<TypesGen.ChatGoal> = {},
+): TypesGen.ChatGoal => ({
+	id: "goal-1",
+	root_chat_id: "chat-default",
+	objective: "Migrate coder/coder away from MUI",
+	status: "active",
+	created_by_user_id: MockUserOwner.id,
+	completed_by_agent: false,
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
+
 const agentsRouting = [
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
@@ -246,6 +260,28 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 		expect(
 			canvas.queryByText("Added Docker and Terraform validation"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const ActiveGoalChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-goal-chat",
+				title: "Generic chat title",
+				status: "running",
+				goal: buildGoal({ root_chat_id: "active-goal-chat" }),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Migrate coder/coder away from MUI"),
+		).toBeInTheDocument();
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
+		expect(canvas.queryByText("Generic chat title")).not.toBeInTheDocument();
 	},
 };
 

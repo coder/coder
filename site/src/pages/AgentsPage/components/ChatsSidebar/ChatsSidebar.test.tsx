@@ -65,6 +65,20 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
+const buildGoal = (
+	overrides: Partial<TypesGen.ChatGoal> = {},
+): TypesGen.ChatGoal => ({
+	id: "goal-1",
+	root_chat_id: "chat-default",
+	objective: "Migrate coder/coder away from MUI",
+	status: "active",
+	created_by_user_id: MockUserOwner.id,
+	completed_by_agent: false,
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
+
 const dashboardValue = {
 	entitlements: MockEntitlements,
 	experiments: [] as TypesGen.Experiment[],
@@ -747,6 +761,31 @@ describe("ChatsSidebar subtitles", () => {
 			screen.getByText("Updated the Terraform template"),
 		).toBeInTheDocument();
 		expect(screen.queryByText("GPT-4o")).not.toBeInTheDocument();
+	});
+
+	it("shows an active goal objective before the status subtitle", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "goal-chat",
+							title: "Generic chat title",
+							status: "running",
+							goal: buildGoal({ root_chat_id: "goal-chat" }),
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByText("Migrate coder/coder away from MUI"),
+		).toBeInTheDocument();
+		expect(screen.getByText("GPT-4o streaming…")).toBeInTheDocument();
+		expect(screen.queryByText("Generic chat title")).not.toBeInTheDocument();
 	});
 
 	it("shows the error when both error and last turn summary exist", () => {

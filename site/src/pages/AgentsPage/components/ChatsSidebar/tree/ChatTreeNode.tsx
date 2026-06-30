@@ -86,6 +86,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const activeGoalObjective =
+		!isChildNode && chat.goal?.status === "active"
+			? asNonEmptyString(chat.goal.objective)
+			: undefined;
+	const displayTitle = activeGoalObjective ?? chat.title;
 	const isStreaming = chat.status === "running" || chat.status === "pending";
 	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
 	const staleTurnSummaryReleaseMs = 10_000;
@@ -280,7 +285,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												isRegeneratingThisChat && "animate-pulse",
 											)}
 										>
-											{chat.title}
+											{displayTitle}
 										</span>
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>
