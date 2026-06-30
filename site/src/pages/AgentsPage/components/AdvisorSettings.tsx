@@ -243,7 +243,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				onBlur={form.handleBlur}
 				error={Boolean(form.errors.max_uses_per_run)}
 				disabled={isFormDisabled}
-				className="w-32"
+				className="w-28"
 			/>
 			<CompactIntegerField
 				id={maxOutputTokensId}
