@@ -4669,7 +4669,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	switch status {
 	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
-		p.maybeGenerateChatSummaryAsync(ctx, chat, runResult, logger)
+		p.maybeGenerateChatSummaryAsync(ctx, chat, logger)
 
 	case database.ChatStatusPending:
 		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
@@ -4894,62 +4894,42 @@ func (p *Server) updateLastTurnSummary(
 }
 
 const (
-	// summaryFirstTurnThreshold is the minimum number of completed turns before
-	// the first whole-chat summary is generated.
-	summaryFirstTurnThreshold = 1
-	// summaryRefreshTurnThreshold is the number of completed turns since the
-	// last summary before it is regenerated. It is a tunable cadence knob that
-	// bounds eager LLM spend.
+	// Cadence gate bounding LLM spend: turns before the first summary, then
+	// turns between refreshes.
+	summaryFirstTurnThreshold   = 1
 	summaryRefreshTurnThreshold = 3
-	// summaryMinTranscriptRunes skips summary generation for very short chats
-	// where the title already conveys the content.
-	summaryMinTranscriptRunes = 200
-	// chatSummaryWorkTimeout bounds the whole background summary operation
-	// (load, model resolution, generation, persistence).
-	chatSummaryWorkTimeout = 120 * time.Second
-	// chatSummaryGenerateTimeout bounds the model call itself.
+	// Skip summaries for chats too short to need one.
+	summaryMinTranscriptRunes  = 200
+	chatSummaryWorkTimeout     = 120 * time.Second
 	chatSummaryGenerateTimeout = 60 * time.Second
-	// chatSummaryWriteTimeout bounds the best-effort persistence of a generated
-	// whole-chat summary. It is separate from turnStatusLabelWriteTimeout so the
-	// two policies can be tuned independently.
-	chatSummaryWriteTimeout = 5 * time.Second
+	chatSummaryWriteTimeout    = 5 * time.Second
 )
 
-// maybeGenerateChatSummaryAsync launches background whole-chat summary
-// generation after a successful turn on a root chat. It is best-effort: it runs
-// detached from the request context so the user's turn is never blocked, and
-// logs and swallows errors.
+// maybeGenerateChatSummaryAsync launches best-effort whole-chat summary
+// generation in the background for a root chat.
 func (p *Server) maybeGenerateChatSummaryAsync(
 	ctx context.Context,
 	chat database.Chat,
-	runResult runChatResult,
 	logger slog.Logger,
 ) {
 	if chat.ParentChatID.Valid {
 		return
 	}
-	// Launch background summary generation through goInflight so Close() waits
-	// for it and the WaitGroup Add is serialized with drainInflight under
-	// inflightMu, matching the sibling finalize and last-turn-summary helpers. A
-	// direct p.inflight.Go would Add to the WaitGroup outside inflightMu and
-	// before the shutdown check, which can race drainInflight's Wait. goInflight
-	// instead drops the launch once shutdown has begun, so Close() is never
-	// blocked for up to chatSummaryWorkTimeout by a turn finishing concurrently.
+	// goInflight serializes the WaitGroup add with shutdown drain and drops the
+	// launch once closing, so Close() is not blocked by an in-flight summary.
 	if err := p.goInflight(func() {
-		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, runResult, logger)
+		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, logger)
 	}); err != nil {
 		logger.Debug(context.WithoutCancel(ctx), "skipped chat summary generation",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 	}
 }
 
-// generateAndStoreChatSummary regenerates the whole-chat summary when the
-// cadence gate allows, then stores it. Best-effort: it never clears an existing
-// summary on failure.
+// generateAndStoreChatSummary regenerates and persists the whole-chat summary
+// when due. Best-effort; never clears an existing summary on failure.
 func (p *Server) generateAndStoreChatSummary(
 	ctx context.Context,
 	chat database.Chat,
-	runResult runChatResult,
 	logger slog.Logger,
 ) {
 	ctx, cancel := context.WithTimeout(ctx, chatSummaryWorkTimeout)
@@ -4958,17 +4938,11 @@ func (p *Server) generateAndStoreChatSummary(
 	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
 	authCtx := dbauthz.AsChatd(ctx)
 
-	// Re-read the chat before loading the transcript so the captured
-	// history_version is no newer than the messages it guards. The chat passed
-	// in is a snapshot from when the turn finished; reading it fresh also lets
-	// the cadence gate see the latest Summary and SummaryGeneratedAt, so two
-	// rapid back-to-back turns do not both pass the gate and call the LLM.
-	//
-	// Ordering matters for correctness: if a new turn commits between these two
-	// reads, the captured history_version stays behind the transcript, so the
-	// UpdateChatSummary guard rejects the write rather than persisting a summary
-	// that omits the just-committed turn and advancing the cadence marker past
-	// it.
+	// Read the chat (and its history_version) before the transcript: if a turn
+	// commits between the two reads, the captured history_version stays behind
+	// the transcript, so UpdateChatSummary rejects the stale write instead of
+	// persisting a summary that omits the new turn. The fresh read also gives
+	// the cadence gate the latest Summary/SummaryGeneratedAt.
 	chat, err := p.db.GetChatByID(authCtx, chat.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to re-read chat for summary",
@@ -4996,7 +4970,13 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	model, _, ok := p.resolveChatSummaryModel(authCtx, chat, runResult, logger)
+	// Derive model options from the freshly loaded transcript, not the
+	// launching turn: this goroutine may outlive that turn, and AI Gateway
+	// routing needs the current transcript's ActiveAPIKeyID.
+	modelOpts := modelBuildOptionsFromMessages(messages)
+	authCtx = withActiveTurnAPIKeyID(authCtx, modelOpts)
+
+	model, _, ok := p.resolveChatSummaryModel(authCtx, chat, modelOpts, logger)
 	if !ok {
 		return
 	}
@@ -5014,16 +4994,14 @@ func (p *Server) generateAndStoreChatSummary(
 	p.updateChatSummary(ctx, chat, chat.HistoryVersion, summary, logger)
 }
 
-// resolveChatSummaryModel resolves the chat's configured model for summary
-// generation.
 func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
 	chat database.Chat,
-	runResult runChatResult,
+	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
 	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
-	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, runResult.ModelBuildOptions)
+	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		logger.Debug(ctx, "failed to resolve chat model for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
@@ -5032,9 +5010,8 @@ func (p *Server) resolveChatSummaryModel(
 	return model, dbConfig, true
 }
 
-// shouldGenerateChatSummary applies the cadence gate: generate the first summary
-// once enough turns exist, then regenerate every summaryRefreshTurnThreshold
-// completed turns since the last summary.
+// shouldGenerateChatSummary is the cadence gate: first summary after enough
+// turns, then every summaryRefreshTurnThreshold turns since the last one.
 func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessage) bool {
 	if !chat.Summary.Valid {
 		return countCompletedTurnsSince(messages, time.Time{}) >= summaryFirstTurnThreshold
@@ -5046,11 +5023,9 @@ func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessa
 	return countCompletedTurnsSince(messages, marker) >= summaryRefreshTurnThreshold
 }
 
-// countCompletedTurnsSince counts visible user messages created after the given
-// time. Each visible user message starts one turn, so this counts turns
-// regardless of how many tool-call steps each turn produced. Hidden model-only
-// user messages (injected context, the replayed compaction summary) are not
-// turns. A zero time counts all turns.
+// countCompletedTurnsSince counts visible user messages (one per turn) created
+// after the given time. Model-only user messages (injected context, replayed
+// compaction summary) are not turns; a zero time counts all.
 func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) int {
 	count := 0
 	for _, message := range messages {
@@ -5069,9 +5044,9 @@ func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) 
 	return count
 }
 
-// updateChatSummary writes the persisted whole-chat summary for a chat. Callers
-// should pass a detached context because this is a best-effort background write.
-// It never clears an existing summary: a blank summary is a no-op.
+// updateChatSummary persists the whole-chat summary. Best-effort background
+// write (pass a detached context); a blank summary is a no-op, never clearing
+// an existing one.
 func (p *Server) updateChatSummary(
 	ctx context.Context,
 	chat database.Chat,

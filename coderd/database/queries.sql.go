@@ -12427,14 +12427,10 @@ type UpdateChatSummaryParams struct {
 	ExpectedHistoryVersion int64          `db:"expected_history_version" json:"expected_history_version"`
 }
 
-// Updates the persisted whole-chat summary shown in the chat summary popover.
-// Empty or whitespace-only summaries are stored as NULL so callers cannot
-// accidentally persist blank text. summary_generated_at records when the
-// summary was produced and drives the background regeneration cadence.
-// This intentionally preserves updated_at. The staleness guard uses
-// history_version, mirroring UpdateChatLastTurnSummary, so background writes
-// racing a newer durable history change lose while worker lifecycle
-// transitions that do not change message history cannot reject a fresh write.
+// Stores blank summaries as NULL. summary_generated_at drives the regeneration
+// cadence. The staleness guard is history_version (not updated_at, which is
+// preserved), mirroring UpdateChatLastTurnSummary: a background write racing a
+// newer message change loses, but worker transitions cannot reject a fresh write.
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatSummary, arg.Summary, arg.ID, arg.ExpectedHistoryVersion)
 	if err != nil {

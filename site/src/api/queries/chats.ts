@@ -457,12 +457,9 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
-	// last_turn_summary and the whole-chat summary each have a dedicated event,
-	// and both preserve the triggering turn's updated_at, so summary_change and
-	// chat_summary_change carry an equal timestamp. Scope each field strictly to
-	// its own event: keying off isFreshEnough would let a summary_change clobber
-	// summary (and a chat_summary_change clobber last_turn_summary) with the
-	// event's stale snapshot of the other field.
+	// summary_change and chat_summary_change share the triggering turn's
+	// updated_at, so isFreshEnough cannot distinguish them. Scope each field to
+	// its own event, else one event clobbers the other field's value.
 	const nextLastTurnSummary = isSummaryEvent
 		? watchedChat.last_turn_summary
 		: cachedChat.last_turn_summary;

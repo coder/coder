@@ -12,12 +12,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
-// resolveGenerationModelOverride resolves a deployment-wide model override for a
-// background generation feature (title or summary). overrideContext labels the
-// override (and its error messages); readOverride loads the configured value.
-// overrideSet is true when an override was configured; in that case any returned
-// error is a hard failure and the caller should skip generation. When
-// overrideSet is false, callers fall back to the chat's configured model.
+// resolveGenerationModelOverride resolves a deployment-wide model override for
+// background generation (title or summary). When overrideSet is true, a
+// returned error is a hard failure and the caller should skip generation;
+// when false, callers fall back to the chat's configured model.
 func (p *Server) resolveGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,

@@ -1567,8 +1567,8 @@ export interface Chat {
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
 	/**
-	 * Summary is the persisted whole-chat summary, generated asynchronously in
-	 * the background. It is nil until the first summary has been produced.
+	 * Summary is the persisted whole-chat summary, generated in the background.
+	 * It is nil until the first summary has been produced.
 	 */
 	readonly summary: string | null;
 	readonly diff_status?: ChatDiffStatus;

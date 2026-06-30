@@ -56,23 +56,17 @@ func TestRenderChatSummaryTranscript(t *testing.T) {
 
 	base := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
 	messages := []database.ChatMessage{
-		// System prompt is skipped as boilerplate.
 		summaryTextMessage(t, 1, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, "you are a helpful agent", false, base),
-		// Replayed compaction summary: model-only but compressed, kept.
+		// Compaction summary (model-only but compressed) is kept.
 		summaryTextMessage(t, 2, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, "earlier work compaction summary", true, base.Add(time.Minute)),
-		// Injected context: model-only and not compressed, skipped as noise.
+		// Injected context (model-only, not compressed) is skipped as noise.
 		summaryTextMessage(t, 3, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, "AGENTS.md injected context", false, base.Add(2*time.Minute)),
-		// Normal visible turn.
 		summaryTextMessage(t, 4, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "fix the bug in foo.go", false, base.Add(3*time.Minute)),
-		// User-only message ("user" visibility) is also included.
 		summaryTextMessage(t, 8, database.ChatMessageRoleUser, database.ChatMessageVisibilityUser, "and please keep it simple", false, base.Add(3*time.Minute+30*time.Second)),
-		// Assistant tool-call only message (no text) is skipped.
 		summaryTestMessage(t, 5, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
 			[]codersdk.ChatMessagePart{codersdk.ChatMessageToolCall("call-1", "bash", []byte(`{"cmd":"go test"}`))},
 			false, base.Add(4*time.Minute)),
-		// Tool result is skipped.
 		summaryTextMessage(t, 6, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, "tests passed", false, base.Add(5*time.Minute)),
-		// Assistant final text is kept.
 		summaryTextMessage(t, 7, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, "fixed the bug and added a test", false, base.Add(6*time.Minute)),
 	}
 
@@ -158,8 +152,7 @@ func TestShouldGenerateChatSummary(t *testing.T) {
 			Summary:            sql.NullString{String: "existing", Valid: true},
 			SummaryGeneratedAt: sql.NullTime{Time: marker, Valid: true},
 		}
-		// One user turn after the marker, but many assistant messages (tool
-		// steps). Counting user turns keeps this below the refresh threshold.
+		// One user turn plus many assistant steps stays below the threshold.
 		msgs := []database.ChatMessage{
 			userMsg(1, marker.Add(time.Minute)),
 			assistantMsg(2, marker.Add(2*time.Minute)),
@@ -184,9 +177,8 @@ func TestShouldGenerateChatSummary(t *testing.T) {
 				CreatedAt:  at,
 			}
 		}
-		// Two real user turns stay below the refresh threshold of 3. The
-		// model-only user message (such as injected AGENTS.md context) must not
-		// count as a turn; if it did, these three messages would trip the gate.
+		// The model-only user message must not count as a turn, else these
+		// three messages would trip the threshold of 3.
 		msgs := []database.ChatMessage{
 			userMsg(1, marker.Add(time.Minute)),
 			modelOnlyUserMsg(2, marker.Add(2*time.Minute)),
@@ -211,6 +203,23 @@ func TestShouldGenerateChatSummary(t *testing.T) {
 		}
 		require.True(t, shouldGenerateChatSummary(chat, msgs))
 	})
+
+	t.Run("PreMarkerTurnsAreNotCounted", func(t *testing.T) {
+		t.Parallel()
+		marker := base
+		chat := database.Chat{
+			Summary:            sql.NullString{String: "existing", Valid: true},
+			SummaryGeneratedAt: sql.NullTime{Time: marker, Valid: true},
+		}
+		// The pre-marker turn would tip the total to the threshold; this stays
+		// false only because countCompletedTurnsSince excludes pre-marker turns.
+		msgs := []database.ChatMessage{
+			userMsg(1, marker.Add(-time.Minute)),
+			userMsg(2, marker.Add(time.Minute)),
+			userMsg(3, marker.Add(2*time.Minute)),
+		}
+		require.False(t, shouldGenerateChatSummary(chat, msgs))
+	})
 }
 
 func TestValidateGeneratedChatSummary(t *testing.T) {
@@ -225,14 +234,12 @@ func TestValidateGeneratedChatSummary(t *testing.T) {
 func TestCountSentenceTerminators(t *testing.T) {
 	t.Parallel()
 
-	// Only terminators followed by whitespace or end-of-text count, so periods
-	// inside dotted identifiers are not treated as sentence boundaries.
+	// Periods inside dotted identifiers (pkg.cmd.server) are not boundaries.
 	require.Equal(t, 2, countSentenceTerminators("Fixed pkg.cmd.server in file.go. Added a test."))
 	require.Equal(t, 3, countSentenceTerminators("One. Two! Three?"))
 	require.Equal(t, 0, countSentenceTerminators("auth.rbac.Policy"))
 
-	// A summary dense with dotted identifiers stays under summaryMaxSentences
-	// and is accepted, where naive per-period counting would reject it.
+	// Dotted identifiers must not push a valid summary over the sentence cap.
 	require.NoError(t, validateGeneratedChatSummary(
 		"Refactored pkg.cmd.server and auth.rbac.Policy in main.go and util.go. Added coverage in foo_test.go.",
 	))
