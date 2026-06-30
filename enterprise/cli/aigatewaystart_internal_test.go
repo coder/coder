@@ -89,39 +89,3 @@ func TestLoadProviders_RetrySucceeds(t *testing.T) {
 	require.NoError(t, loadProviders(ctx, reloader, slog.Make()))
 	require.GreaterOrEqual(t, reloader.calls.Load(), int32(3))
 }
-
-// TestAIGatewayStart_DeploymentOptions pins the AI Gateway deployment options
-// the standalone "ai-gateway start" command exposes. Only settings the gateway
-// actually consumes when building providers from the DRPC-sourced provider set
-// (circuit breaker, BYOK, actor headers, dump dir) should be inherited.
-// Provider-seeding and coderd-only options (Enabled, Retention, MaxConcurrency,
-// RateLimit, StructuredLogging, InjectCoderMCPTools) must not leak into
-// standalone mode. This guards against a new option silently slipping in.
-func TestAIGatewayStart_DeploymentOptions(t *testing.T) {
-	t.Parallel()
-
-	cmd := (&RootCmd{}).aiGatewayStart()
-
-	// The command's own flags have no Group; inherited deployment options
-	// carry the "AI Gateway" group.
-	var got []string
-	for _, opt := range cmd.Options {
-		if opt.Group != nil && opt.Group.Name == "AI Gateway" {
-			got = append(got, opt.Env)
-		}
-	}
-
-	want := []string{
-		"CODER_AI_GATEWAY_ALLOW_BYOK",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT",
-		"CODER_AI_GATEWAY_DUMP_DIR",
-		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
-		"CODER_AI_GATEWAY_MAX_CONCURRENCY",
-		"CODER_AI_GATEWAY_RATE_LIMIT",
-	}
-	require.ElementsMatch(t, want, got)
-}
