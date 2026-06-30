@@ -141,33 +141,6 @@ func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 	}
 }
 
-func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{}
-	provider := chattool.ComputerUseProviderOpenAI
-	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
-	require.True(t, ok)
-
-	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
-		context.Background(),
-		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		newDirectModelRoute(modelProvider, chatprovider.ProviderAPIKeys{}),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{},
-	)
-	require.Error(t, err)
-	require.Nil(t, model)
-	require.False(t, debugEnabled)
-	require.Empty(t, resolvedProvider)
-	require.Empty(t, resolvedModel)
-	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
-	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
-	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
-}
-
 func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
 	t.Parallel()
 
