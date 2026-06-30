@@ -1287,6 +1287,12 @@
 									"description": "Technical reference for AI Gateway",
 									"path": "./ai-coder/ai-gateway/reference.md",
 									"state": ["ai governance add-on"]
+								},
+								{
+									"title": "Rebranding Migration",
+									"description": "Migrate from AI Bridge names to AI Gateway",
+									"path": "./ai-coder/ai-gateway/rebranding-migration.md",
+									"state": ["ai governance add-on"]
 								}
 							]
 						},
