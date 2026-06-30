@@ -8,6 +8,26 @@ import { Link } from "#/components/Link/Link";
 import { relativeTime } from "#/utils/time";
 import { InboxAvatar } from "./InboxAvatar";
 
+/**
+ * Normalizes a notification action URL for use with React Router.
+ * Backend notification templates produce absolute URLs like
+ * "https://coder.example.com/deployment/users?filter=...". React Router's
+ * <Link> treats these as external, which corrupts the navigation target.
+ * This function strips the origin when the URL matches the current page's
+ * origin, returning a relative path that React Router can handle.
+ */
+export function normalizeActionURL(raw: string): string {
+	try {
+		const parsed = new URL(raw, window.location.origin);
+		if (parsed.origin === window.location.origin) {
+			return parsed.pathname + parsed.search + parsed.hash;
+		}
+	} catch {
+		// If parsing fails, return the raw URL unchanged.
+	}
+	return raw;
+}
+
 type InboxItemProps = {
 	notification: InboxNotification;
 	onMarkNotificationAsRead: (notificationId: string) => void;
@@ -43,7 +63,7 @@ export const InboxItem: FC<InboxItemProps> = ({
 						return (
 							<Button variant="outline" size="sm" key={action.label} asChild>
 								<RouterLink
-									to={action.url}
+									to={normalizeActionURL(action.url)}
 									onClick={() => {
 										onMarkNotificationAsRead(notification.id);
 									}}
