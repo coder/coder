@@ -128,7 +128,7 @@ func (o *Orchestrator) Close() {
 
 func (o *Orchestrator) subscribe(ctx context.Context) {
 	eb := backoff.NewExponentialBackOff()
-	eb.MaxElapsedTime = 0 // retry indefinitely
+	eb.MaxElapsedTime = 0
 	eb.MaxInterval = subscribeMaxBackoff
 	bkoff := backoff.WithContext(eb, ctx)
 
@@ -216,8 +216,6 @@ func (o *Orchestrator) processAll(ctx context.Context) error {
 			return err
 		}
 		if !found {
-			// No pending orchestration rows with terminal parent jobs
-			// remain. The caller can wait for the next wake signal.
 			return nil
 		}
 	}
@@ -314,7 +312,6 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 
 		childBuildRequest, err := childBuildRequestFromOrchestration(orchestration)
 		if err != nil {
-			// The stored child build request cannot be reconstructed.
 			// Mark the row failed to avoid retrying work that cannot
 			// make progress.
 			errMsg := err.Error()
@@ -354,8 +351,8 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 
 		childBuild, provisionerJob, err := o.createBuild(sysCtx, tx, workspace, parentBuild.InitiatorID, childBuildRequest)
 		if err != nil {
-			// Decide whether to mark the orchestration failed based on
-			// the builder error after the transaction rolls back.
+			// Carry the builder error out of the transaction; the
+			// fail-vs-retry decision runs after the rollback.
 			childBuildErr = err
 			return xerrors.Errorf("create child workspace build: %w", err)
 		}
@@ -398,9 +395,6 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 			errMsg = childBuildErrorMessage(childBuildErr)
 			failNow = childBuildErrorShouldFailOrchestration(childBuildErr)
 		} else {
-			// An unexpected error (a parent lookup or status update
-			// that should not fail). Log it before the retry below
-			// records it on the row and fails it after maxAttempts.
 			o.logger.Error(ctx, "unexpected error processing orchestration",
 				slog.F("workspace_build_orchestration_id", orchestrationID),
 				slog.Error(err))
