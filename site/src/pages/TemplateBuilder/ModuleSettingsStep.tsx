@@ -11,7 +11,10 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import type { ConfigurationFieldDefinition } from "./ConfigurationField";
+import {
+	type ConfigurationFieldDefinition,
+	ConfigurationFieldLabel,
+} from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
@@ -32,12 +35,13 @@ function variableToField(
 	onChange: (name: string, value: string) => void,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
+	const label = <ConfigurationFieldLabel variable={variable} />;
 
 	if (variable.type === "bool") {
 		return {
 			type: "switch",
 			id,
-			label: variable.name,
+			label,
 			description: variable.description || undefined,
 			required: variable.required,
 			checked: value === "true",
@@ -49,7 +53,7 @@ function variableToField(
 	return {
 		type: "text",
 		id,
-		label: variable.name,
+		label,
 		description: variable.description || undefined,
 		required: variable.required,
 		placeholder:

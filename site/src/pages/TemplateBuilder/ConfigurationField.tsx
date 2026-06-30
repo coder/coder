@@ -1,4 +1,5 @@
 import type { FC, PropsWithChildren, ReactNode } from "react";
+import type { TemplateBuilderModuleVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -100,7 +101,6 @@ const TextField: FC<TextFieldDefinition> = ({
 		id={id}
 		field={field}
 		label={label}
-		showOptional
 		description={description}
 		required={required}
 		placeholder={placeholder}
@@ -349,5 +349,21 @@ export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start *:col-start-1 *:col-span-full">
 			{children}
 		</div>
+	);
+};
+
+export const ConfigurationFieldLabel: FC<{
+	variable: TemplateBuilderModuleVariable;
+}> = ({ variable }) => {
+	return (
+		<>
+			{variable.name}
+			{!variable.required && (
+				<>
+					{" "}
+					<span className="text-content-secondary">(optional)</span>
+				</>
+			)}
+		</>
 	);
 };
