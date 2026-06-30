@@ -144,17 +144,23 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
-		cancel := params.redirectURL
-		cancelQuery := params.redirectURL.Query()
+		// Build the cancel URI from a shallow copy of the redirect
+		// URL so that we do not mutate params.redirectURL. Mutating
+		// the original pointer caused the stored redirect_uri in
+		// the authorization code to carry the error query params,
+		// which broke subsequent token exchanges and re-authorization
+		// attempts.
+		cancelURL := *params.redirectURL
+		cancelQuery := cancelURL.Query()
 		cancelQuery.Add("error", "access_denied")
 		cancelQuery.Add("error_description", "The resource owner or authorization server denied the request")
 		if params.state != "" {
 			cancelQuery.Add("state", params.state)
 		}
-		cancel.RawQuery = cancelQuery.Encode()
+		cancelURL.RawQuery = cancelQuery.Encode()
 
-		cancelURI := cancel.String()
-		if err := codersdk.ValidateRedirectURIScheme(cancel); err != nil {
+		cancelURI := cancelURL.String()
+		if err := codersdk.ValidateRedirectURIScheme(&cancelURL); err != nil {
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 				Status:      http.StatusBadRequest,
 				HideStatus:  false,
@@ -169,6 +175,11 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			})
 			return
 		}
+
+		// Prevent the consent page from being cached so that
+		// re-opening the authorization URL after a cancel always
+		// renders a fresh page with working Allow/Cancel buttons.
+		rw.Header().Set("Cache-Control", "no-store")
 
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon: app.Icon,

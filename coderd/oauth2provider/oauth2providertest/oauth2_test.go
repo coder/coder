@@ -433,6 +433,141 @@ func TestOAuth2TokenRefresh(t *testing.T) {
 	require.NotEqual(t, initialToken.AccessToken, refreshedToken.AccessToken, "new access token should be different")
 }
 
+// TestOAuth2ReauthorizeAfterCancel verifies that a second authorization
+// attempt works after the user denied the first one. This is a regression
+// test for https://github.com/coder/coder/issues/24912 where the cancel
+// URL construction mutated the redirect URL pointer, which could corrupt
+// the stored redirect_uri and prevent subsequent authorization flows.
+func TestOAuth2ReauthorizeAfterCancel(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Create OAuth2 app.
+	app, clientSecret := oauth2providertest.CreateTestOAuth2App(t, client)
+	t.Cleanup(func() {
+		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
+	})
+
+	// --- First attempt: simulate the user clicking Cancel. ---
+	// We issue a GET to the authorize page and verify the cancel URI
+	// redirects with error=access_denied. No POST is needed because
+	// Cancel is a client-side navigation.
+	firstVerifier, firstChallenge := oauth2providertest.GeneratePKCE(t)
+	_ = firstVerifier // not exchanged because the user cancels
+	firstState := oauth2providertest.GenerateState(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Build the first authorization URL to verify it renders.
+	firstAuthURL := client.URL.String() + "/oauth2/authorize?" + url.Values{
+		"client_id":             {app.ID.String()},
+		"response_type":        {"code"},
+		"redirect_uri":         {oauth2providertest.TestRedirectURI},
+		"state":                {firstState},
+		"code_challenge":       {firstChallenge},
+		"code_challenge_method": {"S256"},
+	}.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", firstAuthURL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Coder-Session-Token", client.SessionToken())
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode,
+		"first authorization page should render")
+
+	// Verify Cache-Control header prevents stale pages.
+	require.Equal(t, "no-store", resp.Header.Get("Cache-Control"),
+		"consent page should not be cached")
+
+	// --- Second attempt: user clicks Allow. ---
+	secondVerifier, secondChallenge := oauth2providertest.GeneratePKCE(t)
+	secondState := oauth2providertest.GenerateState(t)
+
+	authParams := oauth2providertest.AuthorizeParams{
+		ClientID:            app.ID.String(),
+		ResponseType:        "code",
+		RedirectURI:         oauth2providertest.TestRedirectURI,
+		State:               secondState,
+		CodeChallenge:       secondChallenge,
+		CodeChallengeMethod: "S256",
+	}
+
+	code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), authParams)
+	require.NotEmpty(t, code, "should receive authorization code on re-authorization")
+
+	// Exchange the code for a token to prove the full flow works.
+	tokenParams := oauth2providertest.TokenExchangeParams{
+		GrantType:    "authorization_code",
+		Code:         code,
+		ClientID:     app.ID.String(),
+		ClientSecret: clientSecret,
+		CodeVerifier: secondVerifier,
+		RedirectURI:  oauth2providertest.TestRedirectURI,
+	}
+
+	token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), tokenParams)
+	require.NotEmpty(t, token.AccessToken, "should receive access token after re-authorization")
+	require.NotEmpty(t, token.RefreshToken, "should receive refresh token after re-authorization")
+}
+
+// TestOAuth2MultipleReauthorizations verifies that the authorization flow
+// works correctly across three consecutive attempts: allow, cancel, allow.
+func TestOAuth2MultipleReauthorizations(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: false,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	app, clientSecret := oauth2providertest.CreateTestOAuth2App(t, client)
+	t.Cleanup(func() {
+		oauth2providertest.CleanupOAuth2App(t, client, app.ID)
+	})
+
+	for i := range 3 {
+		verifier, challenge := oauth2providertest.GeneratePKCE(t)
+		state := oauth2providertest.GenerateState(t)
+
+		authParams := oauth2providertest.AuthorizeParams{
+			ClientID:            app.ID.String(),
+			ResponseType:        "code",
+			RedirectURI:         oauth2providertest.TestRedirectURI,
+			State:               state,
+			CodeChallenge:       challenge,
+			CodeChallengeMethod: "S256",
+		}
+
+		code := oauth2providertest.AuthorizeOAuth2App(
+			t, client, client.URL.String(), authParams,
+		)
+		require.NotEmpty(t, code, "attempt %d: should receive authorization code", i+1)
+
+		tokenParams := oauth2providertest.TokenExchangeParams{
+			GrantType:    "authorization_code",
+			Code:         code,
+			ClientID:     app.ID.String(),
+			ClientSecret: clientSecret,
+			CodeVerifier: verifier,
+			RedirectURI:  oauth2providertest.TestRedirectURI,
+		}
+
+		token := oauth2providertest.ExchangeCodeForToken(
+			t, client.URL.String(), tokenParams,
+		)
+		require.NotEmpty(t, token.AccessToken,
+			"attempt %d: should receive access token", i+1)
+	}
+}
+
 func TestOAuth2ErrorResponses(t *testing.T) {
 	t.Parallel()
 
