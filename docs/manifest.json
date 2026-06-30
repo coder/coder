@@ -1080,10 +1080,22 @@
 									"state": ["beta"]
 								},
 								{
-									"title": "Experiments",
-									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
-									"path": "./ai-coder/agents/platform-controls/experiments.md",
-									"state": ["beta"]
+									"title": "Advisor",
+									"description": "Strategic guidance for root agent chats",
+									"path": "./ai-coder/agents/platform-controls/advisor.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Virtual desktop",
+									"description": "Allow agents to use a graphical desktop within workspaces",
+									"path": "./ai-coder/agents/platform-controls/virtual-desktop.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Chat debug logging",
+									"description": "Record detailed traces of chat turns for troubleshooting",
+									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md",
+									"state": ["early access"]
 								}
 							]
 						},

@@ -19630,12 +19630,16 @@ const docTemplate = `{
                 "nats_pubsub",
                 "minimum-implicit-member",
                 "ai-gateway-cost-control",
-                "agent-app-tabs"
+                "agent-app-tabs",
+                "chat-advisor",
+                "chat-virtual-desktop"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAgentAppTabs": "Enables workspace-app and port preview tabs in the Coder Agents right panel.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
@@ -19656,7 +19660,9 @@ const docTemplate = `{
                 "Enables embedded NATS pubsub.",
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
-                "Enables workspace-app and port preview tabs in the Coder Agents right panel."
+                "Enables workspace-app and port preview tabs in the Coder Agents right panel.",
+                "Enables the advisor tool for root agent chats.",
+                "Enables virtual desktop and computer use provider for agents."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19669,7 +19675,9 @@ const docTemplate = `{
                 "ExperimentNATSPubsub",
                 "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
-                "ExperimentAgentAppTabs"
+                "ExperimentAgentAppTabs",
+                "ExperimentChatAdvisor",
+                "ExperimentChatVirtualDesktop"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

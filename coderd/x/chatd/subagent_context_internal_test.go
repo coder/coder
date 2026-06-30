@@ -96,7 +96,6 @@ func TestSpawnComputerUseAgentInheritsPinnedContext(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)

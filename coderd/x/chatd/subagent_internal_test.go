@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -73,6 +74,7 @@ type internalTestServerConfig struct {
 	logger      slog.Logger
 	clock       quartz.Clock
 	startWorker bool
+	experiments codersdk.Experiments
 }
 
 type internalTestServerOpt func(*internalTestServerConfig)
@@ -93,6 +95,19 @@ func withInternalTestServerWorker() internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
 		cfg.startWorker = true
 	}
+}
+
+func withInternalTestServerExperiments(experiments codersdk.Experiments) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.experiments = experiments
+	}
+}
+
+func experimentsOrDefault(experiments codersdk.Experiments) codersdk.Experiments {
+	if experiments == nil {
+		return codersdk.ExperimentsKnown
+	}
+	return experiments
 }
 
 // newInternalTestServer creates a passive Server for internal tests with
@@ -123,6 +138,7 @@ func newInternalTestServer(
 		// does not interfere with test assertions.
 		PendingChatAcquireInterval: testutil.WaitLong,
 		ProviderAPIKeys:            keys,
+		Experiments:                experimentsOrDefault(cfg.experiments),
 	})
 	if cfg.startWorker {
 		server.Start()
@@ -2150,7 +2166,6 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
@@ -2198,7 +2213,6 @@ func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *test
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
@@ -2220,7 +2234,6 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
@@ -2261,7 +2274,6 @@ func TestSpawnAgent_PlanModeRejectsComputerUse(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
@@ -2312,7 +2324,6 @@ func TestSpawnAgent_InvalidTypeAndCredentialErrorAreDistinct(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
@@ -2353,7 +2364,6 @@ func TestSpawnAgent_ComputerUseAvailabilityUsesConfiguredProvider(t *testing.T) 
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
 	require.NoError(t, db.UpsertChatComputerUseProvider(
 		ctx,
 		chattool.ComputerUseProviderOpenAI,
@@ -2374,7 +2384,6 @@ func TestSpawnAgent_ComputerUseRejectsMissingConfiguredProvider(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
 	require.NoError(t, db.UpsertChatComputerUseProvider(
 		ctx,
 		chattool.ComputerUseProviderOpenAI,
@@ -2434,7 +2443,6 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := chatdTestContext(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
 	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, "bogus"))
 	logSink := &subagentTestLogSink{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
@@ -2463,9 +2471,13 @@ func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
+	experiments := slices.DeleteFunc(
+		slices.Clone(codersdk.ExperimentsKnown),
+		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatVirtualDesktop },
+	)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
-	})
+	}, withInternalTestServerExperiments(experiments))
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
@@ -2478,14 +2490,13 @@ func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 		Prompt: "open the browser",
 	})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, `type "computer_use" is unavailable because desktop access is not enabled`)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`)
 }
 
 func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
@@ -2527,7 +2538,6 @@ func TestSpawnAgent_NotAvailableForChildChats(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
@@ -2609,9 +2619,6 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 			t.Parallel()
 
 			db, ps := dbtestutil.NewDB(t)
-			if tt.variant == subagentTypeComputerUse {
-				require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
-			}
 
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
@@ -2750,7 +2757,6 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)
@@ -2810,7 +2816,6 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := chatdTestContext(t)

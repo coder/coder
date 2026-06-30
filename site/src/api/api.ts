@@ -3724,20 +3724,6 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getChatDesktopEnabled =
-		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatDesktopEnabledResponse>(
-					"/api/experimental/chats/config/desktop-enabled",
-				);
-			return response.data;
-		};
-
-	updateChatDesktopEnabled = async (
-		req: TypesGen.UpdateChatDesktopEnabledRequest,
-	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
-	};
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(

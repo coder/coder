@@ -114,14 +114,6 @@ type listAgentsArgs struct {
 	Offset *int `json:"offset,omitempty"`
 }
 
-func (p *Server) isDesktopEnabled(ctx context.Context) bool {
-	enabled, err := p.db.GetChatDesktopEnabled(ctx)
-	if err != nil {
-		return false
-	}
-	return enabled
-}
-
 func subagentModelOverrideLogLabel(
 	overrideContext codersdk.ChatModelOverrideContext,
 ) string {
