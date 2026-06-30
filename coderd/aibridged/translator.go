@@ -25,20 +25,22 @@ type recorderTranslation struct {
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
-		Id:                    req.ID,
-		ApiKeyId:              t.apiKeyID,
-		InitiatorId:           req.InitiatorID,
-		Provider:              req.Provider,
-		ProviderName:          req.ProviderName,
-		Model:                 req.Model,
-		UserAgent:             req.UserAgent,
-		Client:                req.Client,
-		ClientSessionId:       req.ClientSessionID,
-		Metadata:              marshalForProto(req.Metadata),
-		StartedAt:             timestamppb.New(req.StartedAt),
-		CorrelatingToolCallId: req.CorrelatingToolCallID,
-		CredentialKind:        req.CredentialKind,
-		CredentialHint:        req.CredentialHint,
+		Id:                          req.ID,
+		ApiKeyId:                    t.apiKeyID,
+		InitiatorId:                 req.InitiatorID,
+		Provider:                    req.Provider,
+		ProviderName:                req.ProviderName,
+		Model:                       req.Model,
+		UserAgent:                   req.UserAgent,
+		Client:                      req.Client,
+		ClientSessionId:             req.ClientSessionID,
+		Metadata:                    marshalForProto(req.Metadata),
+		StartedAt:                   timestamppb.New(req.StartedAt),
+		CorrelatingToolCallId:       req.CorrelatingToolCallID,
+		CredentialKind:              req.CredentialKind,
+		CredentialHint:              req.CredentialHint,
+		AgentFirewallSessionId:      req.AgentFirewallSessionID,
+		AgentFirewallSequenceNumber: req.AgentFirewallSequenceNumber,
 	})
 	return err
 }

@@ -1434,7 +1434,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             },
             "post": {
                 "consumes": [
@@ -1471,7 +1474,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/keys/{key}": {
@@ -1500,7 +1506,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/models": {
@@ -1548,7 +1557,10 @@ const docTemplate = `{
                     {
                         "AIGatewayKey": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/sessions": {
@@ -17532,6 +17544,13 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatModelProvider"
                     }
+                },
+                "unsupported_providers": {
+                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                    }
                 }
             }
         },
@@ -17782,6 +17801,18 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tool_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatUnsupportedProvider": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Provider is the provider type, e.g. \"copilot\".",
                     "type": "string"
                 }
             }

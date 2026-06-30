@@ -4,9 +4,13 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { severityBorderClassName } from "#/utils/budget";
+import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
+import { useAISpend } from "./useAISpend";
 
 interface UserDropdownProps {
 	user: TypesGen.User;
@@ -23,6 +27,8 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	canViewOrganizations = false,
 	onSignOut,
 }) => {
+	const spend = useAISpend();
+
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
@@ -30,7 +36,14 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					type="button"
 					className="bg-transparent border-0 cursor-pointer p-0"
 				>
-					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
+					<Avatar
+						fallback={user.username}
+						src={user.avatar_url}
+						size="lg"
+						className={
+							spend ? severityBorderClassName(spend.severity) : undefined
+						}
+					/>
 				</button>
 			</DropdownMenuTrigger>
 
@@ -38,6 +51,12 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				<UserDropdownContent
 					user={user}
 					buildInfo={buildInfo}
+					profileExtra={
+						<UserDropdownAISpend
+							spend={spend}
+							header={<DropdownMenuSeparator />}
+						/>
+					}
 					supportLinks={supportLinks}
 					canViewOrganizations={canViewOrganizations}
 					onSignOut={onSignOut}

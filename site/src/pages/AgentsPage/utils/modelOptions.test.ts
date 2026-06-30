@@ -14,6 +14,7 @@ import {
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	getNormalizedModelRef,
+	getUnsupportedProviderNames,
 	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
 	resolveModelOptionId,
@@ -33,8 +34,10 @@ const createConfig = (
 
 const createCatalog = (
 	providers: ChatModelsResponse["providers"],
+	unsupportedProviders: ChatModelsResponse["unsupported_providers"] = [],
 ): ChatModelsResponse => ({
 	providers,
+	unsupported_providers: unsupportedProviders,
 });
 
 const createProviderConfig = (
@@ -514,5 +517,49 @@ describe("getModelOptionsFromConfigs", () => {
 				contextLimit: 128_000,
 			},
 		]);
+	});
+});
+
+describe("getUnsupportedProviderNames", () => {
+	const unsupportedCopilot: ChatModelsResponse["unsupported_providers"] = [
+		{
+			provider: "copilot",
+			display_name: "GitHub Copilot",
+		},
+	];
+
+	it("returns names when no supported provider is configured", () => {
+		const catalog = createCatalog([], unsupportedCopilot);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
+	});
+
+	it("returns empty when a supported provider is also configured", () => {
+		const catalog = createCatalog(
+			[{ provider: "anthropic", available: false, models: [] }],
+			unsupportedCopilot,
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual([]);
+	});
+
+	it("returns empty when there are no unsupported providers", () => {
+		expect(getUnsupportedProviderNames(createCatalog([]))).toEqual([]);
+	});
+
+	it("falls back to the provider type when display_name is empty", () => {
+		const catalog = createCatalog(
+			[],
+			[
+				{
+					provider: "copilot",
+					display_name: "",
+				},
+			],
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["copilot"]);
+	});
+
+	it("tolerates a missing catalog", () => {
+		expect(getUnsupportedProviderNames(undefined)).toEqual([]);
+		expect(getUnsupportedProviderNames(null)).toEqual([]);
 	});
 });

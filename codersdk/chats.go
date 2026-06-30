@@ -701,6 +701,17 @@ type ChatModelProvider struct {
 // ChatModelsResponse is the catalog returned from chat model discovery.
 type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
+	// UnsupportedProviders lists configured providers the Agents harness
+	// cannot use, so the UI can explain the empty state.
+	UnsupportedProviders []ChatUnsupportedProvider `json:"unsupported_providers"`
+}
+
+// ChatUnsupportedProvider is a configured provider the Agents harness cannot
+// use.
+type ChatUnsupportedProvider struct {
+	// Provider is the provider type, e.g. "copilot".
+	Provider    string `json:"provider"`
+	DisplayName string `json:"display_name"`
 }
 
 // ChatSystemPromptResponse is the response body for the chat system prompt

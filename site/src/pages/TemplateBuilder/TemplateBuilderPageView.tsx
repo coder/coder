@@ -34,6 +34,7 @@ import {
 	type StepId,
 	WIZARD_STEPS,
 } from "./steps";
+import { TemplateAlternatives } from "./TemplateAlternatives";
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
@@ -152,6 +153,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
+
+					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
 
 				{/* Sidebar */}

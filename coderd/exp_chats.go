@@ -1351,6 +1351,10 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	// Both catalog branches drop providers the harness cannot use, so
+	// attach them here for the empty state.
+	response.UnsupportedProviders = chatprovider.UnsupportedProviders(availability.configuredProviders)
+
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 

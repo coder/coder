@@ -1,8 +1,33 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import type { UserAISpend } from "#/api/api";
+import { meAISpendKey } from "#/api/queries/users";
+import type { Experiment, FeatureName } from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
+
+function mockAISpend(overrides: Partial<UserAISpend> = {}): UserAISpend {
+	return {
+		user_id: MockUserOwner.id,
+		spend_limit_micros: 1_200_000_000,
+		effective_group_id: "grp-789",
+		limit_source: "group",
+		current_spend_micros: 819_000_000,
+		...overrides,
+	};
+}
+
+const aiSpendQuery = (overrides?: Partial<UserAISpend>) => ({
+	key: meAISpendKey,
+	data: mockAISpend(overrides),
+});
+
+// Gates the AI spend section, matching the group budget UI.
+const aiCostControl: { features: FeatureName[]; experiments: Experiment[] } = {
+	features: ["aibridge"],
+	experiments: ["ai-gateway-cost-control"],
+};
 
 const meta: Meta<typeof UserDropdown> = {
 	title: "modules/dashboard/UserDropdown",
@@ -24,15 +49,205 @@ const meta: Meta<typeof UserDropdown> = {
 export default meta;
 type Story = StoryObj<typeof UserDropdown>;
 
-const Example: Story = {
-	play: async ({ canvasElement, step }) => {
-		const canvas = within(canvasElement);
+const openDropdown = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(canvas.getByRole("button"));
+	await waitFor(async () =>
+		expect(await screen.findByText(/v2\.\d+\.\d+/i)).toBeInTheDocument(),
+	);
+};
 
-		await step("click to open", async () => {
-			await userEvent.click(canvas.getByRole("button"));
-			await waitFor(async () =>
-				expect(await screen.findByText(/v2\.\d+\.\d+/i)).toBeInTheDocument(),
+const Example: Story = {
+	parameters: {
+		queries: [aiSpendQuery()],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("hides AI spend without cost control", async () => {
+			await openDropdown(canvasElement);
+			expect(screen.queryByText(/AI spend/i)).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const WithAISpend: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery()],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows AI spend", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$819 / $1,200 USD"),
 			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "68");
+		});
+	},
+};
+
+// 90% of the limit lands in the warning band (>=85%, <100%).
+export const AISpendWarning: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_080_000_000 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows the warning marker near the limit", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$1,080 / $1,200 USD"),
+			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "90");
+		});
+	},
+};
+
+// Spend exactly at the limit is exceeded (used >= budget).
+export const AISpendAtLimit: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_200_000_000 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("marks spend at the limit as exceeded", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$1,200 / $1,200 USD"),
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "100");
+		});
+	},
+};
+
+// Spend past the limit clamps the bar to 100% and marks it exceeded.
+export const AISpendExceeded: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_500_000_000 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows the exceeded marker at the limit", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$1,500 / $1,200 USD"),
+			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "100");
+		});
+	},
+};
+
+// A null limit means unlimited: spend is shown without a progress bar.
+export const AISpendUnlimited: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ spend_limit_micros: null })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows unlimited spend without a bar", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$819 / Unlimited USD"),
+			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
+			expect(
+				screen.queryByRole("progressbar", { name: "AI spend usage" }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+// $0 spend against a limit shows an empty bar.
+export const AISpendZeroSpend: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 0 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows zero spend with an empty bar", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$0 / $1,200 USD"),
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "0");
+		});
+	},
+};
+
+// $0 limit with $0 spend stays normal, not exceeded.
+export const AISpendZeroLimit: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 0, spend_limit_micros: 0 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("shows a zero limit without exceeding", async () => {
+			await openDropdown(canvasElement);
+			await waitFor(() =>
+				expect(document.body).toHaveTextContent("$0 / $0 USD"),
+			);
+			expect(
+				screen.getByRole("progressbar", { name: "AI spend usage" }),
+			).toHaveAttribute("aria-valuenow", "0");
+		});
+	},
+};
+
+// Dropdown closed to isolate the avatar border, which reflects spend severity.
+
+// No cost control: default border.
+export const AvatarBorderDisabled: Story = {
+	parameters: {
+		queries: [aiSpendQuery()],
+	},
+};
+
+// 68% of the limit.
+export const AvatarBorderNormal: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery()],
+	},
+};
+
+// 90% of the limit.
+export const AvatarBorderWarning: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_080_000_000 })],
+	},
+};
+
+// Over the limit.
+export const AvatarBorderExceeded: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: 1_500_000_000 })],
+	},
+};
+
+// Invalid (negative) spend hides the section.
+export const AISpendHiddenOnInvalidData: Story = {
+	parameters: {
+		...aiCostControl,
+		queries: [aiSpendQuery({ current_spend_micros: -1 })],
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("hides AI spend on invalid data", async () => {
+			await openDropdown(canvasElement);
+			expect(screen.queryByText("(AI spend/month)")).not.toBeInTheDocument();
 		});
 	},
 };

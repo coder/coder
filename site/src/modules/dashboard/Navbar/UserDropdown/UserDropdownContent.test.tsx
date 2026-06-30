@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -11,6 +12,7 @@ import { UserDropdownContent } from "./UserDropdownContent";
 const renderUserDropdownContent = (props: {
 	canViewOrganizations?: boolean;
 	onSignOut: () => void;
+	profileExtra?: ReactNode;
 }) => {
 	return render(
 		<DropdownMenu defaultOpen>
@@ -20,6 +22,7 @@ const renderUserDropdownContent = (props: {
 					user={MockUserOwner}
 					canViewOrganizations={props.canViewOrganizations}
 					onSignOut={props.onSignOut}
+					profileExtra={props.profileExtra}
 					supportLinks={[]}
 				/>
 			</DropdownMenuContent>
@@ -61,5 +64,17 @@ describe("UserDropdownContent", () => {
 		}
 
 		expect(link.getAttribute("href")).toBe("/organizations");
+	});
+
+	it("renders the profile extra content when provided", async () => {
+		renderUserDropdownContent({
+			onSignOut: vi.fn(),
+			profileExtra: <div>AI spend - $819 / $1,200 USD</div>,
+		});
+		await waitForLoaderToBeRemoved();
+
+		expect(
+			screen.getByText("AI spend - $819 / $1,200 USD"),
+		).toBeInTheDocument();
 	});
 });

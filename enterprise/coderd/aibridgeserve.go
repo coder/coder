@@ -42,6 +42,7 @@ const aiGatewayKeyHeartbeatInterval = 60 * time.Second
 // @Tags Enterprise
 // @Success 101
 // @Router /api/v2/ai-gateway/serve [get]
+// @x-apidocgen {"skip": true}
 func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get(codersdk.AIGatewayKeyHeader)
 	if key == "" {
