@@ -1375,8 +1375,8 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error)
-	// Trims the summary, storing blank values as NULL, and stamps
-	// summary_generated_at (used to schedule the next regeneration).
+	// Stores the summary and stamps summary_generated_at (used to schedule the
+	// next regeneration).
 	// Guards on history_version, not updated_at (left untouched), so the write
 	// is rejected only when the message history changed under it; unrelated
 	// worker state transitions cannot block it. Same pattern as

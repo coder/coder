@@ -973,13 +973,24 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 		tailStart--
 	}
 
-	out := make([]string, 0, headEnd+(len(lines)-tailStart)+1)
-	out = append(out, lines[:headEnd]...)
-	if tailStart > headEnd {
-		out = append(out, "[... earlier turns omitted ...]")
+	var out strings.Builder
+	writeLine := func(line string) {
+		if out.Len() > 0 {
+			out.WriteByte('\n')
+		}
+		out.WriteString(line)
 	}
-	out = append(out, lines[tailStart:]...)
-	return strings.Join(out, "\n")
+
+	for _, line := range lines[:headEnd] {
+		writeLine(line)
+	}
+	if tailStart > headEnd {
+		writeLine("[... earlier turns omitted ...]")
+	}
+	for _, line := range lines[tailStart:] {
+		writeLine(line)
+	}
+	return out.String()
 }
 
 // generateChatSummary generates a 1-3 sentence whole-chat summary from a

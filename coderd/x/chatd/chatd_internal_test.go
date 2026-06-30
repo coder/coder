@@ -82,6 +82,44 @@ func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
+func TestUpdateChatSummaryTrimsAndSkipsBlank(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TrimsBeforePersisting", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "trimmed summary", Valid: true},
+		}).DoAndReturn(func(ctx context.Context, _ database.UpdateChatSummaryParams) (int64, error) {
+			_, ok := dbauthz.ActorFromContext(ctx)
+			require.True(t, ok, "summary writes must have an actor")
+			return 1, nil
+		})
+
+		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, " \n trimmed summary\t ", logger)
+	})
+
+	t.Run("SkipsBlankSummary", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, " \n\t ", logger)
+	})
+}
+
 func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 	t.Parallel()
 
