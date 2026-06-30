@@ -38,7 +38,6 @@ import {
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
-	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	setChatGroupRole,
@@ -67,7 +66,6 @@ vi.mock("#/api/api", () => ({
 			interruptChat: vi.fn(),
 			promoteChatQueuedMessage: vi.fn(),
 			proposeChatTitle: vi.fn(),
-			regenerateChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
 			getChatACL: vi.fn(),
@@ -844,51 +842,6 @@ describe("reorderPinnedChat", () => {
 	});
 });
 
-describe("regenerateChatTitle cache updates", () => {
-	it("preserves existing chat detail fields when the response is partial", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const cachedChat = makeChat(chatId, {
-			diff_status: {
-				chat_id: chatId,
-				url: "https://example.com/pr/1",
-				pull_request_state: "open",
-				pull_request_title: "",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 1,
-				deletions: 2,
-				changed_files: 3,
-				refreshed_at: "2025-01-01T00:00:00.000Z",
-				stale_at: "2025-01-01T01:00:00.000Z",
-			},
-		});
-		queryClient.setQueryData(chatKey(chatId), cachedChat);
-		seedInfiniteChats(queryClient, [cachedChat]);
-
-		const mutation = regenerateChatTitle(queryClient);
-		const updatedChat = {
-			id: chatId,
-			title: "New title",
-		} satisfies Partial<TypesGen.Chat>;
-
-		mutation.onSuccess(updatedChat as TypesGen.Chat);
-
-		const cachedDetail = queryClient.getQueryData<TypesGen.Chat>(
-			chatKey(chatId),
-		);
-		expect(cachedDetail).toEqual({
-			...cachedChat,
-			title: "New title",
-		});
-		expect(cachedDetail?.diff_status).toEqual(cachedChat.diff_status);
-		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
-			id: chatId,
-			title: "New title",
-		});
-	});
-});
-
 describe("chat cost query factories", () => {
 	it("builds the summary query key and forwards snake_case params", async () => {
 		const user = "user-1";
@@ -1500,28 +1453,6 @@ describe("mutation invalidation scope", () => {
 			expect(
 				state?.isInvalidated,
 				`${label} should NOT be invalidated by promoteChatQueuedMessage`,
-			).not.toBe(true);
-		}
-	});
-
-	it("regenerateChatTitle invalidates debug runs so the title_generation run surfaces immediately", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		seedAllActiveQueries(queryClient, chatId);
-
-		const mutation = regenerateChatTitle(queryClient);
-		await mutation.onSettled(undefined, undefined, chatId);
-
-		expect(
-			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-			"chatDebugRunsKey should be invalidated",
-		).toBe(true);
-
-		for (const { label, key } of unrelatedKeys(chatId)) {
-			const state = queryClient.getQueryState(key);
-			expect(
-				state?.isInvalidated,
-				`${label} should NOT be invalidated by regenerateChatTitle`,
 			).not.toBe(true);
 		}
 	});
