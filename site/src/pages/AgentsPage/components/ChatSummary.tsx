@@ -55,7 +55,7 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 				</ChatSummaryRow>
 				<ChatSummaryRow label="Cost:">
 					{isCostLoading ? (
-						<Skeleton aria-label="Loading cost" className="h-4 w-16" />
+						<Skeleton aria-label="Loading cost" className="my-1 h-4 w-16" />
 					) : costError ? (
 						<span className="text-content-secondary">Unavailable</span>
 					) : costMicros != null ? (
