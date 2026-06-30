@@ -88,50 +88,65 @@ ai_gateway_proxy:
 
 Core AI Gateway settings:
 
-| Deprecated                                         | New                                                  |
-|----------------------------------------------------|------------------------------------------------------|
-| `CODER_AIBRIDGE_ENABLED`                           | `CODER_AI_GATEWAY_ENABLED`                           |
-| `CODER_AIBRIDGE_OPENAI_BASE_URL`                   | `CODER_AI_GATEWAY_OPENAI_BASE_URL`                   |
-| `CODER_AIBRIDGE_OPENAI_KEY`                        | `CODER_AI_GATEWAY_OPENAI_KEY`                        |
-| `CODER_AIBRIDGE_ANTHROPIC_BASE_URL`                | `CODER_AI_GATEWAY_ANTHROPIC_BASE_URL`                |
-| `CODER_AIBRIDGE_ANTHROPIC_KEY`                     | `CODER_AI_GATEWAY_ANTHROPIC_KEY`                     |
-| `CODER_AIBRIDGE_BEDROCK_BASE_URL`                  | `CODER_AI_GATEWAY_BEDROCK_BASE_URL`                  |
-| `CODER_AIBRIDGE_BEDROCK_REGION`                    | `CODER_AI_GATEWAY_BEDROCK_REGION`                    |
-| `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY`                | `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY`                |
-| `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET`         | `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET`         |
-| `CODER_AIBRIDGE_BEDROCK_MODEL`                     | `CODER_AI_GATEWAY_BEDROCK_MODEL`                     |
-| `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL`          | `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL`          |
-| `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS`            | `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS`            |
-| `CODER_AIBRIDGE_RETENTION`                         | `CODER_AI_GATEWAY_RETENTION`                         |
-| `CODER_AIBRIDGE_MAX_CONCURRENCY`                   | `CODER_AI_GATEWAY_MAX_CONCURRENCY`                   |
-| `CODER_AIBRIDGE_RATE_LIMIT`                        | `CODER_AI_GATEWAY_RATE_LIMIT`                        |
-| `CODER_AIBRIDGE_STRUCTURED_LOGGING`                | `CODER_AI_GATEWAY_STRUCTURED_LOGGING`                |
-| `CODER_AIBRIDGE_SEND_ACTOR_HEADERS`                | `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`                |
-| `CODER_AIBRIDGE_ALLOW_BYOK`                        | `CODER_AI_GATEWAY_ALLOW_BYOK`                        |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED`           |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD` |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL`          | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL`          |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT`           |
-| `CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS`      | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS`      |
+| Deprecated                                         | New                                                  | Note                                                           |
+|----------------------------------------------------|------------------------------------------------------|----------------------------------------------------------------|
+| `CODER_AIBRIDGE_ENABLED`                           | `CODER_AI_GATEWAY_ENABLED`                           |                                                                |
+| `CODER_AIBRIDGE_OPENAI_BASE_URL`                   | `CODER_AI_GATEWAY_OPENAI_BASE_URL`                   |                                                                |
+| `CODER_AIBRIDGE_OPENAI_KEY`                        | `CODER_AI_GATEWAY_OPENAI_KEY`                        |                                                                |
+| `CODER_AIBRIDGE_ANTHROPIC_BASE_URL`                | `CODER_AI_GATEWAY_ANTHROPIC_BASE_URL`                |                                                                |
+| `CODER_AIBRIDGE_ANTHROPIC_KEY`                     | `CODER_AI_GATEWAY_ANTHROPIC_KEY`                     |                                                                |
+| `CODER_AIBRIDGE_BEDROCK_BASE_URL`                  | `CODER_AI_GATEWAY_BEDROCK_BASE_URL`                  |                                                                |
+| `CODER_AIBRIDGE_BEDROCK_REGION`                    | `CODER_AI_GATEWAY_BEDROCK_REGION`                    |                                                                |
+| `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY`                | `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY`                |                                                                |
+| `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET`         | `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET`         |                                                                |
+| `CODER_AIBRIDGE_BEDROCK_MODEL`                     | `CODER_AI_GATEWAY_BEDROCK_MODEL`                     |                                                                |
+| `CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL`          | `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL`          |                                                                |
+| `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS`            | `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS`            |                                                                |
+| `CODER_AIBRIDGE_RETENTION`                         | `CODER_AI_GATEWAY_RETENTION`                         |                                                                |
+| `CODER_AIBRIDGE_MAX_CONCURRENCY`                   | `CODER_AI_GATEWAY_MAX_CONCURRENCY`                   |                                                                |
+| `CODER_AIBRIDGE_RATE_LIMIT`                        | `CODER_AI_GATEWAY_RATE_LIMIT`                        |                                                                |
+| `CODER_AIBRIDGE_STRUCTURED_LOGGING`                | `CODER_AI_GATEWAY_STRUCTURED_LOGGING`                |                                                                |
+| `CODER_AIBRIDGE_SEND_ACTOR_HEADERS`                | `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`                |                                                                |
+| `CODER_AIBRIDGE_ALLOW_BYOK`                        | `CODER_AI_GATEWAY_ALLOW_BYOK`                        |                                                                |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED`           |                                                                |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD` |                                                                |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_INTERVAL`          | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL`          |                                                                |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_TIMEOUT`           | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT`           |                                                                |
+| `CODER_AIBRIDGE_CIRCUIT_BREAKER_MAX_REQUESTS`      | `CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS`      |                                                                |
+| `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>`                | `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`                | Cannot be mixed; see [below](#provider-configuration-env-vars) |
 
 AI Gateway Proxy settings:
 
-| Deprecated                                   | New                                                                           |
-|----------------------------------------------|-------------------------------------------------------------------------------|
-| `CODER_AIBRIDGE_PROXY_ENABLED`               | `CODER_AI_GATEWAY_PROXY_ENABLED`                                              |
-| `CODER_AIBRIDGE_PROXY_LISTEN_ADDR`           | `CODER_AI_GATEWAY_PROXY_LISTEN_ADDR`                                          |
-| `CODER_AIBRIDGE_PROXY_TLS_CERT_FILE`         | `CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE`                                        |
-| `CODER_AIBRIDGE_PROXY_TLS_KEY_FILE`          | `CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE`                                         |
-| `CODER_AIBRIDGE_PROXY_CERT_FILE`             | `CODER_AI_GATEWAY_PROXY_CERT_FILE`                                            |
-| `CODER_AIBRIDGE_PROXY_KEY_FILE`              | `CODER_AI_GATEWAY_PROXY_KEY_FILE`                                             |
-| `CODER_AIBRIDGE_PROXY_UPSTREAM`              | `CODER_AI_GATEWAY_PROXY_UPSTREAM`                                             |
-| `CODER_AIBRIDGE_PROXY_UPSTREAM_CA`           | `CODER_AI_GATEWAY_PROXY_UPSTREAM_CA`                                          |
-| `CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS` | `CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`                                |
-| `CODER_AIBRIDGE_PROXY_DUMP_DIR`              | `CODER_AI_GATEWAY_PROXY_DUMP_DIR`                                             |
-| `CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST`      | `CODER_AI_GATEWAY_PROXY_DOMAIN_ALLOWLIST` (already deprecated; has no effect) |
+| Deprecated                                   | New                                            | Note                              |
+|----------------------------------------------|------------------------------------------------|-----------------------------------|
+| `CODER_AIBRIDGE_PROXY_ENABLED`               | `CODER_AI_GATEWAY_PROXY_ENABLED`               |                                   |
+| `CODER_AIBRIDGE_PROXY_LISTEN_ADDR`           | `CODER_AI_GATEWAY_PROXY_LISTEN_ADDR`           |                                   |
+| `CODER_AIBRIDGE_PROXY_TLS_CERT_FILE`         | `CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE`         |                                   |
+| `CODER_AIBRIDGE_PROXY_TLS_KEY_FILE`          | `CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE`          |                                   |
+| `CODER_AIBRIDGE_PROXY_CERT_FILE`             | `CODER_AI_GATEWAY_PROXY_CERT_FILE`             |                                   |
+| `CODER_AIBRIDGE_PROXY_KEY_FILE`              | `CODER_AI_GATEWAY_PROXY_KEY_FILE`              |                                   |
+| `CODER_AIBRIDGE_PROXY_UPSTREAM`              | `CODER_AI_GATEWAY_PROXY_UPSTREAM`              |                                   |
+| `CODER_AIBRIDGE_PROXY_UPSTREAM_CA`           | `CODER_AI_GATEWAY_PROXY_UPSTREAM_CA`           |                                   |
+| `CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS` | `CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS` |                                   |
+| `CODER_AIBRIDGE_PROXY_DUMP_DIR`              | `CODER_AI_GATEWAY_PROXY_DUMP_DIR`              |                                   |
+| `CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST`      | `CODER_AI_GATEWAY_PROXY_DOMAIN_ALLOWLIST`      | Already deprecated; has no effect |
 
 CLI flags follow the same mapping with the `--aibridge-*` to `--ai-gateway-*`
 prefix change.
+
+### Provider configuration env vars
+
+Providers are configured with indexed environment variables of the form
+`CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` (for example
+`CODER_AI_GATEWAY_PROVIDER_0_TYPE`, `CODER_AI_GATEWAY_PROVIDER_0_NAME`,
+`CODER_AI_GATEWAY_PROVIDER_0_KEY`, `CODER_AI_GATEWAY_PROVIDER_0_BASE_URL`). The
+old `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>` prefix is accepted as a deprecated alias.
+
+Unlike the scalar settings above, you **cannot mix the two prefixes**. Setting
+both `CODER_AIBRIDGE_PROVIDER_*` and `CODER_AI_GATEWAY_PROVIDER_*` variables in
+the same deployment is an error. Move every provider variable onto the new
+`CODER_AI_GATEWAY_PROVIDER_*` prefix together (for example
+`CODER_AIBRIDGE_PROVIDER_0_TYPE` becomes `CODER_AI_GATEWAY_PROVIDER_0_TYPE`).
 
 ## HTTP API
 
