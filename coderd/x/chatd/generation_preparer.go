@@ -342,17 +342,15 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
-	chatGoalsEnabled := false
 	var activeGoal *database.ChatGoal
 	//nolint:gocritic // Turn preparation needs daemon-scoped deployment config reads.
 	goalConfigCtx := dbauthz.AsChatd(ctx)
-	goalsEnabled, err := server.db.GetChatGoalsEnabled(goalConfigCtx)
+	chatGoalsEnabled, err := server.db.GetChatGoalsEnabled(goalConfigCtx)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, xerrors.Errorf("get chat goals setting: %w", err)
 	}
-	if goalsEnabled {
-		chatGoalsEnabled = true
+	if chatGoalsEnabled {
 		activeGoal, err = currentChatGoal(ctx, server.db, chatRootID(chat))
 		if err != nil {
 			cleanup()

@@ -1266,9 +1266,7 @@ const AgentChatPage: FC = () => {
 			onPausedRunningGoal: () => {
 				toast.info("Goal paused. Use Stop to halt the current turn.");
 			},
-		}).catch((error: unknown) => {
-			toast.error(getErrorMessage(error, "Failed to update goal."));
-		});
+		}).catch(() => undefined);
 	};
 
 	const handleUsageLimitError = (error: unknown): void => {

@@ -512,6 +512,10 @@ func dbChatRootID(chat database.Chat) uuid.UUID {
 }
 
 func (api *API) hydrateChatGoals(ctx context.Context, chats []codersdk.Chat) error {
+	if len(chats) == 0 {
+		return nil
+	}
+
 	enabled, err := api.chatGoalsEnabled(ctx)
 	if err != nil {
 		return err
@@ -2470,27 +2474,29 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var sentAsGoalIDs map[int64]struct{}
-	chatGoalsEnabled, err := api.chatGoalsEnabled(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load chat goals setting.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if chatGoalsEnabled {
-		sentAsGoalIDs, err = chatGoalMessageIDs(ctx, api.Database, messages)
+	if len(messages) > 0 {
+		chatGoalsEnabled, err := api.chatGoalsEnabled(ctx)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get chat goal message markers.",
+				Message: "Failed to load chat goals setting.",
 				Detail:  err.Error(),
 			})
 			return
 		}
+		if chatGoalsEnabled {
+			sentAsGoalIDs, err = chatGoalMessageIDs(ctx, api.Database, messages)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to get chat goal message markers.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       convertChatMessagesWithSentAsGoalIDs(messages, sentAsGoalIDs),
+		Messages:       db2sdk.ChatMessagesWithSentAsGoalIDs(messages, sentAsGoalIDs),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 		HasMore:        hasMore,
 	})
@@ -6967,10 +6973,6 @@ func chatGoalMessageIDs(ctx context.Context, store database.Store, messages []da
 
 func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	return db2sdk.ChatMessage(m)
-}
-
-func convertChatMessagesWithSentAsGoalIDs(messages []database.ChatMessage, sentAsGoalIDs map[int64]struct{}) []codersdk.ChatMessage {
-	return db2sdk.ChatMessagesWithSentAsGoalIDs(messages, sentAsGoalIDs)
 }
 
 func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {

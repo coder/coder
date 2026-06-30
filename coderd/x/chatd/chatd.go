@@ -1285,11 +1285,7 @@ func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOp
 		if err != nil {
 			return err
 		}
-		refreshed, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("reload chat after goal mutation: %w", err)
-		}
-		result.Chat = refreshed
+		result.Chat = lockedChat
 		result.Goal = goal
 		return nil
 	})
