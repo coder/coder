@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -312,6 +313,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
+		providerID := uuid.New()
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
 		})
@@ -319,18 +321,25 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		store := &advisorOverrideStubStore{
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
-					ID:          configID,
-					Provider:    "openai",
-					Model:       "gpt-5.2",
-					Enabled:     true,
-					CreatedAt:   time.Unix(0, 0).UTC(),
-					UpdatedAt:   time.Unix(0, 0).UTC(),
-					Options:     rawOptions,
-					DisplayName: "gpt-5.2",
+					ID:           configID,
+					Provider:     "openai",
+					Model:        "gpt-5.2",
+					Enabled:      true,
+					CreatedAt:    time.Unix(0, 0).UTC(),
+					UpdatedAt:    time.Unix(0, 0).UTC(),
+					Options:      rawOptions,
+					DisplayName:  "gpt-5.2",
+					AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 				}, nil
+			},
+			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
+				return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
+		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+		})})
 
 		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
@@ -338,13 +347,19 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			modelBuildOptions{},
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
-		// The config has no AIProviderID, so AI Gateway routing cannot
-		// resolve an override. The fallback model is returned.
-		require.Equal(t, fantasy.LanguageModel(fallbackModel), gotModel)
-		require.Equal(t, fallbackCallConfig, gotCfg)
+		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel,
+			"success path must return the override model, not the fallback")
+		require.NotNil(t, gotModel)
+		require.Equal(t, "openai", gotModel.Provider())
+		// Guard against ModelFromConfig silently ignoring the model field
+		// and returning a default. The override is only useful if the
+		// model name from the config row actually propagates.
+		require.Equal(t, "gpt-5.2", gotModel.Model())
+		require.NotNil(t, gotCfg.Temperature)
+		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
 	})
 	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
 		t.Parallel()
@@ -365,11 +380,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 				}, nil
 			},
 			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
-				return database.AIProvider{
-					ID:      providerID,
-					Type:    database.AIProviderTypeOpenai,
-					Enabled: true,
-				}, nil
+				return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
 			},
 			getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
 				return []database.AIProviderKey{{
@@ -379,6 +390,9 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
+		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+		})})
 
 		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
@@ -386,13 +400,13 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			modelBuildOptions{},
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
-		// AIProviderID is set, but the test Server has no
-		// aibridgeTransportFactory. The AI Gateway model cannot be
-		// constructed, so the fallback model is returned.
-		require.Equal(t, fantasy.LanguageModel(fallbackModel), gotModel)
+		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel)
+		require.NotNil(t, gotModel)
+		require.Equal(t, "openai", gotModel.Provider())
+		require.Equal(t, "gpt-5.2", gotModel.Model())
 		require.Equal(t, fallbackCallConfig, gotCfg)
 	})
 }

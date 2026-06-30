@@ -426,6 +426,7 @@ const meta: Meta<typeof AgentsPageView> = {
 				},
 			],
 			unsupported_providers: [],
+			ai_gateway_disabled: false,
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
@@ -1207,5 +1208,19 @@ export const SettingsViewCoderAgentsLink: Story = {
 				),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const AIGatewayDisabled: Story = {
+	args: {
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = await canvas.findByTestId("ai-gateway-disabled-banner");
+		await expect(banner).toHaveTextContent(/AI Gateway must be enabled/i);
+		await expect(banner).toHaveTextContent(
+			/contact your deployment administrator/i,
+		);
 	},
 };

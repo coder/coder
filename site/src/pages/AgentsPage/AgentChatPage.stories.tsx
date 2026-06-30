@@ -115,6 +115,7 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 		},
 	],
 	unsupported_providers: [],
+	ai_gateway_disabled: false,
 };
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [

@@ -732,6 +732,7 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				sidebarFilters={sidebarFilters}
 				onSidebarFiltersChange={setSidebarFilters}
+				aiGatewayDisabled={chatModelsQuery.data?.ai_gateway_disabled ?? false}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

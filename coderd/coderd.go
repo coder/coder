@@ -825,33 +825,38 @@ func New(options *Options) *API {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
-		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
-			Logger:                         options.Logger.Named("chatd"),
-			Database:                       options.Database,
-			ReplicaID:                      api.ID,
-			StreamPartsDialer:              options.ChatStreamPartsDialer,
-			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                providerAPIKeys,
-			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			AllowBYOKSet:                   true,
-			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
-			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-			Experiments:                    experiments,
-			AgentConn:                      api.agentProvider.AgentConn,
-			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
-			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
-			CreateWorkspace:                api.chatCreateWorkspace,
-			StartWorkspace:                 api.chatStartWorkspace,
-			StopWorkspace:                  api.chatStopWorkspace,
-			WebpushDispatcher:              options.WebPushDispatcher,
-			UsageTracker:                   options.WorkspaceUsageTracker,
-			PrometheusRegistry:             options.PrometheusRegistry,
-			OIDCTokenSource:                oidcMCPSrc,
-			NotificationsEnqueuer:          options.NotificationsEnqueuer,
-			Auditor:                        &api.Auditor,
-		})
-		if !options.ChatWorkerDisabled {
-			api.chatDaemon.Start()
+		// AI Gateway is mandatory for chat. When the bridge is disabled
+		// the chat daemon stays nil and chat HTTP handlers return a
+		// service-unavailable error with a clear remediation message.
+		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+				Logger:                         options.Logger.Named("chatd"),
+				Database:                       options.Database,
+				ReplicaID:                      api.ID,
+				StreamPartsDialer:              options.ChatStreamPartsDialer,
+				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+				ProviderAPIKeys:                providerAPIKeys,
+				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+				AllowBYOKSet:                   true,
+				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				Experiments:                    experiments,
+				AgentConn:                      api.agentProvider.AgentConn,
+				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+				CreateWorkspace:                api.chatCreateWorkspace,
+				StartWorkspace:                 api.chatStartWorkspace,
+				StopWorkspace:                  api.chatStopWorkspace,
+				WebpushDispatcher:              options.WebPushDispatcher,
+				UsageTracker:                   options.WorkspaceUsageTracker,
+				PrometheusRegistry:             options.PrometheusRegistry,
+				OIDCTokenSource:                oidcMCPSrc,
+				NotificationsEnqueuer:          options.NotificationsEnqueuer,
+				Auditor:                        &api.Auditor,
+			})
+			if !options.ChatWorkerDisabled {
+				api.chatDaemon.Start()
+			}
 		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(

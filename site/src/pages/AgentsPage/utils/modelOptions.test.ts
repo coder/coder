@@ -38,6 +38,7 @@ const createCatalog = (
 ): ChatModelsResponse => ({
 	providers,
 	unsupported_providers: unsupportedProviders,
+	ai_gateway_disabled: false,
 });
 
 const createProviderConfig = (
