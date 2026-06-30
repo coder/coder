@@ -42,12 +42,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		wantTitle := "Preferred title"
 
 		var requestCount atomic.Int32
-		serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		_ = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			requestCount.Add(1)
 			require.Equal(t, preferredTitleModels[1].model, req.Model)
 			return chattest.OpenAINonStreamingResponse(`{"title":"` + wantTitle + `"}`)
 		})
-		keys := titleOverrideOpenAIKeys(serverURL)
 		fallbackModel := &chattest.FakeModel{
 			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 				t.Fatal("fallback model should not be called when preferred model works")
@@ -70,8 +69,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			"openai",
 			"fallback-chat-model",
 			fallbackModel,
-			resolvedModelRoute{},
-			keys,
+			aiGatewayModelRoute{},
 			modelBuildOptions{},
 			generated,
 			logger,
@@ -119,8 +117,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			"openai",
 			"fallback-chat-model",
 			fallbackModel,
-			resolvedModelRoute{},
-			chatprovider.ProviderAPIKeys{},
+			aiGatewayModelRoute{},
 			modelBuildOptions{},
 			generated,
 			logger,
@@ -169,8 +166,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -218,8 +214,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -285,8 +280,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -327,8 +321,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableSkips(t *testi
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -350,12 +343,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 
 	var requestCount atomic.Int32
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+	_ = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		requestCount.Add(1)
 		require.Equal(t, overrideConfig.Model, req.Model)
 		return chattest.OpenAINonStreamingResponse(`{"title":""}`)
 	})
-	keys := titleOverrideOpenAIKeys(serverURL)
 	fallbackModel := &chattest.FakeModel{
 		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			t.Fatal("fallback model should not be called after override call failure")
@@ -377,8 +369,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
-		resolvedModelRoute{},
-		keys,
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -412,11 +403,10 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
@@ -462,17 +452,15 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	}}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, gotKeys, err := server.resolveManualTitleModel(
+	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		chatprovider.ProviderAPIKeys{},
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, model)
 	require.Equal(t, preferredConfig, gotConfig)
-	require.Equal(t, "test-key", gotKeys.APIKey("openai"))
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
@@ -497,11 +485,10 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
@@ -525,11 +512,10 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 		modelBuildOptions{},
 	)
 	require.NoError(t, err)
@@ -553,11 +539,10 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		chatprovider.ProviderAPIKeys{},
 		modelBuildOptions{},
 	)
 	require.Error(t, err)
@@ -657,7 +642,6 @@ func TestGenerateManualTitleCandidate_ActiveAPIKeyIDFallback(t *testing.T) {
 			}}, nil).AnyTimes()
 
 			server := titleOverrideTestServer(db, logger)
-			server.aiGatewayRoutingEnabled = true
 			server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 			result, err := server.generateManualTitleCandidate(ctx, db, chat, chatprovider.ProviderAPIKeys{})
 			if tt.wantErrContains != "" {
@@ -687,11 +671,10 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, _, err := server.resolveManualTitleModel(
+	model, gotConfig, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
-		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 		modelBuildOptions{},
 	)
 	require.Error(t, err)
@@ -734,17 +717,6 @@ func titleOverrideModelConfig(model string, enabled bool) database.ChatModelConf
 		Provider: "openai",
 		Model:    model,
 		Enabled:  enabled,
-	}
-}
-
-func titleOverrideOpenAIKeys(serverURL string) chatprovider.ProviderAPIKeys {
-	return chatprovider.ProviderAPIKeys{
-		ByProvider: map[string]string{
-			"openai": "test-key",
-		},
-		BaseURLByProvider: map[string]string{
-			"openai": serverURL,
-		},
 	}
 }
 

@@ -117,7 +117,6 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 		advisorCfg,
 		fallbackModel,
 		fallbackCallConfig,
-		providerKeys,
 		modelOpts,
 		logger,
 	)
@@ -144,7 +143,6 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 		advisorCfg,
 		fallbackModel,
 		fallbackCallConfig,
-		providerKeys,
 		modelOpts,
 		logger,
 	)
@@ -441,7 +439,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		},
 	}
 	p := newAdvisorTestServer(ctx, t, store)
-	p.aiGatewayRoutingEnabled = true
 
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
 	model, _, err := p.resolveAdvisorModelOverride(
@@ -450,7 +447,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		codersdk.AdvisorConfig{ModelConfigID: configID},
 		&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"},
 		codersdk.ChatModelCallConfig{},
-		chatprovider.ProviderAPIKeys{},
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		slog.Make(),
 	)

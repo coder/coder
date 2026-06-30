@@ -363,9 +363,8 @@ func TestCreateChildSubagentChatRequiresActiveTurnAPIKeyIDForAIGateway(t *testin
 	})
 
 	server := &Server{
-		db:                      db,
-		logger:                  slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		aiGatewayRoutingEnabled: true,
+		db:     db,
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	}
 	_, err := server.createChildSubagentChat(ctx, parent, "inspect the workspace", "")
 	require.ErrorContains(t, err, "active turn API key ID is required for subagent messages")
@@ -376,7 +375,6 @@ func TestSendSubagentMessageRequiresActiveTurnAPIKeyIDForAIGateway(t *testing.T)
 
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	server.aiGatewayRoutingEnabled = true
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
 
@@ -427,7 +425,6 @@ func TestSpawnAgentUsesActiveTurnAPIKeyIDFromContext(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	server.aiGatewayRoutingEnabled = true
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
@@ -594,11 +591,10 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 	})
 
-	model, config, keys, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
+	model, config, _, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelBuildOptions{})
 	require.ErrorContains(t, err, "is disabled")
 	require.Nil(t, model)
 	require.Equal(t, database.ChatModelConfig{}, config)
-	require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
 	require.False(t, debugEnabled)
 	require.Empty(t, resolvedProvider)
 	require.Empty(t, resolvedModel)
@@ -925,11 +921,6 @@ func runSubagentTool(
 	args any,
 ) fantasy.ToolResponse {
 	t.Helper()
-	if !server.shouldUseAIGatewayRouting() {
-		if apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx); !ok || apiKeyID == "" {
-			ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, server.db, parentChat.OwnerID))
-		}
-	}
 
 	tools := server.subagentTools(
 		ctx,

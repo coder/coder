@@ -181,7 +181,7 @@ func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T)
 
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
 
-	server := &Server{db: db, aiGatewayRoutingEnabled: true}
+	server := &Server{db: db}
 	_, err := server.resolveModelRouteForProviderType(
 		ctx,
 		uuid.New(),

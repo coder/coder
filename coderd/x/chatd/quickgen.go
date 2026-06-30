@@ -68,37 +68,8 @@ var preferredTitleModels = []struct {
 type shortTextCandidate struct {
 	provider string
 	model    string
-	route    resolvedModelRoute
+	route    aiGatewayModelRoute
 	lm       fantasy.LanguageModel
-}
-
-func (p *Server) preferredShortTextCandidates(
-	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
-) []shortTextCandidate {
-	if p.shouldUseAIGatewayRouting() {
-		return nil
-	}
-
-	candidates := make([]shortTextCandidate, 0, len(preferredTitleModels)+1)
-	userAgent := chatprovider.UserAgent()
-	extraHeaders := chatprovider.CoderHeaders(chat)
-	for _, candidate := range preferredTitleModels {
-		model, err := chatprovider.ModelFromConfig(
-			candidate.provider, candidate.model, keys, userAgent,
-			extraHeaders,
-			nil,
-		)
-		if err == nil {
-			candidates = append(candidates, shortTextCandidate{
-				provider: candidate.provider,
-				model:    candidate.model,
-				route:    newDirectModelRoute(candidate.provider, keys),
-				lm:       model,
-			})
-		}
-	}
-	return candidates
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
@@ -174,7 +145,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		defer stopTitleCtx()
 		modelOpts := modelBuildOptionsFromMessages(messages)
 		turnCtx := withActiveTurnAPIKeyID(titleCtx, modelOpts)
-		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
+		model, modelConfig, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
 		if err != nil {
 			logger.Debug(turnCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
@@ -189,7 +160,6 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			modelConfig.Model,
 			model,
 			route,
-			keys,
 			modelOpts,
 			&generatedChatTitle{},
 			logger,
@@ -219,8 +189,7 @@ func (p *Server) maybeGenerateChatTitle(
 	fallbackProvider string,
 	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
-	fallbackRoute resolvedModelRoute,
-	keys chatprovider.ProviderAPIKeys,
+	fallbackRoute aiGatewayModelRoute,
 	modelOpts modelBuildOptions,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
@@ -235,10 +204,9 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideConfig, overrideModel, _, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	overrideConfig, overrideModel, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
-		keys,
 		modelOpts,
 	)
 	if overrideErr != nil {
@@ -266,7 +234,7 @@ func (p *Server) maybeGenerateChatTitle(
 			lm:       overrideModel,
 		}}
 	} else {
-		candidates = p.preferredShortTextCandidates(chat, keys)
+		candidates = nil
 		candidates = append(candidates, shortTextCandidate{
 			provider: fallbackProvider,
 			model:    fallbackModelName,
@@ -378,7 +346,7 @@ func (p *Server) newQuickgenDebugModel(
 	debugSvc *chatdebug.Service,
 	provider string,
 	model string,
-	route resolvedModelRoute,
+	route aiGatewayModelRoute,
 	modelOpts modelBuildOptions,
 ) (fantasy.LanguageModel, error) {
 	debugOpts := modelOpts
@@ -897,8 +865,7 @@ func (p *Server) generateTurnStatusLabel(
 	fallbackProvider string,
 	fallbackModelName string,
 	fallbackModel fantasy.LanguageModel,
-	fallbackRoute resolvedModelRoute,
-	keys chatprovider.ProviderAPIKeys,
+	fallbackRoute aiGatewayModelRoute,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
@@ -915,13 +882,12 @@ func (p *Server) generateTurnStatusLabel(
 		"\nChat title: " + chat.Title +
 		"\n\nAgent's latest message:\n" + assistantText
 
-	candidates := p.preferredShortTextCandidates(chat, keys)
-	candidates = append(candidates, shortTextCandidate{
+	candidates := []shortTextCandidate{{
 		provider: fallbackProvider,
 		model:    fallbackModelName,
 		route:    fallbackRoute,
 		lm:       fallbackModel,
-	})
+	}}
 
 	statusSeedSummary := chatdebug.SeedSummary("Turn status label")
 

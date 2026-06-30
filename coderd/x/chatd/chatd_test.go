@@ -5372,7 +5372,6 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AIGatewayRoutingEnabled = true
 		cfg.AllowBYOK = true
 		cfg.AllowBYOKSet = true
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -9725,7 +9724,6 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AIGatewayRoutingEnabled = true
 		cfg.AllowBYOK = true
 		cfg.AllowBYOKSet = true
 	})
@@ -9792,7 +9790,6 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 		"/home/coder/project/AGENTS.md", contextText)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AIGatewayRoutingEnabled = true
 		cfg.AllowBYOK = true
 		cfg.AllowBYOKSet = true
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {

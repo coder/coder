@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -44,8 +43,7 @@ type generationPrepared struct {
 	Tools             []fantasy.AgentTool
 	ActiveTools       []string
 	ProviderTools     []chatloop.ProviderTool
-	ProviderKeys      chatprovider.ProviderAPIKeys
-	ModelRoute        resolvedModelRoute
+	ModelRoute        aiGatewayModelRoute
 	ModelBuildOptions modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
