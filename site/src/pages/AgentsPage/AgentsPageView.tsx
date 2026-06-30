@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useRef } from "react";
+import { type FC, type RefObject, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -26,8 +26,11 @@ export interface AgentsOutletContext {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
+	isArchiving: boolean;
+	archivingChatId: string | undefined;
 	onRegenerateTitle?: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
+	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
 	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -142,6 +145,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+	const [chatPendingRename, setChatPendingRename] =
+		useState<TypesGen.Chat | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -152,9 +158,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
+		isArchiving,
+		archivingChatId,
 		onRegenerateTitle: (chatId: string) => {
 			onRegenerateTitle(chatId).catch(() => {});
 		},
+		onOpenRenameDialog: setChatPendingRename,
 		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -194,6 +203,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onRenameTitle={onRenameTitle}
 					onProposeTitle={onProposeTitle}
+					chatPendingRename={chatPendingRename}
+					onChatPendingRenameChange={setChatPendingRename}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isSearchDialogOpen={isSearchDialogOpen}
