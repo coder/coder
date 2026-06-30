@@ -1,3 +1,4 @@
+import { useFormik } from "formik";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
@@ -10,6 +11,7 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
 
 interface MutationCallbacks {
@@ -47,9 +49,31 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
 }) => {
-	const computerUseProvider = computerUseProviderData?.provider ?? "";
-	const isComputerUseProviderSelectDisabled =
-		isSavingComputerUseProvider || isLoadingComputerUseProvider;
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
+	const serverProvider = computerUseProviderData?.provider ?? "";
+	const hasLoaded = computerUseProviderData !== undefined;
+
+	const form = useFormik({
+		enableReinitialize: true,
+		initialValues: {
+			provider: serverProvider,
+		},
+		onSubmit: (values, helpers) => {
+			onSaveComputerUseProvider(
+				{ provider: values.provider },
+				{
+					onSuccess: () => {
+						showSavedState();
+						helpers.resetForm({ values });
+					},
+				},
+			);
+		},
+	});
+
+	const isFormDisabled =
+		isSavingComputerUseProvider || isLoadingComputerUseProvider || !hasLoaded;
+	const canSave = hasLoaded && form.dirty;
 
 	return (
 		<AgentSettingLayout
@@ -69,11 +93,11 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 					configured.
 				</>
 			}
-			showSave={false}
+			showSave={canSave}
 			isSaving={isSavingComputerUseProvider}
-			isSavedVisible={false}
-			saveDisabled={isComputerUseProviderSelectDisabled}
-			onSubmit={(e) => e.preventDefault()}
+			isSavedVisible={isSavedVisible}
+			saveDisabled={isFormDisabled || !canSave}
+			onSubmit={form.handleSubmit}
 			error={
 				computerUseProviderSaveError ? (
 					<p className="m-0">Failed to save computer use provider.</p>
@@ -82,9 +106,9 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 		>
 			<div className="flex w-[22rem] max-w-full flex-col gap-2">
 				<Select
-					value={computerUseProvider}
-					onValueChange={(provider) => onSaveComputerUseProvider({ provider })}
-					disabled={isComputerUseProviderSelectDisabled}
+					value={form.values.provider}
+					onValueChange={(value) => void form.setFieldValue("provider", value)}
+					disabled={isFormDisabled}
 				>
 					<SelectTrigger
 						aria-label="Computer use provider"
@@ -93,8 +117,8 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 						<SelectValue placeholder="Select provider">
 							{isLoadingComputerUseProvider ? (
 								<Skeleton className="h-4 w-20" aria-hidden="true" />
-							) : computerUseProvider ? (
-								getComputerUseProviderLabel(computerUseProvider)
+							) : form.values.provider ? (
+								getComputerUseProviderLabel(form.values.provider)
 							) : undefined}
 						</SelectValue>
 					</SelectTrigger>

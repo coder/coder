@@ -236,7 +236,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			<CompactIntegerField
 				id={maxUsesId}
 				name="max_uses_per_run"
-				label="Uses"
+				label="Uses / run"
 				ariaLabel="Max uses per run"
 				value={form.values.max_uses_per_run}
 				onChange={(value) => void form.setFieldValue("max_uses_per_run", value)}
@@ -247,7 +247,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			<CompactIntegerField
 				id={maxOutputTokensId}
 				name="max_output_tokens"
-				label="Tokens"
+				label="Max tokens"
 				ariaLabel="Max output tokens"
 				value={form.values.max_output_tokens}
 				onChange={(value) =>
