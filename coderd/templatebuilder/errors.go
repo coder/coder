@@ -99,6 +99,11 @@ func extractDiagnostics(logs []string) string {
 	inBlock := false
 
 	for _, line := range logs {
+		if len(lines) >= maxLogContextLines {
+			lines = append(lines, "... (truncated)")
+			break
+		}
+
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			if inBlock {
@@ -126,10 +131,6 @@ func extractDiagnostics(logs []string) string {
 		if strings.HasPrefix(trimmed, "on ") && strings.Contains(trimmed, " line ") {
 			lines = append(lines, trimmed)
 		}
-	}
-
-	if len(lines) > maxLogContextLines {
-		lines = append(lines[:maxLogContextLines], "... (truncated)")
 	}
 
 	return strings.Join(lines, "\n")
