@@ -2290,10 +2290,6 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID, uuid.Nil)
-	if err != nil {
-		keys = chatprovider.ProviderAPIKeys{}
-	}
 	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
 		return database.Chat{}, err
 	}
@@ -2303,7 +2299,6 @@ func (p *Server) RegenerateChatTitle(
 		chatdCtx,
 		p.db,
 		chat,
-		keys,
 	)
 	if err != nil {
 		return database.Chat{}, p.recordManualTitleGenerationFailure(ctx, chat, err)
@@ -2354,16 +2349,12 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID, uuid.Nil)
-	if err != nil {
-		keys = chatprovider.ProviderAPIKeys{}
-	}
 	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
 		return "", err
 	}
 	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
 
-	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat, keys)
+	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat)
 	if err != nil {
 		return "", p.recordManualTitleGenerationFailure(ctx, chat, err)
 	}
@@ -2411,7 +2402,6 @@ func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 ) (manualTitleCandidateResult, error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
 		return manualTitleCandidateResult{}, limitErr
@@ -2501,9 +2491,8 @@ func (p *Server) proposeChatTitleWithStore(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 ) (string, error) {
-	result, err := p.generateManualTitleCandidate(ctx, store, chat, keys)
+	result, err := p.generateManualTitleCandidate(ctx, store, chat)
 	if err != nil {
 		return "", err
 	}
@@ -2531,9 +2520,8 @@ func (p *Server) regenerateChatTitleWithStore(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
-	result, err := p.generateManualTitleCandidate(ctx, store, chat, keys)
+	result, err := p.generateManualTitleCandidate(ctx, store, chat)
 	if err != nil {
 		return database.Chat{}, err
 	}

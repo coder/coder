@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -616,7 +615,7 @@ func TestGenerateManualTitleCandidate_ActiveAPIKeyIDFallback(t *testing.T) {
 
 			server := titleOverrideTestServer(db, logger)
 			server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
-			result, err := server.generateManualTitleCandidate(ctx, db, chat, chatprovider.ProviderAPIKeys{})
+			result, err := server.generateManualTitleCandidate(ctx, db, chat)
 			if tt.wantErrContains != "" {
 				require.ErrorContains(t, err, tt.wantErrContains)
 				return

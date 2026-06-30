@@ -342,10 +342,10 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			logger,
 		)
 		// The config has no AIProviderID, so AI Gateway routing cannot
-			// resolve an override. The fallback model is returned.
+		// resolve an override. The fallback model is returned.
 		require.Equal(t, fantasy.LanguageModel(fallbackModel), gotModel)
 		require.Equal(t, fallbackCallConfig, gotCfg)
-		})
+	})
 	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
