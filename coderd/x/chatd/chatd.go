@@ -4070,8 +4070,11 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		}
 	}
 	region := ""
-	if settings.Bedrock != nil {
+	switch {
+	case settings.Bedrock != nil:
 		region = strings.TrimSpace(settings.Bedrock.Region)
+	case settings.ClaudePlatformAWS != nil:
+		region = strings.TrimSpace(settings.ClaudePlatformAWS.Region)
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,

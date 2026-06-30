@@ -47,6 +47,14 @@ const providerInfoByID = new Map([
 		"prov-openrouter",
 		{ provider: "openrouter", displayName: "OpenRouter", icon: "" },
 	],
+	[
+		"prov-claude-platform-aws",
+		{
+			provider: "claude-platform-aws",
+			displayName: "Claude Platform for AWS",
+			icon: "",
+		},
+	],
 ]);
 
 const createCatalog = (
@@ -203,12 +211,36 @@ describe("countConfiguredProviderConfigs", () => {
 			),
 		).toBe(0);
 	});
+
+	it("counts a keyless claude-platform-aws provider when available", () => {
+		const catalog = createCatalog([
+			{ provider: "claude-platform-aws", available: true, models: [] },
+		]);
+
+		expect(
+			countConfiguredProviderConfigs(
+				[
+					createProviderConfig({
+						provider: "claude-platform-aws",
+						source: "database",
+					}),
+				],
+				catalog,
+			),
+		).toBe(1);
+	});
 });
 
 describe("formatProviderLabel", () => {
 	it("formats OpenAI compatible providers", () => {
 		expect(formatProviderLabel("openai-compat")).toBe("OpenAI-compatible");
 		expect(formatProviderLabel("openai-compatible")).toBe("OpenAI-compatible");
+	});
+
+	it("formats Claude Platform for AWS", () => {
+		expect(formatProviderLabel("claude-platform-aws")).toBe(
+			"Claude Platform for AWS",
+		);
 	});
 });
 
@@ -372,6 +404,40 @@ describe("getModelOptionsFromModels", () => {
 				contextLimit: 0,
 				reasoningEffortDefault: "medium",
 				reasoningEfforts: ["minimal", "low", "medium", "high", "xhigh"],
+			},
+		]);
+	});
+
+	it("includes claude-platform-aws models when the provider is available", () => {
+		const models = [
+			createConfig({
+				id: "config-1",
+				ai_provider_id: "prov-claude-platform-aws",
+				model: "claude-opus-4-6",
+				display_name: "Opus 4.6",
+				context_limit: 200_000,
+			}),
+		];
+		const catalog = createCatalog([
+			{
+				provider: "claude-platform-aws",
+				available: true,
+				models: [],
+			},
+		]);
+
+		expect(
+			getModelOptionsFromModels(models, catalog, providerInfoByID),
+		).toEqual([
+			{
+				id: "config-1",
+				provider: "claude-platform-aws",
+				providerId: "prov-claude-platform-aws",
+				providerLabel: "Claude Platform for AWS",
+				providerIcon: "",
+				model: "claude-opus-4-6",
+				displayName: "Opus 4.6",
+				contextLimit: 200_000,
 			},
 		]);
 	});

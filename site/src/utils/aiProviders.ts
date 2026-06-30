@@ -9,6 +9,8 @@ export const formatProviderLabel = (provider: string): string => {
 			return "Azure OpenAI";
 		case "bedrock":
 			return "AWS Bedrock";
+		case "claude-platform-aws":
+			return "Claude Platform for AWS";
 		case "google":
 			return "Google";
 		case "openai-compat":

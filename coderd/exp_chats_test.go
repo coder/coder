@@ -2638,6 +2638,67 @@ func TestListChatModels(t *testing.T) {
 		require.True(t, anthropicProvider.Available)
 	})
 
+	t.Run("ClaudePlatformAWSAmbientCredentialsAvailable", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		// Claude Platform for AWS authenticates via AWS SigV4 / workspace
+		// settings, so it has no bearer key. It must still surface as available
+		// in the catalog, mirroring Bedrock. Static access keys are supplied so
+		// credential resolution does not fall back to the AWS default chain (which
+		// dials the instance metadata service and leaks a keepalive connection).
+		accessKey := "AKIAIOSFODNN7EXAMPLE"
+		accessKeySecret := "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeClaudePlatformAWS,
+			Name:    "test-claude-platform-aws-" + uuid.NewString(),
+			BaseURL: "https://aws-external-anthropic.us-east-1.api.aws",
+			Enabled: true,
+			Settings: codersdk.AIProviderSettings{
+				ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+					Region:          "us-east-1",
+					WorkspaceID:     "wrkspc_123",
+					AccessKey:       &accessKey,
+					AccessKeySecret: &accessKeySecret,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModel(ctx, codersdk.CreateChatModelRequest{
+			AIProviderID: &provider.ID,
+			Model:        "claude-opus-4-6",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		models, err := client.ChatModelAvailability(ctx)
+		require.NoError(t, err)
+
+		var claudePlatformProvider *codersdk.ChatModelProvider
+		for i := range models.Providers {
+			if models.Providers[i].Provider == string(codersdk.AIProviderTypeClaudePlatformAWS) {
+				claudePlatformProvider = &models.Providers[i]
+				break
+			}
+		}
+		require.NotNil(t, claudePlatformProvider)
+		require.True(t, claudePlatformProvider.Available)
+
+		foundModel := false
+		for _, model := range claudePlatformProvider.Models {
+			if model.Model == "claude-opus-4-6" {
+				foundModel = true
+				break
+			}
+		}
+		require.True(t, foundModel)
+	})
+
 	t.Run("CentralAndUserWithFallback", func(t *testing.T) {
 		t.Parallel()
 
