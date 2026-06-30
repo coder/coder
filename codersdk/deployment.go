@@ -1999,7 +1999,7 @@ communicating directly.`,
 	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
-		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Description: "Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
 		Flag:        "ai-gateway-dump-dir",
 		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
 		Value:       &c.AI.BridgeConfig.APIDumpDir,
@@ -5198,6 +5198,8 @@ const (
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
+	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5224,6 +5226,10 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Cost Control"
 	case ExperimentAgentAppTabs:
 		return "Coder Agents App and Port Tabs"
+	case ExperimentChatAdvisor:
+		return "Chat Advisor"
+	case ExperimentChatVirtualDesktop:
+		return "Chat Virtual Desktop"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5245,6 +5251,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
 	ExperimentAgentAppTabs,
+	ExperimentChatAdvisor,
+	ExperimentChatVirtualDesktop,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

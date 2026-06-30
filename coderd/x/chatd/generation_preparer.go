@@ -118,6 +118,8 @@ func (server *Server) prepareGeneration(
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 	advisorCfg := server.loadAdvisorConfig(ctx, logger)
+	// Force Enabled from the experiment; the stored DB value is ignored.
+	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	var advisorRuntime *chatadvisor.Runtime
 	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
@@ -215,6 +217,13 @@ func (server *Server) prepareGeneration(
 		resolvedUserPrompt string
 		planPathBlock      string
 	)
+
+	// Drop provider-executed tool history produced by a different provider
+	// before building the prompt. A provider that shares another's wire format
+	// (e.g. Bedrock and Anthropic) can still reject the other's
+	// provider-executed blocks, so a mid-chat provider switch must not replay
+	// them.
+	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, modelConfig.ID)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and

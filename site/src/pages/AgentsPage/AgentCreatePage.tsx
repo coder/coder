@@ -28,6 +28,7 @@ import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
 	getModelOptionsFromConfigs,
+	getUnsupportedProviderNames,
 } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
@@ -72,6 +73,9 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
 			? catalogModelOptions.length
 			: undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		chatModelsQuery.data,
+	);
 
 	const handleCreateChat = async ({
 		message,
@@ -160,6 +164,7 @@ const AgentCreatePage: FC = () => {
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
 				providerCount={providerCount}
 				modelCount={modelCount}
+				unsupportedProviderNames={unsupportedProviderNames}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}

@@ -136,7 +136,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 							<dd>{job.metadata.workspace_name ?? "null"}</dd>
 
 							<dt>Creation time:</dt>
-							<dd data-chromatic="ignore">{job.created_at}</dd>
+							<dd data-pixel="ignore">{job.created_at}</dd>
 
 							{job.queue_position > 0 && (
 								<>

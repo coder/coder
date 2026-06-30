@@ -14,8 +14,9 @@ import (
 
 func (r *RootCmd) aiGateway() *serpent.Command {
 	return &serpent.Command{
-		Use:   "ai-gateway",
-		Short: "Manage AI Gateway",
+		Use:    "ai-gateway",
+		Short:  "Manage AI Gateway",
+		Hidden: true,
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},

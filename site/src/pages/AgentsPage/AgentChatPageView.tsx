@@ -140,6 +140,7 @@ interface AgentChatPageViewProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
@@ -186,13 +187,17 @@ interface AgentChatPageViewProps {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 
-	// Archive actions.
+	// Chat actions.
 	handleArchiveAgentAction: () => void;
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
-	handleRegenerateTitle?: () => void;
+	handlePinAgentAction?: () => void;
+	handleUnpinAgentAction?: () => void;
+	handleOpenRenameDialogAction?: () => void;
+	isPinned?: boolean;
+	isChildChat?: boolean;
+	isArchivingThisChat?: boolean;
 	isRegeneratingTitle?: boolean;
-	isRegenerateTitleDisabled?: boolean;
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -327,6 +332,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
@@ -357,9 +363,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleArchiveAgentAction,
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
-	handleRegenerateTitle,
+	handlePinAgentAction,
+	handleUnpinAgentAction,
+	handleOpenRenameDialogAction,
+	isPinned,
+	isChildChat,
+	isArchivingThisChat,
 	isRegeneratingTitle,
-	isRegenerateTitleDisabled,
 	scrollContainerRef,
 	scrollToBottomRef,
 	hasMoreMessages,
@@ -835,11 +845,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onArchiveAndDeleteWorkspace={
 									handleArchiveAndDeleteWorkspaceAction
 								}
-								{...(handleRegenerateTitle
-									? { onRegenerateTitle: handleRegenerateTitle }
-									: {})}
+								onPinAgent={handlePinAgentAction}
+								onUnpinAgent={handleUnpinAgentAction}
+								onOpenRenameDialog={handleOpenRenameDialogAction}
+								isPinned={isPinned}
+								isChildChat={isChildChat}
+								isArchiving={isArchivingThisChat}
 								isRegeneratingTitle={isRegeneratingTitle}
-								isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}
@@ -934,6 +946,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								canConfigureAgentSetup={canConfigureAgentSetup}
 								providerCount={providerCount}
 								modelCount={modelCount}
+								unsupportedProviderNames={unsupportedProviderNames}
 								selectedModel={effectiveSelectedModel}
 								onModelChange={setSelectedModel}
 								modelOptions={modelOptions}
@@ -1077,7 +1090,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
-					onRegenerateTitle={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -1155,7 +1167,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
-				onRegenerateTitle={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}
 				hasWorkspace={false}
 				isSidebarCollapsed={isSidebarCollapsed}

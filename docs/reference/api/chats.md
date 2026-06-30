@@ -604,6 +604,12 @@ Experimental: this endpoint is subject to change.
       "provider": "string",
       "unavailable_reason": "missing_api_key"
     }
+  ],
+  "unsupported_providers": [
+    {
+      "display_name": "string",
+      "provider": "string"
+    }
   ]
 }
 ```

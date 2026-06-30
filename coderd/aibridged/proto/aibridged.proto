@@ -36,6 +36,14 @@ service Authorizer {
   rpc IsAuthorized(IsAuthorizedRequest) returns (IsAuthorizedResponse);
 }
 
+// ProviderConfigurator serves AI provider configuration to embedded and
+// standalone AI Gateway daemons. The database is the single source of truth.
+service ProviderConfigurator {
+  // GetAIProviders returns the full provider set (enabled and disabled).
+  // It synchronizes with provider seeding so the response is never raced.
+  rpc GetAIProviders(GetAIProvidersRequest) returns (GetAIProvidersResponse);
+}
+
 message RecordInterceptionRequest {
   string id = 1; // UUID.
   string initiator_id = 2; // UUID.
@@ -158,4 +166,31 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+}
+
+message GetAIProvidersRequest {}
+
+message GetAIProvidersResponse {
+  repeated AIProvider providers = 1;
+}
+
+message AIProvider {
+  string name = 1;
+  string type = 2;
+  bool enabled = 3;
+  string base_url = 4;
+  // keys carries bearer API keys, populated only for enabled providers.
+  repeated string keys = 5;
+  // bedrock is populated when the provider's settings include Bedrock
+  // credentials (regardless of provider type).
+  AIProviderKindBedrock bedrock = 6;
+}
+
+message AIProviderKindBedrock {
+  string region = 1;
+  string access_key = 2;
+  string access_key_secret = 3;
+  string model = 4;
+  string small_fast_model = 5;
+  string role_arn = 6;
 }

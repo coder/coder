@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -388,6 +389,9 @@ type mcpServer struct {
 	client           *codersdk.Client
 	aiAgentAPIClient *agentapi.Client
 	queue            *cliutil.Queue[taskReport]
+	// wg tracks the reporter and watcher goroutines, which write to
+	// inv.Stderr and must not outlive the handler.
+	wg sync.WaitGroup
 }
 
 func (r *RootCmd) mcpServer() *serpent.Command {
@@ -534,10 +538,6 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-			defer srv.queue.Close()
-			if srv.socketClient != nil {
-				defer srv.socketClient.Close()
-			}
 
 			// Start the reporter, watcher, and server.  These are all tied to the
 			// lifetime of the MCP server, which is itself tied to the lifetime of the
@@ -548,7 +548,15 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 					srv.startWatcher(ctx, inv)
 				}
 			}
-			return srv.startServer(ctx, inv, instructions, allowedTools)
+			serveErr := srv.startServer(ctx, inv, instructions, allowedTools)
+
+			cancel()
+			srv.queue.Close()
+			if srv.socketClient != nil {
+				_ = srv.socketClient.Close()
+			}
+			srv.wg.Wait()
+			return serveErr
 		},
 		Short: "Start the Coder MCP server.",
 		Options: []serpent.Option{
@@ -592,7 +600,9 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 }
 
 func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) {
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		for {
 			// TODO: Even with the queue, there is still the potential that a message
 			// from the screen watcher and a message from the AI agent could arrive
@@ -622,7 +632,9 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 }
 
 func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		for retrier := retry.New(time.Second, 30*time.Second); retrier.Wait(ctx); {
 			eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
 			if err == nil {
@@ -679,16 +691,6 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	if len(allowedTools) > 0 {
 		cliui.Infof(inv.Stderr, "Allowed Tools  : %v", allowedTools)
 	}
-
-	// Capture the original stdin, stdout, and stderr.
-	invStdin := inv.Stdin
-	invStdout := inv.Stdout
-	invStderr := inv.Stderr
-	defer func() {
-		inv.Stdin = invStdin
-		inv.Stdout = invStdout
-		inv.Stderr = invStderr
-	}()
 
 	mcpSrv := server.NewMCPServer(
 		"Coder Agent",
@@ -756,7 +758,7 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	done := make(chan error)
 	go func() {
 		defer close(done)
-		srvErr := srv.Listen(ctx, invStdin, invStdout)
+		srvErr := srv.Listen(ctx, inv.Stdin, inv.Stdout)
 		done <- srvErr
 	}()
 

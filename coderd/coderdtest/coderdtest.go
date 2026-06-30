@@ -1223,35 +1223,59 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 }
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
-// from cancelation, an error, or from completing successfully.
+// from cancelation, an error, or from completing successfully. The wait is bounded by
+// testutil.WaitLong; use AwaitTemplateVersionJobCompletedWithTimeout to wait longer.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
+	return AwaitTemplateVersionJobCompletedWithTimeout(t, client, version, testutil.WaitLong)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+// AwaitTemplateVersionJobCompletedWithTimeout waits up to timeout for the template
+// version build job to complete, polling at testutil.IntervalFast. Transient API errors
+// are logged and retried. Fails the test if the job does not complete in time.
+func AwaitTemplateVersionJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, version uuid.UUID, timeout time.Duration) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			t.Logf("failed to get template version %s: %v", version, err)
+			return false
+		}
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
-		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+		return templateVersion.Job.CompletedAt != nil
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
+// status. The wait is bounded by testutil.WaitMedium; use
+// AwaitWorkspaceBuildJobCompletedWithTimeout to wait longer.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
+	return AwaitWorkspaceBuildJobCompletedWithTimeout(t, client, build, testutil.WaitMedium)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+// AwaitWorkspaceBuildJobCompletedWithTimeout waits up to timeout for a workspace
+// provision job to reach completed status, polling at testutil.IntervalFast. Transient
+// API errors are logged and retried. Fails the test if the job does not complete in time.
+func AwaitWorkspaceBuildJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, build uuid.UUID, timeout time.Duration) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		if err != nil {
@@ -1263,7 +1287,10 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast, "workspace build %s did not complete", build)
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }

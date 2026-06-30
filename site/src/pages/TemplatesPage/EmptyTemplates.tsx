@@ -35,12 +35,14 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
 
 interface EmptyTemplatesProps {
 	canCreateTemplates: boolean;
+	templateBuilderEnabled: boolean;
 	examples: TemplateExample[];
 	isUsingFilter: boolean;
 }
 
 export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 	canCreateTemplates,
+	templateBuilderEnabled,
 	examples,
 	isUsingFilter,
 }) => {
@@ -76,7 +78,13 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 							))}
 						</div>
 						<Button size="sm" asChild className="rounded-full">
-							<RouterLink to="/starter-templates">
+							<RouterLink
+								to={
+									templateBuilderEnabled
+										? "/templates/new/builder"
+										: "/starter-templates"
+								}
+							>
 								View all starter templates
 							</RouterLink>
 						</Button>
