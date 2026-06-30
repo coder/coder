@@ -257,7 +257,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				onBlur={form.handleBlur}
 				error={Boolean(form.errors.max_output_tokens)}
 				disabled={isFormDisabled}
-				className="w-40"
+				className="w-36"
 			/>
 			<Select
 				value={selectedModelValue}
