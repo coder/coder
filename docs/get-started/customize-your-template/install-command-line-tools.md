@@ -6,11 +6,11 @@ The Quickstart template installs system languages through the **Programming Lang
 You can install those yourself with a package manager like [Homebrew](https://brew.sh/) or [mise](https://mise.jdx.dev/).
 
 In this guide, you install both Homebrew and mise, install a tool with each, and learn which installs survive a workspace restart and why.
-You then change the template so the Homebrew tools persist too.
+You then change the template so the Homebrew tools persist too, and finish by making your tools install in every new workspace automatically.
 
 > [!NOTE]
 > This guide works inside a running workspace from the Quickstart template.
-> Most of it runs in the workspace, but the last step edits the template so Homebrew can persist.
+> Most of it runs in the workspace, but the last two steps edit the template so Homebrew persists and every new workspace ships with your tools.
 
 ## What you'll do
 
@@ -18,6 +18,7 @@ You then change the template so the Homebrew tools persist too.
 - ✅ Restart the workspace and see which tools persist.
 - ✅ Learn why one persists and the other doesn't.
 - ✅ Wire up Homebrew so its tools persist too.
+- ✅ Preinstall your tools in every new workspace from the template.
 
 ## What persists in a workspace
 
@@ -29,7 +30,7 @@ A tool survives a restart only when both of these are true:
 - The tool installs into `/home/coder`.
 - Your shell finds the tool through a file in `/home/coder`, such as `.bashrc`.
 
-You'll install tools two ways and restart to see this rule decide which ones stay, then change the template so Homebrew follows the rule too.
+You'll install tools two ways and restart to see this rule decide which ones stay, change the template so Homebrew follows the rule too, then preinstall your tools in every new workspace.
 
 ## Step 1: Install Homebrew and mise
 
@@ -248,6 +249,123 @@ brew --version
 
 Homebrew now persists because `/home/linuxbrew` lives on its own volume, the same way mise's tools persist because they live in `/home/coder`.
 
+## Step 5: Install your tools in every new workspace
+
+Steps 1 through 4 set up your tools in this workspace.
+To give everyone who uses the template the same tools, install them from the template so every new workspace starts with them.
+
+The template already installs languages on every start with the `install_languages` script.
+You'll add a second script that installs your command-line tools the same way.
+
+> [!NOTE]
+> This step edits the template.
+> If it isn't open for editing, refer to [Customize workspace startup](./index.md#open-the-template-for-editing).
+
+mise is the lighter choice here.
+It installs prebuilt binaries into `/home/coder`, which already persists, so the first start stays quick and later starts reuse the tools.
+
+In `main.tf`, add a script next to the existing `install_languages` resource:
+
+```tf
+resource "coder_script" "install_tools" {
+  agent_id     = coder_agent.main.id
+  display_name = "Install Tools"
+  icon         = "/icon/terminal.svg"
+  run_on_start = true
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -e
+
+    # Install mise on first start. It lives in /home/coder, so later starts reuse it.
+    if [ ! -x "$HOME/.local/bin/mise" ]; then
+      curl -fsSL https://mise.run | sh
+    fi
+    export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+
+    # Install the tools for everyone who uses the template, tracking the latest release.
+    mise use -g ripgrep@latest bat@latest
+
+    # Load mise in new interactive shells so the tools are on PATH.
+    if ! grep -qs 'mise activate' "$HOME/.bashrc"; then
+      echo 'eval "$(mise activate bash)"' >> "$HOME/.bashrc"
+    fi
+  EOT
+}
+```
+
+`mise use -g ripgrep@latest bat@latest` writes the tools to mise's global config at `~/.config/mise/config.toml` and installs them, so every workspace from the template resolves the same versions.
+
+Publish the change and apply it to your workspace:
+
+<div class="tabs">
+
+### UI
+
+In the web editor, add the `install_tools` resource to `main.tf`.
+Select **Build**, wait for the build to pass, then select **Publish**.
+On your workspace's home tab, select **Update and restart**.
+
+### CLI
+
+Add the resource in `~/coder-quickstart/main.tf`, then publish and update by name:
+
+```sh
+coder templates push -d ~/coder-quickstart -y quickstart
+coder update <your-workspace>
+```
+
+</div>
+
+When the workspace is back, confirm both tools run without installing anything by hand:
+
+```sh
+rg --version
+bat --version
+```
+
+The script runs on every start, so every new workspace from the template now ships with `ripgrep` and `bat`.
+
+<details>
+
+<summary>Use Homebrew and a Brewfile instead</summary>
+
+If you'd rather manage these tools with Homebrew, install them from a [Brewfile](https://docs.brew.sh/Brew-Bundle-and-Brewfile) on every start.
+This approach relies on the `/home/linuxbrew` volume you added in Step 4, so Homebrew and its formulae persist between restarts.
+
+Use this `install_tools` script in place of the mise version:
+
+```tf
+resource "coder_script" "install_tools" {
+  agent_id     = coder_agent.main.id
+  display_name = "Install Tools"
+  icon         = "/icon/terminal.svg"
+  run_on_start = true
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -e
+
+    # Install Homebrew on first start, while the volume is still empty.
+    if [ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+      NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
+    # Write a Brewfile and install everything it lists.
+    printf 'brew "ripgrep"\nbrew "bat"\n' > "$HOME/Brewfile"
+    brew bundle install --file="$HOME/Brewfile"
+
+    # Load Homebrew in new shells so the tools are on PATH.
+    if ! grep -qs 'brew shellenv' "$HOME/.bashrc"; then
+      echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> "$HOME/.bashrc"
+    fi
+  EOT
+}
+```
+
+Homebrew installs more slowly than mise on a fresh volume because it downloads larger packages, which is why mise is the default here.
+
+</details>
+
 ## What just happened
 
 The two package managers behaved differently for one reason: where each one installs.
@@ -262,7 +380,8 @@ To keep a tool, choose the approach that matches who needs it:
   It persists through restarts with no template change.
 - To keep your Homebrew tools, mount `/home/linuxbrew` on a persistent volume, as you did in Step 4.
   This is a template change, so it affects everyone who uses the template.
-- For a tool everyone needs preinstalled, add it to the startup script with `apt-get`, as in [Add a programming language](./add-a-language.md), or bake it into the workspace image.
+- To preinstall a tool in every new workspace, add it to the template's startup script, as you did in Step 5 with mise.
+  You can also install system packages with `apt-get`, as in [Add a programming language](./add-a-language.md), or bake the tool into the workspace image.
 
 The rule underneath all of these: a tool persists when it lives in a part of the workspace that persists.
 Refer to [Resource persistence](../../admin/templates/extending-templates/resource-persistence.md) for how Coder decides what survives a restart.
@@ -549,6 +668,33 @@ resource "coder_script" "install_languages" {
   script = templatefile("${path.module}/install-languages.sh.tftpl", {
     LANGUAGES = join(",", local.languages)
   })
+}
+
+# --- Tool installation ---
+
+resource "coder_script" "install_tools" {
+  agent_id     = coder_agent.main.id
+  display_name = "Install Tools"
+  icon         = "/icon/terminal.svg"
+  run_on_start = true
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -e
+
+    # Install mise on first start. It lives in /home/coder, so later starts reuse it.
+    if [ ! -x "$HOME/.local/bin/mise" ]; then
+      curl -fsSL https://mise.run | sh
+    fi
+    export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+
+    # Install the tools for everyone who uses the template, tracking the latest release.
+    mise use -g ripgrep@latest bat@latest
+
+    # Load mise in new interactive shells so the tools are on PATH.
+    if ! grep -qs 'mise activate' "$HOME/.bashrc"; then
+      echo 'eval "$(mise activate bash)"' >> "$HOME/.bashrc"
+    fi
+  EOT
 }
 
 # --- IDE modules ---
