@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 
+	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -19,7 +20,13 @@ import (
 // connection. It implements fantasy.AgentTool so it can be
 // registered alongside built-in chat tools.
 type WorkspaceMCPTool struct {
-	info            fantasy.ToolInfo
+	info fantasy.ToolInfo
+	// routingName is the unsanitized "serverName__toolName" form the
+	// workspace agent expects: it splits on "__" to locate the server and
+	// calls the original tool name. info.Name is the sanitized, provider-safe
+	// name shown to the model, so the two can differ when the server or tool
+	// name contains characters outside the provider's allowed set.
+	routingName     string
 	getConn         func(context.Context) (workspacesdk.AgentConn, error)
 	providerOpts    fantasy.ProviderOptions
 	invalidateCache func()
@@ -31,6 +38,13 @@ type WorkspaceMCPTool struct {
 // callback is invoked when CallMCPTool returns a 404 error,
 // indicating that the server was removed and the chat's cached
 // tool list should be dropped.
+//
+// The model-facing name is sanitized to the provider-safe character set and
+// length so a server or tool name containing characters such as "@" cannot
+// produce an invalid tool name that the provider rejects (Anthropic and
+// Bedrock require ^[a-zA-Z0-9_-]{1,128}$). The unsanitized name is retained
+// as routingName so the workspace agent can still route the call to the
+// original server and tool.
 func NewWorkspaceMCPTool(
 	tool workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
@@ -42,15 +56,29 @@ func NewWorkspaceMCPTool(
 	}
 	return &WorkspaceMCPTool{
 		info: fantasy.ToolInfo{
-			Name:        tool.Name,
+			Name:        sanitizeModelToolName(tool.Name),
 			Description: tool.Description,
 			Parameters:  tool.Schema,
 			Required:    required,
 			Parallel:    true,
 		},
+		routingName:     tool.Name,
 		getConn:         getConn,
 		invalidateCache: invalidateCache,
 	}
+}
+
+// sanitizeModelToolName returns the provider-safe form of a workspace MCP
+// tool name. Characters outside [a-zA-Z0-9_-] are replaced with "_" and the
+// result is capped at the strictest provider tool-name limit, matching the
+// remote MCP path in mcpclient. The "__" server/tool separator survives
+// because underscores are already in the allowed set.
+func sanitizeModelToolName(name string) string {
+	sanitized := aidmcp.SanitizeToolName(name)
+	if len(sanitized) > aidmcp.MaxToolNameLen {
+		sanitized = sanitized[:aidmcp.MaxToolNameLen]
+	}
+	return sanitized
 }
 
 func (t *WorkspaceMCPTool) Info() fantasy.ToolInfo {
@@ -80,7 +108,7 @@ func (t *WorkspaceMCPTool) Run(
 	}
 
 	resp, err := conn.CallMCPTool(ctx, workspacesdk.CallMCPToolRequest{
-		ToolName:  t.info.Name,
+		ToolName:  t.routingName,
 		Arguments: args,
 	})
 	if err != nil {

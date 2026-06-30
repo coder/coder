@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -151,5 +153,96 @@ func TestWorkspaceMCPTool_InvalidateOn404(t *testing.T) {
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
+	})
+}
+
+func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InvalidCharsSanitizedForModelOriginalForRouting", func(t *testing.T) {
+		t.Parallel()
+
+		var gotToolName string
+		tool := chattool.NewWorkspaceMCPTool(
+			workspacesdk.MCPToolInfo{
+				// "@" is outside the provider's allowed tool-name set; the
+				// model must never see it or the whole request is rejected.
+				Name:        "weather@home__get_forecast",
+				Description: "test tool",
+			},
+			func(ctx context.Context) (workspacesdk.AgentConn, error) {
+				return &fakeAgentConn{
+					callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+						gotToolName = req.ToolName
+						return workspacesdk.CallMCPToolResponse{
+							Content: []workspacesdk.MCPToolContent{{Type: "text", Text: "ok"}},
+						}, nil
+					},
+				}, nil
+			},
+			nil,
+		)
+
+		// The model-facing name is sanitized to the provider-safe set.
+		assert.Equal(t, "weather_home__get_forecast", tool.Info().Name)
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		// The agent receives the original name so it can route the call to
+		// the correct server and original tool.
+		assert.Equal(t, "weather@home__get_forecast", gotToolName)
+	})
+
+	t.Run("ValidNameUnchanged", func(t *testing.T) {
+		t.Parallel()
+
+		var gotToolName string
+		tool := chattool.NewWorkspaceMCPTool(
+			workspacesdk.MCPToolInfo{
+				Name:        "github__create_issue",
+				Description: "test tool",
+			},
+			func(ctx context.Context) (workspacesdk.AgentConn, error) {
+				return &fakeAgentConn{
+					callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+						gotToolName = req.ToolName
+						return workspacesdk.CallMCPToolResponse{}, nil
+					},
+				}, nil
+			},
+			nil,
+		)
+
+		// A name already within the allowed set is left untouched, so the
+		// model-facing and routing names match.
+		assert.Equal(t, "github__create_issue", tool.Info().Name)
+
+		_, err := tool.Run(context.Background(), fantasy.ToolCall{})
+		require.NoError(t, err)
+		assert.Equal(t, "github__create_issue", gotToolName)
+	})
+
+	t.Run("LongNameTruncatedForModel", func(t *testing.T) {
+		t.Parallel()
+
+		longName := "srv__" + strings.Repeat("a", aidmcp.MaxToolNameLen)
+		tool := chattool.NewWorkspaceMCPTool(
+			workspacesdk.MCPToolInfo{
+				Name:        longName,
+				Description: "test tool",
+			},
+			func(ctx context.Context) (workspacesdk.AgentConn, error) {
+				return &fakeAgentConn{
+					callMCPToolFunc: func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+						return workspacesdk.CallMCPToolResponse{}, nil
+					},
+				}, nil
+			},
+			nil,
+		)
+
+		// The model-facing name is capped at the strictest provider limit.
+		assert.LessOrEqual(t, len(tool.Info().Name), aidmcp.MaxToolNameLen)
 	})
 }
