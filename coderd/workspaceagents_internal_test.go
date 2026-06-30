@@ -13,9 +13,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -32,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -977,5 +980,123 @@ func TestWatchAgentContainers(t *testing.T) {
 		case _, ok := <-decodeCh:
 			require.False(t, ok, "channel is expected to be closed")
 		}
+	})
+}
+
+func TestCreateExternalAuthResponse(t *testing.T) {
+	t.Parallel()
+
+	// Use a fixed future time, truncated to seconds to survive JSON round-trips.
+	expiry := dbtime.Now().Add(8 * time.Hour).UTC().Truncate(time.Second)
+
+	assertExpiry := func(t *testing.T, resp agentsdk.ExternalAuthResponse, want time.Time) {
+		t.Helper()
+		require.Equal(t, want.UTC(), resp.ExpiresAt.UTC().Truncate(time.Second),
+			"ExpiresAt should match the expiry passed to createExternalAuthResponse")
+	}
+
+	t.Run("WithExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := createExternalAuthResponse("github", "tok", pqtype.NullRawMessage{}, expiry)
+		require.NoError(t, err)
+		assertExpiry(t, resp, expiry)
+		require.Equal(t, "tok", resp.AccessToken)
+	})
+
+	t.Run("ZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		// A zero expiry means the token never expires. ExpiresAt should stay zero.
+		resp, err := createExternalAuthResponse("github", "tok", pqtype.NullRawMessage{}, time.Time{})
+		require.NoError(t, err)
+		require.True(t, resp.ExpiresAt.IsZero(), "ExpiresAt should be zero when no expiry is set")
+	})
+
+	// Each provider type maps the token into a different Username/Password pair.
+	// All of them must also carry ExpiresAt through unchanged.
+	t.Run("GitHub", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := createExternalAuthResponse(
+			codersdk.EnhancedExternalAuthProviderGitHub.String(), "ghtoken",
+			pqtype.NullRawMessage{}, expiry,
+		)
+		require.NoError(t, err)
+		// GitHub tokens are placed in Username, Password is empty.
+		require.Equal(t, "ghtoken", resp.Username)
+		require.Empty(t, resp.Password)
+		require.Equal(t, "ghtoken", resp.AccessToken)
+		assertExpiry(t, resp, expiry)
+	})
+
+	t.Run("GitLab", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := createExternalAuthResponse(
+			codersdk.EnhancedExternalAuthProviderGitLab.String(), "gltoken",
+			pqtype.NullRawMessage{}, expiry,
+		)
+		require.NoError(t, err)
+		// GitLab uses oauth2/token as the credential pair.
+		require.Equal(t, "oauth2", resp.Username)
+		require.Equal(t, "gltoken", resp.Password)
+		require.Equal(t, "gltoken", resp.AccessToken)
+		assertExpiry(t, resp, expiry)
+	})
+
+	t.Run("BitbucketCloud", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := createExternalAuthResponse(
+			codersdk.EnhancedExternalAuthProviderBitBucketCloud.String(), "bbtoken",
+			pqtype.NullRawMessage{}, expiry,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "x-token-auth", resp.Username)
+		require.Equal(t, "bbtoken", resp.Password)
+		require.Equal(t, "bbtoken", resp.AccessToken)
+		assertExpiry(t, resp, expiry)
+	})
+
+	t.Run("BitbucketServer", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := createExternalAuthResponse(
+			codersdk.EnhancedExternalAuthProviderBitBucketServer.String(), "bbtoken",
+			pqtype.NullRawMessage{}, expiry,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "x-token-auth", resp.Username)
+		require.Equal(t, "bbtoken", resp.Password)
+		require.Equal(t, "bbtoken", resp.AccessToken)
+		assertExpiry(t, resp, expiry)
+	})
+
+	t.Run("WithTokenExtra", func(t *testing.T) {
+		t.Parallel()
+
+		extra := pqtype.NullRawMessage{
+			RawMessage: []byte(`{"user_id":"u_42","scope":"repo"}`),
+			Valid:      true,
+		}
+		resp, err := createExternalAuthResponse("slack", "slacktoken", extra, expiry)
+		require.NoError(t, err)
+		require.Equal(t, "u_42", resp.TokenExtra["user_id"])
+		require.Equal(t, "repo", resp.TokenExtra["scope"])
+		assertExpiry(t, resp, expiry)
+	})
+
+	t.Run("InvalidExtraJSON", func(t *testing.T) {
+		t.Parallel()
+
+		// Malformed JSON in the extra field should produce an error but
+		// ExpiresAt should still reflect the expiry that was passed in.
+		extra := pqtype.NullRawMessage{
+			RawMessage: []byte(`not-valid-json`),
+			Valid:      true,
+		}
+		_, err := createExternalAuthResponse("github", "tok", extra, expiry)
+		require.Error(t, err, "malformed extra JSON should produce an error")
 	})
 }

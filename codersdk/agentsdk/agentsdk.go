@@ -724,6 +724,8 @@ type ExternalAuthResponse struct {
 	TokenExtra  map[string]interface{} `json:"token_extra"`
 	URL         string                 `json:"url"`
 	Type        string                 `json:"type"`
+	// ExpiresAt is the time the token expires. Zero value means no expiry.
+	ExpiresAt time.Time `json:"expires_at"`
 
 	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
 	// for backwards compatibility.
