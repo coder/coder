@@ -63,7 +63,7 @@ func TestCompose(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(result.ModulesTF), `coder_agent.dev.id`)
+		require.Contains(t, string(result.ModulesTF), `coder_agent.dev[0].id`)
 	})
 
 	t.Run("AWSLinuxExtraFiles", func(t *testing.T) {
