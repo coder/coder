@@ -120,7 +120,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.install", "id-install", "agent-main", "install"),
 				scriptOrderScriptResource("coder_script.dotfiles", "id-dotfiles", "agent-main", "dotfiles"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.install",
+					"run":   []any{"coder_script.install"},
 					"after": []any{"coder_script.apt"},
 				}),
 			},
@@ -145,7 +145,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderAgentResource("main", "agent-main"),
 				scriptOrderScriptResource("coder_script.apt", "id-apt", "agent-main", "apt"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":      "module.git",
+					"run":      []any{"module.git"},
 					"after":    []any{"coder_script.apt"},
 					"requires": "completion",
 				}),
@@ -201,7 +201,7 @@ func TestScriptOrder(t *testing.T) {
 					scriptOrderScriptResource("module.m1.coder_script.a", "id-m1-a", "agent-main", "m1-a"),
 					scriptOrderScriptResource("module.m1.coder_script.b", "id-m1-b", "agent-main", "m1-b"),
 					scriptOrderRuleResource("module.m1.data.coder_script_order.inner", map[string]any{
-						"run":   "coder_script.b",
+						"run":   []any{"coder_script.b"},
 						"after": []any{"coder_script.a"},
 					}),
 				},
@@ -224,7 +224,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderComputeResource(),
 				scriptOrderAgentResource("main", "agent-main"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "module.git",
+					"run":   []any{"module.git"},
 					"after": []any{"module.git.coder_script.clone"},
 				}),
 			},
@@ -244,6 +244,51 @@ func TestScriptOrder(t *testing.T) {
 		require.Empty(t, findConvertedScript(t, state, "clone").OrderDependencies)
 	})
 
+	t.Run("MultipleRunSelectors", func(t *testing.T) {
+		t.Parallel()
+		ctx, logger := ctxAndLogger(t)
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+			Resources: []*tfjson.StateResource{
+				scriptOrderComputeResource(),
+				scriptOrderAgentResource("main", "agent-main"),
+				scriptOrderScriptResource("coder_script.prep", "id-prep", "agent-main", "prep"),
+				scriptOrderScriptResource("coder_script.a", "id-a", "agent-main", "a"),
+				scriptOrderScriptResource("coder_script.b", "id-b", "agent-main", "b"),
+				scriptOrderScriptResource("coder_script.other", "id-other", "agent-main", "other"),
+				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
+					"run":   []any{"coder_script.a", "coder_script.b"},
+					"after": []any{"coder_script.prep"},
+				}),
+			},
+		}}, scriptOrderGraph("main"), logger)
+		require.NoError(t, err)
+
+		wantDeps := []*proto.ScriptOrderDependency{
+			{ScriptId: "id-prep", Requires: "success"},
+		}
+		require.Equal(t, wantDeps, findConvertedScript(t, state, "a").OrderDependencies)
+		require.Equal(t, wantDeps, findConvertedScript(t, state, "b").OrderDependencies)
+		require.Empty(t, findConvertedScript(t, state, "prep").OrderDependencies)
+		require.Empty(t, findConvertedScript(t, state, "other").OrderDependencies)
+	})
+
+	t.Run("RunMustListAtLeastOneSelector", func(t *testing.T) {
+		t.Parallel()
+		ctx, logger := ctxAndLogger(t)
+		_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+			Resources: []*tfjson.StateResource{
+				scriptOrderComputeResource(),
+				scriptOrderAgentResource("main", "agent-main"),
+				scriptOrderScriptResource("coder_script.apt", "id-apt", "agent-main", "apt"),
+				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
+					"run":   []any{},
+					"after": []any{"coder_script.apt"},
+				}),
+			},
+		}}, scriptOrderGraph("main"), logger)
+		require.ErrorContains(t, err, "run must list at least one selector")
+	})
+
 	t.Run("UnknownSelector", func(t *testing.T) {
 		t.Parallel()
 		ctx, logger := ctxAndLogger(t)
@@ -253,7 +298,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderAgentResource("main", "agent-main"),
 				scriptOrderScriptResource("coder_script.install", "id-install", "agent-main", "install"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.instal",
+					"run":   []any{"coder_script.instal"},
 					"after": []any{"coder_script.install"},
 				}),
 			},
@@ -273,7 +318,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.apt", "id-apt", "agent-main", "apt"),
 				scriptOrderScriptResource("coder_script.install", "id-install", "agent-second", "install"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.install",
+					"run":   []any{"coder_script.install"},
 					"after": []any{"coder_script.apt"},
 				}),
 			},
@@ -292,11 +337,11 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.b", "id-b", "agent-main", "b"),
 				scriptOrderRuleResource("data.coder_script_order.boot",
 					map[string]any{
-						"run":   "coder_script.a",
+						"run":   []any{"coder_script.a"},
 						"after": []any{"coder_script.b"},
 					},
 					map[string]any{
-						"run":   "coder_script.b",
+						"run":   []any{"coder_script.b"},
 						"after": []any{"coder_script.a"},
 					},
 				),
@@ -316,11 +361,11 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.apt", "id-apt", "agent-main", "apt"),
 				scriptOrderScriptResource("coder_script.install", "id-install", "agent-main", "install"),
 				scriptOrderRuleResource("data.coder_script_order.one", map[string]any{
-					"run":   "coder_script.install",
+					"run":   []any{"coder_script.install"},
 					"after": []any{"coder_script.apt"},
 				}),
 				scriptOrderRuleResource("data.coder_script_order.two", map[string]any{
-					"run":      "coder_script.install",
+					"run":      []any{"coder_script.install"},
 					"after":    []any{"coder_script.apt"},
 					"requires": "completion",
 				}),
@@ -343,7 +388,7 @@ func TestScriptOrder(t *testing.T) {
 				}),
 				scriptOrderScriptResource("coder_script.install", "id-install", "agent-main", "install"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.install",
+					"run":   []any{"coder_script.install"},
 					"after": []any{"coder_script.apt"},
 				}),
 			},
@@ -360,7 +405,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderAgentResource("main", "agent-main"),
 				scriptOrderScriptResource("coder_script.apt", "id-apt", "agent-main", "apt"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.apt",
+					"run":   []any{"coder_script.apt"},
 					"after": []any{"coder_script.apt"},
 				}),
 			},
@@ -380,7 +425,7 @@ func TestScriptOrder(t *testing.T) {
 					values["script"] = "#!/bin/sh\ncoder exp sync want apt\nmake install"
 				}),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.install",
+					"run":   []any{"coder_script.install"},
 					"after": []any{"coder_script.apt"},
 				}),
 			},
@@ -418,7 +463,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.apt", "", "", "apt"),
 				scriptOrderScriptResource("coder_script.install", "", "", "install"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.install",
+					"run":   []any{"coder_script.install"},
 					"after": []any{"coder_script.apt"},
 				}),
 			},
@@ -457,7 +502,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.prep", "", "", "prep"),
 				scriptOrderScriptResource("module.git_clone.coder_script.git_clone", "", "", "git-clone"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.prep",
+					"run":   []any{"coder_script.prep"},
 					"after": []any{"module.git_clone"},
 				}),
 			},
@@ -482,7 +527,7 @@ func TestScriptOrder(t *testing.T) {
 				scriptOrderScriptResource("coder_script.prep", "id-prep", "agent-main", "prep"),
 				scriptOrderScriptResource("module.git_clone.coder_script.git_clone", "id-clone", "agent-main", "git-clone"),
 				scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
-					"run":   "coder_script.prep",
+					"run":   []any{"coder_script.prep"},
 					"after": []any{"module.git_clone"},
 				}),
 			},

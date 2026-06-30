@@ -37,7 +37,7 @@ template:
 ```tf
 data "coder_script_order" "startup" {
   rule {
-    run   = "coder_script.install"
+    run   = ["coder_script.install"]
     after = ["coder_script.clone"]
   }
 }

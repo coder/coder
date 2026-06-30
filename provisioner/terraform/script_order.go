@@ -56,7 +56,7 @@ type orderableScript struct {
 }
 
 type scriptOrderRuleAttributes struct {
-	Run      string   `mapstructure:"run"`
+	Run      []string `mapstructure:"run"`
 	After    []string `mapstructure:"after"`
 	Requires string   `mapstructure:"requires"`
 }
@@ -124,17 +124,35 @@ func applyScriptOrder(dataSources map[string]scriptOrderDataSource, scripts []*o
 					ruleRef, scriptOrderRequiresSuccess, scriptOrderRequiresCompletion, requires)
 			}
 
-			runScripts, err := resolveScriptOrderSelector(ds, rule.Run, scripts)
-			if err != nil {
-				return nil, xerrors.Errorf("%s: run: %w", ruleRef, err)
+			if len(rule.Run) == 0 {
+				return nil, xerrors.Errorf("%s: run must list at least one selector", ruleRef)
 			}
 			if len(rule.After) == 0 {
 				return nil, xerrors.Errorf("%s: after must list at least one selector", ruleRef)
 			}
-			for _, afterSelector := range rule.After {
-				if afterSelector == rule.Run {
-					return nil, xerrors.Errorf("%s: %q cannot run after itself", ruleRef, rule.Run)
+
+			runScripts := []*orderableScript{}
+			seenRun := map[string]bool{}
+			for _, runSelector := range rule.Run {
+				for _, afterSelector := range rule.After {
+					if afterSelector == runSelector {
+						return nil, xerrors.Errorf("%s: %q cannot run after itself", ruleRef, runSelector)
+					}
 				}
+				resolved, err := resolveScriptOrderSelector(ds, runSelector, scripts)
+				if err != nil {
+					return nil, xerrors.Errorf("%s: run: %w", ruleRef, err)
+				}
+				for _, s := range resolved {
+					if seenRun[s.address] {
+						continue
+					}
+					seenRun[s.address] = true
+					runScripts = append(runScripts, s)
+				}
+			}
+
+			for _, afterSelector := range rule.After {
 				depScripts, err := resolveScriptOrderSelector(ds, afterSelector, scripts)
 				if err != nil {
 					return nil, xerrors.Errorf("%s: after: %w", ruleRef, err)

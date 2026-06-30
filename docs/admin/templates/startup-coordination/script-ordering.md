@@ -38,7 +38,7 @@ resource "coder_script" "install" {
 
 data "coder_script_order" "startup" {
   rule {
-    run   = "coder_script.install"
+    run   = ["coder_script.install"]
     after = ["coder_script.clone"]
   }
 }
@@ -49,13 +49,23 @@ Neither script contains any synchronization code. The agent starts
 
 ## Selectors
 
-`run` and `after` accept Terraform addresses:
+`run` and `after` each take a list of one or more Terraform addresses:
 
 | Selector                     | Matches                                                            |
 |------------------------------|--------------------------------------------------------------------|
 | `coder_script.<name>`        | A single script (all instances when it uses `count` or `for_each`) |
 | `coder_script.<name>[<idx>]` | One instance of a script that uses `count` or `for_each`           |
 | `module.<name>`              | Every script inside the module, including nested modules           |
+
+List multiple selectors in `run` to apply the same `after` constraint to
+several scripts at once, instead of repeating the rule:
+
+```tf
+rule {
+  run   = ["coder_script.a", "coder_script.b"]
+  after = ["coder_script.prep"]
+}
+```
 
 Selectors are resolved relative to the module where the data source is
 declared. A `coder_script_order` declared inside a module can only
@@ -75,7 +85,7 @@ module "git_clone" {
 
 data "coder_script_order" "startup" {
   rule {
-    run   = "coder_script.run_agent"
+    run   = ["coder_script.run_agent"]
     after = ["module.git_clone"]
   }
 }
@@ -116,25 +126,25 @@ fan-out, and fan-in are declared with one rule per constraint:
 data "coder_script_order" "startup" {
   # Chain: prep, then clone, then install.
   rule {
-    run   = "coder_script.clone"
+    run   = ["coder_script.clone"]
     after = ["coder_script.prep"]
   }
 
   rule {
-    run   = "coder_script.install"
+    run   = ["coder_script.install"]
     after = ["coder_script.clone"]
   }
 
   # Fan-in: the IDE waits for two scripts that run in parallel.
   rule {
-    run   = "coder_script.start_ide"
+    run   = ["coder_script.start_ide"]
     after = ["coder_script.install", "coder_script.dotfiles"]
   }
 
   # The report runs once the launcher is terminal, even when an
   # earlier failure skipped the rest of the chain.
   rule {
-    run      = "coder_script.report"
+    run      = ["coder_script.report"]
     after    = ["coder_script.start_ide"]
     requires = "completion"
   }

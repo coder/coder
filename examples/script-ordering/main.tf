@@ -86,20 +86,20 @@ resource "coder_script" "report" {
 data "coder_script_order" "startup" {
   # The git-clone module may only start after the mirrors are configured.
   rule {
-    run   = "module.git_clone"
+    run   = ["module.git_clone"]
     after = ["coder_script.configure_mirrors"]
   }
 
   # The AI agent needs the repository. requires defaults to "success",
   # so this script is skipped when the clone fails.
   rule {
-    run   = "coder_script.run_agent"
+    run   = ["coder_script.run_agent"]
     after = ["module.git_clone"]
   }
 
   # The report runs once the agent step is finished, even if it failed.
   rule {
-    run      = "coder_script.report"
+    run      = ["coder_script.report"]
     after    = ["coder_script.run_agent"]
     requires = "completion"
   }
