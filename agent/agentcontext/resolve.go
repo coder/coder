@@ -262,9 +262,7 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		}
 		r.discoverIn(root, &resources, seenID)
 	}
-	// Collapse skills that resolve to the same front-matter Name
-	// into one deterministic winner so the inventory and any
-	// name-keyed usable index agree.
+	// Collapse same-name skills to one winner.
 	resources = dedupSkillsByName(resources)
 	return resources, snapErrs
 }
@@ -639,13 +637,11 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 	}
 	for _, e := range entries {
 		skillDir := filepath.Join(container, e.Name())
-		// DirEntry.IsDir reports false for a symlink, so a symlinked
-		// skill directory would be skipped outright. Resolve the entry
-		// type: follow a symlink that points at a directory, but only
-		// after confirming the resolved directory is still inside the
-		// contributing scan root. The naive follow would escape because
-		// Lstat on the inner SKILL.md sees a regular file and
-		// resolveReadTarget would not re-check the directory link.
+		// DirEntry.IsDir is false for a symlink, so resolve the
+		// entry and follow it only if it stays inside the scan
+		// root; otherwise the inner SKILL.md looks like a regular
+		// file and the directory link slips past the boundary
+		// check.
 		if e.Type()&fs.ModeSymlink != 0 {
 			resolved, rerr := filepath.EvalSymlinks(skillDir)
 			if rerr != nil {
@@ -658,7 +654,8 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 				// Surface the boundary violation as StatusInvalid,
 				// mirroring resolveReadTarget's handling of escaping
 				// file symlinks. The resolver is stateless and has no
-				// logger, so the rejection rides the snapshot.
+				// logger, so the rejection is returned in the snapshot
+				// rather than logged.
 				appendResource(out, seenID, Resource{
 					ID:         resourceID(KindSkill, skillDir),
 					Kind:       KindSkill,
@@ -703,12 +700,9 @@ func dirWithinScanRoot(resolved, scanRoot string) bool {
 }
 
 // dedupSkillsByName collapses skills that resolve to the same
-// front-matter Name down to one deterministic winner so the
-// inventory and any name-keyed usable index agree. Skills from
-// builtin/home roots outrank project roots; ties break on the
-// lexical source path. Only successfully parsed skills carry a
-// Name, so invalid skills and every other kind pass through
-// untouched.
+// front-matter Name down to one deterministic winner, ranked by
+// skillResourceOutranks, so the inventory and any name-keyed
+// usable index agree.
 func dedupSkillsByName(resources []Resource) []Resource {
 	winnerIdx := make(map[string]int)
 	for i := range resources {
