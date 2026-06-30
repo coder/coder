@@ -68,60 +68,62 @@ export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 	return (
 		<section
 			aria-label="Current goal"
-			className="mx-auto mb-2 flex w-full max-w-3xl flex-col gap-2 rounded-lg border border-border-default bg-surface-secondary px-3 py-2 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between"
+			className="mx-auto mb-2 w-full max-w-3xl overflow-hidden rounded-xl border border-border-default/70 bg-surface-secondary/80 px-3 py-2.5 text-sm shadow-sm ring-1 ring-border-default/20"
 		>
-			<div className="flex min-w-0 items-start gap-2 sm:items-center">
-				<TargetIcon className="mt-0.5 size-icon-sm shrink-0 text-content-secondary sm:mt-0" />
-				<div className="min-w-0 space-y-1">
-					<div className="flex min-w-0 items-center gap-2">
+			<div className="flex min-w-0 items-start gap-2.5">
+				<div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border border-border-default bg-surface-primary/70">
+					<TargetIcon className="size-4 text-content-secondary" />
+				</div>
+				<div className="min-w-0 flex-1 space-y-2">
+					<div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
 						<Badge size="sm" variant={statusUI.variant}>
 							{statusUI.label}
 						</Badge>
 						<span
-							className="min-w-0 truncate text-content-primary"
-							title={goal.objective}
-						>
-							{goal.objective}
-						</span>
-						<span
-							className="hidden shrink-0 text-xs text-content-secondary sm:inline"
+							className="text-xs text-content-secondary"
 							title={`Started ${relativeTime(goal.created_at)}`}
 						>
-							{age}
+							Started {age}
 						</span>
 					</div>
+					<p
+						className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-content-primary [overflow-wrap:anywhere]"
+						title={goal.objective}
+					>
+						{goal.objective}
+					</p>
 					{goal.completion_summary ? (
 						<p
-							className="truncate text-xs text-content-secondary"
+							className="line-clamp-2 text-xs leading-5 text-content-secondary [overflow-wrap:anywhere]"
 							title={goal.completion_summary}
 						>
 							Summary: {goal.completion_summary}
 						</p>
 					) : null}
+					{actions.length > 0 ? (
+						<div className="flex min-w-0 items-center justify-end gap-1.5 overflow-x-auto border-t border-border-default/60 pt-2">
+							{actions.map((action) => {
+								const actionUI = GOAL_ACTION_UI[action];
+								const Icon = actionUI.Icon;
+								return (
+									<Button
+										key={action}
+										size="xs"
+										variant={action === "clear" ? "subtle" : "outline"}
+										disabled={disabled}
+										onClick={() => {
+											void onAction(action);
+										}}
+									>
+										<Icon />
+										{actionUI.label}
+									</Button>
+								);
+							})}
+						</div>
+					) : null}
 				</div>
 			</div>
-			{actions.length > 0 ? (
-				<div className="flex flex-wrap gap-1 sm:justify-end">
-					{actions.map((action) => {
-						const actionUI = GOAL_ACTION_UI[action];
-						const Icon = actionUI.Icon;
-						return (
-							<Button
-								key={action}
-								size="xs"
-								variant={action === "clear" ? "subtle" : "outline"}
-								disabled={disabled}
-								onClick={() => {
-									void onAction(action);
-								}}
-							>
-								<Icon />
-								{actionUI.label}
-							</Button>
-						);
-					})}
-				</div>
-			) : null}
 		</section>
 	);
 };

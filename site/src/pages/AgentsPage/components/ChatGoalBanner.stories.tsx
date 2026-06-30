@@ -5,12 +5,15 @@ import { ChatGoalBanner } from "./ChatGoalBanner";
 
 const storyNow = new Date().toISOString();
 
+const longGoalObjective =
+	"Ensure coder/coder has no frontend components using MUI, migrate remaining components to shared primitives, and leave tests and stories covering the replacement.";
+
 const goal = (
 	overrides: Partial<TypesGen.ChatGoal> = {},
 ): TypesGen.ChatGoal => ({
 	id: "goal-1",
 	root_chat_id: "chat-1",
-	objective: "Ship the frontend goal mode UX with tests.",
+	objective: longGoalObjective,
 	status: "active",
 	created_by_user_id: "user-1",
 	completed_by_agent: false,
@@ -37,9 +40,7 @@ export const Active: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByLabelText("Current goal")).toBeVisible();
 		expect(canvas.getByText("Pursuing goal")).toBeVisible();
-		expect(
-			canvas.getByText("Ship the frontend goal mode UX with tests."),
-		).toBeVisible();
+		expect(canvas.getByText(longGoalObjective)).toBeVisible();
 
 		await userEvent.click(canvas.getByRole("button", { name: /Pause/i }));
 		await userEvent.click(canvas.getByRole("button", { name: /Complete/i }));
