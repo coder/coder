@@ -36,6 +36,9 @@ typ = "typ"
 styl = "styl"
 edn = "edn"
 Inferrable = "Inferrable"
+# Go standard library uses American English single-l spelling throughout encoding/json etc.
+unmarshaling = "unmarshaling"
+marshaling = "marshaling"
 IIF = "IIF"
 
 [files]
