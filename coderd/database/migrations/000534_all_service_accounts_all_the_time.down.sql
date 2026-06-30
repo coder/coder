@@ -1,0 +1,2 @@
+-- We do not track which users were converted to service accounts.
+-- This is a destructive migration that cannot be undone.
