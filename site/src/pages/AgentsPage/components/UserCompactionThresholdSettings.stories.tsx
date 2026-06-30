@@ -24,7 +24,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		...MockChatModelConfig,
 		id: "model-2",
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet",
 		display_name: "Claude Sonnet",
 		created_at: "2025-01-01T00:00:00Z",
@@ -49,6 +49,10 @@ const meta = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		modelConfigs: mockModelConfigs,
+		providerTypeByID: new Map<string, string>([
+			["provider-1", "openai"],
+			["provider-anthropic", "anthropic"],
+		]),
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,

@@ -8,7 +8,7 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { useModelOptions } from "./hooks/useModelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -24,13 +24,8 @@ const AgentSettingsUserAgentsPage: FC = () => {
 	const saveExploreModelOverrideMutation = useMutation(
 		updateUserChatPersonalModelOverride(queryClient),
 	);
-	const modelOptions = getModelOptionsFromConfigs(
-		modelConfigsQuery.data,
-		chatModelsQuery.data,
-	);
+	const { options: modelOptions, isModelCatalogLoading } = useModelOptions();
 	const modelConfigsError = modelConfigsQuery.error ?? chatModelsQuery.error;
-	const isLoadingModels =
-		chatModelsQuery.isLoading || modelConfigsQuery.isLoading;
 
 	const saveModelOverride = (
 		context: TypesGen.ChatPersonalModelOverrideContext,
@@ -56,7 +51,7 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			modelOptions={modelOptions}
 			modelConfigs={modelConfigsQuery.data ?? []}
 			modelConfigsError={modelConfigsError}
-			isLoadingModels={isLoadingModels}
+			isLoadingModels={isModelCatalogLoading}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",
 				saveRootModelOverrideMutation,

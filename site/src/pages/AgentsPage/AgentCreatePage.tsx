@@ -23,11 +23,11 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { useModelOptions } from "./hooks/useModelOptions";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
-	getModelOptionsFromConfigs,
 	getUnsupportedProviderNames,
 } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
@@ -56,10 +56,8 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	const catalogModelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-	);
+	const { options: catalogModelOptions, isModelCatalogLoading } =
+		useModelOptions();
 	const providerCount =
 		permissions.editDeploymentConfig &&
 		chatProviderConfigsQuery.isSuccess &&
@@ -166,7 +164,7 @@ const AgentCreatePage: FC = () => {
 				modelCount={modelCount}
 				unsupportedProviderNames={unsupportedProviderNames}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				isModelCatalogLoading={chatModelsQuery.isLoading}
+				isModelCatalogLoading={isModelCatalogLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				rootPersonalModelOverride={rootPersonalModelOverride}
 				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}

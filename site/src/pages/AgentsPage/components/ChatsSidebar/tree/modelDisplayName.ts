@@ -1,5 +1,4 @@
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
-import { getNormalizedModelRef } from "../../../utils/modelOptions";
 import type { ModelSelectorOption } from "../../ChatElements";
 import { asString } from "../../ChatElements/runtimeTypeUtils";
 
@@ -24,13 +23,6 @@ export const getModelDisplayName = (
 		(config) => config.id === normalizedModelConfigID,
 	);
 	if (!modelConfig) {
-		const legacyModelOption = modelOptions.find(
-			(option) =>
-				`${option.provider}:${option.model}` === normalizedModelConfigID,
-		);
-		if (legacyModelOption?.displayName) {
-			return legacyModelOption.displayName;
-		}
 		return "Default model";
 	}
 
@@ -39,17 +31,6 @@ export const getModelDisplayName = (
 		return displayName;
 	}
 
-	const { provider, model } = getNormalizedModelRef(modelConfig);
-	if (!provider || !model) {
-		return "Default model";
-	}
-
-	const fallbackModelOption = modelOptions.find(
-		(option) => option.provider === provider && option.model === model,
-	);
-	if (fallbackModelOption?.displayName) {
-		return fallbackModelOption.displayName;
-	}
-
-	return model;
+	const model = asString(modelConfig.model).trim();
+	return model || "Default model";
 };

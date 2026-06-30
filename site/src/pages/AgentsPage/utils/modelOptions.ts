@@ -10,11 +10,6 @@ type RuntimeModelRef = {
 	readonly model?: unknown;
 };
 
-type ModelRefLike =
-	| Pick<TypesGen.ChatModel, "provider" | "model">
-	| Pick<TypesGen.ChatModelConfig, "provider" | "model">
-	| RuntimeModelRef;
-
 type CatalogModelLike =
 	| TypesGen.ChatModel
 	| (RuntimeModelRef & {
@@ -29,15 +24,6 @@ type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
 type ModelCatalogLike = {
 	readonly providers?: readonly CatalogProviderLike[];
 };
-
-type ModelOptionConfigLike =
-	| TypesGen.ChatModelConfig
-	| (RuntimeModelRef & {
-			readonly id?: unknown;
-			readonly display_name?: unknown;
-			readonly enabled?: unknown;
-			readonly context_limit?: unknown;
-	  });
 
 export const hasConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
@@ -66,7 +52,7 @@ export const countConfiguredProviderConfigs = (
 };
 
 export const getNormalizedModelRef = (
-	value: ModelRefLike,
+	value: Pick<TypesGen.ChatModel, "provider" | "model"> | RuntimeModelRef,
 ): { readonly provider: string; readonly model: string } => {
 	const modelRef = value ?? {};
 	return {
@@ -194,9 +180,38 @@ export const resolveModelOptionId = (
 	return "";
 };
 
+// providerTypeByIDFromConfigs and providerTypeByIDFromUserConfigs build
+// the ai_provider_id -> provider-type lookup that getModelOptionsFromConfigs
+// needs. The admin and user provider endpoints expose the provider id under
+// different field names (id vs provider_id), so each source has its own
+// helper to bake in the correct field and keep callers from mixing them up.
+export const providerTypeByIDFromConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+): ReadonlyMap<string, string> =>
+	new Map(
+		(providerConfigs ?? []).map((providerConfig) => [
+			providerConfig.id,
+			providerConfig.provider,
+		]),
+	);
+
+export const providerTypeByIDFromUserConfigs = (
+	providerConfigs:
+		| readonly TypesGen.UserChatProviderConfig[]
+		| null
+		| undefined,
+): ReadonlyMap<string, string> =>
+	new Map(
+		(providerConfigs ?? []).map((providerConfig) => [
+			providerConfig.provider_id,
+			providerConfig.provider,
+		]),
+	);
+
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	providerTypeByID: ReadonlyMap<string, string>,
 ): readonly ModelSelectorOption[] => {
 	if (!configs || !catalog) {
 		return [];
@@ -205,13 +220,16 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	for (const config of configs as readonly ModelOptionConfigLike[]) {
-		if (config.enabled !== true) {
+	for (const config of configs) {
+		if (!config.enabled) {
 			continue;
 		}
 
-		const configID = asString(config.id).trim();
-		const { provider, model } = getNormalizedModelRef(config);
+		const configID = config.id.trim();
+		const provider = asString(providerTypeByID.get(config.ai_provider_id))
+			.trim()
+			.toLowerCase();
+		const model = config.model.trim();
 		if (!configID || !provider || !model) {
 			continue;
 		}
@@ -219,7 +237,7 @@ export const getModelOptionsFromConfigs = (
 			continue;
 		}
 
-		const displayName = asString(config.display_name).trim() || model;
+		const displayName = config.display_name.trim() || model;
 		const contextLimit = asNumber(config.context_limit);
 		options.push({
 			id: configID,

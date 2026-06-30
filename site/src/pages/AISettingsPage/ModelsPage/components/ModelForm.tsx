@@ -152,7 +152,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 				const req: TypesGen.UpdateChatModelConfigRequest = {
 					...(selectedProviderConfigID &&
 						selectedProviderConfigID !== editingProviderConfigID && {
-							provider: selectedProviderState.provider,
 							ai_provider_id: selectedProviderConfigID,
 						}),
 					...(trimmedModel !== editingModel.model && {
@@ -181,7 +180,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 				if (!selectedProviderState?.providerConfig) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProviderState.provider,
 					ai_provider_id: selectedProviderState.providerConfig.id,
 					model: trimmedModel,
 					enabled: values.enabled,

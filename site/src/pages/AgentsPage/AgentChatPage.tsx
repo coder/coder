@@ -83,14 +83,13 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { useModelOptions } from "./hooks/useModelOptions";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
-	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
-	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 	resolveModelOptionId,
 } from "./utils/modelOptions";
@@ -805,10 +804,12 @@ const AgentChatPage: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-	);
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = useModelOptions();
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =
 		permissions.editDeploymentConfig &&
@@ -826,8 +827,6 @@ const AgentChatPage: FC = () => {
 	const unsupportedProviderNames = getUnsupportedProviderNames(
 		chatModelsQuery.data,
 	);
-	const modelCatalog = chatModelsQuery.data;
-	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -1136,7 +1135,6 @@ const AgentChatPage: FC = () => {
 		modelConfigs,
 	);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
