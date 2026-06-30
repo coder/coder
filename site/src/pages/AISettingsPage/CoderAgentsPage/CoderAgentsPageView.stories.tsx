@@ -498,12 +498,12 @@ export const AdvisorSettingsVisible: Story = {
 			within(section).getByRole("spinbutton", {
 				name: "Max uses per run",
 			}),
-		).toHaveValue("3");
+		).toHaveValue(3);
 		expect(
 			within(section).getByRole("spinbutton", {
 				name: "Max output tokens",
 			}),
-		).toHaveValue("16384");
+		).toHaveValue(16384);
 		expect(
 			within(section).getByRole("combobox", { name: "Advisor model" }),
 		).toBeInTheDocument();
@@ -546,15 +546,15 @@ export const AdvisorClearButton: Story = {
 			within(section).getByRole("spinbutton", {
 				name: "Max uses per run",
 			}),
-		).toHaveValue("0");
+		).toHaveValue(0);
 		expect(
 			within(section).getByRole("spinbutton", {
 				name: "Max output tokens",
 			}),
-		).toHaveValue("0");
+		).toHaveValue(0);
 		expect(
-			within(section).getByRole("combobox", { name: "Use chat model" }),
-		).toBeInTheDocument();
+			within(section).getByRole("combobox", { name: "Advisor model" }),
+		).toHaveTextContent("Use chat model");
 	},
 };
 
