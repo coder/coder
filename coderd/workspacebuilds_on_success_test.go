@@ -184,6 +184,8 @@ func TestPostWorkspaceBuildsOnSuccessTemplateVersionPreset(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	childBuild = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, childBuild.ID)
+	require.Equal(t, codersdk.ProvisionerJobSucceeded, childBuild.Job.Status)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, childBuild.Status)
 	require.NotNil(t, childBuild.TemplateVersionPresetID)
 	require.Equal(t, preset.ID, *childBuild.TemplateVersionPresetID)
 }
