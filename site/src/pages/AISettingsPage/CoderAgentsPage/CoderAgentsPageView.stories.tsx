@@ -481,3 +481,46 @@ export const UnavailableSavedModels: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+export const AdvisorSettingsVisible: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max uses per run",
+			}),
+		).toHaveValue("3");
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max output tokens",
+			}),
+		).toHaveValue("16384");
+		expect(
+			within(section).getByRole("combobox", { name: "Advisor model" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const VirtualDesktopSettingsVisible: Story = {
+	args: buildArgs({
+		showVirtualDesktopSettings: true,
+		computerUseProviderData: { provider: "anthropic" },
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Virtual desktop");
+		expect(
+			within(section).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		).toHaveTextContent("Anthropic");
+	},
+};

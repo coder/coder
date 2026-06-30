@@ -881,6 +881,10 @@ export const router = createBrowserRouter(
 							path="agents"
 							element={<Navigate to="/ai/settings/coder-agents" replace />}
 						/>
+						<Route
+							path="coder-agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route
 							path="providers"
