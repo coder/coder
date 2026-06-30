@@ -20,6 +20,7 @@ WHERE
 	tus.start_time >= @start_time::timestamptz
 	AND tus.end_time <= @end_time::timestamptz
 	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+	AND NOT u.is_system
 GROUP BY
 	tus.user_id, u.username, u.avatar_url
 ORDER BY
@@ -47,6 +48,7 @@ WITH
 			start_time >= @start_time::timestamptz
 			AND end_time <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 		GROUP BY
 			start_time, user_id
 	),
@@ -108,6 +110,7 @@ WITH
 			start_time >= @start_time::timestamptz
 			AND end_time <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 		GROUP BY
 			start_time, user_id
 	),
@@ -125,6 +128,7 @@ WITH
 			start_time >= @start_time::timestamptz
 			AND end_time <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 	)
 
 SELECT
@@ -181,6 +185,7 @@ WITH
 				OR session_count_vscode > 0
 				OR session_count_jetbrains > 0
 			)
+			AND user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 		GROUP BY
 			template_id, user_id
 	)
@@ -262,6 +267,7 @@ WITH
 			-- Primary join condition.
 			AND tus.template_id = apps.template_id
 			AND tus.app_usage_mins ? apps.slug -- Key exists in object.
+			AND tus.user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 	),
 	-- Group the app insights by interval, user and unique app. This
 	-- allows us to deduplicate a user using the same app across
@@ -364,6 +370,7 @@ WITH
 		WHERE
 			was.session_ended_at >= @start_time::timestamptz
 			AND was.session_started_at <  @end_time::timestamptz
+			AND was.user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 	),
 	-- This CTE is used to explode app usage into minute buckets, then
 	-- flatten the users app usage within the template so that usage in
@@ -463,6 +470,7 @@ ON
 	AND tus.start_time < ts.to_ -- End time exclusion criteria optimization for index.
 	AND tus.end_time <= ts.to_
 	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+	AND tus.user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 GROUP BY
 	ts.from_, ts.to_;
 
@@ -509,6 +517,7 @@ WITH
         WHERE
             was.session_ended_at >= (SELECT t FROM latest_start)
             AND was.session_started_at < NOW()
+            AND was.user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
     ),
 	workspace_app_stat_buckets AS (
 		SELECT
@@ -601,6 +610,7 @@ WITH
 				OR session_count_vscode > 0
 				OR session_count_jetbrains > 0
 			)
+			AND user_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 		GROUP BY
 			time_bucket, template_id, user_id
 	),
@@ -767,6 +777,7 @@ WITH latest_workspace_builds AS (
 			wbmax.created_at >= @start_time::timestamptz
 			AND wbmax.created_at < @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tv.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND wbmax.initiator_id NOT IN (SELECT id FROM users WHERE is_system = TRUE)
 		GROUP BY tv.template_id, wbmax.workspace_id
 	) wbmax
 	JOIN workspace_builds wb ON (
