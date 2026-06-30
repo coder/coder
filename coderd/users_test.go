@@ -952,18 +952,17 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypeNone,
 		})
-		require.NoError(t, err)
-
-		found, err := client.User(ctx, user.ID.String())
-		require.NoError(t, err)
-		require.Equal(t, found.LoginType, codersdk.LoginTypeNone)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "service account")
 	})
 
 	t.Run("CreateOIDCLoginType", func(t *testing.T) {

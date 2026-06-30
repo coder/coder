@@ -49,6 +49,12 @@ func (r *RootCmd) userCreate() *serpent.Command {
 			if disableLogin && loginType != "" {
 				return xerrors.New("You cannot specify both --disable-login and --login-type")
 			}
+			if disableLogin && !serviceAccount {
+				return xerrors.New("--disable-login is deprecated. Use --service-account for machine-to-machine access.")
+			}
+			if loginType == string(codersdk.LoginTypeNone) && !serviceAccount {
+				return xerrors.New("Login type 'none' requires --service-account.")
+			}
 
 			client, err := r.InitClient(inv)
 			if err != nil {
