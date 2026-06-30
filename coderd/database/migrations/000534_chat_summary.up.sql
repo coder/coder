@@ -1,13 +1,10 @@
--- Add the persisted whole-chat summary and its freshness marker. The summary
--- is generated in the background after successful turns and is distinct from
--- last_turn_summary, which only reflects the most recent turn.
+-- Persisted whole-chat summary and its freshness marker, distinct from
+-- last_turn_summary (which only reflects the most recent turn).
 ALTER TABLE chats
     ADD COLUMN summary TEXT,
     ADD COLUMN summary_generated_at TIMESTAMPTZ;
 
--- Recreate chats_expanded so the new chat columns are exposed to the API. The
--- view has an explicit column list, so new columns are otherwise invisible.
--- summary and summary_generated_at are placed next to last_turn_summary.
+-- Recreate chats_expanded: its explicit column list hides new columns otherwise.
 DROP VIEW IF EXISTS chats_expanded;
 
 CREATE VIEW chats_expanded AS

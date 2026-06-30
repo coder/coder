@@ -1375,14 +1375,10 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error)
-	// Updates the persisted whole-chat summary shown in the chat summary popover.
-	// Empty or whitespace-only summaries are stored as NULL so callers cannot
-	// accidentally persist blank text. summary_generated_at records when the
-	// summary was produced and drives the background regeneration cadence.
-	// This intentionally preserves updated_at. The staleness guard uses
-	// history_version, mirroring UpdateChatLastTurnSummary, so background writes
-	// racing a newer durable history change lose while worker lifecycle
-	// transitions that do not change message history cannot reject a fresh write.
+	// Stores blank summaries as NULL. summary_generated_at drives the regeneration
+	// cadence. The staleness guard is history_version (not updated_at, which is
+	// preserved), mirroring UpdateChatLastTurnSummary: a background write racing a
+	// newer message change loses, but worker transitions cannot reject a fresh write.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)

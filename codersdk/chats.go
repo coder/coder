@@ -123,8 +123,8 @@ type Chat struct {
 	PlanMode          ChatPlanMode `json:"plan_mode,omitempty"`
 	LastError         *ChatError   `json:"last_error,omitempty"`
 	LastTurnSummary   *string      `json:"last_turn_summary"`
-	// Summary is the persisted whole-chat summary, generated asynchronously in
-	// the background. It is nil until the first summary has been produced.
+	// Summary is the persisted whole-chat summary, generated in the background.
+	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
 	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
 	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
@@ -1768,10 +1768,9 @@ type ChatWatchEventKind string
 const (
 	ChatWatchEventKindStatusChange  ChatWatchEventKind = "status_change"
 	ChatWatchEventKindSummaryChange ChatWatchEventKind = "summary_change"
-	// ChatWatchEventKindChatSummaryChange delivers updates to the persisted
-	// whole-chat summary field. It is distinct from SummaryChange, which is
-	// bound to last_turn_summary, so the frontend can apply only the summary
-	// field without disturbing last_turn_summary.
+	// ChatWatchEventKindChatSummaryChange carries the persisted whole-chat
+	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
+	// the frontend updates one field without disturbing the other.
 	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
 	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated           ChatWatchEventKind = "created"

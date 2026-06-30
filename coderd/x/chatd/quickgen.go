@@ -881,22 +881,15 @@ const chatSummaryGenerationPrompt = "You summarize an AI coding chat for a quick
 	"No markdown, lists, headings, code fences, or surrounding quotes."
 
 const (
-	// summaryTranscriptMaxRunes bounds the rendered conversation passed to the
-	// summary model so the call stays cheap and within the context window.
-	// Long chats are bounded by keeping head and tail turns (see
-	// renderChatSummaryTranscript).
+	// Bound the transcript so the summary call stays cheap and within context;
+	// long chats keep head and tail turns (see renderChatSummaryTranscript).
 	summaryTranscriptMaxRunes = 16000
-	// summaryTranscriptPerMessageMaxRunes caps any single rendered turn so one
-	// very long message (such as a replayed compaction summary) cannot dominate
-	// the transcript budget.
+	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
 	summaryMaxOutputTokens              = 512
-	// summaryMaxRunes rejects pathologically long summaries that ignore the
-	// length instruction.
-	summaryMaxRunes = 1000
-	// summaryMaxSentences rejects pathologically verbose summaries while leaving
-	// slack over the 1-3 sentence target so a slightly long but useful summary
-	// is still stored.
+	// Reject pathologically long or verbose summaries, with slack over the
+	// 1-3 sentence target.
+	summaryMaxRunes     = 1000
 	summaryMaxSentences = 6
 )
 
@@ -905,9 +898,7 @@ type generatedChatSummary struct {
 }
 
 // renderChatSummaryTranscript renders chat history as plain text for summary
-// generation. It keeps the compaction summary so pre-compaction content is
-// covered. Plain text avoids provider tool-call pairing rules during structured
-// generation.
+// generation. Plain text avoids provider tool-call pairing rules.
 func renderChatSummaryTranscript(messages []database.ChatMessage) string {
 	lines := make([]string, 0, len(messages))
 	for _, message := range messages {
@@ -921,9 +912,8 @@ func renderChatSummaryTranscript(messages []database.ChatMessage) string {
 			continue
 		}
 
-		// Keep visible turns plus the replayed compaction summary, which is a
-		// model-only compressed message. Other model-only messages (such as
-		// injected context) are skipped as noise.
+		// Keep visible turns plus the compaction summary (model-only but
+		// compressed); skip other model-only messages as noise.
 		visible := message.Visibility == database.ChatMessageVisibilityBoth ||
 			message.Visibility == database.ChatMessageVisibilityUser
 		compactionSummary := message.Visibility == database.ChatMessageVisibilityModel &&
@@ -946,10 +936,9 @@ func renderChatSummaryTranscript(messages []database.ChatMessage) string {
 	return boundTranscriptHeadTail(lines, summaryTranscriptMaxRunes)
 }
 
-// boundTranscriptHeadTail joins lines, and if the result exceeds maxRunes keeps
-// a head and tail slice within budget with an elision marker in between. This
-// keeps very long chats bounded while preserving both the start (what the chat
-// is about) and the end (what was most recently accomplished).
+// boundTranscriptHeadTail joins lines; if over maxRunes it keeps a head and
+// tail slice with an elision marker between, preserving the chat's start and
+// most recent activity.
 func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 	if len(lines) == 0 {
 		return ""
@@ -994,9 +983,8 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 }
 
 // generateChatSummary generates a 1-3 sentence whole-chat summary from a
-// rendered transcript using structured output. It returns the model usage so
-// callers can record cost. A blank or invalid result returns an error so
-// callers preserve any existing summary rather than clearing it.
+// transcript. A blank or invalid result returns an error so callers preserve
+// any existing summary rather than clearing it.
 func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -1062,11 +1050,9 @@ func validateGeneratedChatSummary(summary string) error {
 	return nil
 }
 
-// countSentenceTerminators counts sentence-ending punctuation. It only counts a
-// terminator that is followed by whitespace or ends the text, so periods inside
-// dotted identifiers (pkg.cmd.server, file paths) that the prompt asks the model
-// to preserve do not inflate the count. It is an approximation used only as a
-// safety net against pathologically verbose output.
+// countSentenceTerminators counts sentence-ending punctuation, but only when
+// followed by whitespace or end-of-text, so periods inside dotted identifiers
+// (pkg.cmd.server, file paths) do not inflate the count.
 func countSentenceTerminators(text string) int {
 	runes := []rune(text)
 	count := 0
