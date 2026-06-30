@@ -19,7 +19,6 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
-	chatDesktopEnabled,
 	chatKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
@@ -718,7 +717,7 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, experiments } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
@@ -779,7 +778,6 @@ const AgentChatPage: FC = () => {
 	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
-	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
@@ -788,7 +786,7 @@ const AgentChatPage: FC = () => {
 		workspace,
 		currentUser.id,
 	);
-	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
 

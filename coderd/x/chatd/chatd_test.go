@@ -5240,6 +5240,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -8135,6 +8136,7 @@ func newActiveTestServer(
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -9319,9 +9321,6 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		BaseUrl:     anthropicSrv.URL,
 	})
 
-	err := db.UpsertChatDesktopEnabled(ctx, true)
-	require.NoError(t, err)
-
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -9514,6 +9513,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -11602,51 +11602,61 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	require.Equal(t, activeChat.ID, acquired[0].ID)
 }
 
-func TestAdvisorGating_Disabled(t *testing.T) {
+// TestAdvisorGating_ExperimentDisabled verifies that the advisor tool is
+// not attached when the chat-advisor experiment is absent from the
+// experiments list, even if the DB-stored advisor config has Enabled=true.
+func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	var toolsMu sync.Mutex
-	var capturedTools []string
-	var capturedMessages []chattest.OpenAIMessage
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	var firstCallTools []string
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
 
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
+		if streamedCallCount.Add(1) == 1 {
+			names := make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				names = append(names, tool.Function.Name)
+			}
+			streamedCallsMu.Lock()
+			firstCallTools = names
+			streamedCallsMu.Unlock()
 		}
-		toolsMu.Lock()
-		capturedTools = names
-		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-		toolsMu.Unlock()
 
 		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("advisor is not available")...,
+			chattest.OpenAITextChunks("done")...,
 		)
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         false,
+		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	experiments := slices.DeleteFunc(
+		slices.Clone(codersdk.ExperimentsKnown),
+		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatAdvisor },
+	)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Experiments = experiments
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "advisor-disabled",
+		Title:          "advisor-experiment-disabled",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
+			codersdk.ChatMessageText("help me plan this"),
 		},
 	})
 	require.NoError(t, err)
@@ -11656,22 +11666,20 @@ func TestAdvisorGating_Disabled(t *testing.T) {
 		if getErr != nil {
 			return false
 		}
-		return got.Status == database.ChatStatusWaiting ||
-			got.Status == database.ChatStatusError
+		if got.Status != database.ChatStatusWaiting &&
+			got.Status != database.ChatStatusError {
+			return false
+		}
+		return streamedCallCount.Load() >= 1
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	toolsMu.Lock()
-	tools := append([]string(nil), capturedTools...)
-	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
-	toolsMu.Unlock()
+	streamedCallsMu.Lock()
+	tools := append([]string(nil), firstCallTools...)
+	streamedCallsMu.Unlock()
 
-	require.NotEmpty(t, messages, "expected a streamed LLM request")
+	require.NotEmpty(t, tools, "expected at least one streamed LLM request")
 	require.NotContains(t, tools, "advisor",
-		"advisor tool should not be registered when disabled")
-	for _, msg := range messages {
-		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"advisor guidance should not be injected when disabled")
-	}
+		"advisor tool must not be registered when the chat-advisor experiment is absent")
 }
 
 func TestAdvisorGating_RootChat(t *testing.T) {
