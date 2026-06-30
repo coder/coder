@@ -187,9 +187,6 @@ func TestManager_AddSourceIsIdempotent(t *testing.T) {
 // TestManager_SourceIdentityIsLexicalAndStable verifies the same configured
 // source added before and after its symlink target exists collapses to one
 // source keyed by the lexical (configured) path, not the resolved target.
-// The lexical path is the stable CRUD identity, while the resolver walks the
-// re-validated RESOLVED target: an in-bounds symlinked source still resolves
-// and is scanned.
 func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
