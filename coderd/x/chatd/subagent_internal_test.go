@@ -2620,8 +2620,6 @@ func TestSubagentLifecycleToolsIncludePersistedSubagentTypeAcrossVariants(t *tes
 			t.Parallel()
 
 			db, ps := dbtestutil.NewDB(t)
-			if tt.variant == subagentTypeComputerUse {
-			}
 
 			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
