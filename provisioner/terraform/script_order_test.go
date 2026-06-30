@@ -680,3 +680,81 @@ func TestScriptOrder(t *testing.T) {
 		require.Empty(t, state.Warnings)
 	})
 }
+
+// TestScriptOrder_NestedModulesWithOwnDataSources covers Requirement 2's
+// module composition story end to end: a module and a module nested inside
+// it each declare their own coder_script_order data source, and a
+// root-level data source orders a root script after the outer module as a
+// whole. Selectors in each data source must stay scoped to the module that
+// declared it, while a module selector at any level still expands into
+// every nested module's scripts.
+func TestScriptOrder_NestedModulesWithOwnDataSources(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+		Resources: []*tfjson.StateResource{
+			scriptOrderComputeResource(),
+			scriptOrderAgentResource("main", "agent-main"),
+			scriptOrderScriptResource("coder_script.root_prep", "id-root-prep", "agent-main", "root-prep"),
+			// Orders the entire outer module, including its nested module,
+			// after a root-level script.
+			scriptOrderRuleResource("data.coder_script_order.root_order", map[string]any{
+				"run":   []any{"module.outer"},
+				"after": []any{"coder_script.root_prep"},
+			}),
+		},
+		ChildModules: []*tfjson.StateModule{{
+			Address: "module.outer",
+			Resources: []*tfjson.StateResource{
+				scriptOrderScriptResource("module.outer.coder_script.outer_a", "id-outer-a", "agent-main", "outer-a"),
+				scriptOrderScriptResource("module.outer.coder_script.outer_b", "id-outer-b", "agent-main", "outer-b"),
+				// module.outer's own ordering: outer_b after outer_a.
+				// Selectors here resolve relative to module.outer, so
+				// "coder_script.outer_a" must not be confused with any
+				// root-level or sibling-module script of the same local name.
+				scriptOrderRuleResource("module.outer.data.coder_script_order.outer_order", map[string]any{
+					"run":   []any{"coder_script.outer_b"},
+					"after": []any{"coder_script.outer_a"},
+				}),
+			},
+			ChildModules: []*tfjson.StateModule{{
+				Address: "module.outer.module.inner",
+				Resources: []*tfjson.StateResource{
+					scriptOrderScriptResource("module.outer.module.inner.coder_script.inner_x", "id-inner-x", "agent-main", "inner-x"),
+					scriptOrderScriptResource("module.outer.module.inner.coder_script.inner_y", "id-inner-y", "agent-main", "inner-y"),
+					// module.inner's own ordering: inner_y after inner_x,
+					// scoped two levels deep. Must not be affected by, or
+					// leak into, module.outer's own data source above.
+					scriptOrderRuleResource("module.outer.module.inner.data.coder_script_order.inner_order", map[string]any{
+						"run":   []any{"coder_script.inner_y"},
+						"after": []any{"coder_script.inner_x"},
+					}),
+				},
+			}},
+		}},
+	}}, scriptOrderGraph("main"), logger)
+	require.NoError(t, err)
+	require.Empty(t, state.Warnings)
+
+	// The root rule's "module.outer" selector expands into every script in
+	// the outer module's subtree, including the nested inner module, so all
+	// four wait on root_prep in addition to their own module-local rules.
+	require.ElementsMatch(t, []*proto.ScriptOrderDependency{
+		{ScriptId: "id-root-prep", Requires: "success"},
+	}, findConvertedScript(t, state, "outer-a").OrderDependencies)
+	require.ElementsMatch(t, []*proto.ScriptOrderDependency{
+		{ScriptId: "id-outer-a", Requires: "success"},
+		{ScriptId: "id-root-prep", Requires: "success"},
+	}, findConvertedScript(t, state, "outer-b").OrderDependencies)
+	require.ElementsMatch(t, []*proto.ScriptOrderDependency{
+		{ScriptId: "id-root-prep", Requires: "success"},
+	}, findConvertedScript(t, state, "inner-x").OrderDependencies)
+	require.ElementsMatch(t, []*proto.ScriptOrderDependency{
+		{ScriptId: "id-inner-x", Requires: "success"},
+		{ScriptId: "id-root-prep", Requires: "success"},
+	}, findConvertedScript(t, state, "inner-y").OrderDependencies)
+
+	// root_prep is never ordered itself.
+	require.Empty(t, findConvertedScript(t, state, "root-prep").OrderDependencies)
+}
