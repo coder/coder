@@ -31,6 +31,7 @@ const meta: Meta<typeof TemplatesPageView> = {
 	component: TemplatesPageView,
 	args: {
 		filterState: defaultFilterProps,
+		templateBuilderEnabled: false,
 	},
 };
 
@@ -99,6 +100,13 @@ export const WithTemplates: Story = {
 	},
 };
 
+export const WithTemplatesBuilderEnabled: Story = {
+	args: {
+		...WithTemplates.args,
+		templateBuilderEnabled: true,
+	},
+};
+
 export const MultipleOrganizations: Story = {
 	args: {
 		...WithTemplates.args,
@@ -153,6 +161,16 @@ export const WithUserDropdown: Story = {
 export const EmptyCanCreate: Story = {
 	args: {
 		canCreateTemplates: true,
+		error: undefined,
+		templates: [],
+		examples: [MockTemplateExample, MockTemplateExample2],
+	},
+};
+
+export const EmptyCanCreateWithBuilder: Story = {
+	args: {
+		canCreateTemplates: true,
+		templateBuilderEnabled: true,
 		error: undefined,
 		templates: [],
 		examples: [MockTemplateExample, MockTemplateExample2],
