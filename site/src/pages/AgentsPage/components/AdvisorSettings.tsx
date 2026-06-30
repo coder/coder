@@ -235,6 +235,12 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		>
 			<div className="flex flex-col gap-6">
 				<div className="flex flex-col gap-2">
+					<label
+						htmlFor={maxUsesId}
+						className="text-sm font-normal leading-6 text-content-secondary"
+					>
+						Max uses per run
+					</label>
 					<Input
 						id={maxUsesId}
 						name="max_uses_per_run"
@@ -253,11 +259,17 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 						onBlur={form.handleBlur}
 						aria-invalid={Boolean(form.errors.max_uses_per_run)}
 						disabled={isFormDisabled}
-						className="h-10 w-24"
+						className="h-10 w-24 shadow-none"
 					/>
 				</div>
 
 				<div className="flex flex-col gap-2">
+					<label
+						htmlFor={maxOutputTokensId}
+						className="text-sm font-normal leading-6 text-content-secondary"
+					>
+						Max output tokens
+					</label>
 					<Input
 						id={maxOutputTokensId}
 						name="max_output_tokens"
@@ -276,7 +288,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 						onBlur={form.handleBlur}
 						aria-invalid={Boolean(form.errors.max_output_tokens)}
 						disabled={isFormDisabled}
-						className="h-10 w-24"
+						className="h-10 w-24 shadow-none"
 					/>
 				</div>
 
