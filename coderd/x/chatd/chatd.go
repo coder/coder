@@ -463,11 +463,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	tools := make([]fantasy.AgentTool, 0, len(infos))
-	for _, info := range infos {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(info, getConn, nil))
-	}
-	return tools, nil
+	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
 }
 
 type turnWorkspaceContext struct {

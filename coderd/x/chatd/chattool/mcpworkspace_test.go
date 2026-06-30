@@ -246,3 +246,41 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 		assert.LessOrEqual(t, len(tool.Info().Name), aidmcp.MaxToolNameLen)
 	})
 }
+
+func TestNewWorkspaceMCPTools_DisambiguatesCollidingNames(t *testing.T) {
+	t.Parallel()
+
+	var routed []string
+	getConn := func(_ context.Context) (workspacesdk.AgentConn, error) {
+		return &fakeAgentConn{
+			callMCPToolFunc: func(_ context.Context, req workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
+				routed = append(routed, req.ToolName)
+				return workspacesdk.CallMCPToolResponse{}, nil
+			},
+		}, nil
+	}
+
+	// Both names sanitize to "foo_bar__echo"; the set builder must keep them
+	// distinct for the model while routing each to its own original name.
+	infos := []workspacesdk.MCPToolInfo{
+		{Name: "foo.bar__echo"},
+		{Name: "foo_bar__echo"},
+	}
+
+	tools := chattool.NewWorkspaceMCPTools(infos, getConn, nil)
+	require.Len(t, tools, 2)
+
+	names := []string{tools[0].Info().Name, tools[1].Info().Name}
+	assert.NotEqual(t, names[0], names[1],
+		"colliding model-facing names must be disambiguated")
+	assert.ElementsMatch(t,
+		[]string{"foo_bar__echo", "foo_bar__echo_2"}, names)
+
+	// Each tool routes to its own original (unsanitized) name.
+	for _, tl := range tools {
+		_, err := tl.Run(context.Background(), fantasy.ToolCall{})
+		require.NoError(t, err)
+	}
+	assert.ElementsMatch(t,
+		[]string{"foo.bar__echo", "foo_bar__echo"}, routed)
+}
