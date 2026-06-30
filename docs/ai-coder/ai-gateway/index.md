@@ -24,7 +24,8 @@ AI Gateway solves 3 key problems:
 >
 > AI Gateway was previously known as "AI Bridge". Some configuration
 > options, environment variables, and API paths still use the old name
-> and will be updated in a future release.
+> and will be updated in a future release. See
+> [Rebranding Migration](./rebranding-migration.md) for details.
 
 ## When to use AI Gateway
 
