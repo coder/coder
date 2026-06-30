@@ -3,6 +3,9 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +33,6 @@ import (
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -794,11 +796,13 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
 		Title:             fallbackChatTitle(userPrompt),
 	}
+	providerID := uuid.New()
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
 		Provider:     "openai",
 		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
 	updatedChat := chat
 	updatedChat.Title = wantTitle
@@ -819,27 +823,36 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		require.Equal(t, "gpt-4o-mini", req.Model)
-		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
-	})
+	// PR #26862 removed direct provider-key based routing; title generation
+	// now always goes through the AI Gateway transport factory, so the
+	// fake model response is synthesized by the transport's RoundTripper
+	// instead of a real HTTP test server.
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 
 	server := &Server{
-		db:          db,
-		logger:      logger,
-		pubsub:      pubsub,
-		configCache: newChatConfigCache(context.Background(), db, clock),
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	providerID := uuid.New()
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
-	}}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil)
+	}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -944,7 +957,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	ownerID := uuid.New()
 	chatID := uuid.New()
 	modelConfigID := uuid.New()
+	providerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
 	wantTitle := "Review PR 23633"
 
 	chat := database.Chat{
@@ -962,6 +977,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 		Provider:     "openai",
 		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
 	updatedChat := lockedChat
 	updatedChat.Title = wantTitle
@@ -985,27 +1001,36 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		require.Equal(t, "gpt-4o-mini", req.Model)
-		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
-	})
+	// PR #26862 removed direct provider-key based routing; title generation
+	// now always goes through the AI Gateway transport factory, so the
+	// fake model response is synthesized by the transport's RoundTripper
+	// instead of a real HTTP test server.
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 
 	server := &Server{
-		db:          db,
-		logger:      logger,
-		pubsub:      pubsub,
-		configCache: newChatConfigCache(context.Background(), db, clock),
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	providerID := uuid.New()
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
-	}}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil)
+	}, nil)
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -1015,12 +1040,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		mustChatMessage(
+		withChatMessageAPIKeyID(mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		),
+		), activeAPIKeyID),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,

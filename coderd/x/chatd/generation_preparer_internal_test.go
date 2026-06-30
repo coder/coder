@@ -143,7 +143,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server := newInternalTestServer(
+			t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		)
 		return server, created.Chat
 	}
 

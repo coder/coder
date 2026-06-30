@@ -67,7 +67,10 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -152,7 +155,10 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	firstModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
 	secondModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -235,7 +241,10 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 		},
 	)
 
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -318,7 +327,10 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 		},
 	)
 
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
