@@ -186,7 +186,7 @@ const mobileDecorator: Story["decorators"] = [
 
 export const MobileWithOpenPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["mobile"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -203,7 +203,7 @@ export const MobileWithOpenPR: Story = {
 
 export const MobileWithDraftPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["mobile"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -220,7 +220,7 @@ export const MobileWithDraftPR: Story = {
 
 export const MobileWithMergedPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["mobile"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -238,7 +238,7 @@ export const MobileWithMergedPR: Story = {
 
 export const MobileWithClosedPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["mobile"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -269,7 +269,7 @@ export const GenerateTitle: Story = {
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {
-		chromatic: { viewports: [390] },
+		pixel: { matrix: { viewports: ["mobile"] } },
 		reactRouter: reactRouterParameters({
 			location: {
 				path: "/agents/chat-123",

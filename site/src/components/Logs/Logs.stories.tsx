@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import { MockWorkspaceBuildLogs } from "#/testHelpers/entities";
 import type { Line } from "./LogLine";
 import { Logs } from "./Logs";
 
 const meta: Meta<typeof Logs> = {
 	title: "components/Logs",
-	parameters: { chromatic },
 	component: Logs,
 	args: {
 		lines: MockWorkspaceBuildLogs.map<Line>((log) => ({

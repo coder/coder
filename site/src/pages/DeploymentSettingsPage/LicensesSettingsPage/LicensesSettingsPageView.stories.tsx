@@ -1,13 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
 import type { Feature } from "#/api/typesGenerated";
-import { chromatic } from "#/testHelpers/chromatic";
 import { MockLicenseResponse } from "#/testHelpers/entities";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
 const meta: Meta<typeof LicensesSettingsPageView> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPageView",
-	parameters: { chromatic },
 	component: LicensesSettingsPageView,
 	args: {
 		showConfetti: false,

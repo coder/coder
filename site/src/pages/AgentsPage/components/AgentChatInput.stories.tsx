@@ -807,6 +807,8 @@ export const PlanningIndicator: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -1055,7 +1057,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["mobile"] } },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1147,7 +1149,7 @@ export const OverflowBadges: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
-		chromatic: { viewports: [414] },
+		pixel: { matrix: { viewports: ["mobile"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1226,7 +1228,7 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["mobile"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

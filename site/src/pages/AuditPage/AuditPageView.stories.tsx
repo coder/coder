@@ -9,13 +9,13 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLog3,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
@@ -50,7 +50,7 @@ export default meta;
 type Story = StoryObj<typeof AuditPageView>;
 
 export const AuditPage: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		auditsQuery: mockSuccessResult,
 	},
@@ -94,7 +94,7 @@ export const NotVisible: Story = {
 };
 
 export const MultiOrg: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		showOrgDetails: true,
 		auditsQuery: mockSuccessResult,

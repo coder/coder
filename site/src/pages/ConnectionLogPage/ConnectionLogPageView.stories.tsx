@@ -9,12 +9,12 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockConnectedSSHConnectionLog,
 	MockDisconnectedSSHConnectionLog,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
 import { ConnectionLogPageView } from "./ConnectionLogPageView";
 
 type FilterProps = ComponentProps<typeof ConnectionLogPageView>["filterProps"];
@@ -51,7 +51,7 @@ export default meta;
 type Story = StoryObj<typeof ConnectionLogPageView>;
 
 export const ConnectionLog: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		connectionLogsQuery: mockSuccessResult,
 	},

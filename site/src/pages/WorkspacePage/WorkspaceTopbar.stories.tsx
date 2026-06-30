@@ -47,9 +47,6 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 	parameters: {
 		layout: "fullscreen",
 		features: ["advanced_template_scheduling"],
-		chromatic: {
-			diffThreshold: 0.6,
-		},
 		user: MockUserOwner,
 	},
 };
@@ -328,11 +325,6 @@ export const TemplateInfoPopover: Story = {
 				),
 			);
 		});
-	},
-	parameters: {
-		chromatic: {
-			diffThreshold: 0.6,
-		},
 	},
 };
 
