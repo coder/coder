@@ -492,7 +492,7 @@ export const AdvisorSettingsVisible: Story = {
 			model_config_id: "00000000-0000-0000-0000-000000000000",
 		},
 	}),
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const section = await getSection(canvasElement, "Advisor");
 		expect(
 			within(section).getByRole("spinbutton", {
@@ -506,6 +506,54 @@ export const AdvisorSettingsVisible: Story = {
 		).toHaveValue("16384");
 		expect(
 			within(section).getByRole("combobox", { name: "Advisor model" }),
+		).toBeInTheDocument();
+
+		// Changing a value exposes the Save button.
+		const maxUses = within(section).getByRole("spinbutton", {
+			name: "Max uses per run",
+		});
+		await userEvent.clear(maxUses);
+		await userEvent.type(maxUses, "5");
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				expect.objectContaining({ max_uses_per_run: 5 }),
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const AdvisorClearButton: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: generalModelConfig.id,
+		},
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		const clearButton = within(section).getByRole("button", { name: "Clear" });
+		await userEvent.click(clearButton);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max uses per run",
+			}),
+		).toHaveValue("0");
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max output tokens",
+			}),
+		).toHaveValue("0");
+		expect(
+			within(section).getByRole("combobox", { name: "Use chat model" }),
 		).toBeInTheDocument();
 	},
 };
@@ -522,5 +570,27 @@ export const VirtualDesktopSettingsVisible: Story = {
 				name: "Computer use provider",
 			}),
 		).toHaveTextContent("Anthropic");
+	},
+};
+
+export const VirtualDesktopProviderChange: Story = {
+	args: buildArgs({
+		showVirtualDesktopSettings: true,
+		computerUseProviderData: { provider: "anthropic" },
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Virtual desktop");
+		const trigger = within(section).getByRole("combobox", {
+			name: "Computer use provider",
+		});
+		await userEvent.click(trigger);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("option", { name: "OpenAI" }));
+		await waitFor(() => {
+			expect(args.onSaveComputerUseProvider).toHaveBeenCalledWith(
+				{ provider: "openai" },
+				expect.anything(),
+			);
+		});
 	},
 };

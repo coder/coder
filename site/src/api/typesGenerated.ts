@@ -1002,8 +1002,9 @@ export const Addons: Addon[] = ["ai_governance"];
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled toggles the advisor runtime. When false, advisor is not
-	 * attached to new chats.
+	 * Enabled reflects whether the chat-advisor experiment is active.
+	 * The experiment flag is the sole gate; this field is read-only and
+	 * always matches the experiment state regardless of the stored DB value.
 	 */
 	readonly enabled: boolean;
 	/**
@@ -2046,14 +2047,6 @@ export const ChatDebugStepOperations: ChatDebugStepOperation[] = [
 	"generate",
 	"stream",
 ];
-
-// From codersdk/chats.go
-/**
- * ChatDesktopEnabledResponse is the response for getting the desktop setting.
- */
-export interface ChatDesktopEnabledResponse {
-	readonly enable_desktop: boolean;
-}
 
 // From codersdk/chats.go
 /**
@@ -8801,8 +8794,9 @@ export interface UpdateActiveTemplateVersion {
  */
 export interface UpdateAdvisorConfigRequest {
 	/**
-	 * Enabled toggles the advisor runtime. When false, advisor is not
-	 * attached to new chats.
+	 * Enabled reflects whether the chat-advisor experiment is active.
+	 * The experiment flag is the sole gate; this field is read-only and
+	 * always matches the experiment state regardless of the stored DB value.
 	 */
 	readonly enabled: boolean;
 	/**
@@ -8876,14 +8870,6 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDebugRetentionDaysRequest {
 	readonly debug_retention_days: number;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
- */
-export interface UpdateChatDesktopEnabledRequest {
-	readonly enable_desktop: boolean;
 }
 
 // From codersdk/chats.go

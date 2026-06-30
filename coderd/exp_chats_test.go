@@ -12870,7 +12870,12 @@ func TestChatAdvisorConfig_GetDefault(t *testing.T) {
 
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, codersdk.AdvisorConfig{}, resp)
+	// Enabled reflects the experiment state, not the DB value. The test
+	// deployment enables chat-advisor, so Enabled is true.
+	require.True(t, resp.Enabled)
+	require.Equal(t, 0, resp.MaxUsesPerRun)
+	require.Equal(t, int64(0), resp.MaxOutputTokens)
+	require.Equal(t, uuid.Nil, resp.ModelConfigID)
 }
 
 func TestChatAdvisorConfig_Update(t *testing.T) {
@@ -13059,10 +13064,10 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	require.Equal(t, sparse, resp)
 }
 
-// TestChatAdvisorConfig_CanBeDisabledAfterEnabled pins the feature
-// gate's "off" path. The downstream runtime gates the advisor tool and
-// prompt guidance on Enabled, so a regression that silently drops or
-// ignores Enabled: false on PUT would leave the feature stuck on.
+// TestChatAdvisorConfig_CanBeDisabledAfterEnabled pins that the Enabled
+// field in the GET response reflects the experiment state, not the DB-stored
+// value. Setting Enabled: false via PUT stores false in the DB, but the GET
+// handler overrides it with the experiment check.
 func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -13087,7 +13092,8 @@ func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
 
 	disabledResp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.False(t, disabledResp.Enabled)
+	// Enabled reflects the experiment state (on), not the DB-stored false.
+	require.True(t, disabledResp.Enabled)
 }
 
 func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {

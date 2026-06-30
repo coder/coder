@@ -29,12 +29,11 @@ after repeated failures, or risk reduction before a destructive operation.
 
 ## Configuration
 
-Once the experiment is enabled, configure the advisor under **Agents** >
-**Settings** > **Manage Agents** > **Agents**.
+Once the experiment is enabled, configure the advisor under **AI Settings** >
+**Coder Agents** > **Advisor**.
 
 | Field             | Default              | Notes                                                                                                                   |
 |-------------------|----------------------|-------------------------------------------------------------------------------------------------------------------------|
-| Advisor (toggle)  | Off                  | Master switch. When off, the advisor tool is not attached to new chats.                                                 |
 | Max uses per run  | `0` (unlimited)      | Caps how many times an agent can call the advisor in a single chat run. Must be a non-negative integer.                 |
 | Max output tokens | `0` (server default) | Caps the advisor model's response length. `0` uses the server default of 16,384 tokens. Must be a non-negative integer. |
 | Advisor model     | Use chat model       | Optional dedicated chat model config for the advisor. When unset, the advisor reuses the parent chat's model.           |

@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useEffect, useId, useRef } from "react";
+import { type FC, useId } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
@@ -138,16 +138,6 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
 	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
 
-	// Track the most recent committed advisor values (the server's view or the
-	// last successful save). Reading `advisorConfigData` directly in `onSubmit`
-	// can yield a stale snapshot when a refetch is in flight or has failed.
-	const committedValuesRef = useRef<AdvisorSettingsFormValues>(
-		normalizeAdvisorConfig(advisorConfigData),
-	);
-	useEffect(() => {
-		committedValuesRef.current = normalizeAdvisorConfig(advisorConfigData);
-	}, [advisorConfigData]);
-
 	const form = useFormik<AdvisorSettingsFormValues>({
 		enableReinitialize: true,
 		validateOnMount: true,
@@ -173,7 +163,6 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			onSaveAdvisorConfig(request, {
 				onSuccess: () => {
 					const nextValues = normalizeAdvisorConfig(request);
-					committedValuesRef.current = nextValues;
 					showSavedState();
 					resetForm({ values: nextValues });
 				},

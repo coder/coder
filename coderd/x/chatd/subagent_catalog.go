@@ -115,7 +115,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					return `type "computer_use" is unavailable in plan mode`
 				}
 				if !p.isDesktopEnabled() {
-					return `type "computer_use" is unavailable because desktop access is not enabled`
+					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`
 				}
 				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {

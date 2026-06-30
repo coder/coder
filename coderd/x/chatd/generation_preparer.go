@@ -118,8 +118,7 @@ func (server *Server) prepareGeneration(
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 	advisorCfg := server.loadAdvisorConfig(ctx, logger)
-	// The advisor is enabled when the chat-advisor experiment is on.
-	// The DB-stored enabled flag is ignored; the experiment is the sole gate.
+	// Overrides the DB-stored enabled flag; the experiment is the sole gate.
 	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	var advisorRuntime *chatadvisor.Runtime

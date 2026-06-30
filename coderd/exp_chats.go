@@ -5382,6 +5382,7 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 	resp.MaxUsesPerRun = max(resp.MaxUsesPerRun, 0)
 	resp.MaxOutputTokens = max(resp.MaxOutputTokens, 0)
+	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

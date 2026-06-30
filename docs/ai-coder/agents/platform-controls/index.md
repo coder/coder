@@ -146,14 +146,15 @@ for details.
 
 Administrators enable experimental features using the `--experiments` flag on
 `coder server` (or the `CODER_EXPERIMENTS` environment variable). Once enabled,
-runtime configuration for those features is available under **Agents** >
-**Settings** > **Manage Agents** > **Agents**.
+runtime configuration for those features is available under **AI Settings** >
+**Coder Agents**.
 
 See the following pages for experiment-gated features:
 
 - [Advisor](./advisor.md) (`--experiments=chat-advisor`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
-- [Chat debug logging](./chat-debug-logging.md)
+
+For chat debug logging (not experiment-gated), see [Chat debug logging](./chat-debug-logging.md).
 
 ## Where we are headed
 

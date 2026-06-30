@@ -11641,7 +11641,6 @@ func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	// Exclude the advisor experiment so the advisor is gated off.
 	experiments := slices.DeleteFunc(
 		slices.Clone(codersdk.ExperimentsKnown),
 		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatAdvisor },

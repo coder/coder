@@ -2471,7 +2471,6 @@ func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	// Exclude the virtual desktop experiment so isDesktopEnabled returns false.
 	experiments := slices.DeleteFunc(
 		slices.Clone(codersdk.ExperimentsKnown),
 		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatVirtualDesktop },
@@ -2491,7 +2490,7 @@ func TestSpawnAgent_ComputerUseRejectsDesktopDisabled(t *testing.T) {
 		Prompt: "open the browser",
 	})
 	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, `type "computer_use" is unavailable because desktop access is not enabled`)
+	require.Contains(t, resp.Content, `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`)
 }
 
 func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
