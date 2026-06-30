@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
@@ -862,36 +863,54 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
-	// Create two workspaces so we can verify both get their own entries.
+	// Create two workspaces with names in reverse lexical order so that we can
+	// verify the SSH config entries are sorted by name, not by creation order.
+	// ws1 sorts after ws2 alphabetically.
 	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+		Name:           "ws-beta",
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Name = "agent-beta"
+		return a
+	}).Do()
 	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+		Name:           "ws-alpha",
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Name = "agent-alpha"
+		return a
+	}).Do()
 
 	sshConfigPath := sshConfigFileName(t)
 
-	inv, root := clitest.New(t,
-		"config-ssh",
-		"--ssh-config-file", sshConfigPath,
-		"--hostname-suffix", "coder",
-		"--no-wildcard",
-		"--yes",
-	)
-	//nolint:gocritic // This has always ran with the admin user.
-	clitest.SetupConfig(t, client, root)
+	runConfigSSH := func() {
+		inv, root := clitest.New(t,
+			"config-ssh",
+			"--ssh-config-file", sshConfigPath,
+			"--hostname-suffix", "coder",
+			"--no-wildcard",
+			"--yes",
+		)
+		//nolint:gocritic // This has always ran with the admin user.
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+	}
 
-	err := inv.WithContext(ctx).Run()
-	require.NoError(t, err)
-
+	runConfigSSH()
 	config := sshConfigFileRead(t, sshConfigPath)
 
 	// Each workspace must have its own host entry.
 	require.Contains(t, config, "Host "+ws1.Workspace.Name+".coder")
 	require.Contains(t, config, "Host "+ws2.Workspace.Name+".coder")
+
+	// ws-alpha sorts before ws-beta, so it must appear first despite being
+	// created second.
+	alphaIdx := strings.Index(config, "Host "+ws2.Workspace.Name+".coder")
+	betaIdx := strings.Index(config, "Host "+ws1.Workspace.Name+".coder")
+	require.Less(t, alphaIdx, betaIdx, "expected lexically-earlier workspace to appear first")
 
 	// No wildcard entries must appear in the Coder section.
 	require.NotContains(t, config, "Host *.coder")
@@ -899,4 +918,20 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 
 	// The no-wildcard option must be persisted in the header.
 	require.Contains(t, config, "# :no-wildcard=true")
+
+	// Running the command again must yield the same host-entry order, confirming
+	// that the ordering is stable across runs. (ProxyCommand lines embed the
+	// temp global-config path and differ per invocation, so we compare only the
+	// Host lines.)
+	hostLines := func(s string) []string {
+		var out []string
+		for line := range strings.SplitSeq(s, "\n") {
+			if strings.HasPrefix(line, "Host ") {
+				out = append(out, line)
+			}
+		}
+		return out
+	}
+	runConfigSSH()
+	require.Equal(t, hostLines(config), hostLines(sshConfigFileRead(t, sshConfigPath)))
 }
