@@ -220,10 +220,8 @@ func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 
 	require.Len(t, m.Sources(), 1)
 
-	// The resolved target stays inside the allowed root, so the source
-	// is scanned via its resolved path and attributed to the lexical
-	// identity. This proves scanning re-validates and follows the
-	// resolved target rather than blindly trusting the lexical path.
+	// The in-bounds resolved target is scanned and attributed to the
+	// lexical identity.
 	mustWriteFile(t, filepath.Join(target, "AGENTS.md"), "shared guidance")
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
@@ -292,11 +290,9 @@ func TestManager_SymlinkSourceResolvingOutsideRootRejected(t *testing.T) {
 	require.Empty(t, m.Sources())
 }
 
-// TestManager_RepointedSymlinkDroppedOnResync guards the time-of-check to
-// time-of-use window. A source added while its link is dangling validates
-// against its in-bounds lexical path, but once the link is repointed
-// outside the allowed roots the scan-time re-validation drops it, so the
-// resolver never reads the out-of-bounds target.
+// TestManager_RepointedSymlinkDroppedOnResync verifies a source whose link
+// is repointed out of bounds after it validated is dropped on resync, so
+// the resolver never reads the target.
 func TestManager_RepointedSymlinkDroppedOnResync(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -308,8 +304,8 @@ func TestManager_RepointedSymlinkDroppedOnResync(t *testing.T) {
 	secret := filepath.Join(outside, "CLAUDE.md")
 	mustWriteFile(t, secret, "secret outside content")
 
-	// Add a dangling link under an allowed root. It fails soft to its
-	// in-bounds lexical path at add time, so it validates.
+	// Add a dangling link under an allowed root. It falls back to its
+	// in-bounds lexical path without erroring, so it validates.
 	link := filepath.Join(root, "CLAUDE.md")
 	require.NoError(t, os.Symlink(filepath.Join(root, "missing"), link))
 
