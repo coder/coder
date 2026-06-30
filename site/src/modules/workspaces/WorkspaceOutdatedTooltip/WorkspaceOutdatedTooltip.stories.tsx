@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
+import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import {
 	Table,
@@ -57,37 +57,52 @@ const Example: Story = {
 
 export { Example as WorkspaceOutdatedTooltip };
 
-// Renders the tooltip inside a row whose own onClick navigates on click. The
-// tooltip's trigger must stop propagation so the popover can open instead of
-// the parent row swallowing the click. Regression coverage for the
-// `useClickableTableRow` usage on the workspaces list.
-const onRowClick = fn();
-
-const ClickableRowDecorator = (Story: FC) => {
-	const clickableProps = useClickableTableRow({ onClick: onRowClick });
-	return (
-		<Table>
-			<TableBody>
-				<TableRow {...clickableProps}>
-					<TableCell>
-						<Story />
-					</TableCell>
-				</TableRow>
-			</TableBody>
-		</Table>
-	);
+// Regression coverage for the `useClickableTableRow` usage on the workspaces
+// list. The trigger must stop click + keyboard propagation so the popover
+// opens instead of the parent row's onClick swallowing the activation and
+// navigating away.
+type ClickableRowArgs = ComponentProps<typeof WorkspaceOutdatedTooltip> & {
+	onRowClick: () => void;
 };
 
-export const InsideClickableRow: Story = {
-	decorators: [ClickableRowDecorator],
-	beforeEach: () => {
-		onRowClick.mockClear();
+export const InsideClickableRow: StoryObj<ClickableRowArgs> = {
+	args: {
+		onRowClick: fn(),
 	},
-	play: async ({ canvasElement, step }) => {
+	decorators: [
+		(Story, { args }) => {
+			const clickableProps = useClickableTableRow({
+				onClick: args.onRowClick,
+			});
+			return (
+				<Table>
+					<TableBody>
+						<TableRow {...clickableProps}>
+							<TableCell>
+								<Story />
+							</TableCell>
+						</TableRow>
+					</TableBody>
+				</Table>
+			);
+		},
+	],
+	play: async ({ args, canvasElement, step }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await step("clicking the trigger opens the popover", async () => {
+		await step("mouse click opens the popover", async () => {
 			await userEvent.click(body.getByRole("button", { name: "More info" }));
+			await waitFor(() =>
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					MockTemplateVersion.message,
+				),
+			);
+			await userEvent.keyboard("{Escape}");
+		});
+
+		await step("keyboard activation via Space opens the popover", async () => {
+			body.getByRole("button", { name: "More info" }).focus();
+			await userEvent.keyboard(" ");
 			await waitFor(() =>
 				expect(screen.getByRole("dialog")).toHaveTextContent(
 					MockTemplateVersion.message,
@@ -95,8 +110,8 @@ export const InsideClickableRow: Story = {
 			);
 		});
 
-		await step("clicking the trigger does not navigate the row", async () => {
-			expect(onRowClick).not.toHaveBeenCalled();
+		await step("the row's onClick was never called", async () => {
+			expect(args.onRowClick).not.toHaveBeenCalled();
 		});
 	},
 };

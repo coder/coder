@@ -36,10 +36,12 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 	const [isOpen, setIsOpen] = useState(false);
 
 	// The trigger lives inside containers that treat clicks as navigation
-	// (e.g. workspace rows wired up by `useClickableTableRow`). Without
-	// stopping propagation, the row's onClick would navigate away before the
-	// popover paints. We also stop propagation on keyboard activation so the
-	// trigger keeps working when focused via Tab.
+	// (e.g. workspace rows wired up by `useClickableTableRow`, which forwards
+	// `Enter` via `onKeyDown` and `Space` via `onKeyUp`). Without stopping
+	// propagation, the row's onClick would navigate away before the popover
+	// paints. The popover still opens because Radix composes its own click
+	// handler on top of ours via `composeEventHandlers`, and stopPropagation
+	// doesn't set defaultPrevented.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
@@ -52,6 +54,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 						className="flex items-center gap-1.5 cursor-help"
 						onClick={stopPropagation}
 						onKeyDown={stopPropagation}
+						onKeyUp={stopPropagation}
 					>
 						<InfoIcon
 							css={(theme) => ({
@@ -68,6 +71,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					hoverEffect={false}
 					onClick={stopPropagation}
 					onKeyDown={stopPropagation}
+					onKeyUp={stopPropagation}
 				>
 					<InfoIcon
 						css={(theme) => ({
