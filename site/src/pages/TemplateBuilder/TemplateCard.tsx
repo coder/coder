@@ -1,5 +1,6 @@
 import { BadgeCheckIcon } from "lucide-react";
 import { useId } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
@@ -45,13 +46,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			}}
 		>
 			<div className="flex items-start justify-between mb-3">
-				<div className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border">
-					{iconUrl ? (
-						<img src={iconUrl} alt="" className="size-7 object-contain" />
-					) : (
-						<div className="size-7 rounded bg-surface-primary" />
-					)}
-				</div>
+				<Avatar src={iconUrl} size="lg" variant="icon" />
 				<div
 					aria-hidden="true"
 					className={cn(
