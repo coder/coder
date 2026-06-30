@@ -8122,7 +8122,7 @@ func TestPatchChatMessage(t *testing.T) {
 	t.Run("ChangesModel", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		defaultModel := createChatModelConfig(t, client)
