@@ -51,7 +51,6 @@ function variableToField(
 		label: variable.name,
 		description: variable.description || undefined,
 		required: variable.required,
-		placeholder: variable.required ? "Required" : "Optional",
 		field: {
 			name: variable.name,
 			id,
