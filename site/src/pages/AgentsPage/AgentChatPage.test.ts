@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import type { ChatGoal, ChatQueuedMessage } from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
@@ -10,6 +10,7 @@ import {
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
 	restoreOptimisticRequestSnapshot,
+	runGoalAction,
 	runPromoteQueuedMessage,
 	submitEditAndScroll,
 	useConversationEditingState,
@@ -206,6 +207,151 @@ describe("restoreOptimisticRequestSnapshot", () => {
 		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
 		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
 		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
+	});
+});
+
+describe("runGoalAction", () => {
+	const makeGoal = (status: ChatGoal["status"]): ChatGoal => ({
+		id: "goal-1",
+		root_chat_id: "chat-1",
+		objective: "Fix the release blocker",
+		status,
+		created_by_user_id: "user-1",
+		completed_by_agent: false,
+		created_at: "2026-05-22T00:00:00Z",
+		updated_at: "2026-05-22T00:00:00Z",
+	});
+
+	it.each([
+		"active",
+		"paused",
+	] as const)("sends clear mutations for %s goals", async (status) => {
+		const updateGoal = vi.fn(async () => undefined);
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal(status),
+			action: "clear",
+			updateGoal,
+		});
+
+		expect(updateGoal).toHaveBeenCalledWith({
+			chatId: "chat-1",
+			mutation: {
+				action: "clear",
+				goal_id: "goal-1",
+				completion_summary: undefined,
+			},
+		});
+	});
+
+	it("sends resume mutations for paused goals", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("paused"),
+			action: "resume",
+			updateGoal,
+		});
+
+		expect(updateGoal).toHaveBeenCalledWith({
+			chatId: "chat-1",
+			mutation: {
+				action: "resume",
+				goal_id: "goal-1",
+				completion_summary: undefined,
+			},
+		});
+	});
+
+	it("forwards completion summaries", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("active"),
+			action: "complete",
+			completionSummary: "Shipped and verified.",
+			updateGoal,
+		});
+
+		expect(updateGoal).toHaveBeenCalledWith({
+			chatId: "chat-1",
+			mutation: {
+				action: "complete",
+				goal_id: "goal-1",
+				completion_summary: "Shipped and verified.",
+			},
+		});
+	});
+
+	it("sends clear mutations for completed goals", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("complete"),
+			action: "clear",
+			updateGoal,
+		});
+
+		expect(updateGoal).toHaveBeenCalledWith({
+			chatId: "chat-1",
+			mutation: {
+				action: "clear",
+				goal_id: "goal-1",
+				completion_summary: undefined,
+			},
+		});
+	});
+
+	it("notifies when pausing a running goal", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onPausedRunningGoal = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("active"),
+			action: "pause",
+			updateGoal,
+			liveChatStatus: "running",
+			onPausedRunningGoal,
+		});
+
+		expect(onPausedRunningGoal).toHaveBeenCalledOnce();
+	});
+
+	it("does not notify when pausing a waiting goal", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onPausedRunningGoal = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: makeGoal("active"),
+			action: "pause",
+			updateGoal,
+			liveChatStatus: "waiting",
+			onPausedRunningGoal,
+		});
+
+		expect(onPausedRunningGoal).not.toHaveBeenCalled();
+	});
+
+	it("does not send lifecycle mutations without a current goal", async () => {
+		const updateGoal = vi.fn(async () => undefined);
+		const onMissingGoal = vi.fn();
+
+		await runGoalAction({
+			agentId: "chat-1",
+			goal: undefined,
+			action: "clear",
+			updateGoal,
+			onMissingGoal,
+		});
+
+		expect(updateGoal).not.toHaveBeenCalled();
+		expect(onMissingGoal).toHaveBeenCalledOnce();
 	});
 });
 
@@ -646,6 +792,28 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+		unmount();
+	});
+
+	it("forwards goal mutation options for a new message", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("ship it");
+		result.current.chatInputRef.current = mockInput.handle;
+		const options = {
+			goalMutation: { action: "set" as const, objective: "ship it" },
+		};
+
+		await act(async () => {
+			await result.current.handleSendFromInput("ship it", undefined, options);
+		});
+
+		expect(onSend).toHaveBeenCalledWith(
+			"ship it",
+			undefined,
+			undefined,
+			options,
+		);
+		expect(mockInput.clear).toHaveBeenCalled();
 		unmount();
 	});
 

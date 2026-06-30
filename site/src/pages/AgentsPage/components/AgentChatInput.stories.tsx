@@ -216,6 +216,58 @@ export const SendsAndClearsInput: Story = {
 	},
 };
 
+export const PursueGoalModeSendsGoalMutation: Story = {
+	args: {
+		onSend: fn().mockResolvedValue(undefined),
+		initialValue: "  stabilize the release  ",
+		onPlanModeToggle: fn(),
+		showPursueGoal: true,
+		canPursueGoal: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Pursue goal",
+			}),
+		);
+
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Pursue goal",
+			}),
+		).toHaveAttribute("aria-checked", "true");
+		expect(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Plan first",
+			}),
+		).toBeDisabled();
+		await userEvent.keyboard("{Escape}");
+
+		await waitFor(() => {
+			expect(canvas.getByRole("button", { name: "Send" })).toBeEnabled();
+		});
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("stabilize the release", {
+				goalMutation: {
+					action: "set",
+					objective: "stabilize the release",
+				},
+			});
+		});
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Pursue goal",
+			}),
+		).toHaveAttribute("aria-checked", "false");
+	},
+};
+
 export const EnterSendsByDefault: Story = {
 	args: {
 		onSend: fn(),
@@ -570,6 +622,38 @@ export const AttachmentsOnly: Story = {
 			initialValue: "",
 		};
 	})(),
+};
+
+export const AttachmentsOnlyPursueGoalBlocksSend: Story = {
+	args: (() => {
+		const file = createMockFile("photo.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "f-only" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			onSend: fn(),
+			initialValue: "",
+			showPursueGoal: true,
+			canPursueGoal: true,
+		};
+	})(),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Pursue goal",
+			}),
+		);
+
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		expect(sendButton).toBeDisabled();
+		expect(args.onSend).not.toHaveBeenCalled();
+	},
 };
 
 const LARGE_PASTE_MARKER = "__PASTE_MARKER_TEST__";

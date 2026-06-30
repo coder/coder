@@ -12034,6 +12034,365 @@ func TestChatPinOrderConstraints(t *testing.T) {
 	})
 }
 
+func TestChatGoals(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	setup := func(t *testing.T) (database.Store, *sql.DB, context.Context, database.User, database.Chat) {
+		t.Helper()
+
+		store, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		owner := dbgen.User(t, store, database.User{})
+		org := dbgen.Organization(t, store, database.Organization{})
+		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+
+		provider := dbgen.ChatProvider(t, store, database.ChatProvider{
+			Provider:             "openai",
+			DisplayName:          "OpenAI",
+			APIKey:               "test-key",
+			Enabled:              true,
+			CentralApiKeyEnabled: true,
+		})
+
+		modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             "openai",
+			Model:                "test-model-" + uuid.NewString(),
+			DisplayName:          "Test Model",
+			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+			AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "goal-test-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		return store, sqlDB, ctx, owner, chat
+	}
+
+	insertGoal := func(t *testing.T, store database.Store, ctx context.Context, chat database.Chat, owner database.User, objective string) database.ChatGoal {
+		t.Helper()
+
+		message := dbgen.ChatMessage(t, store, database.ChatMessage{
+			ChatID:    chat.ID,
+			CreatedBy: uuid.NullUUID{UUID: owner.ID, Valid: true},
+			Role:      database.ChatMessageRoleUser,
+		})
+		goal, err := store.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
+			RootChatID:        chat.ID,
+			CreatedFromChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
+			CreatedFromMessageID: sql.NullInt64{
+				Int64: message.ID,
+				Valid: true,
+			},
+			Objective:       objective,
+			CreatedByUserID: owner.ID,
+		})
+		require.NoError(t, err)
+		require.True(t, goal.CreatedFromMessageID.Valid)
+		require.Equal(t, message.ID, goal.CreatedFromMessageID.Int64)
+		return goal
+	}
+
+	setGoalCreatedAt := func(t *testing.T, sqlDB *sql.DB, ctx context.Context, createdAt time.Time, goals ...database.ChatGoal) {
+		t.Helper()
+
+		ids := make([]uuid.UUID, 0, len(goals))
+		for _, goal := range goals {
+			ids = append(ids, goal.ID)
+		}
+
+		result, err := sqlDB.ExecContext(ctx, "UPDATE chat_goals SET created_at = $1 WHERE id = ANY($2)", createdAt, pq.Array(ids))
+		require.NoError(t, err)
+		rowsAffected, err := result.RowsAffected()
+		require.NoError(t, err)
+		require.Equal(t, int64(len(ids)), rowsAffected)
+	}
+
+	t.Run("CurrentGoalInvariant", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, ctx, owner, chat := setup(t)
+		first := insertGoal(t, store, ctx, chat, owner, "ship goal persistence")
+		require.Equal(t, database.ChatGoalStatusActive, first.Status)
+
+		goalMessageIDs, err := store.GetChatGoalMessageIDsByMessageIDs(ctx, []int64{first.CreatedFromMessageID.Int64})
+		require.NoError(t, err)
+		require.Equal(t, []int64{first.CreatedFromMessageID.Int64}, goalMessageIDs)
+
+		_, err = store.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
+			RootChatID:      chat.ID,
+			Objective:       "conflicting active goal",
+			CreatedByUserID: owner.ID,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueIndexChatGoalsCurrent))
+
+		paused, err := store.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         first.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusPaused, paused.Status)
+
+		_, err = store.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
+			RootChatID:      chat.ID,
+			Objective:       "conflicting paused goal",
+			CreatedByUserID: owner.ID,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsUniqueViolation(err, database.UniqueIndexChatGoalsCurrent))
+
+		cleared, err := store.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         first.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusCleared, cleared.Status)
+		require.True(t, cleared.ClearedAt.Valid)
+
+		second := insertGoal(t, store, ctx, chat, owner, "new current goal")
+		require.Equal(t, database.ChatGoalStatusActive, second.Status)
+	})
+
+	t.Run("LifecycleUsesOptimisticGoalID", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, ctx, owner, chat := setup(t)
+		goal := insertGoal(t, store, ctx, chat, owner, "complete the task")
+
+		current, err := store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, goal.ID, current.ID)
+
+		paused, err := store.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         goal.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusPaused, paused.Status)
+
+		_, err = store.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         goal.ID,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		resumed, err := store.ResumeChatGoalByID(ctx, database.ResumeChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         goal.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusActive, resumed.Status)
+
+		_, err = store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:       chat.ID,
+			ID:               uuid.New(),
+			CompletedByAgent: true,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		const summary = "done"
+		completed, err := store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         goal.ID,
+			CompletionSummary: sql.NullString{
+				String: summary,
+				Valid:  true,
+			},
+			CompletedByUserID: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusComplete, completed.Status)
+		require.Equal(t, summary, completed.CompletionSummary.String)
+		require.True(t, completed.CompletedAt.Valid)
+		require.Equal(t, owner.ID, completed.CompletedByUserID.UUID)
+
+		current, err = store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusComplete, current.Status)
+		require.Equal(t, goal.ID, current.ID)
+
+		cleared, err := store.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         goal.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusCleared, cleared.Status)
+		require.False(t, cleared.CompletedAt.Valid)
+		require.False(t, cleared.CompletionSummary.Valid)
+		require.False(t, cleared.CompletedByUserID.Valid)
+		require.False(t, cleared.CompletedByAgent)
+		require.True(t, cleared.ClearedAt.Valid)
+
+		_, err = store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("LatestGoalControlsVisibility", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, ctx, owner, chat := setup(t)
+		first := insertGoal(t, store, ctx, chat, owner, "finished goal")
+		completed, err := store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         first.ID,
+			CompletionSummary: sql.NullString{
+				String: "done",
+				Valid:  true,
+			},
+			CompletedByUserID: uuid.NullUUID{UUID: owner.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, database.ChatGoalStatusComplete, completed.Status)
+
+		current, err := store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, first.ID, current.ID)
+		require.Equal(t, database.ChatGoalStatusComplete, current.Status)
+
+		second := insertGoal(t, store, ctx, chat, owner, "next goal")
+		current, err = store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, second.ID, current.ID)
+		require.Equal(t, database.ChatGoalStatusActive, current.Status)
+
+		_, err = store.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         second.ID,
+		})
+		require.NoError(t, err)
+
+		_, err = store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("CurrentGoalUsesGoalOrderForCreatedAtTies", func(t *testing.T) {
+		t.Parallel()
+
+		store, sqlDB, ctx, owner, chat := setup(t)
+		first := insertGoal(t, store, ctx, chat, owner, "first tied goal")
+		_, err := store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:       chat.ID,
+			ID:               first.ID,
+			CompletedByAgent: true,
+		})
+		require.NoError(t, err)
+
+		second := insertGoal(t, store, ctx, chat, owner, "second tied goal")
+		setGoalCreatedAt(t, sqlDB, ctx, dbtime.Now(), first, second)
+
+		current, err := store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, second.ID, current.ID)
+		require.Equal(t, database.ChatGoalStatusActive, current.Status)
+	})
+
+	t.Run("LatestHiddenGoalSuppressesTiedVisibleHistory", func(t *testing.T) {
+		t.Parallel()
+
+		store, sqlDB, ctx, owner, chat := setup(t)
+		first := insertGoal(t, store, ctx, chat, owner, "visible tied goal")
+		_, err := store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:       chat.ID,
+			ID:               first.ID,
+			CompletedByAgent: true,
+		})
+		require.NoError(t, err)
+
+		second := insertGoal(t, store, ctx, chat, owner, "hidden tied goal")
+		_, err = store.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: chat.ID,
+			ID:         second.ID,
+		})
+		require.NoError(t, err)
+
+		setGoalCreatedAt(t, sqlDB, ctx, dbtime.Now(), first, second)
+		_, err = store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("BulkCurrentGoalsUseGoalOrderForCreatedAtTies", func(t *testing.T) {
+		t.Parallel()
+
+		store, sqlDB, ctx, owner, chat := setup(t)
+		visibleFirst := insertGoal(t, store, ctx, chat, owner, "bulk visible first")
+		_, err := store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:       chat.ID,
+			ID:               visibleFirst.ID,
+			CompletedByAgent: true,
+		})
+		require.NoError(t, err)
+		visibleSecond := insertGoal(t, store, ctx, chat, owner, "bulk visible second")
+		setGoalCreatedAt(t, sqlDB, ctx, dbtime.Now(), visibleFirst, visibleSecond)
+
+		hiddenChat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    chat.OrganizationID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: chat.LastModelConfigID,
+			Title:             "goal-test-hidden-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		hiddenFirst := insertGoal(t, store, ctx, hiddenChat, owner, "bulk hidden first")
+		_, err = store.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:       hiddenChat.ID,
+			ID:               hiddenFirst.ID,
+			CompletedByAgent: true,
+		})
+		require.NoError(t, err)
+		hiddenSecond := insertGoal(t, store, ctx, hiddenChat, owner, "bulk hidden second")
+		_, err = store.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: hiddenChat.ID,
+			ID:         hiddenSecond.ID,
+		})
+		require.NoError(t, err)
+		setGoalCreatedAt(t, sqlDB, ctx, dbtime.Now(), hiddenFirst, hiddenSecond)
+
+		currentGoals, err := store.GetCurrentChatGoalsByRootChatIDs(ctx, []uuid.UUID{chat.ID, hiddenChat.ID})
+		require.NoError(t, err)
+		require.Len(t, currentGoals, 1)
+		require.Equal(t, visibleSecond.ID, currentGoals[0].ID)
+		require.Equal(t, chat.ID, currentGoals[0].RootChatID)
+	})
+
+	t.Run("ReplaceCurrentGoal", func(t *testing.T) {
+		t.Parallel()
+
+		store, _, ctx, owner, chat := setup(t)
+		first := insertGoal(t, store, ctx, chat, owner, "old goal")
+
+		replaced, err := store.MarkCurrentChatGoalReplacedByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, replaced, 1)
+		require.Equal(t, first.ID, replaced[0].ID)
+		require.Equal(t, database.ChatGoalStatusReplaced, replaced[0].Status)
+		require.True(t, replaced[0].ReplacedAt.Valid)
+
+		second := insertGoal(t, store, ctx, chat, owner, "replacement goal")
+		current, err := store.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, second.ID, current.ID)
+		require.Equal(t, database.ChatGoalStatusActive, current.Status)
+	})
+}
+
 func TestChatLabels(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

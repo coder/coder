@@ -218,17 +218,20 @@ const buildUserMessage = ({
 	text,
 	files = [],
 	createdAt = baseMessage.created_at,
+	sentAsGoal = false,
 }: {
 	id?: number;
 	text?: string;
 	files?: TypesGen.ChatFilePart[];
 	createdAt?: string;
+	sentAsGoal?: boolean;
 }): TypesGen.ChatMessage => ({
 	...baseMessage,
 	created_at: createdAt,
 	id,
 	role: "user",
 	content: [...(text ? [buildTextPart(text)] : []), ...files],
+	...(sentAsGoal ? { sent_as_goal: true } : {}),
 });
 
 const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
@@ -1080,6 +1083,41 @@ export const UserMessageTextOnly: Story = {
 		const images = canvas.queryAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(0);
 		expect(canvas.getByText("Just a plain text message")).toBeInTheDocument();
+	},
+};
+
+/** Goal-sent user messages show a durable transcript marker. */
+export const UserMessageSentAsGoalMarker: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "Use this screenshot as the goal",
+			files: [buildInlineAttachmentPart("image/png", TEST_PNG_B64)],
+			sentAsGoal: true,
+		}),
+		{
+			...baseMessage,
+			id: 2,
+			role: "assistant",
+			content: [{ type: "text", text: "I will pursue that goal." }],
+		},
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const marker = canvas.getByTestId("sent-as-goal-marker");
+		expect(marker).toBeVisible();
+		expect(marker).toHaveTextContent("Sent as goal");
+		expect(canvas.getAllByTestId("sent-as-goal-marker")).toHaveLength(1);
+
+		const markerActionRow = marker.closest('[data-testid="message-actions"]');
+		if (!(markerActionRow instanceof HTMLElement)) {
+			throw new Error("Sent as goal marker action row not found");
+		}
+		expect(
+			within(markerActionRow).queryByRole("button", {
+				name: "Copy message",
+			}),
+		).not.toBeInTheDocument();
 	},
 };
 

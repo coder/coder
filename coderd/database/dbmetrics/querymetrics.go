@@ -314,12 +314,28 @@ func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ClearChatGoalByID(ctx context.Context, arg database.ClearChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClearChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatGoalByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("ClearChatMessageProviderResponseIDsByChatID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatMessageProviderResponseIDsByChatID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) CompleteChatGoalByID(ctx context.Context, arg database.CompleteChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.CompleteChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("CompleteChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CompleteChatGoalByID").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -1602,6 +1618,22 @@ func (m queryMetricsStore) GetChatGeneralModelOverride(ctx context.Context) (str
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIds []int64) ([]int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatGoalMessageIDsByMessageIDs(ctx, messageIds)
+	m.queryLatencies.WithLabelValues("GetChatGoalMessageIDsByMessageIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGoalMessageIDsByMessageIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatGoalsEnabled(ctx context.Context) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatGoalsEnabled(ctx)
+	m.queryLatencies.WithLabelValues("GetChatGoalsEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGoalsEnabled").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatHeartbeat(ctx, arg)
@@ -1919,6 +1951,22 @@ func (m queryMetricsStore) GetCryptoKeysByFeature(ctx context.Context, feature d
 	r0, r1 := m.s.GetCryptoKeysByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetCryptoKeysByFeature").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCryptoKeysByFeature").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetCurrentChatGoalByRootChatID(ctx context.Context, rootChatID uuid.UUID) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCurrentChatGoalByRootChatID(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("GetCurrentChatGoalByRootChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCurrentChatGoalByRootChatID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetCurrentChatGoalsByRootChatIDs(ctx context.Context, rootChatIds []uuid.UUID) ([]database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCurrentChatGoalsByRootChatIDs(ctx, rootChatIds)
+	m.queryLatencies.WithLabelValues("GetCurrentChatGoalsByRootChatIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCurrentChatGoalsByRootChatIDs").Inc()
 	return r0, r1
 }
 
@@ -3978,6 +4026,14 @@ func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.Insert
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertActiveChatGoal(ctx context.Context, arg database.InsertActiveChatGoalParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertActiveChatGoal(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertActiveChatGoal").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertActiveChatGoal").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAgentContextResourcesIntoChat(ctx context.Context, arg database.InsertAgentContextResourcesIntoChatParams) error {
 	start := time.Now()
 	r0 := m.s.InsertAgentContextResourcesIntoChat(ctx, arg)
@@ -4810,6 +4866,14 @@ func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.MarkCurrentChatGoalReplacedByRootChatID(ctx, rootChatID)
+	m.queryLatencies.WithLabelValues("MarkCurrentChatGoalReplacedByRootChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkCurrentChatGoalReplacedByRootChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.OIDCClaimFieldValues(ctx, arg)
@@ -4839,6 +4903,14 @@ func (m queryMetricsStore) PaginatedOrganizationMembers(ctx context.Context, arg
 	r0, r1 := m.s.PaginatedOrganizationMembers(ctx, arg)
 	m.queryLatencies.WithLabelValues("PaginatedOrganizationMembers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PaginatedOrganizationMembers").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) PauseChatGoalByID(ctx context.Context, arg database.PauseChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.PauseChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("PauseChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PauseChatGoalByID").Inc()
 	return r0, r1
 }
 
@@ -4903,6 +4975,14 @@ func (m queryMetricsStore) ResolveUserChatSpendLimit(ctx context.Context, userID
 	r0, r1 := m.s.ResolveUserChatSpendLimit(ctx, userID)
 	m.queryLatencies.WithLabelValues("ResolveUserChatSpendLimit").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResolveUserChatSpendLimit").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ResumeChatGoalByID(ctx context.Context, arg database.ResumeChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.ResumeChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("ResumeChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResumeChatGoalByID").Inc()
 	return r0, r1
 }
 
@@ -6167,6 +6247,14 @@ func (m queryMetricsStore) UpsertChatGeneralModelOverride(ctx context.Context, v
 	r0 := m.s.UpsertChatGeneralModelOverride(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertChatGeneralModelOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGeneralModelOverride").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatGoalsEnabled(ctx, enabled)
+	m.queryLatencies.WithLabelValues("UpsertChatGoalsEnabled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGoalsEnabled").Inc()
 	return r0
 }
 

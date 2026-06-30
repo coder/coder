@@ -5,11 +5,13 @@ import {
 	chatComputerUseProvider,
 	chatDebugLogging,
 	chatDesktopEnabled,
+	chatGoalsEnabled,
 	chatModelConfigs,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
 	updateChatDebugLogging,
 	updateChatDesktopEnabled,
+	updateChatGoalsEnabled,
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -24,6 +26,10 @@ const AgentSettingsExperimentsPage: FC = () => {
 	});
 	const computerUseProviderQuery = useQuery({
 		...chatComputerUseProvider(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const goalsEnabledQuery = useQuery({
+		...chatGoalsEnabled(),
 		enabled: permissions.editDeploymentConfig,
 	});
 	const debugLoggingQuery = useQuery({
@@ -44,6 +50,9 @@ const AgentSettingsExperimentsPage: FC = () => {
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
 	);
+	const saveGoalsEnabledMutation = useMutation(
+		updateChatGoalsEnabled(queryClient),
+	);
 	const saveDebugLoggingMutation = useMutation(
 		updateChatDebugLogging(queryClient),
 	);
@@ -59,6 +68,11 @@ const AgentSettingsExperimentsPage: FC = () => {
 				onSaveDesktopEnabled={saveDesktopEnabledMutation.mutate}
 				isSavingDesktopEnabled={saveDesktopEnabledMutation.isPending}
 				isSaveDesktopEnabledError={saveDesktopEnabledMutation.isError}
+				goalsEnabledData={goalsEnabledQuery.data}
+				isLoadingGoalsEnabled={goalsEnabledQuery.isLoading}
+				onSaveGoalsEnabled={saveGoalsEnabledMutation.mutate}
+				isSavingGoalsEnabled={saveGoalsEnabledMutation.isPending}
+				isSaveGoalsEnabledError={saveGoalsEnabledMutation.isError}
 				computerUseProviderData={computerUseProviderQuery.data}
 				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
 				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}

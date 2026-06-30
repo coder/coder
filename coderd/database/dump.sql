@@ -313,6 +313,14 @@ CREATE TYPE chat_client_type AS ENUM (
     'api'
 );
 
+CREATE TYPE chat_goal_status AS ENUM (
+    'active',
+    'paused',
+    'complete',
+    'cleared',
+    'replaced'
+);
+
 CREATE TYPE chat_message_role AS ENUM (
     'system',
     'user',
@@ -1862,6 +1870,41 @@ CREATE TABLE chat_files (
     name text DEFAULT ''::text NOT NULL,
     mimetype text NOT NULL,
     data bytea NOT NULL
+);
+
+CREATE TABLE chat_goals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    goal_order bigint NOT NULL,
+    root_chat_id uuid NOT NULL,
+    created_from_chat_id uuid,
+    created_from_message_id bigint,
+    objective text NOT NULL,
+    status chat_goal_status NOT NULL,
+    completion_summary text,
+    created_by_user_id uuid NOT NULL,
+    completed_by_user_id uuid,
+    completed_by_agent boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    completed_at timestamp with time zone,
+    cleared_at timestamp with time zone,
+    replaced_at timestamp with time zone,
+    CONSTRAINT chat_goals_cleared_at_status_check CHECK (((status = 'cleared'::chat_goal_status) = (cleared_at IS NOT NULL))),
+    CONSTRAINT chat_goals_completed_at_status_check CHECK (((status = 'complete'::chat_goal_status) = (completed_at IS NOT NULL))),
+    CONSTRAINT chat_goals_completed_by_agent_status_check CHECK (((completed_by_agent = false) OR (status = 'complete'::chat_goal_status))),
+    CONSTRAINT chat_goals_completed_by_user_status_check CHECK (((completed_by_user_id IS NULL) OR (status = 'complete'::chat_goal_status))),
+    CONSTRAINT chat_goals_completion_summary_status_check CHECK (((completion_summary IS NULL) OR (status = 'complete'::chat_goal_status))),
+    CONSTRAINT chat_goals_objective_not_empty CHECK ((length(btrim(objective)) > 0)),
+    CONSTRAINT chat_goals_replaced_at_status_check CHECK (((status = 'replaced'::chat_goal_status) = (replaced_at IS NOT NULL)))
+);
+
+ALTER TABLE chat_goals ALTER COLUMN goal_order ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME chat_goals_goal_order_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 CREATE UNLOGGED TABLE chat_heartbeats (
@@ -4166,6 +4209,9 @@ ALTER TABLE ONLY chat_file_links
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_goals
+    ADD CONSTRAINT chat_goals_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
@@ -4609,6 +4655,12 @@ CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
+CREATE INDEX idx_chat_goals_created_from_message_id ON chat_goals USING btree (created_from_message_id) WHERE (created_from_message_id IS NOT NULL);
+
+CREATE UNIQUE INDEX idx_chat_goals_current ON chat_goals USING btree (root_chat_id) WHERE (status = ANY (ARRAY['active'::chat_goal_status, 'paused'::chat_goal_status]));
+
+CREATE INDEX idx_chat_goals_root_created ON chat_goals USING btree (root_chat_id, created_at DESC, goal_order DESC);
+
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
@@ -4987,6 +5039,21 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_goals
+    ADD CONSTRAINT chat_goals_completed_by_user_id_fkey FOREIGN KEY (completed_by_user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_goals
+    ADD CONSTRAINT chat_goals_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_goals
+    ADD CONSTRAINT chat_goals_created_from_chat_id_fkey FOREIGN KEY (created_from_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_goals
+    ADD CONSTRAINT chat_goals_created_from_message_id_fkey FOREIGN KEY (created_from_message_id) REFERENCES chat_messages(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_goals
+    ADD CONSTRAINT chat_goals_root_chat_id_fkey FOREIGN KEY (root_chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

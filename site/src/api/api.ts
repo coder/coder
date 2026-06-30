@@ -3368,6 +3368,24 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatGoal = async (chatId: string): Promise<TypesGen.ChatGoalResponse> => {
+		const response = await this.axios.get<TypesGen.ChatGoalResponse>(
+			`/api/experimental/chats/${chatId}/goal`,
+		);
+		return response.data;
+	};
+
+	updateChatGoal = async (
+		chatId: string,
+		req: TypesGen.ChatGoalMutation,
+	): Promise<TypesGen.ChatGoalResponse> => {
+		const response = await this.axios.patch<TypesGen.ChatGoalResponse>(
+			`/api/experimental/chats/${chatId}/goal`,
+			req,
+		);
+		return response.data;
+	};
+
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },
@@ -3721,6 +3739,20 @@ class ExperimentalApiMethods {
 		req: TypesGen.UpdateChatDesktopEnabledRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getChatGoalsEnabled =
+		async (): Promise<TypesGen.ChatGoalsEnabledResponse> => {
+			const response = await this.axios.get<TypesGen.ChatGoalsEnabledResponse>(
+				"/api/experimental/chats/config/goals",
+			);
+			return response.data;
+		};
+
+	updateChatGoalsEnabled = async (
+		req: TypesGen.UpdateChatGoalsEnabledRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/goals", req);
 	};
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {

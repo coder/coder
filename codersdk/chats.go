@@ -105,6 +105,63 @@ const (
 	ChatClientTypeAPI ChatClientType = "api"
 )
 
+const (
+	// MaxChatGoalObjectiveBytes limits goal objective text accepted by chat goal mutations.
+	MaxChatGoalObjectiveBytes = 4096
+	// MaxChatGoalCompletionSummaryBytes limits goal completion summaries accepted by chat goal mutations.
+	MaxChatGoalCompletionSummaryBytes = 4096
+	// MaxChatGoalTextPayloadBytes limits combined goal text sent in watch events.
+	MaxChatGoalTextPayloadBytes = 6144
+)
+
+// ChatGoalStatus represents the lifecycle state of a chat goal.
+type ChatGoalStatus string
+
+const (
+	ChatGoalStatusActive   ChatGoalStatus = "active"
+	ChatGoalStatusPaused   ChatGoalStatus = "paused"
+	ChatGoalStatusComplete ChatGoalStatus = "complete"
+	ChatGoalStatusCleared  ChatGoalStatus = "cleared"
+	ChatGoalStatusReplaced ChatGoalStatus = "replaced"
+)
+
+// ChatGoal is a durable objective associated with a root chat.
+type ChatGoal struct {
+	ID                uuid.UUID      `json:"id" format:"uuid"`
+	RootChatID        uuid.UUID      `json:"root_chat_id" format:"uuid"`
+	CreatedFromChatID *uuid.UUID     `json:"created_from_chat_id,omitempty" format:"uuid"`
+	Objective         string         `json:"objective"`
+	Status            ChatGoalStatus `json:"status"`
+	CompletionSummary *string        `json:"completion_summary,omitempty"`
+	CreatedByUserID   uuid.UUID      `json:"created_by_user_id" format:"uuid"`
+	CompletedByUserID *uuid.UUID     `json:"completed_by_user_id,omitempty" format:"uuid"`
+	CompletedByAgent  bool           `json:"completed_by_agent"`
+	CreatedAt         time.Time      `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time      `json:"updated_at" format:"date-time"`
+	CompletedAt       *time.Time     `json:"completed_at,omitempty" format:"date-time"`
+	ClearedAt         *time.Time     `json:"cleared_at,omitempty" format:"date-time"`
+	ReplacedAt        *time.Time     `json:"replaced_at,omitempty" format:"date-time"`
+}
+
+// ChatGoalMutationAction identifies a goal lifecycle mutation.
+type ChatGoalMutationAction string
+
+const (
+	ChatGoalMutationActionSet      ChatGoalMutationAction = "set"
+	ChatGoalMutationActionClear    ChatGoalMutationAction = "clear"
+	ChatGoalMutationActionPause    ChatGoalMutationAction = "pause"
+	ChatGoalMutationActionResume   ChatGoalMutationAction = "resume"
+	ChatGoalMutationActionComplete ChatGoalMutationAction = "complete"
+)
+
+// ChatGoalMutation requests a goal lifecycle change.
+type ChatGoalMutation struct {
+	Action            ChatGoalMutationAction `json:"action" enums:"set,clear,pause,resume,complete"`
+	GoalID            *uuid.UUID             `json:"goal_id,omitempty" format:"uuid"`
+	Objective         string                 `json:"objective,omitempty"`
+	CompletionSummary *string                `json:"completion_summary,omitempty"`
+}
+
 // Chat represents a chat session with an AI agent.
 type Chat struct {
 	ID                uuid.UUID       `json:"id" format:"uuid"`
@@ -124,6 +181,7 @@ type Chat struct {
 	LastError         *ChatError      `json:"last_error,omitempty"`
 	LastTurnSummary   *string         `json:"last_turn_summary"`
 	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
+	Goal              *ChatGoal       `json:"goal,omitempty"`
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
@@ -250,6 +308,7 @@ type ChatMessage struct {
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
+	SentAsGoal    bool              `json:"sent_as_goal,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
 }
 
@@ -546,6 +605,11 @@ type ToolResult struct {
 	IsError    bool            `json:"is_error"`
 }
 
+// ChatGoalResponse is returned by chat goal lifecycle endpoints.
+type ChatGoalResponse struct {
+	Goal *ChatGoal `json:"goal,omitempty"`
+}
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
@@ -555,6 +619,7 @@ type CreateChatRequest struct {
 	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
 	Labels         map[string]string `json:"labels,omitempty"`
+	GoalMutation   *ChatGoalMutation `json:"goal_mutation,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -609,10 +674,11 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Content       []ChatInputPart  `json:"content"`
-	ModelConfigID *uuid.UUID       `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs  *[]uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
-	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	Content       []ChatInputPart   `json:"content"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID      `json:"mcp_server_ids,omitempty" format:"uuid"`
+	GoalMutation  *ChatGoalMutation `json:"goal_mutation,omitempty"`
+	BusyBehavior  ChatBusyBehavior  `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -632,6 +698,7 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+	Goal          *ChatGoal          `json:"goal,omitempty"`
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
@@ -873,6 +940,16 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// ChatGoalsEnabledResponse is the response for getting the chat goals setting.
+type ChatGoalsEnabledResponse struct {
+	Enabled bool `json:"enabled"`
+}
+
+// UpdateChatGoalsEnabledRequest is the request to update the chat goals setting.
+type UpdateChatGoalsEnabledRequest struct {
+	Enabled bool `json:"enabled"`
 }
 
 // AdvisorConfig is the deployment-wide runtime configuration for the
@@ -1768,6 +1845,7 @@ const (
 	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindGoalChange       ChatWatchEventKind = "goal_change"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
@@ -2665,6 +2743,33 @@ func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req U
 	return nil
 }
 
+// GetChatGoalsEnabled returns the deployment-wide chat goals setting.
+func (c *ExperimentalClient) GetChatGoalsEnabled(ctx context.Context) (ChatGoalsEnabledResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/goals", nil)
+	if err != nil {
+		return ChatGoalsEnabledResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalsEnabledResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalsEnabledResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatGoalsEnabled updates the deployment-wide chat goals setting.
+func (c *ExperimentalClient) UpdateChatGoalsEnabled(ctx context.Context, req UpdateChatGoalsEnabledRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/goals", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.
 func (c *ExperimentalClient) GetChatAdvisorConfig(ctx context.Context) (AdvisorConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/advisor", nil)
@@ -3181,6 +3286,34 @@ func (c *ExperimentalClient) RefreshChatContext(ctx context.Context, chatID uuid
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// GetChatGoal returns the current durable goal for a chat's root.
+func (c *ExperimentalClient) GetChatGoal(ctx context.Context, chatID uuid.UUID) (ChatGoalResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/goal", chatID), nil)
+	if err != nil {
+		return ChatGoalResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatGoal applies a metadata-only chat goal mutation.
+func (c *ExperimentalClient) UpdateChatGoal(ctx context.Context, chatID uuid.UUID, req ChatGoalMutation) (ChatGoalResponse, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/goal", chatID), req)
+	if err != nil {
+		return ChatGoalResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {

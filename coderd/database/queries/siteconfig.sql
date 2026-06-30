@@ -211,6 +211,29 @@ SET value = CASE
 END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
+-- GetChatGoalsEnabled returns whether the chat goals experiment is enabled.
+-- It defaults to false when unset.
+-- name: GetChatGoalsEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_goals_enabled'), false) :: boolean AS enabled;
+
+-- UpsertChatGoalsEnabled updates whether the chat goals experiment is enabled.
+-- name: UpsertChatGoalsEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_chat_goals_enabled',
+    CASE
+        WHEN sqlc.arg(enabled)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enabled)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_chat_goals_enabled';
+
 -- GetChatAdvisorConfig returns the deployment-wide runtime configuration
 -- for the experimental chat advisor as a JSON blob. Callers unmarshal the
 -- result into codersdk.AdvisorConfig. Returns '{}' when unset so zero

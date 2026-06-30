@@ -12,6 +12,11 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 	onSaveDesktopEnabled: fn(),
 	isSavingDesktopEnabled: false,
 	isSaveDesktopEnabledError: false,
+	goalsEnabledData: { enabled: false },
+	isLoadingGoalsEnabled: false,
+	onSaveGoalsEnabled: fn(),
+	isSavingGoalsEnabled: false,
+	isSaveGoalsEnabledError: false,
 	computerUseProviderData: { provider: "anthropic" },
 	isLoadingComputerUseProvider: false,
 	onSaveComputerUseProvider: fn(),
@@ -147,6 +152,33 @@ export const ForcedByDeployment: Story = {
 				/Debug logging is already enabled deployment-wide/i,
 			),
 		).toBeInTheDocument();
+	},
+};
+
+export const ChatGoalsSetting: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Chat goals");
+		await canvas.findByText(
+			/Allow users to create and manage durable goals from the agent composer./i,
+		);
+		await canvas.findByRole("switch", { name: "Enable chat goals" });
+	},
+};
+
+export const TogglesChatGoals: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable chat goals",
+		});
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(args.onSaveGoalsEnabled).toHaveBeenCalledWith({
+				enabled: true,
+			});
+		});
 	},
 };
 

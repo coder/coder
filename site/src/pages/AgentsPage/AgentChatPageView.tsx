@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { v4 as uuidv4 } from "uuid";
+import { type ChatGoalAction, currentChatGoal } from "#/api/queries/chatGoal";
 import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
@@ -28,6 +29,7 @@ import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
+	type AgentChatInputSendOptions,
 	type ChatMessageInputRef,
 } from "./components/AgentChatInput";
 import {
@@ -37,6 +39,7 @@ import {
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import { ChatGoalBanner } from "./components/ChatGoalBanner";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
@@ -101,7 +104,8 @@ interface EditingState {
 	handleSendFromInput: (
 		message: string,
 		attachments?: readonly PendingAttachment[],
-	) => void;
+		options?: AgentChatInputSendOptions,
+	) => Promise<void>;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,
@@ -177,6 +181,14 @@ interface AgentChatPageViewProps {
 	// Workspace action handlers.
 	sshCommand: string | undefined;
 	handleCommit: (repoRoot: string) => void;
+
+	// Goal state and handlers.
+	goal?: TypesGen.ChatGoal;
+	showPursueGoal?: boolean;
+	canMutateGoal?: boolean;
+	isGoalActionPending?: boolean;
+	isGoalActionDisabled?: boolean;
+	onGoalAction?: (action: ChatGoalAction) => Promise<void> | void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -349,6 +361,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	gitWatcher,
 	sshCommand,
 	handleCommit,
+	goal,
+	showPursueGoal = false,
+	canMutateGoal = false,
+	isGoalActionPending = false,
+	isGoalActionDisabled = false,
+	onGoalAction = () => {},
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -794,6 +812,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const chatOwnerWarning = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
+	const topGoal = currentChatGoal(goal);
 
 	const titleElement = (
 		<title>
@@ -874,6 +893,17 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									This agent has been archived and is read-only.
 								</div>
 							)}
+							{topGoal && (
+								<div className="shrink-0 px-4 pt-3">
+									<ChatGoalBanner
+										goal={topGoal}
+										canMutateGoal={canMutateGoal}
+										isActionPending={isGoalActionPending}
+										isActionDisabled={isGoalActionDisabled}
+										onAction={onGoalAction}
+									/>
+								</div>
+							)}
 							<div
 								aria-hidden
 								className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
@@ -941,6 +971,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelSelectorHelp={modelSelectorHelp}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
+								showPursueGoal={showPursueGoal}
+								canPursueGoal={canMutateGoal && !isGoalActionDisabled}
 								isModelCatalogLoading={isModelCatalogLoading}
 								workspaceOptions={workspaceOptions}
 								chatOrganizationId={organizationId}
@@ -1113,6 +1145,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={onPlanModeToggle}
 						isModelCatalogLoading={isModelCatalogLoading}
+						canPursueGoal={false}
 						hasModelOptions={hasModelOptions}
 						canConfigureAgentSetup={false}
 					/>

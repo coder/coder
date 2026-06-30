@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
@@ -341,6 +342,28 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
+	chatGoalsEnabled := false
+	var activeGoal *database.ChatGoal
+	//nolint:gocritic // Turn preparation needs daemon-scoped deployment config reads.
+	goalConfigCtx := dbauthz.AsChatd(ctx)
+	goalsEnabled, err := server.db.GetChatGoalsEnabled(goalConfigCtx)
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, xerrors.Errorf("get chat goals setting: %w", err)
+	}
+	if goalsEnabled {
+		chatGoalsEnabled = true
+		activeGoal, err = currentChatGoal(ctx, server.db, chatRootID(chat))
+		if err != nil {
+			cleanup()
+			return generationPrepared{}, err
+		}
+		if activeGoal != nil && activeGoal.Status != database.ChatGoalStatusActive {
+			activeGoal = nil
+		}
+	}
+	canCompleteGoal := chatGoalsEnabled && activeGoal != nil && isRootChat && !isPlanModeTurn && !isExploreSubagentMode(chat.Mode)
+
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -348,10 +371,12 @@ func (server *Server) prepareGeneration(
 		initialResolvedSkills,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
+			planMode:                  currentPlanMode,
+			chatMode:                  chat.Mode,
+			planModeInstructions:      planModeInstructions,
+			activeGoal:                activeGoal,
+			isRootChat:                isRootChat,
+			completeGoalToolAvailable: canCompleteGoal,
 		},
 	)
 	if advisorRuntime != nil {
@@ -381,6 +406,24 @@ func (server *Server) prepareGeneration(
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+	}
+	if chatGoalsEnabled {
+		rootChatID := chatRootID(chat)
+		tools = append(tools, chattool.GetGoal(server.db, chattool.GoalToolOptions{
+			ChatID:     chat.ID,
+			RootChatID: rootChatID,
+			IsRootChat: isRootChat,
+		}))
+		if canCompleteGoal {
+			tools = append(tools, chattool.CompleteGoal(server.db, chattool.GoalToolOptions{
+				ChatID:     chat.ID,
+				RootChatID: rootChatID,
+				IsRootChat: true,
+				OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, goal database.ChatGoal) {
+					server.publishChatGoalChange(updatedChat, &goal)
+				},
+			}))
+		}
 	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
@@ -623,11 +666,13 @@ func (server *Server) prepareGeneration(
 		ProviderOptions:      providerOptions,
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		ExclusiveToolNames:   exclusiveToolNames,
-		BuiltinToolNames:     builtinToolNames,
-		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
+		StopAfterTools: stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID, stopAfterBehaviorToolOptions{
+			completeGoalToolAvailable: canCompleteGoal,
+		}),
+		ExclusiveToolNames: exclusiveToolNames,
+		BuiltinToolNames:   builtinToolNames,
+		ToolNameToConfigID: toolNameToConfigID,
+		MaxSteps:           maxChatSteps,
 		Compaction: &generationCompaction{
 			Required: compactionNeeded,
 			Options:  compactionOptions,

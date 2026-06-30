@@ -3,6 +3,7 @@ import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AdminChatDebugLoggingSettings } from "./components/AdminChatDebugLoggingSettings";
 import { AdvisorSettings } from "./components/AdvisorSettings";
+import { ChatGoalSettings } from "./components/ChatGoalSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { VirtualDesktopSettings } from "./components/VirtualDesktopSettings";
 
@@ -22,6 +23,16 @@ export interface AgentSettingsExperimentsPageViewProps {
 	>;
 	isSavingDesktopEnabled: boolean;
 	isSaveDesktopEnabledError: boolean;
+	goalsEnabledData: TypesGen.ChatGoalsEnabledResponse | undefined;
+	isLoadingGoalsEnabled: boolean;
+	onSaveGoalsEnabled: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatGoalsEnabledRequest,
+		unknown
+	>;
+	isSavingGoalsEnabled: boolean;
+	isSaveGoalsEnabledError: boolean;
 	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
 	isLoadingComputerUseProvider: boolean;
 	onSaveComputerUseProvider: UseMutateFunction<
@@ -67,6 +78,11 @@ export const AgentSettingsExperimentsPageView: FC<
 	onSaveDesktopEnabled,
 	isSavingDesktopEnabled,
 	isSaveDesktopEnabledError,
+	goalsEnabledData,
+	isLoadingGoalsEnabled,
+	onSaveGoalsEnabled,
+	isSavingGoalsEnabled,
+	isSaveGoalsEnabledError,
 	computerUseProviderData,
 	isLoadingComputerUseProvider,
 	onSaveComputerUseProvider,
@@ -107,6 +123,13 @@ export const AgentSettingsExperimentsPageView: FC<
 				onSaveComputerUseProvider={onSaveComputerUseProvider}
 				isSavingComputerUseProvider={isSavingComputerUseProvider}
 				computerUseProviderSaveError={computerUseProviderSaveError}
+			/>
+			<ChatGoalSettings
+				goalsEnabledData={goalsEnabledData}
+				isLoadingGoalsEnabled={isLoadingGoalsEnabled}
+				onSaveGoalsEnabled={onSaveGoalsEnabled}
+				isSavingGoalsEnabled={isSavingGoalsEnabled}
+				isSaveGoalsEnabledError={isSaveGoalsEnabledError}
 			/>
 			<AdvisorSettings
 				advisorConfigData={advisorConfigData}

@@ -1,4 +1,9 @@
-import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	PencilIcon,
+	TargetIcon,
+} from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -77,6 +82,16 @@ const getChatMessageTextContent = (
 
 	return textContent.length > 0 ? textContent : undefined;
 };
+
+const SentAsGoalMarker: FC = () => (
+	<div
+		className="flex h-6 items-center gap-1 px-1 text-xs font-medium text-content-secondary"
+		data-testid="sent-as-goal-marker"
+	>
+		<TargetIcon className="size-3 shrink-0" aria-hidden />
+		<span>Sent as goal</span>
+	</div>
+);
 
 const ReasoningDisclosure = memo<{
 	id: string;
@@ -588,6 +603,19 @@ const ChatMessageItem = memo<{
 			hasActiveStream,
 			isAwaitingFirstStreamChunk,
 		});
+		const hasUserMessageJumpControls = Boolean(
+			isUser &&
+				onJumpToUserMessage &&
+				(prevUserMessageId !== undefined || nextUserMessageId !== undefined),
+		);
+		const hasMessageControls = Boolean(
+			displayState.hasCopyableContent ||
+				(isUser && onEditUserMessage) ||
+				hasUserMessageJumpControls,
+		);
+		const showsSentAsGoalMarker = isUser && message.sent_as_goal === true;
+		const showsMessageActionRow =
+			!hideActions && (hasMessageControls || showsSentAsGoalMarker);
 		if (displayState.shouldHide) {
 			return null;
 		}
@@ -647,102 +675,106 @@ const ChatMessageItem = memo<{
 						</Message>
 					)}
 				</ConversationItem>
-				{!hideActions &&
-					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
-						<div
-							className={cn(
-								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
-								isUser && "w-full justify-end",
-							)}
-							data-testid="message-actions"
-						>
-							{displayState.hasCopyableContent && (
-								<CopyButton
-									text={parsed.markdown}
-									label="Copy message"
-									className="size-6"
-									tooltipSide="bottom"
-								/>
-							)}
-							{isUser && onEditUserMessage && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="size-6"
-											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks } =
-													getEditableUserMessagePayload(message);
-												onEditUserMessage(message.id, text, fileBlocks);
-											}}
-										>
-											<PencilIcon />
-											<span className="sr-only">Edit message</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Edit message</TooltipContent>
-								</Tooltip>
-							)}
-							{isUser &&
-								onJumpToUserMessage &&
-								(prevUserMessageId !== undefined ||
-									nextUserMessageId !== undefined) && (
-									<>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to previous user message"
-													disabled={prevUserMessageId === undefined}
-													onClick={() => {
-														if (prevUserMessageId !== undefined) {
-															onJumpToUserMessage(prevUserMessageId);
-														}
-													}}
-												>
-													<ChevronLeftIcon />
-													<span className="sr-only">
-														Jump to previous user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to previous user message
-											</TooltipContent>
-										</Tooltip>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to next user message"
-													disabled={nextUserMessageId === undefined}
-													onClick={() => {
-														if (nextUserMessageId !== undefined) {
-															onJumpToUserMessage(nextUserMessageId);
-														}
-													}}
-												>
-													<ChevronRightIcon />
-													<span className="sr-only">
-														Jump to next user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to next user message
-											</TooltipContent>
-										</Tooltip>
-									</>
+				{showsMessageActionRow && (
+					<div
+						className={cn(
+							"mt-0.5 flex items-center gap-1",
+							isUser && "w-full justify-end",
+						)}
+						data-testid="message-actions"
+					>
+						{hasMessageControls && (
+							<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
+								{displayState.hasCopyableContent && (
+									<CopyButton
+										text={parsed.markdown}
+										label="Copy message"
+										className="size-6"
+										tooltipSide="bottom"
+									/>
 								)}
-						</div>
-					)}
+
+								{isUser && onEditUserMessage && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="size-6"
+												aria-label="Edit message"
+												onClick={() => {
+													const { text, fileBlocks } =
+														getEditableUserMessagePayload(message);
+													onEditUserMessage(message.id, text, fileBlocks);
+												}}
+											>
+												<PencilIcon />
+												<span className="sr-only">Edit message</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">Edit message</TooltipContent>
+									</Tooltip>
+								)}
+								{isUser &&
+									onJumpToUserMessage &&
+									(prevUserMessageId !== undefined ||
+										nextUserMessageId !== undefined) && (
+										<>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="size-6"
+														aria-label="Jump to previous user message"
+														disabled={prevUserMessageId === undefined}
+														onClick={() => {
+															if (prevUserMessageId !== undefined) {
+																onJumpToUserMessage(prevUserMessageId);
+															}
+														}}
+													>
+														<ChevronLeftIcon />
+														<span className="sr-only">
+															Jump to previous user message
+														</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom">
+													Jump to previous user message
+												</TooltipContent>
+											</Tooltip>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="size-6"
+														aria-label="Jump to next user message"
+														disabled={nextUserMessageId === undefined}
+														onClick={() => {
+															if (nextUserMessageId !== undefined) {
+																onJumpToUserMessage(nextUserMessageId);
+															}
+														}}
+													>
+														<ChevronRightIcon />
+														<span className="sr-only">
+															Jump to next user message
+														</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom">
+													Jump to next user message
+												</TooltipContent>
+											</Tooltip>
+										</>
+									)}
+							</div>
+						)}
+						{showsSentAsGoalMarker && <SentAsGoalMarker />}
+					</div>
+				)}
 				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}

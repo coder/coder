@@ -94,7 +94,9 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	ClearChatGoalByID(ctx context.Context, arg ClearChatGoalByIDParams) (ChatGoal, error)
 	ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error
+	CompleteChatGoalByID(ctx context.Context, arg CompleteChatGoalByIDParams) (ChatGoal, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
@@ -430,6 +432,10 @@ type sqlcQuerier interface {
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGeneralModelOverride(ctx context.Context) (string, error)
+	GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIds []int64) ([]int64, error)
+	// GetChatGoalsEnabled returns whether the chat goals experiment is enabled.
+	// It defaults to false when unset.
+	GetChatGoalsEnabled(ctx context.Context) (bool, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
@@ -522,6 +528,8 @@ type sqlcQuerier interface {
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
 	GetCryptoKeysByFeature(ctx context.Context, feature CryptoKeyFeature) ([]CryptoKey, error)
+	GetCurrentChatGoalByRootChatID(ctx context.Context, rootChatID uuid.UUID) (ChatGoal, error)
+	GetCurrentChatGoalsByRootChatIDs(ctx context.Context, rootChatIds []uuid.UUID) ([]ChatGoal, error)
 	GetDBCryptKeys(ctx context.Context) ([]DBCryptKey, error)
 	GetDERPMeshKey(ctx context.Context) (string, error)
 	// Returns the current database timestamp. Used so transitions that
@@ -1010,6 +1018,7 @@ type sqlcQuerier interface {
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
+	InsertActiveChatGoal(ctx context.Context, arg InsertActiveChatGoalParams) (ChatGoal, error)
 	// Copies an agent's current context resources onto a single chat. Pair
 	// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
@@ -1194,6 +1203,7 @@ type sqlcQuerier interface {
 	// re-pins it. Returns the chats that transitioned so the caller can
 	// emit watch events after the transaction commits.
 	MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error)
+	MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) ([]ChatGoal, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
@@ -1204,6 +1214,7 @@ type sqlcQuerier interface {
 	//  - Use both to get a specific org member row
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error)
+	PauseChatGoalByID(ctx context.Context, arg PauseChatGoalByIDParams) (ChatGoal, error)
 	// Under READ COMMITTED, concurrent pin operations for the same
 	// owner may momentarily produce duplicate pin_order values because
 	// each CTE snapshot does not see the other's writes. The next
@@ -1232,6 +1243,7 @@ type sqlcQuerier interface {
 	// limit_source indicates which tier won: 'user', 'group', 'default',
 	// or 'disabled'.
 	ResolveUserChatSpendLimit(ctx context.Context, arg ResolveUserChatSpendLimitParams) (ResolveUserChatSpendLimitRow, error)
+	ResumeChatGoalByID(ctx context.Context, arg ResumeChatGoalByIDParams) (ChatGoal, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1529,6 +1541,8 @@ type sqlcQuerier interface {
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	UpsertChatExploreModelOverride(ctx context.Context, value string) error
 	UpsertChatGeneralModelOverride(ctx context.Context, value string) error
+	// UpsertChatGoalsEnabled updates whether the chat goals experiment is enabled.
+	UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
