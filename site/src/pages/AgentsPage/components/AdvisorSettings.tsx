@@ -335,7 +335,7 @@ const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
 	return (
 		<label
 			className={cn(
-				"grid h-10 w-32 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
+				"grid h-10 w-40 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
 				error && "border-border-destructive",
 				disabled && "opacity-50",
 			)}
