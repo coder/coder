@@ -2808,7 +2808,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, server.db, parentChat.OwnerID))
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSubagentTool(
 		ctx,
 		t,
@@ -2873,7 +2873,7 @@ func TestSpawnAgent_ComputerUseInheritsMCPServerIDs(t *testing.T) {
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, server.db, parentChat.OwnerID))
+	ctx = withSubagentDelegatedKey(ctx, t, db, parentChat.OwnerID)
 	resp := runSubagentTool(
 		ctx,
 		t,

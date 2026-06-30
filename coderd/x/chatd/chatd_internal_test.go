@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -767,6 +768,24 @@ func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) data
 	return message
 }
 
+// requireOpenAIResponsesRequestModel decodes an OpenAI Responses API request
+// body and asserts it requested wantModel, so mock transports that
+// synthesize a canned response still verify the outgoing request asked for
+// the right model rather than just returning a hardcoded answer.
+func requireOpenAIResponsesRequestModel(t testing.TB, req *http.Request, wantModel string) {
+	t.Helper()
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(strings.NewReader(string(body)))
+
+	var decoded struct {
+		Model string `json:"model"`
+	}
+	require.NoError(t, json.Unmarshal(body, &decoded))
+	require.Equal(t, wantModel, decoded.Model)
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -823,11 +842,11 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	// PR #26862 removed direct provider-key based routing; title generation
-	// now always goes through the AI Gateway transport factory, so the
-	// fake model response is synthesized by the transport's RoundTripper
-	// instead of a real HTTP test server.
+	// Title generation always routes through the AI Gateway transport
+	// factory, so the fake model response is synthesized via the
+	// transport's RoundTripper instead of a real HTTP test server.
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOpenAIResponsesRequestModel(t, req, modelConfig.Model)
 		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
 		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
 		return &http.Response{
@@ -1001,11 +1020,11 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	// PR #26862 removed direct provider-key based routing; title generation
-	// now always goes through the AI Gateway transport factory, so the
-	// fake model response is synthesized by the transport's RoundTripper
-	// instead of a real HTTP test server.
+	// Title generation always routes through the AI Gateway transport
+	// factory, so the fake model response is synthesized via the
+	// transport's RoundTripper instead of a real HTTP test server.
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOpenAIResponsesRequestModel(t, req, modelConfig.Model)
 		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
 		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
 		return &http.Response{
