@@ -85,39 +85,6 @@ func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Clie
 	return dc, nil
 }
 
-func requireAuthorizerServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient, sessionToken, wantOwnerID string) {
-	t.Helper()
-	resp, err := dc.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{Key: sessionToken})
-	require.NoError(t, err)
-	require.Equal(t, wantOwnerID, resp.GetOwnerId())
-}
-
-func requireProviderConfiguratorServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient) {
-	t.Helper()
-
-	_, err := dc.GetAIProviders(ctx, &aibridgedproto.GetAIProvidersRequest{})
-	require.NoError(t, err)
-}
-
-func requireMCPConfiguratorServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient, userID string) {
-	t.Helper()
-	_, err := dc.GetMCPServerConfigs(ctx, &aibridgedproto.GetMCPServerConfigsRequest{UserId: userID})
-	require.NoError(t, err)
-}
-
-func requireRecorderServed(ctx context.Context, t *testing.T, dc aibridged.DRPCClient, initiatorID string) {
-	t.Helper()
-	_, err := dc.RecordInterception(ctx, &aibridgedproto.RecordInterceptionRequest{
-		Id:          uuid.NewString(),
-		InitiatorId: initiatorID,
-		ApiKeyId:    "serve-success-key",
-		Provider:    "openai",
-		Model:       "gpt-4",
-		StartedAt:   timestamppb.Now(),
-	})
-	require.NoError(t, err)
-}
-
 func TestAIGatewayServeSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -128,19 +95,38 @@ func TestAIGatewayServeSuccess(t *testing.T) {
 	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-success"})
 	require.NoError(t, err)
 
-	// Dial with the production NewWebsocketDialer the standalone gateway uses;
-	// a successful return implies the WebSocket upgrade succeeded.
+	// Use NewWebsocketDialer that production code of standalone gateway uses
 	dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
 	require.NoError(t, err)
 
 	// Exercise one RPC from each service in the DRPCClient union to verify the
 	// dialer wires every service and the serve mux registers them all.
-	requireAuthorizerServed(ctx, t, dc, client.SessionToken(), firstUser.UserID.String())
-	requireProviderConfiguratorServed(ctx, t, dc)
-	requireMCPConfiguratorServed(ctx, t, dc, firstUser.UserID.String())
-	requireRecorderServed(ctx, t, dc, firstUser.UserID.String())
 
-	// The session records liveness for the authenticating key.
+	// DRPCAuthorizerClient
+	resp, err := dc.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{Key: client.SessionToken()})
+	require.NoError(t, err)
+	require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
+
+	// DRPCProviderConfiguratorClient
+	_, err = dc.GetAIProviders(ctx, &aibridgedproto.GetAIProvidersRequest{})
+	require.NoError(t, err)
+
+	// DRPCMCPConfiguratorClient
+	_, err = dc.GetMCPServerConfigs(ctx, &aibridgedproto.GetMCPServerConfigsRequest{UserId: firstUser.UserID.String()})
+	require.NoError(t, err)
+
+	// DRPCRecorderClient
+	_, err = dc.RecordInterception(ctx, &aibridgedproto.RecordInterceptionRequest{
+		Id:          uuid.NewString(),
+		InitiatorId: firstUser.UserID.String(),
+		ApiKeyId:    "serve-success-key",
+		Provider:    "openai",
+		Model:       "gpt-4",
+		StartedAt:   timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Verify the session records liveness for the authenticating key.
 	require.Eventually(t, func() bool {
 		//nolint:gocritic // Owner role is needed for gateway key management.
 		keys, err := client.ListAIGatewayKeys(ctx)

@@ -98,7 +98,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			dialer := aibridged.NewWebsocketDialer(serverURL, transport, key)
 			srv, err := aibridged.New(ctx, pool, dialer, logger.Named("aibridged"), tracer)
 			if err != nil {
-				return xerrors.Errorf("start aibridge daemon: %w", err)
+				return xerrors.Errorf("start AI Gateway daemon: %w", err)
 			}
 			defer srv.Close()
 
@@ -210,7 +210,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	}
 
 	// Standalone Gateway only uses part of the options from "AI Gateway" group.
-	// Every other option in the group is coderd-only (eg. budget, provider-seeding).
+	// Other options from the group are coderd-only (eg. budget, provider-seeding).
 	standaloneOpts := map[string]struct{}{
 		"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
 		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
@@ -224,8 +224,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 		"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
 	}
 
-	// Reuse the shared AI Gateway deployment options for
-	// parity (of applicable options) between embedded and standalone.
 	var aiGatewayOpts serpent.OptionSet
 	for _, opt := range vals.Options() {
 		if opt.Group == nil || opt.Group.Name != "AI Gateway" {
