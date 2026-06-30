@@ -90,6 +90,24 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 }
 
 /**
+ * Tagged error thrown by `archiveChatAndDeleteWorkspace` so the
+ * caller can produce a message that matches the step that actually
+ * failed.
+ */
+export class ArchiveAndDeleteError extends Error {
+	readonly step: "delete" | "archive";
+	readonly cause: unknown;
+
+	constructor(step: "delete" | "archive", cause: unknown) {
+		super(
+			step === "delete" ? "workspace delete failed" : "chat archive failed",
+		);
+		this.step = step;
+		this.cause = cause;
+	}
+}
+
+/**
  * Archives a chat and deletes its associated workspace.
  *
  * The delete is attempted first so a failure leaves the chat in the
@@ -97,6 +115,10 @@ export function isWorkspaceNotFound(error: unknown): boolean {
  * the entry point to retry. If the workspace is already gone (404 or
  * 410), the delete step is treated as a no-op and the archive still
  * proceeds.
+ *
+ * Errors from either step are wrapped in `ArchiveAndDeleteError` so
+ * the caller can distinguish a failed delete (workspace still around)
+ * from a failed archive (workspace already deleting).
  *
  * Returns the delete build response so callers can surface queue
  * context (e.g. `job.queue_position`, `job.queue_size`). Returns
@@ -118,10 +140,14 @@ export async function archiveChatAndDeleteWorkspace(
 		deleteBuild = await doDelete(workspaceId);
 	} catch (error) {
 		if (!isWorkspaceNotFound(error)) {
-			throw error;
+			throw new ArchiveAndDeleteError("delete", error);
 		}
 	}
-	await doArchive(chatId);
+	try {
+		await doArchive(chatId);
+	} catch (error) {
+		throw new ArchiveAndDeleteError("archive", error);
+	}
 	return { chatId, workspaceId, deleteBuild };
 }
 
@@ -209,10 +235,10 @@ export async function resolveArchiveAndDeleteAction(
 
 /**
  * Shows a toast after a successful archive-and-delete enqueue. The
- * delete build has been queued; this surface tells the user when
- * the queue state is non-trivial (no provisioners available, or a
- * real backlog). Trivial enqueues (queue_position 0 with a daemon
- * present) stay silent.
+ * delete build has been queued; this surface tells the user when the
+ * queue state is non-trivial (no daemons matched yet, or a real
+ * backlog). Trivial enqueues (queue_position 0 with a daemon present)
+ * stay silent.
  */
 export function notifyDeleteQueueState(
 	workspace: Workspace | undefined,
@@ -223,39 +249,53 @@ export function notifyDeleteQueueState(
 	}
 	const { queue_position, queue_size } = deleteBuild.job;
 	if (queue_size === 0) {
-		toast.info(
-			`Delete queued for "${workspace.name}", but no provisioners are currently available. The workspace will be deleted once one comes online.`,
-		);
+		toast.info(`Delete enqueued for "${workspace.name}".`);
 		return;
 	}
 	if (queue_position > 0) {
-		const noun = queue_position === 1 ? "job" : "jobs";
 		toast.success(
-			`Deleting workspace "${workspace.name}" (queued behind ${queue_position} ${noun}).`,
+			`Deleting workspace "${workspace.name}" (queue position: ${queue_position}).`,
 		);
 	}
 }
 
 /**
- * Shows an actionable toast when archive-and-delete fails before
- * the chat is archived. The chat remains in the sidebar so the user
- * can retry; the toast points them to the workspace for manual
- * deletion when the cache has enough information.
+ * Shows an actionable toast when archive-and-delete fails. The
+ * message branches on which step failed:
+ *
+ * - `delete`: the workspace is still around. Suggest opening it for
+ *   manual deletion. The chat remains in the sidebar to retry.
+ * - `archive`: the delete already started; only the chat archive
+ *   step failed. The user just needs to retry archiving.
+ *
+ * For unknown errors (no step), fall back to a generic message.
  */
 export function notifyDeleteFailed(
 	workspace: Workspace | undefined,
 	error: unknown,
 	onOpenWorkspace: (path: string) => void,
 ): void {
+	const step = error instanceof ArchiveAndDeleteError ? error.step : undefined;
+	const cause = error instanceof ArchiveAndDeleteError ? error.cause : error;
+
+	if (step === "archive") {
+		const label = workspace ? `"${workspace.name}"` : "the workspace";
+		const prefix = `Deleting ${label}, but failed to archive the chat.`;
+		const detail = getErrorMessage(cause, "");
+		toast.error(detail ? `${prefix} ${detail}` : prefix);
+		return;
+	}
+
 	if (!workspace) {
 		toast.error(
-			getErrorMessage(error, "Failed to archive and delete workspace."),
+			getErrorMessage(cause, "Failed to archive and delete workspace."),
 		);
 		return;
 	}
+
 	const path = `/@${workspace.owner_name}/${workspace.name}`;
 	toast.error(
-		getErrorMessage(error, `Failed to delete workspace "${workspace.name}".`),
+		getErrorMessage(cause, `Failed to delete workspace "${workspace.name}".`),
 		{
 			description:
 				"The chat was not archived. Open the workspace to delete it manually.",
