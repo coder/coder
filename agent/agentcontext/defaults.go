@@ -25,10 +25,7 @@ func defaultBuiltinRoots() []string {
 // The set is the home directory's Coder and Claude config
 // subtrees only. Bare ~ is deliberately excluded: allowing it
 // would make the entire home directory (including ~/.ssh and
-// other secret-bearing files) a valid source root. The Manager
-// appends the working directory lazily on every check, which
-// picks up the workspace's resolved path even when the manifest
-// is loaded after agent init.
+// other secret-bearing files) a valid source root.
 func defaultAllowedRoots() []string {
 	return []string{"~/.coder", "~/.claude"}
 }
