@@ -197,12 +197,36 @@ describe("countConfiguredProviderConfigs", () => {
 			),
 		).toBe(0);
 	});
+
+	it("counts a keyless claude-platform-aws provider when available", () => {
+		const catalog = createCatalog([
+			{ provider: "claude-platform-aws", available: true, models: [] },
+		]);
+
+		expect(
+			countConfiguredProviderConfigs(
+				[
+					createProviderConfig({
+						provider: "claude-platform-aws",
+						source: "database",
+					}),
+				],
+				catalog,
+			),
+		).toBe(1);
+	});
 });
 
 describe("formatProviderLabel", () => {
 	it("formats OpenAI compatible providers", () => {
 		expect(formatProviderLabel("openai-compat")).toBe("OpenAI-compatible");
 		expect(formatProviderLabel("openai-compatible")).toBe("OpenAI-compatible");
+	});
+
+	it("formats Claude Platform for AWS", () => {
+		expect(formatProviderLabel("claude-platform-aws")).toBe(
+			"Claude Platform for AWS",
+		);
 	});
 });
 
@@ -331,6 +355,35 @@ describe("getModelOptionsFromConfigs", () => {
 				model: "gpt-4o",
 				displayName: "GPT-4o (Quality)",
 				contextLimit: 128_000,
+			},
+		]);
+	});
+
+	it("includes claude-platform-aws models when the provider is available", () => {
+		const configs = [
+			createConfig({
+				id: "config-1",
+				provider: "claude-platform-aws",
+				model: "claude-opus-4-6",
+				display_name: "Opus 4.6",
+				context_limit: 200_000,
+			}),
+		];
+		const catalog = createCatalog([
+			{
+				provider: "claude-platform-aws",
+				available: true,
+				models: [],
+			},
+		]);
+
+		expect(getModelOptionsFromConfigs(configs, catalog)).toEqual([
+			{
+				id: "config-1",
+				provider: "claude-platform-aws",
+				model: "claude-opus-4-6",
+				displayName: "Opus 4.6",
+				contextLimit: 200_000,
 			},
 		]);
 	});

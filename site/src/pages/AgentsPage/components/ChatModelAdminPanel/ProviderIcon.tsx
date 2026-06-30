@@ -10,6 +10,7 @@ const providerIconMap: Record<string, string> = {
 	anthropic: "/icon/anthropic.svg",
 	azure: "/icon/azure.svg",
 	bedrock: "/icon/aws.svg",
+	"claude-platform-aws": "/icon/aws.svg",
 	google: "/icon/google.svg",
 	gemini: "/icon/gemini.svg",
 };

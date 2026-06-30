@@ -76,6 +76,8 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	openAIProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	anthropicProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	bedrockProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
+	claudePlatformProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000004")
+	claudePlatformName := string(database.AIProviderTypeClaudePlatformAws)
 
 	tests := []struct {
 		name             string
@@ -172,6 +174,45 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 			wantKeyPresence: map[string]bool{
 				fantasybedrock.Name: true,
+			},
+		},
+		{
+			name:      "ClaudePlatformAWSCentralOnlyAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(claudePlatformProviderID, claudePlatformName, true, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				claudePlatformName: {Available: true},
+			},
+			wantKeys: map[string]string{
+				claudePlatformName: "",
+			},
+			wantKeyPresence: map[string]bool{
+				claudePlatformName: true,
+			},
+		},
+		{
+			name:      "ClaudePlatformAWSUserKeyRequiredWithoutFallback",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(claudePlatformProviderID, claudePlatformName, true, "", true, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				claudePlatformName: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				claudePlatformName: "",
+			},
+			wantKeyPresence: map[string]bool{
+				claudePlatformName: false,
+			},
+		},
+		{
+			name:      "ClaudePlatformAWSCentralDisabledMissingAPIKey",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(claudePlatformProviderID, claudePlatformName, false, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				claudePlatformName: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				claudePlatformName: "",
+			},
+			wantKeyPresence: map[string]bool{
+				claudePlatformName: false,
 			},
 		},
 		{
@@ -528,6 +569,22 @@ func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	}
 }
 
+func TestClaudePlatformAWSProviderFamily(t *testing.T) {
+	t.Parallel()
+
+	// The catalog family name must equal the persisted DB provider type so
+	// models stored as string(provider.Type) resolve to a first-class family,
+	// mirroring Bedrock.
+	name := string(database.AIProviderTypeClaudePlatformAws)
+	require.Equal(t, name, chatprovider.NormalizeProvider(name))
+	require.True(t, chatprovider.ProviderAllowsAmbientCredentials(name))
+	require.Equal(t, "Claude Platform for AWS", chatprovider.ProviderDisplayName(name))
+
+	imageCap, ok := chatprovider.InlineImageCapBytes(name)
+	require.True(t, ok)
+	require.Equal(t, codersdk.AnthropicInlineImageCapBytes, imageCap)
+}
+
 func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 	t.Parallel()
 
@@ -604,6 +661,30 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 					Provider:    fantasyanthropic.Name,
 					Model:       "claude-3-5-sonnet",
 					DisplayName: "claude-3-5-sonnet",
+				}},
+			}}},
+		},
+		{
+			name: "ClaudePlatformAWSAmbientCredentialsMarksProviderAvailable",
+			configuredProviders: []chatprovider.ConfiguredProvider{
+				configuredProvider(string(database.AIProviderTypeClaudePlatformAws), ""),
+			},
+			configuredModels: []chatprovider.ConfiguredModel{{
+				Provider: string(database.AIProviderTypeClaudePlatformAws),
+				Model:    "claude-opus-4-6",
+			}},
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				string(database.AIProviderTypeClaudePlatformAws): {Available: true},
+			},
+			enabledProviders: enabledProviders(string(database.AIProviderTypeClaudePlatformAws)),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:  string(database.AIProviderTypeClaudePlatformAws),
+				Available: true,
+				Models: []codersdk.ChatModel{{
+					ID:          string(database.AIProviderTypeClaudePlatformAws) + ":claude-opus-4-6",
+					Provider:    string(database.AIProviderTypeClaudePlatformAws),
+					Model:       "claude-opus-4-6",
+					DisplayName: "claude-opus-4-6",
 				}},
 			}}},
 		},
@@ -725,6 +806,18 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 			enabledProviders: enabledProviders(fantasyopenai.Name),
 			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:  fantasyopenai.Name,
+				Available: true,
+				Models:    []codersdk.ChatModel{},
+			}}},
+		},
+		{
+			name: "ClaudePlatformAWSAmbientCredentialsAvailableWithoutModels",
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				string(database.AIProviderTypeClaudePlatformAws): {Available: true},
+			},
+			enabledProviders: enabledProviders(string(database.AIProviderTypeClaudePlatformAws)),
+			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+				Provider:  string(database.AIProviderTypeClaudePlatformAws),
 				Available: true,
 				Models:    []codersdk.ChatModel{},
 			}}},

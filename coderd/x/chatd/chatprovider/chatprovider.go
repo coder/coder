@@ -26,10 +26,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// claudePlatformAWSProviderName is the catalog/family name for the Claude
+// Platform for AWS provider. It has no fantasy provider package because
+// requests are signed by aibridged and routed through the local AI Gateway as
+// the Anthropic Messages API. It mirrors Bedrock, whose DB type string equals
+// its family name. Defining it from the database enum keeps the family name and
+// the persisted provider type identical by construction.
+const claudePlatformAWSProviderName = string(database.AIProviderTypeClaudePlatformAws)
+
 var supportedProviderNames = []string{
 	fantasyanthropic.Name,
 	fantasyazure.Name,
 	fantasybedrock.Name,
+	claudePlatformAWSProviderName,
 	fantasygoogle.Name,
 	fantasyopenai.Name,
 	fantasyopenaicompat.Name,
@@ -38,14 +47,15 @@ var supportedProviderNames = []string{
 }
 
 var providerDisplayNameByName = map[string]string{
-	fantasyanthropic.Name:    "Anthropic",
-	fantasyazure.Name:        "Azure OpenAI",
-	fantasybedrock.Name:      "AWS Bedrock",
-	fantasygoogle.Name:       "Google",
-	fantasyopenai.Name:       "OpenAI",
-	fantasyopenaicompat.Name: "OpenAI Compatible",
-	fantasyopenrouter.Name:   "OpenRouter",
-	fantasyvercel.Name:       "Vercel AI Gateway",
+	fantasyanthropic.Name:         "Anthropic",
+	fantasyazure.Name:             "Azure OpenAI",
+	fantasybedrock.Name:           "AWS Bedrock",
+	claudePlatformAWSProviderName: "Claude Platform for AWS",
+	fantasygoogle.Name:            "Google",
+	fantasyopenai.Name:            "OpenAI",
+	fantasyopenaicompat.Name:      "OpenAI Compatible",
+	fantasyopenrouter.Name:        "OpenRouter",
+	fantasyvercel.Name:            "Vercel AI Gateway",
 }
 
 // ProviderDisplayName returns a default display name for a provider.
@@ -57,11 +67,18 @@ func ProviderDisplayName(provider string) string {
 	return normalized
 }
 
-// ProviderAllowsAmbientCredentials reports whether provider can use
-// ambient credentials from the Coder server instead of an explicit
-// API key.
+// ProviderAllowsAmbientCredentials reports whether provider authenticates with
+// ambient or settings-based credentials (e.g. AWS SigV4 from the Coder server's
+// credential chain or an assumed IAM role) instead of an explicit bearer API
+// key. Bedrock and Claude Platform for AWS both sign requests this way, so a
+// missing bearer key does not make them unavailable.
 func ProviderAllowsAmbientCredentials(provider string) bool {
-	return NormalizeProvider(provider) == fantasybedrock.Name
+	switch NormalizeProvider(provider) {
+	case fantasybedrock.Name, claudePlatformAWSProviderName:
+		return true
+	default:
+		return false
+	}
 }
 
 // InlineImageCapBytes returns the per-image byte cap for inline
@@ -70,7 +87,7 @@ func ProviderAllowsAmbientCredentials(provider string) bool {
 // wraps the anthropic client.
 func InlineImageCapBytes(provider string) (int, bool) {
 	switch NormalizeProvider(provider) {
-	case fantasyanthropic.Name, fantasybedrock.Name:
+	case fantasyanthropic.Name, fantasybedrock.Name, claudePlatformAWSProviderName:
 		return codersdk.AnthropicInlineImageCapBytes, true
 	default:
 		return 0, false
@@ -99,9 +116,10 @@ func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
 	case fantasygoogle.Name:
 		// Google passes any file part through unfiltered.
 		return true
-	case fantasyanthropic.Name, fantasybedrock.Name:
-		// Bedrock wraps the anthropic client, so it shares the same
-		// file-part acceptance, including text/* as native documents.
+	case fantasyanthropic.Name, fantasybedrock.Name, claudePlatformAWSProviderName:
+		// Bedrock and Claude Platform for AWS use the anthropic client, so
+		// they share the same file-part acceptance, including text/* as
+		// native documents.
 		return isImage || isText || isPDF
 	case fantasyopenai.Name, fantasyazure.Name:
 		// chatd configures both with WithUseResponsesAPI, but only
@@ -394,10 +412,11 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
-		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
-			// Bedrock can use ambient AWS credentials from the Coder server
-			// without an explicit key, but only when the credential policy
-			// allows central credentials to satisfy the request.
+		case ProviderAllowsAmbientCredentials(normalizedProvider) && provider.CentralAPIKeyEnabled:
+			// Bedrock and Claude Platform for AWS can use ambient AWS
+			// credentials from the Coder server without an explicit key, but
+			// only when the credential policy allows central credentials to
+			// satisfy the request.
 			if !provider.AllowUserAPIKey || provider.AllowCentralAPIKeyFallback {
 				resolved.Available = true
 			} else {
@@ -666,6 +685,8 @@ func NormalizeProvider(provider string) string {
 		return fantasyazure.Name
 	case fantasybedrock.Name:
 		return fantasybedrock.Name
+	case claudePlatformAWSProviderName:
+		return claudePlatformAWSProviderName
 	case fantasygoogle.Name:
 		return fantasygoogle.Name
 	case fantasyopenai.Name:

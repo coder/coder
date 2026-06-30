@@ -24,6 +24,11 @@ type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const envPresetProviders = new Set(["openai", "anthropic"]);
 
+// ambientCredentialProviders authenticate with ambient or settings-based
+// credentials (AWS SigV4 / assumed IAM role) rather than a bearer API key, so a
+// provider with central credentials enabled is usable without a stored key.
+const ambientCredentialProviders = new Set(["bedrock", "claude-platform-aws"]);
+
 const readOptionalString = (value: unknown): string | undefined => {
 	if (typeof value !== "string") return undefined;
 	const trimmed = value.trim();
@@ -179,8 +184,8 @@ export const deriveProviderStates = (
 		const label =
 			readOptionalString(providerConfigEntry?.display_name) ??
 			formatProviderLabel(provider);
-		const hasBedrockAmbientCredentials =
-			provider === "bedrock" &&
+		const hasAmbientCredentials =
+			ambientCredentialProviders.has(provider) &&
 			providerConfig?.central_api_key_enabled === true;
 		const modelConfigsForProvider = modelConfigsByKey.get(key) ?? [];
 		const isCatalogEnvPreset =
@@ -198,7 +203,7 @@ export const deriveProviderStates = (
 			hasManagedAPIKey,
 			hasCatalogAPIKey,
 			hasEffectiveAPIKey: providerConfigEntry
-				? hasProviderEntryAPIKey || hasBedrockAmbientCredentials
+				? hasProviderEntryAPIKey || hasAmbientCredentials
 				: hasManagedAPIKey || hasCatalogAPIKey,
 			allowUserAPIKey: providerConfigEntry?.allow_user_api_key ?? true,
 			isEnvPreset,

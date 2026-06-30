@@ -99,6 +99,22 @@ describe("deriveProviderStates", () => {
 		expect(states[0].hasEffectiveAPIKey).toBe(true);
 	});
 
+	it("treats claude-platform-aws with central_api_key_enabled as having an effective key", () => {
+		const providerConfigs = [
+			{
+				...MockChatProviderConfig,
+				id: "prov-claude-platform-aws",
+				provider: "claude-platform-aws",
+				has_api_key: false,
+				central_api_key_enabled: true,
+			},
+		];
+
+		const states = deriveProviderStates([], providerConfigs, null);
+
+		expect(states[0].hasEffectiveAPIKey).toBe(true);
+	});
+
 	it("drops models without ai_provider_id when multiple configs exist for the same provider", () => {
 		const providerConfigs = [
 			{ ...MockChatProviderConfig, id: "prov-a", provider: "openai" },
