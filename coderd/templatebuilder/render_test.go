@@ -270,6 +270,24 @@ func TestModuleTemplateFS(t *testing.T) {
 	})
 }
 
+func TestAllBasesRenderAndExtractAgent(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			renderCtx := templatebuilder.DefaultBaseRenderContext(id)
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", renderCtx)
+			require.NoError(t, err, "base %q should render without error", id)
+			require.NotEmpty(t, rendered)
+
+			name, err := templatebuilder.ExtractAgentResourceName(rendered)
+			require.NoError(t, err, "base %q should have exactly one coder_agent", id)
+			require.NotEmpty(t, name)
+		})
+	}
+}
+
 func TestBaseTemplateSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -279,6 +297,12 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		{exampleID: "docker"},
 		{exampleID: "kubernetes"},
 		{exampleID: "aws-linux"},
+		{exampleID: "aws-windows"},
+		{exampleID: "azure-linux"},
+		{exampleID: "digitalocean-linux"},
+		{exampleID: "gcp-linux"},
+		{exampleID: "gcp-windows"},
+		{exampleID: "scratch"},
 	}
 
 	for _, tc := range tests {
