@@ -30,7 +30,6 @@ export interface AgentsOutletContext {
 	archivingChatId: string | undefined;
 	onRegenerateTitle?: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
-	/** Opens the shared rename dialog so both menus drive the same instance. */
 	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
 	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
@@ -146,8 +145,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-	// State for the shared rename-chat dialog. Lifted here so both the
-	// sidebar menu and the chat top bar open the same dialog instance.
 	const [chatPendingRename, setChatPendingRename] =
 		useState<TypesGen.Chat | null>(null);
 
