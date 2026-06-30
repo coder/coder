@@ -182,8 +182,9 @@ func TestDebugModel_Disabled(t *testing.T) {
 		inner: inner,
 		svc:   svc,
 		opts: RecorderOptions{
-			ChatID:  chatID,
-			OwnerID: ownerID,
+			ChatID:        chatID,
+			OwnerID:       ownerID,
+			FullRecording: true,
 		},
 	}
 
@@ -259,7 +260,7 @@ func TestDebugModel_Generate(t *testing.T) {
 	model := &debugModel{
 		inner: inner,
 		svc:   svc,
-		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -334,7 +335,7 @@ func TestDebugModel_GeneratePersistsAttemptsWithoutResponseClose(t *testing.T) {
 	model := &debugModel{
 		inner: inner,
 		svc:   svc,
-		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -377,7 +378,7 @@ func TestDebugModel_GenerateError(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -440,7 +441,7 @@ func TestDebugModel_GenerateRetryClearsError(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
@@ -549,7 +550,7 @@ func TestDebugModel_Stream(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -632,7 +633,7 @@ func TestDebugModel_StreamObject(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -679,7 +680,7 @@ func TestDebugModel_StreamCompletedAfterFinish(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -728,7 +729,7 @@ func TestDebugModel_StreamInterruptedBeforeFinish(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -780,7 +781,7 @@ func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
@@ -828,7 +829,7 @@ func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 
@@ -886,7 +887,7 @@ func TestDebugModel_StreamEarlyStop(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -1015,7 +1016,7 @@ func TestDebugModel_GenerateObject(t *testing.T) {
 	model := &debugModel{
 		inner: inner,
 		svc:   svc,
-		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -1063,7 +1064,7 @@ func TestDebugModel_GenerateObjectError(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
@@ -1109,7 +1110,7 @@ func TestDebugModel_GenerateObjectRejectsNilResponse(t *testing.T) {
 			},
 		},
 		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true},
 	}
 	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})

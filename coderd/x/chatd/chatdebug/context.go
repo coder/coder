@@ -9,14 +9,51 @@ import (
 )
 
 type (
-	runContextKey  struct{}
-	stepContextKey struct{}
-	reuseStepKey   struct{}
-	reuseHolder    struct {
+	runContextKey   struct{}
+	stepContextKey  struct{}
+	reuseStepKey    struct{}
+	errorEnsurerKey struct{}
+	reuseHolder     struct {
 		mu     sync.Mutex
 		handle *stepHandle
 	}
 )
+
+// errorRunEnsurer lazily creates a debug run on the first qualifying
+// error, so error-free turns write nothing. sync.OnceValues memoizes
+// the create func so multiple failing steps in a turn share one run.
+type errorRunEnsurer struct {
+	get func() (*RunContext, bool)
+}
+
+// WithErrorRunEnsurer stores a lazy run creator in ctx. create is
+// invoked at most once on the first ensureErrorRun call, and may
+// return ok=false to signal the run could not be created.
+func WithErrorRunEnsurer(ctx context.Context, create func() (*RunContext, bool)) context.Context {
+	if create == nil {
+		panic("chatdebug: nil error run ensurer")
+	}
+	return context.WithValue(ctx, errorEnsurerKey{}, &errorRunEnsurer{
+		get: sync.OnceValues(create),
+	})
+}
+
+// ensureErrorRun returns the lazily-created run context from ctx,
+// creating it on first use. It returns ok=false when no ensurer is
+// present or the create func declined to produce a run.
+func ensureErrorRun(ctx context.Context) (*RunContext, bool) {
+	ensurer, ok := ctx.Value(errorEnsurerKey{}).(*errorRunEnsurer)
+	if !ok {
+		return nil, false
+	}
+	return ensurer.get()
+}
+
+// hasErrorRunEnsurer reports whether ctx carries a lazy run ensurer.
+func hasErrorRunEnsurer(ctx context.Context) bool {
+	_, ok := ctx.Value(errorEnsurerKey{}).(*errorRunEnsurer)
+	return ok
+}
 
 // ContextWithRun stores rc in ctx.
 //

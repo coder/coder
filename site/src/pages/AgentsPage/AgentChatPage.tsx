@@ -19,6 +19,7 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
+	chatDebugRuns,
 	chatDesktopEnabled,
 	chatKey,
 	chatMessagesForInfiniteScroll,
@@ -105,6 +106,10 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+// Cadence for the lightweight Debug-tab existence check while a turn is in
+// flight. Idle chats fetch once on mount and do not poll.
+const DEBUG_RUNS_EXISTENCE_POLL_MS = 5_000;
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
@@ -1061,6 +1066,30 @@ const AgentChatPage: FC = () => {
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+	// Surface the Debug tab whenever a chat has captured debug runs, even
+	// when full debug logging is off (errors are captured by default). This
+	// existence check shares the Debug panel's query key, so react-query
+	// dedupes them. To avoid polling idle chats, it fetches once on mount
+	// and only polls while a turn is in flight and no run has been found.
+	// Terminal states (error/completed/interrupted) do not poll: a
+	// non-generic error never creates a run, and polling it would loop
+	// indefinitely. The Debug panel keeps its own polling while open.
+	const chatTurnInFlight =
+		liveChatStatus === "pending" ||
+		liveChatStatus === "running" ||
+		liveChatStatus === "interrupting" ||
+		liveChatStatus === "requires_action";
+	const chatDebugRunsQuery = useQuery({
+		...chatDebugRuns(agentId ?? ""),
+		enabled: Boolean(agentId),
+		refetchInterval: (query) => {
+			const hasRuns = (query.state.data?.length ?? 0) > 0;
+			return hasRuns || !chatTurnInFlight
+				? false
+				: DEBUG_RUNS_EXISTENCE_POLL_MS;
+		},
+	});
+	const hasDebugRuns = (chatDebugRunsQuery.data?.length ?? 0) > 0;
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord,
@@ -1645,6 +1674,7 @@ const AgentChatPage: FC = () => {
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
 			debugLoggingEnabled={debugLoggingEnabled}
+			hasDebugRuns={hasDebugRuns}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}

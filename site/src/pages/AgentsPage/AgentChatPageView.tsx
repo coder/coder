@@ -166,6 +166,7 @@ interface AgentChatPageViewProps {
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
 	debugLoggingEnabled: boolean;
+	hasDebugRuns: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -346,6 +347,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	prNumber,
 	diffStatusData,
 	debugLoggingEnabled,
+	hasDebugRuns,
 	gitWatcher,
 	sshCommand,
 	handleCommit,
@@ -507,7 +509,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// sync. Desktop is ordered before terminals so terminals are rightmost.
 	const builtInSidebarTabConfigs = [
 		{ id: "git", label: "Git" },
-		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
+		// Show the Debug tab when the user enabled full debug logging or
+		// whenever the chat already has captured debug runs (errors are
+		// captured even with logging off).
+		...(debugLoggingEnabled || hasDebugRuns
+			? [{ id: "debug", label: "Debug" }]
+			: []),
 		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
 		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];

@@ -157,6 +157,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 			typeof AgentChatPageView
 		>["diffStatusData"],
 		debugLoggingEnabled: false,
+		hasDebugRuns: false,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
 		handleCommit: fn(),
@@ -392,6 +393,68 @@ index abc1234..def5678 100644
 +logger.info("Starting server...");
  start(port);`,
 		});
+	},
+};
+
+/**
+ * The Debug tab is shown when the chat has captured debug runs even if the
+ * user has not enabled full debug logging (errors are captured by default).
+ */
+export const DebugTabVisibleWithRuns: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			debugLoggingEnabled={false}
+			hasDebugRuns
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("tab", { name: "Debug" }),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * The Debug tab is shown when full debug logging is enabled, regardless of
+ * whether any runs exist yet.
+ */
+export const DebugTabVisibleWithLogging: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			debugLoggingEnabled
+			hasDebugRuns={false}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("tab", { name: "Debug" }),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * The Debug tab is hidden when logging is off and the chat has no debug runs.
+ */
+export const DebugTabHiddenWithoutRunsOrLogging: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			showSidebarPanel
+			debugLoggingEnabled={false}
+			hasDebugRuns={false}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The Git tab is always present, so once it renders we can assert the
+		// Debug tab is absent without racing the initial paint.
+		await canvas.findByRole("tab", { name: "Git" });
+		expect(
+			canvas.queryByRole("tab", { name: "Debug" }),
+		).not.toBeInTheDocument();
 	},
 };
 

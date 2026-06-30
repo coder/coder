@@ -159,7 +159,7 @@ func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
 	svc := NewService(db, testutil.Logger(t), nil)
 
-	handle, enriched := beginStep(ctx, svc, RecorderOptions{OwnerID: ownerID}, OperationGenerate, nil)
+	handle, enriched := beginStep(ctx, svc, RecorderOptions{OwnerID: ownerID, FullRecording: true}, OperationGenerate, nil)
 	require.NotNil(t, handle)
 	require.Equal(t, runChatID, handle.stepCtx.ChatID)
 

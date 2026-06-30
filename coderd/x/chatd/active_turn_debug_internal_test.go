@@ -49,7 +49,7 @@ func TestRunnerDebugTurnEnsureCreatesOnce(t *testing.T) {
 		}).Times(1)
 
 	debug := &generationDebug{
-		Enabled:             true,
+		FullRecording:       true,
 		Service:             svc,
 		Provider:            "anthropic",
 		Model:               "claude",
@@ -86,7 +86,7 @@ func TestRunnerDebugTurnEnsureDisabledFirstAttemptStaysDisabled(t *testing.T) {
 	require.False(t, ok)
 
 	secondCtx := turn.Ensure(ctx, chat, &generationDebug{
-		Enabled:          true,
+		FullRecording:    true,
 		Service:          svc,
 		TriggerMessageID: 1,
 		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
@@ -144,7 +144,7 @@ func TestRunnerDebugTurnFinalizeOnce(t *testing.T) {
 		}).Times(1)
 
 	turn.Ensure(ctx, database.Chat{ID: chatID}, &generationDebug{
-		Enabled:          true,
+		FullRecording:    true,
 		Service:          svc,
 		TriggerMessageID: 1,
 		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
