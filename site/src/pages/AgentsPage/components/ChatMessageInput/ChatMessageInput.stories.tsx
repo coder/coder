@@ -120,7 +120,7 @@ export const ArrowKeysSelectHighlightedSkill: Story = {
 		await findVisibleText("/compact");
 		await userEvent.keyboard("{ArrowDown}{Enter}");
 		await waitFor(() => {
-			expect(editor.textContent).toBe("/reviewer");
+			expect(editor.textContent).toBe("/docs");
 		});
 	},
 };
