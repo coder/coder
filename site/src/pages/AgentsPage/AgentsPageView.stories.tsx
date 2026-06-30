@@ -426,7 +426,6 @@ const meta: Meta<typeof AgentsPageView> = {
 				},
 			],
 			unsupported_providers: [],
-			ai_gateway_disabled: false,
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{

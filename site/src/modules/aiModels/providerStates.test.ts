@@ -43,7 +43,6 @@ describe("deriveProviderStates", () => {
 				{ ...MockChatModelProvider, provider: "google" },
 			],
 			unsupported_providers: [],
-			ai_gateway_disabled: false,
 		};
 		const modelConfigs = [
 			{ ...MockChatModelConfig, id: "m-vercel", provider: "vercel" },
@@ -121,7 +120,6 @@ describe("deriveProviderStates", () => {
 				{ ...MockChatModelProvider, provider: "openai", available: true },
 			],
 			unsupported_providers: [],
-			ai_gateway_disabled: false,
 		};
 
 		const states = deriveProviderStates([], null, catalog);
@@ -159,7 +157,6 @@ describe("deriveProviderStates", () => {
 				},
 			],
 			unsupported_providers: [],
-			ai_gateway_disabled: false,
 		};
 
 		const states = deriveProviderStates([], null, catalog);
@@ -193,7 +190,6 @@ describe("deriveProviderStates", () => {
 				},
 			],
 			unsupported_providers: [],
-			ai_gateway_disabled: false,
 		};
 
 		const states = deriveProviderStates([], providerConfigs, catalog);

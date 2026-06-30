@@ -3176,7 +3176,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "ai_gateway_disabled": true,
   "providers": [
     {
       "available": true,
@@ -3203,11 +3202,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                   |
-|-------------------------|-------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_disabled`   | boolean                                                                       | false    |              | Ai gateway disabled reports that the in-memory AI Gateway is disabled at the deployment level. When true, no chat operation can succeed regardless of providers configured. The client should render a banner instructing the user to contact their deployment administrator. |
-| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                                                                                                                                                                               |
-| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state.                                                                                                                                                        |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                            |
+|-------------------------|-------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                        |
+| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state. |
 
 ## codersdk.ChatPlanMode
 

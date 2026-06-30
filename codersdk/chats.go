@@ -704,12 +704,6 @@ type ChatModelsResponse struct {
 	// UnsupportedProviders lists configured providers the Agents harness
 	// cannot use, so the UI can explain the empty state.
 	UnsupportedProviders []ChatUnsupportedProvider `json:"unsupported_providers"`
-	// AIGatewayDisabled reports that the in-memory AI Gateway is disabled
-	// at the deployment level. When true, no chat operation can succeed
-	// regardless of providers configured. The client should render a
-	// banner instructing the user to contact their deployment
-	// administrator.
-	AIGatewayDisabled bool `json:"ai_gateway_disabled"`
 }
 
 // ChatUnsupportedProvider is a configured provider the Agents harness cannot

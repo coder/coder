@@ -590,7 +590,6 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
-  "ai_gateway_disabled": true,
   "providers": [
     {
       "available": true,

@@ -1345,15 +1345,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	// When AI Gateway is disabled at the deployment level, chat cannot
-	// function regardless of provider configuration. Surface the signal
-	// so the UI can render a clear banner instead of an empty catalog.
-	if !api.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatModelsResponse{
-			AIGatewayDisabled: true,
-		})
-		return
-	}
 	apiKey := httpmw.APIKey(r)
 	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID)
 	if err != nil {

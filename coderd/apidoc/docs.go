@@ -17539,10 +17539,6 @@ const docTemplate = `{
         "codersdk.ChatModelsResponse": {
             "type": "object",
             "properties": {
-                "ai_gateway_disabled": {
-                    "description": "AIGatewayDisabled reports that the in-memory AI Gateway is disabled\nat the deployment level. When true, no chat operation can succeed\nregardless of providers configured. The client should render a\nbanner instructing the user to contact their deployment\nadministrator.",
-                    "type": "boolean"
-                },
                 "providers": {
                     "type": "array",
                     "items": {

@@ -620,6 +620,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 ];
 
 export const MockTasksTabVisible: boolean = false;
+export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
