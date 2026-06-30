@@ -219,6 +219,12 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// Keyed by address so the copy from planned values overwrites the copy
 	// from the prior state during plan.
 	tfResourcesScriptOrder := map[string]scriptOrderDataSource{}
+	// Legacy coder_agent.startup_script scripts that resolve to an
+	// attached agent. Populated alongside resourceAgents below and
+	// merged into orderableScripts so coder_script_order rules can
+	// reference coder_agent.<name> directly, without requiring
+	// templates to migrate to coder_script resources first.
+	var legacyAgentOrderableScripts []*orderableScript
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -366,8 +372,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			ApiKeyScope:              attrs.APIKeyScope,
 		}
 		// Support the legacy script attributes in the agent!
+		var legacyStartupScript *proto.Script
+		var legacyStartupOrderable *orderableScript
 		if attrs.StartupScript != "" {
-			agent.Scripts = append(agent.Scripts, &proto.Script{
+			legacyStartupScript = &proto.Script{
 				// This is ▶️
 				Icon:             "/emojis/25b6-fe0f.png",
 				LogPath:          "coder-startup-script.log",
@@ -375,7 +383,31 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				Script:           attrs.StartupScript,
 				StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
 				RunOnStart:       true,
-			})
+			}
+			// Id is not a real database identifier (legacy inline scripts
+			// are not their own Terraform resource and have no "id"
+			// attribute); coderd always assigns the real script id
+			// separately. It only exists so coder_script_order rules can
+			// reference this script as a dependency, using the same
+			// correlation mechanism as coder_script's real id. Set only
+			// when the template actually declares coder_script_order, so
+			// templates that do not use the feature see no change to their
+			// converted state.
+			if len(tfResourcesScriptOrder) > 0 {
+				legacyStartupScript.Id = tfResource.Address
+			}
+			agent.Scripts = append(agent.Scripts, legacyStartupScript)
+			// Appended unconditionally, like coder_script orderables, with
+			// owner left nil until the agent is confirmed attached below. An
+			// orderable with a nil owner resolves selectors as "unattached"
+			// rather than "unknown", so rules referencing it during stop
+			// builds (when the agent has no compute resource) stay inert
+			// instead of failing validation.
+			legacyStartupOrderable = &orderableScript{
+				address: tfResource.Address,
+				script:  legacyStartupScript,
+			}
+			legacyAgentOrderableScripts = append(legacyAgentOrderableScripts, legacyStartupOrderable)
 		}
 		if attrs.ShutdownScript != "" {
 			agent.Scripts = append(agent.Scripts, &proto.Script{
@@ -443,6 +475,14 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 		agents = append(agents, agent)
 		resourceAgents[agentResource.Label] = agents
+
+		// The agent is attached to a real compute resource, so its legacy
+		// inline startup script can participate in coder_script_order rules
+		// via the coder_agent.<name> selector.
+		if legacyStartupOrderable != nil {
+			legacyStartupOrderable.owner = agent
+			legacyStartupOrderable.ownerName = agent.Name
+		}
 	}
 
 	// Associate Dev Containers with agents.
@@ -705,7 +745,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	// Resolve coder_script_order rules into dependencies on the scripts
-	// associated above.
+	// associated above, plus any legacy coder_agent inline startup scripts.
+	orderableScripts = append(orderableScripts, legacyAgentOrderableScripts...)
 	scriptOrderWarns, err := applyScriptOrder(tfResourcesScriptOrder, orderableScripts)
 	if err != nil {
 		return nil, err

@@ -26,13 +26,15 @@ const (
 //
 //	coder_script.<name>
 //	coder_script.<name>[<index>]
+//	coder_agent.<name>           (the agent's legacy inline startup_script)
 //	module.<name>(.module.<name>...)
 //	module.<name>(.module.<name>...).coder_script.<name>
+//	module.<name>(.module.<name>...).coder_agent.<name>
 //
 // Index keys may be integers or quoted strings (count / for_each). This
 // mirrors the validation in terraform-provider-coder.
 var scriptOrderSelectorRe = regexp.MustCompile(
-	`^(module\.[\w-]+(\[[^\]]+\])?(\.module\.[\w-]+(\[[^\]]+\])?)*(\.coder_script\.[\w-]+(\[[^\]]+\])?)?|coder_script\.[\w-]+(\[[^\]]+\])?)$`,
+	`^(module\.[\w-]+(\[[^\]]+\])?(\.module\.[\w-]+(\[[^\]]+\])?)*(\.(coder_script|coder_agent)\.[\w-]+(\[[^\]]+\])?)?|coder_script\.[\w-]+(\[[^\]]+\])?|coder_agent\.[\w-]+(\[[^\]]+\])?)$`,
 )
 
 // scriptOrderDataSource is a coder_script_order data source found in
@@ -236,7 +238,7 @@ func resolveScriptOrderSelector(ds scriptOrderDataSource, selector string, scrip
 		return nil, xerrors.New("selector must not be empty")
 	}
 	if !scriptOrderSelectorRe.MatchString(selector) {
-		return nil, xerrors.Errorf("invalid selector %q: expected coder_script.<name> or module.<name>, optionally nested or indexed", selector)
+		return nil, xerrors.Errorf("invalid selector %q: expected coder_script.<name>, coder_agent.<name>, or module.<name>, optionally nested or indexed", selector)
 	}
 
 	prefix := selector
@@ -285,9 +287,9 @@ func resolveScriptOrderSelector(ds scriptOrderDataSource, selector string, scrip
 	}
 	sort.Strings(candidates)
 	if len(candidates) == 0 {
-		return nil, xerrors.Errorf("selector %q matches no coder_script in %s, which contains no coder_script resources", selector, scope)
+		return nil, xerrors.Errorf("selector %q matches nothing in %s, which contains no coder_script resources and no coder_agent with a startup_script", selector, scope)
 	}
-	return nil, xerrors.Errorf("selector %q matches no coder_script in %s; coder_script addresses in scope: %s", selector, scope, strings.Join(candidates, ", "))
+	return nil, xerrors.Errorf("selector %q matches nothing in %s; orderable addresses in scope: %s", selector, scope, strings.Join(candidates, ", "))
 }
 
 // addressHasPrefix reports whether address equals prefix or extends it at a
