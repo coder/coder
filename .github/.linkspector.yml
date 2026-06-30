@@ -34,5 +34,7 @@ ignorePatterns:
   - pattern: "platform.openai.com"
   - pattern: "api.openai.com"
   - pattern: "openai.com"
+  # merriam-webster.com returns 403 from GitHub runner IPs
+  - pattern: "merriam-webster.com"
 aliveStatusCodes:
   - 200

@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { BadgeCheckIcon, CheckIcon } from "lucide-react";
 import { useId } from "react";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
@@ -8,6 +8,7 @@ type ModuleCardProps = {
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
+	official?: boolean;
 	selected?: boolean;
 	onSelect?: () => void;
 };
@@ -17,6 +18,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 	description,
 	iconUrl,
 	detailsUrl,
+	official = true,
 	selected = false,
 	onSelect,
 }) => {
@@ -65,8 +67,14 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 			</div>
 
 			<div>
-				<h3 id={nameId} className="text-md font-semibold text-content-primary">
+				<h3
+					id={nameId}
+					className="flex items-center gap-1.5 text-md font-semibold text-content-primary"
+				>
 					{name}
+					{official && (
+						<BadgeCheckIcon className="size-4 text-highlight-sky shrink-0" />
+					)}
 				</h3>
 				<p className="text-sm font-normal text-content-secondary">
 					{description}
