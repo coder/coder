@@ -243,6 +243,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				onBlur={form.handleBlur}
 				error={Boolean(form.errors.max_uses_per_run)}
 				disabled={isFormDisabled}
+				className="w-32"
 			/>
 			<CompactIntegerField
 				id={maxOutputTokensId}
@@ -256,6 +257,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				onBlur={form.handleBlur}
 				error={Boolean(form.errors.max_output_tokens)}
 				disabled={isFormDisabled}
+				className="w-40"
 			/>
 			<Select
 				value={selectedModelValue}
@@ -319,6 +321,7 @@ interface CompactIntegerFieldProps {
 	onBlur: (event: React.FocusEvent<HTMLInputElement>) => void;
 	error?: boolean;
 	disabled?: boolean;
+	className?: string;
 }
 
 const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
@@ -331,13 +334,15 @@ const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
 	onBlur,
 	error,
 	disabled,
+	className,
 }) => {
 	return (
 		<label
 			className={cn(
-				"grid h-10 w-40 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
+				"grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
 				error && "border-border-destructive",
 				disabled && "opacity-50",
+				className,
 			)}
 		>
 			<input
