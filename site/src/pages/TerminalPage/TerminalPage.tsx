@@ -31,6 +31,27 @@ import { openMaybePortForwardedURL } from "#/utils/portForward";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
 import { TerminalCommandConsentDialog } from "./TerminalCommandConsentDialog";
 
+/**
+ * Builds a contextual terminal label that includes the agent name and
+ * container name when available, so multiple terminal tabs are
+ * distinguishable at a glance.
+ */
+function buildTerminalLabel(
+	agentName?: string,
+	containerName?: string,
+): string {
+	if (agentName && containerName) {
+		return `Terminal (${agentName}: ${containerName})`;
+	}
+	if (agentName) {
+		return `Terminal (${agentName})`;
+	}
+	if (containerName) {
+		return `Terminal (${containerName})`;
+	}
+	return "Terminal";
+}
+
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about
@@ -44,6 +65,7 @@ const TerminalPage: FC = () => {
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [commandConfirmed, setCommandConfirmed] = useState(false);
+	const [terminalTitle, setTerminalTitle] = useState<string | undefined>();
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -152,7 +174,8 @@ const TerminalPage: FC = () => {
 			{workspace.data && (
 				<title>
 					{pageTitle(
-						"Terminal",
+						terminalTitle ??
+							buildTerminalLabel(workspaceAgent?.name, containerName),
 						`${workspace.data.owner_name}/${workspace.data.name}`,
 					)}
 				</title>
@@ -175,6 +198,7 @@ const TerminalPage: FC = () => {
 					containerUser={containerUser}
 					onStatusChange={setConnectionStatus}
 					onError={handleTerminalError}
+					onTitleChange={setTerminalTitle}
 					reconnectionToken={reconnectionToken}
 					baseUrl={terminalConfig.baseUrl}
 					terminalFontFamily={terminalConfig.fontFamily}
