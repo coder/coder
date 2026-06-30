@@ -114,7 +114,7 @@ describe("toolVisibility", () => {
 			).toBe(false);
 		});
 
-		it("hides running close_agent rows until chat_id is available", () => {
+		it("hides running close_agent (legacy alias) rows until chat_id is available", () => {
 			expect(
 				shouldRenderTool({
 					name: "close_agent",
@@ -123,6 +123,28 @@ describe("toolVisibility", () => {
 					result: { status: "running" },
 				}),
 			).toBe(false);
+		});
+
+		it("hides running interrupt_agent rows until chat_id is available", () => {
+			expect(
+				shouldRenderTool({
+					name: "interrupt_agent",
+					status: "running",
+					args: {},
+					result: { status: "running" },
+				}),
+			).toBe(false);
+		});
+
+		it("renders list_agents rows even without a chat_id", () => {
+			expect(
+				shouldRenderTool({
+					name: "list_agents",
+					status: "running",
+					args: {},
+					result: undefined,
+				}),
+			).toBe(true);
 		});
 
 		it("renders running lifecycle rows once args provide the chat_id", () => {
@@ -136,7 +158,7 @@ describe("toolVisibility", () => {
 			).toBe(true);
 		});
 
-		it("renders completed lifecycle rows even if chat_id is absent", () => {
+		it("renders completed close_agent (legacy alias) rows even if chat_id is absent", () => {
 			expect(
 				shouldRenderTool({
 					name: "close_agent",

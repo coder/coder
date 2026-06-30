@@ -12,6 +12,7 @@ coder:
   # - CODER_TLS_KEY_FILE: set if tls.secretName is not empty.
   # - KUBE_POD_IP
   # - CODER_DERP_SERVER_RELAY_URL
+  # - CODER_CLUSTER_HOST: set to the pod IP
   #
   # The following environment variables have defaults but CAN be overridden:
   # - CODER_PROMETHEUS_ADDRESS: defaults to 0.0.0.0:2112. Override to restrict
@@ -436,6 +437,46 @@ coder:
       # use for the wildcard host.
       wildcardSecretName: ""
 
+  # coder.listenerset -- The ListenerSet object to expose for Coder.
+  # ListenerSet graduated to the Standard channel in Gateway API v1.5.0.
+  # Ensure Gateway API v1.5.0+ CRDs are installed, your Gateway controller
+  # supports ListenerSet, and the parent Gateway has allowedListeners configured.
+  listenerset:
+    # coder.listenerset.enable -- Whether to create the ListenerSet object.
+    enable: false
+    # coder.listenerset.annotations -- The ListenerSet annotations.
+    annotations: {}
+    # coder.listenerset.parentRef -- the parentRef to bind the ListenerSet to
+    #   name: my-gateway
+    #   namespace: gateway-namespace
+    parentRef: {}
+    # coder.listenerset.listeners -- logical endpoints that are bound on the Gateway's addresses
+    # - name: http
+    #   hostname: "chart-example.local"
+    #   port: 80
+    #   protocol: HTTP
+    # - name: http-wildcard
+    #   hostname: "*.chart-example.local"
+    #   port: 80
+    #   protocol: HTTP
+    # - name: https
+    #   hostname: "*.chart-example.local"
+    #   port: 443
+    #   protocol: HTTPS
+    #   tls:
+    #     mode: Terminate
+    #     certificateRefs:
+    #       - name: chart-example-tls
+    # - name: https-wildcard
+    #   hostname: "chart-example.local"
+    #   port: 443
+    #   protocol: HTTPS
+    #   tls:
+    #     mode: Terminate
+    #     certificateRefs:
+    #       - name: chart-example-tls
+    listeners: []
+
   # coder.httproute -- The HTTPRoute object to expose for Coder.
   httproute:
     # coder.httproute.enable -- Whether to create the HTTPRoute object. If using a
@@ -447,6 +488,12 @@ coder:
     #   namespace: gateway-namespace
     #   # sectionName is optional to fix to a specific listener
     #   sectionName: listener-name
+    # - kind: ListenerSet
+    #   name: coder
+    #   port: 80
+    # - kind: ListenerSet
+    #   name: coder
+    #   port: 443
     parentRefs: []
     # coder.httproute.host -- The hostname to match on.
     # Be sure to also set CODER_ACCESS_URL within coder.env[]
@@ -460,6 +507,17 @@ coder:
     wildcardHost: ""
     # coder.httproute.annotations -- The HTTPRoute annotations.
     annotations: {}
+    # coder.httproute.httpsRedirect -- Create an HTTPRoute object to request redirect to https
+    httpsRedirect:
+      # coder.httproute.httpsRedirect.enable -- Whether to create the redirect HTTPRoute object.
+      enable: false
+      # coder.httproute.httpsRedirect.annotations -- The redirect HTTPRoute annotations.
+      annotations: {}
+      # coder.httproute.httpsRedirect.parentRefs -- the parentRefs to bind the route to
+      # - kind: ListenerSet
+      #   name: coder
+      #   port: 80
+      parentRefs: []
 
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.

@@ -20,6 +20,7 @@ import {
 	BaseTemplateParametersStep,
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
+import { BuildingTemplateLoader } from "./BuildingTemplateLoader";
 import { ModuleSelectStep } from "./ModuleSelectStep";
 import {
 	ModuleSettingsStep,
@@ -103,6 +104,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		});
 	};
 
+	if (isCreating) {
+		return <BuildingTemplateLoader />;
+	}
+
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
@@ -112,7 +117,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 					<Link
 						href={docs("/admin/templates")}
 						target="_blank"
-						className="ml-1"
+						className="ml-1 font-normal"
 					>
 						View docs
 					</Link>
@@ -124,13 +129,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					{renderStepContent(
-						currentStep.id,
-						state,
-						dispatch,
-						moduleVarMap,
-						createError,
-					)}
+					<div className="p-6 border border-solid rounded-lg">
+						{renderStepContent(
+							currentStep.id,
+							state,
+							dispatch,
+							moduleVarMap,
+							createError,
+						)}
+					</div>
 
 					{/* Navigation controls */}
 					<div className="flex justify-end mt-6 gap-2">
@@ -141,12 +148,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue || isCreating}>
-							{isCreating
-								? "Creating..."
-								: isLastStep
-									? "Create Template"
-									: "Continue"}
+						<Button onClick={handleNext} disabled={!canContinue}>
+							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
 				</div>

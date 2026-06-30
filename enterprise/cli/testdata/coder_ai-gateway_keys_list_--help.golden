@@ -8,7 +8,7 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -c, --column [id|name|key prefix|created at|last used at] (default: id,name,key prefix,last used at,created at)
+  -c, --column [id|name|key prefix|created at|last heartbeat at] (default: id,name,key prefix,last heartbeat at,created at)
           Columns to display in table output.
 
   -o, --output table|json (default: table)

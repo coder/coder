@@ -28,7 +28,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				<AvatarData
 					title={displayName}
 					avatar={
-						<Avatar className="flex shrink-0 items-center justify-center">
+						<Avatar
+							size="lg"
+							className="flex shrink-0 items-center justify-center"
+						>
 							<ProviderIcon provider={getProviderDisplayType(provider)} />
 						</Avatar>
 					}

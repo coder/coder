@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templateExamples, templates } from "#/api/queries/templates";
 import { type UseFilterResult, useFilter } from "#/components/Filter/Filter";
@@ -33,6 +34,15 @@ const TemplatesPage: FC = () => {
 		),
 	);
 
+	const deploymentConfigQuery = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.createTemplates,
+	});
+	const templateBuilderEnabled =
+		deploymentConfigQuery.isSuccess &&
+		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
+		permissions.createTemplates;
+
 	const error =
 		templatesQuery.error ||
 		examplesQuery.error ||
@@ -46,6 +56,7 @@ const TemplatesPage: FC = () => {
 				filterState={filterState}
 				showOrganizations={showOrganizations}
 				canCreateTemplates={permissions.createTemplates}
+				templateBuilderEnabled={templateBuilderEnabled}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
 				workspacePermissions={workspacePermissionsQuery.data}
