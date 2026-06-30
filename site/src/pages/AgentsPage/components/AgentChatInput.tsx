@@ -936,14 +936,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			return;
 		}
 
+		const sendOptions: AgentChatInputSendOptions | undefined = pursueGoalEnabled
+			? { goalMutation: { action: "set", objective: text } }
+			: undefined;
 		try {
-			if (pursueGoalEnabled) {
-				await onSend(text, {
-					goalMutation: { action: "set", objective: text },
-				});
-			} else {
-				await onSend(text);
-			}
+			await onSend(text, sendOptions);
 		} catch {
 			return;
 		}

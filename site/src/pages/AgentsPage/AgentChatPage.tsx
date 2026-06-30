@@ -576,10 +576,7 @@ export function useConversationEditingState(deps: {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
-		const sendPromise =
-			options === undefined
-				? onSend(message, attachments, editedMessageID)
-				: onSend(message, attachments, editedMessageID, options);
+		const sendPromise = onSend(message, attachments, editedMessageID, options);
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.
