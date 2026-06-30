@@ -274,7 +274,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				disabled={isModelSelectDisabled}
 			>
 				<SelectTrigger
-					className="h-10 w-[22rem] max-w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
+					className="h-10 w-[22rem] max-w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
 					aria-label="Advisor model"
 				>
 					<SelectValue placeholder="Use chat model">

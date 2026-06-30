@@ -112,7 +112,7 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 				>
 					<SelectTrigger
 						aria-label="Computer use provider"
-						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
+						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
 					>
 						<SelectValue placeholder="Select provider">
 							{isLoadingComputerUseProvider ? (
