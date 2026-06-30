@@ -130,6 +130,33 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectedClient: aibridge.ClientUnknown,
 		},
 		{
+			// web_search_call is a hosted tool executed server-side by the
+			// provider. It carries an item id but no call_id, so the recorded
+			// ToolCallID must be empty and the ItemID must be the output item's
+			// id.
+			name:                 "blocking_web_search",
+			fixture:              fixtures.OaiResponsesBlockingWebSearch,
+			expectModel:          "gpt-5.4",
+			expectPromptRecorded: "Search the web for the Example domain.",
+			expectToolRecorded: &recorder.ToolUsageRecord{
+				MsgID:      "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Tool:       "web_search_call",
+				ToolCallID: "",
+				ItemID:     "ws_0b8f5f61bf0dee5f016a43ac7947bc819c945bff3bf2bcdbc9",
+				Injected:   false,
+			},
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Input:  50,
+				Output: 30,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     80,
+				},
+			},
+			expectedClient: aibridge.ClientUnknown,
+		},
+		{
 			name:                 "blocking_conversation",
 			fixture:              fixtures.OaiResponsesBlockingConversation,
 			expectModel:          "gpt-4o-mini",
@@ -261,6 +288,34 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 320,
 					"total_tokens":     404,
+				},
+			},
+			expectedClient: aibridge.ClientUnknown,
+		},
+		{
+			// web_search_call is a hosted tool executed server-side by the
+			// provider. It carries an item id but no call_id, so the recorded
+			// ToolCallID must be empty and the ItemID must be the output item's
+			// id.
+			name:                 "streaming_web_search",
+			fixture:              fixtures.OaiResponsesStreamingWebSearch,
+			streaming:            true,
+			expectModel:          "gpt-5.4",
+			expectPromptRecorded: "Search the web for the Example domain.",
+			expectToolRecorded: &recorder.ToolUsageRecord{
+				MsgID:      "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Tool:       "web_search_call",
+				ToolCallID: "",
+				ItemID:     "ws_0b8f5f61bf0dee5f016a43ac7947bc819c945bff3bf2bcdbc9",
+				Injected:   false,
+			},
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Input:  50,
+				Output: 30,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     80,
 				},
 			},
 			expectedClient: aibridge.ClientUnknown,
