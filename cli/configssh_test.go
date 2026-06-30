@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -899,30 +901,9 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	runConfigSSH()
-	config := sshConfigFileRead(t, sshConfigPath)
-
-	// Each workspace must have its own host entry.
-	require.Contains(t, config, "Host "+ws1.Workspace.Name+".coder")
-	require.Contains(t, config, "Host "+ws2.Workspace.Name+".coder")
-
-	// ws-alpha sorts before ws-beta, so it must appear first despite being
-	// created second.
-	alphaIdx := strings.Index(config, "Host "+ws2.Workspace.Name+".coder")
-	betaIdx := strings.Index(config, "Host "+ws1.Workspace.Name+".coder")
-	require.Less(t, alphaIdx, betaIdx, "expected lexically-earlier workspace to appear first")
-
-	// No wildcard entries must appear in the Coder section.
-	require.NotContains(t, config, "Host *.coder")
-	require.NotContains(t, config, "Host *.")
-
-	// The no-wildcard option must be persisted in the header.
-	require.Contains(t, config, "# :no-wildcard=true")
-
-	// Running the command again must yield the same host-entry order, confirming
-	// that the ordering is stable across runs. (ProxyCommand lines embed the
-	// temp global-config path and differ per invocation, so we compare only the
-	// Host lines.)
+	// hostLines extracts lines beginning with "Host " from the SSH config.
+	// ProxyCommand lines embed a per-invocation temp path and are excluded so
+	// that two runs with different global-config dirs can still be compared.
 	hostLines := func(s string) []string {
 		var out []string
 		for line := range strings.SplitSeq(s, "\n") {
@@ -932,6 +913,31 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		}
 		return out
 	}
+
 	runConfigSSH()
-	require.Equal(t, hostLines(config), hostLines(sshConfigFileRead(t, sshConfigPath)))
+	config := sshConfigFileRead(t, sshConfigPath)
+
+	// The server always injects a "coder." hostname prefix in addition to the
+	// user-supplied "--hostname-suffix coder" entries. With stable workspace
+	// names we can assert the complete, ordered host-entry list exactly.
+	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
+	wantHosts := []string{
+		"Host coder." + ws2.Workspace.Name, // coder.ws-alpha
+		"Host coder." + ws1.Workspace.Name, // coder.ws-beta
+		"Host " + ws2.Workspace.Name + ".coder", // ws-alpha.coder
+		"Host " + ws1.Workspace.Name + ".coder", // ws-beta.coder
+	}
+	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
+
+	// No wildcard entries must appear in the Coder section.
+	require.NotContains(t, config, "Host *.coder")
+	require.NotContains(t, config, "Host *.")
+
+	// The no-wildcard option must be persisted in the header.
+	require.Contains(t, config, "# :no-wildcard=true")
+
+	// Running the command again must yield identical host entries, confirming
+	// that the ordering is stable across runs.
+	runConfigSSH()
+	require.Empty(t, cmp.Diff(wantHosts, hostLines(sshConfigFileRead(t, sshConfigPath))))
 }
