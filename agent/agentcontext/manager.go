@@ -59,8 +59,7 @@ type Source struct {
 	// trusted marks sources seeded from the trusted boot path
 	// (ManagerOptions.InitialSources or SeedSources). Trusted
 	// sources bypass the AllowedRoots re-validation that
-	// scanRootsLocked applies to user-added sources, matching
-	// SeedSources' deliberate validation bypass.
+	// scanRootsLocked applies to user-added sources.
 	trusted bool
 }
 
@@ -598,15 +597,10 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		}
 		out = append(out, ScanRoot{Path: canonical, Builtin: true})
 	}
-	// Re-validate user sources at scan time. A source keeps its
-	// lexical (unresolved) identity for stable CRUD, but the
-	// resolver must only ever walk a path whose RESOLVED target is
-	// still inside the allowed roots. Re-canonicalizing here closes
-	// the window where a symlink that validated at AddSource time is
-	// later repointed outside the boundary, and it hands the
-	// resolved path to the resolver so the walk never re-follows the
-	// link. Trusted (seeded) sources bypass the allow-list, matching
-	// SeedSources.
+	// Re-canonicalize and re-validate at scan time so a symlink
+	// repointed out of bounds after AddSource is dropped, then hand
+	// the resolved path to the resolver so the walk does not
+	// re-follow the link.
 	allowed := m.effectiveAllowedRoots()
 	for _, s := range m.sources {
 		resolved, err := CanonicalizePath(s.Path)
@@ -616,6 +610,7 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 				slog.F("source", s.Path), slog.Error(err))
 			continue
 		}
+		// Trusted (seeded) sources bypass the allow-list.
 		if !s.trusted {
 			if err := ValidateSourcePath(resolved, allowed); err != nil {
 				m.logger.Debug(context.Background(),
