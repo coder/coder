@@ -17,8 +17,7 @@ const (
 	// ClearEnvVars still strips them from the environment. The agent
 	// no longer honors a custom instruction or skill-meta filename:
 	// the context resolver keys on fixed conventional names
-	// (AGENTS.md, CLAUDE.md, .cursorrules, and SKILL.md). Nothing
-	// parses these values.
+	// (AGENTS.md, CLAUDE.md, .cursorrules, and SKILL.md).
 	EnvInstructionsFile = "CODER_AGENT_EXP_INSTRUCTIONS_FILE"
 	EnvSkillMetaFile    = "CODER_AGENT_EXP_SKILL_META_FILE"
 )
@@ -62,10 +61,9 @@ func ReadEnvConfig() Config {
 	}.applyDefaults()
 }
 
-// envVarKeys returns every CODER_AGENT_EXP_* env var key
-// recognized by the context configuration subsystem, including
-// the ignored filename overrides so ClearEnvVars still strips
-// them.
+// envVarKeys returns every CODER_AGENT_EXP_* env var key used by
+// the context configuration subsystem, including the ignored
+// filename overrides so ClearEnvVars still strips them.
 func envVarKeys() []string {
 	return []string{
 		EnvInstructionsDirs, EnvInstructionsFile,
