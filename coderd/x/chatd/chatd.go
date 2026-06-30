@@ -4789,17 +4789,6 @@ func (p *Server) dispatchSuccessfulTurnPush(
 	p.dispatchPush(ctx, chat, pushBody, database.ChatStatusWaiting, logger)
 }
 
-func (p *Server) maybeClearLastTurnSummaryAsync(
-	ctx context.Context,
-	chat database.Chat,
-	logger slog.Logger,
-) {
-	if chat.ParentChatID.Valid {
-		return
-	}
-	p.clearLastTurnSummaryAsync(ctx, chat, logger)
-}
-
 func (p *Server) setLastTurnSummaryAsync(
 	ctx context.Context,
 	chat database.Chat,
