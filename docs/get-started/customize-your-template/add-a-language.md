@@ -7,7 +7,8 @@ In this guide, you add Ruby as an option.
 
 > [!NOTE]
 > This guide assumes your Quickstart template is open for editing.
-> If it's not, refer to [Customize workspace startup](./index.md#open-the-template-for-editing).
+> If it's not, you can edit the template from the web by finding the template, selecting the three dots menu, and selecting **Edit files**.
+> Refer to [Customize workspace startup](./index.md#open-the-template-for-editing) for more information.
 
 ## What you'll do
 
@@ -51,8 +52,7 @@ Adding an `option` adds a choice to that list.
 ## Step 1: Add the Ruby option
 
 In `main.tf`, find the `data "coder_parameter" "languages"` block.
-Add a Ruby `option` after the last existing option, before the parameter's
-closing brace:
+Add a Ruby `option` after the last existing option, before the parameter's closing brace:
 
 ```tf
   option {

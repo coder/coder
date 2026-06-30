@@ -180,8 +180,9 @@ To make Homebrew survive a restart, you'll edit the template and add a persisten
 The volume backs `/home/linuxbrew`, the prefix where Homebrew installs, so Homebrew and its formulae stay between restarts.
 
 > [!NOTE]
-> This step edits the template.
-> If it isn't open for editing, refer to [Customize workspace startup](./index.md#open-the-template-for-editing).
+> This step assumes your Quickstart template is open for editing.
+> If it's not, you can edit the template from the web by finding the template, selecting the three dots menu, and selecting **Edit files**.
+> Refer to [Customize workspace startup](./index.md#open-the-template-for-editing) for more information.
 
 In `main.tf`, add a volume for Homebrew's directory next to the existing `home_volume`:
 

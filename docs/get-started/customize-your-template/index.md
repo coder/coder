@@ -65,7 +65,9 @@ Open it for editing now, either in the Coder web editor or in your local editor 
 2. Find the **Coder Quickstart** template you created and open it.
 3. Select the three-dots menu next to **Create Workspace**, then select **Edit files**.
 
-The template web editor opens.
+The template web editor opens:
+
+![Coder template web editor](../../images/screenshots/template-web-editor.png)_Coder template web editor_
 
 ### CLI
 
@@ -84,7 +86,7 @@ Then pull the template:
 coder templates pull quickstart ~/coder-quickstart
 ```
 
-Open the `~/coder-quickstart` folder in your editor.
+Open the `~/coder-quickstart` folder in your preferred editor.
 
 </div>
 
