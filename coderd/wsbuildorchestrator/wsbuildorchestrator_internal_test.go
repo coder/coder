@@ -326,7 +326,7 @@ func (s *lookupErrorStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(co
 	}, nil
 }
 
-func (s *lookupErrorStore) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (
+func (*lookupErrorStore) GetWorkspaceBuildByID(_ context.Context, id uuid.UUID) (
 	database.WorkspaceBuild, error,
 ) {
 	return database.WorkspaceBuild{ID: id, JobID: uuid.New()}, nil
