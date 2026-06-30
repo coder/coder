@@ -148,6 +148,10 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 		flags += " --disable-autostart=true"
 	}
 
+	// TODO: this function has grown complex enough that it would benefit from
+	// being rewritten using text/template rather than manual buf.WriteString
+	// and fmt.Fprintf calls.
+
 	// Prefix block:
 	if o.userHostPrefix != "" {
 		if o.noWildcard {
