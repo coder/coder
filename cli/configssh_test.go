@@ -14,10 +14,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/google/go-cmp/cmp"
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -922,8 +921,8 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	// names we can assert the complete, ordered host-entry list exactly.
 	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
 	wantHosts := []string{
-		"Host coder." + ws2.Workspace.Name, // coder.ws-alpha
-		"Host coder." + ws1.Workspace.Name, // coder.ws-beta
+		"Host coder." + ws2.Workspace.Name,      // coder.ws-alpha
+		"Host coder." + ws1.Workspace.Name,      // coder.ws-beta
 		"Host " + ws2.Workspace.Name + ".coder", // ws-alpha.coder
 		"Host " + ws1.Workspace.Name + ".coder", // ws-beta.coder
 	}
