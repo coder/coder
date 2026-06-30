@@ -48,9 +48,9 @@ var proxyHeaders = []string{
 }
 
 // agentFirewallHeaders carry Agent Firewall correlation data used by
-// AI Bridge for session correlation. They are stripped before
-// forwarding to upstream LLM providers as a safety net; the primary
-// strip happens in the interception processor.
+// AI Gateway for session correlation. AI Gateway records the values
+// from the incoming request and strips the headers here so they are
+// never forwarded to upstream LLM providers.
 var agentFirewallHeaders = []string{
 	"X-Coder-Agent-Firewall-Session-Id",
 	"X-Coder-Agent-Firewall-Sequence-Number",

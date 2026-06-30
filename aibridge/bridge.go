@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sony/gobreaker/v2"
 	"go.opentelemetry.io/otel/codes"
@@ -247,17 +248,17 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		client := GuessClient(r)
 		sessionID := GuessSessionID(client, r)
 
-		// Read and validate Agent Firewall correlation headers before
-		// CreateInterceptor so the interceptor never sees them.
-		// Fail closed: reject the request if headers are partial or malformed.
+		// Read and validate Agent Firewall correlation headers. The
+		// values are captured here and recorded below; the headers
+		// themselves are stripped from the upstream request by
+		// PrepareClientHeaders. Fail closed: reject the request if the
+		// headers are partial or malformed.
 		agentFirewallSessionID, agentFirewallSeqNumber, err := extractAgentFirewallHeaders(r)
 		if err != nil {
 			logger.Warn(ctx, "rejecting request with invalid agent firewall headers", slog.Error(err))
 			http.Error(w, "invalid agent firewall headers", http.StatusBadRequest)
 			return
 		}
-		r.Header.Del(agplaibridge.HeaderAgentFirewallSessionID)
-		r.Header.Del(agplaibridge.HeaderAgentFirewallSequenceNumber)
 
 		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
 		if err != nil {
@@ -480,9 +481,9 @@ func mergeContexts(base, other context.Context) context.Context {
 
 // extractAgentFirewallHeaders reads and parses the Agent Firewall
 // correlation headers from the request. Both headers must be present
-// together with a valid int32 sequence number, or both must be absent.
-// Partial or malformed headers return an error so the caller can
-// reject the request (fail closed).
+// together with a valid UUID session ID and a non-negative int32
+// sequence number, or both must be absent. Partial or malformed headers
+// return an error so the caller can reject the request (fail closed).
 func extractAgentFirewallHeaders(r *http.Request) (sessionID *string, seqNumber *int32, err error) {
 	rawSessionID := r.Header.Get(agplaibridge.HeaderAgentFirewallSessionID)
 	rawSeqNumber := r.Header.Get(agplaibridge.HeaderAgentFirewallSequenceNumber)
@@ -500,10 +501,20 @@ func extractAgentFirewallHeaders(r *http.Request) (sessionID *string, seqNumber 
 		return nil, nil, xerrors.Errorf("agent firewall sequence number header present without session ID")
 	}
 
-	// Both headers present; parse the sequence number.
+	// Both headers present; validate the session ID is a UUID. Storing an
+	// invalid value would silently drop the firewall correlation to NULL
+	// downstream, so reject it here instead.
+	if _, parseErr := uuid.Parse(rawSessionID); parseErr != nil {
+		return nil, nil, xerrors.Errorf("invalid agent firewall session ID %q: %w", rawSessionID, parseErr)
+	}
+
+	// Parse the sequence number.
 	n, err := strconv.ParseInt(rawSeqNumber, 10, 32)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: %w", rawSeqNumber, err)
+	}
+	if n < 0 {
+		return nil, nil, xerrors.Errorf("invalid agent firewall sequence number %q: must be non-negative", rawSeqNumber)
 	}
 
 	n32 := int32(n)
