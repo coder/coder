@@ -2887,17 +2887,10 @@ func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsa
 	return chatUsage
 }
 
-// recordHiddenUsageMessageTx records non-turn spend (background summary or
-// manual title generation) as a hidden, soft-deleted accounting message tagged
-// with costSource. It runs inside the caller's transaction against the
-// already-locked chat and does not touch any user-visible chat field.
-// costSource also labels the wrapped errors.
-//
-// cost_source is set on the initial INSERT via InsertChatAccountingMessage so
-// the AFTER STATEMENT history triggers recognize the row as accounting spend
-// and do not advance chats.history_version. Advancing it would invalidate the
-// turn summary write guarded on history_version. The accounting insert also
-// leaves chats.last_model_config_id untouched, so there is nothing to restore.
+// recordHiddenUsageMessageTx records non-turn spend (summary or title) as a
+// hidden, soft-deleted accounting row tagged with costSource. cost_source is set
+// on the INSERT so the history triggers skip the row (see
+// InsertChatAccountingMessage).
 func recordHiddenUsageMessageTx(
 	ctx context.Context,
 	tx database.Store,
@@ -2918,8 +2911,8 @@ func recordHiddenUsageMessageTx(
 		callConfig.Cost,
 	)
 
-	// MarshalParts returns a null NullRawMessage for empty slices, which becomes
-	// an empty string that PostgreSQL rejects as invalid JSON.
+	// Marshaling empty parts yields an empty string Postgres rejects as invalid
+	// JSON, so use a literal empty array.
 	content := "[]"
 
 	message, err := tx.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
@@ -4926,8 +4919,7 @@ const (
 	chatSummaryWriteTimeout = 5 * time.Second
 )
 
-// chatCostSource values tag hidden accounting rows so non-turn spend is
-// attributable per feature in cost reporting. Ordinary turn spend is left NULL.
+// chatCostSource tags hidden accounting rows; ordinary turn spend stays NULL.
 const (
 	chatCostSourceSummary = "summary"
 	chatCostSourceTitle   = "title"
@@ -5015,8 +5007,7 @@ func (p *Server) generateAndStoreChatSummary(
 	defer cancelGen()
 	summary, usage, genErr := generateChatSummary(summaryCtx, model, transcript)
 
-	// Record cost whenever the model reported usage, even on failure, so spend
-	// is attributed. The active API key is best-effort from the latest turn.
+	// Record cost whenever the model reported usage, even on generation failure.
 	if usage != (fantasy.Usage{}) {
 		activeAPIKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
 		if _, recordErr := recordChatSummaryUsage(authCtx, p.db, chat, modelConfig, usage, activeAPIKeyID); recordErr != nil {
@@ -5134,10 +5125,8 @@ func (p *Server) updateChatSummary(
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
 }
 
-// recordChatSummaryUsage records the cost of a background summary generation as
-// a hidden, soft-deleted accounting row tagged with cost_source='summary'. It
-// locks the chat and delegates to recordHiddenUsageMessageTx; unlike
-// recordManualTitleUsage it never updates the chat title.
+// recordChatSummaryUsage records background-summary spend via
+// recordHiddenUsageMessageTx; it never updates the chat title.
 func recordChatSummaryUsage(
 	ctx context.Context,
 	store database.Store,

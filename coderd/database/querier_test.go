@@ -12651,11 +12651,8 @@ func TestInsertChatAccountingMessage(t *testing.T) {
 	require.NoError(t, err)
 	historyBefore := chat.HistoryVersion
 
-	// The accounting row is tagged with cost_source on insert, so the
-	// AFTER STATEMENT history triggers treat it as non-history and must not
-	// advance chats.history_version. This is what keeps the turn summary
-	// write (guarded on history_version) from being invalidated by the very
-	// usage row recorded for that summary.
+	// Accounting rows are tagged with cost_source on insert, so the history
+	// triggers must not advance history_version.
 	msg, err := db.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
 		ChatID:          chat.ID,
 		CreatedBy:       owner.ID,
@@ -12676,10 +12673,8 @@ func TestInsertChatAccountingMessage(t *testing.T) {
 	require.Equal(t, historyBefore, afterChat.HistoryVersion,
 		"accounting-row insert must NOT advance history_version")
 
-	// cost_source is stored verbatim (no NULLIF), so an empty value violates the
-	// chat_messages cost_source CHECK instead of silently becoming NULL. A NULL
-	// cost_source would make the history triggers treat the row as ordinary turn
-	// history and advance history_version, the exact bug this query prevents.
+	// cost_source is stored verbatim (no NULLIF): an empty value must fail the
+	// cost_source CHECK rather than silently becoming NULL.
 	_, err = db.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
 		ChatID:         chat.ID,
 		CreatedBy:      owner.ID,

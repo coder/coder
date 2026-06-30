@@ -1150,12 +1150,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	}
 }
 
-// TestRecordChatSummaryUsage_InsertsAccountingRow verifies the background
-// summary path persists its spend through InsertChatAccountingMessage tagged
-// with cost_source='summary' and soft-deletes the row, mirroring the manual
-// title path. Using the dedicated accounting insert (rather than
-// InsertChatMessages plus a follow-up tag) is what keeps the row from advancing
-// history_version.
+// TestRecordChatSummaryUsage_InsertsAccountingRow verifies the background summary
+// path persists spend via InsertChatAccountingMessage tagged cost_source='summary'
+// and soft-deletes the row.
 func TestRecordChatSummaryUsage_InsertsAccountingRow(t *testing.T) {
 	t.Parallel()
 

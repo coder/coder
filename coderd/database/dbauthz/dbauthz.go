@@ -5856,7 +5856,6 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 }
 
 func (q *querier) InsertChatAccountingMessage(ctx context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
-	// Authorize update on the parent chat, like the other chat-message writes.
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatMessage{}, err

@@ -1,25 +1,13 @@
--- cost_source attributes spend on a chat_message to a specific feature so that
--- summary and title generation spend can be reported separately from ordinary
--- turn spend. NULL means ordinary turn spend; 'summary' and 'title' tag the
--- hidden accounting rows written for background summary and manual title
--- generation respectively. The CHECK constrains it to the closed discriminator
--- set so a typo or direct SQL write cannot silently corrupt cost attribution
--- (NULL is implicitly allowed).
+-- cost_source attributes spend to a feature: NULL is ordinary turn spend,
+-- 'summary' and 'title' tag the hidden accounting rows. The CHECK bounds it to
+-- that closed set so a typo cannot silently corrupt cost attribution.
 ALTER TABLE chat_messages
     ADD COLUMN cost_source TEXT CHECK (cost_source IN ('summary', 'title'));
 
--- Background summary and manual title generation write hidden, soft-deleted
--- chat_messages accounting rows tagged with cost_source to attribute their
--- spend. Those rows are not durable conversation history, so they must not
--- advance chats.history_version. Otherwise a summary write guarded on
--- history_version is invalidated by the very accounting row recorded for that
--- same summary, and the write (and the last_turn_summary write racing behind
--- it) is rejected as stale even when no new turn occurred.
---
--- Recreate the AFTER STATEMENT history triggers so only rows with
--- cost_source IS NULL (ordinary turn history) advance history_version.
--- The accounting insert does not bump snapshot_version, so an accounting-only
--- write leaves both snapshot_version and history_version unchanged.
+-- Recreate the AFTER STATEMENT history triggers so only rows with cost_source
+-- IS NULL (ordinary turn history) advance history_version. Hidden accounting
+-- rows (cost_source set) must not, or the accounting row recorded for a summary
+-- would invalidate that same summary's history_version-guarded write.
 CREATE OR REPLACE FUNCTION update_chat_history_after_message_insert()
 RETURNS trigger AS $$
 BEGIN

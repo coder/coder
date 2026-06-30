@@ -1,5 +1,4 @@
--- Restore the original history triggers that advance history_version for every
--- chat_messages change, including hidden accounting rows.
+-- Restore the original triggers that advance history_version for every change.
 CREATE OR REPLACE FUNCTION update_chat_history_after_message_insert()
 RETURNS trigger AS $$
 BEGIN

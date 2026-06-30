@@ -9777,19 +9777,10 @@ type InsertChatAccountingMessageParams struct {
 	CostSource          string                `db:"cost_source" json:"cost_source"`
 }
 
-// Inserts a single hidden accounting row whose cost_source is set on the
-// initial INSERT. Background summary and manual title generation use this to
-// attribute their spend. Tagging cost_source at insert time (rather than via a
-// follow-up UPDATE) is required so the AFTER STATEMENT history triggers see the
-// row as an accounting row and do not advance chats.history_version: a turn
-// summary write is guarded on history_version, and a row that advanced it would
-// invalidate that write. Unlike InsertChatMessages this does not touch
-// chats.last_model_config_id, so callers do not need to restore it.
-//
-// cost_source is stored verbatim (no NULLIF) so it can never silently become
-// NULL: an empty value fails the chat_messages cost_source CHECK and surfaces a
-// caller bug instead of producing a row the history triggers treat as ordinary
-// turn history.
+// Inserts a single hidden accounting row (background summary or manual title
+// spend). cost_source is set on the INSERT so the history triggers skip the row
+// and do not advance history_version, and is stored verbatim so an empty value
+// fails the cost_source CHECK instead of silently becoming NULL.
 func (q *sqlQuerier) InsertChatAccountingMessage(ctx context.Context, arg InsertChatAccountingMessageParams) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, insertChatAccountingMessage,
 		arg.ChatID,
