@@ -131,10 +131,7 @@ const SelectField: FC<SelectFieldDefinition> = ({
 						</span>
 					</>
 				) : (
-					<>
-						{" "}
-						<span className="text-content-secondary">(optional)</span>
-					</>
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -184,10 +181,7 @@ const RadioField: FC<RadioFieldDefinition> = ({
 						</span>
 					</>
 				) : (
-					<>
-						{" "}
-						<span className="text-content-secondary">(optional)</span>
-					</>
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -312,10 +306,7 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 						</span>
 					</>
 				) : (
-					<>
-						{" "}
-						<span className="text-content-secondary">(optional)</span>
-					</>
+					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -352,18 +343,22 @@ export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
 	);
 };
 
+const OptionalIndicator: FC = () => {
+	return (
+		<>
+			{" "}
+			<span className="text-content-secondary">(optional)</span>
+		</>
+	);
+};
+
 export const ConfigurationFieldLabel: FC<{
 	variable: TemplateBuilderModuleVariable;
 }> = ({ variable }) => {
 	return (
 		<>
 			{variable.name}
-			{!variable.required && (
-				<>
-					{" "}
-					<span className="text-content-secondary">(optional)</span>
-				</>
-			)}
+			{!variable.required && <OptionalIndicator />}
 		</>
 	);
 };
