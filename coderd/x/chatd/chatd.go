@@ -4956,6 +4956,7 @@ func (p *Server) Close() error {
 // auth, routing, and tracing. The context is bound to the server
 // lifetime via p.ctx so Close cancels it promptly. The returned stop
 // must be called once the work completes to release the shutdown hook.
+// The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
 	stop := context.AfterFunc(p.ctx, cancel)

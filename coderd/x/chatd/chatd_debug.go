@@ -82,6 +82,7 @@ func (p *Server) scheduleDebugCleanup(
 		for attempt := 0; attempt < debugCleanupAttempts; attempt++ {
 			if attempt > 0 {
 				timer := p.clock.NewTimer(debugCleanupRetryDelay, "chatd", "debug_cleanup")
+				defer timer.Stop()
 				select {
 				case <-timer.C:
 				case <-cleanupCtx.Done():
