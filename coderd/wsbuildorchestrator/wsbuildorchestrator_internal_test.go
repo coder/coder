@@ -128,8 +128,7 @@ func (s *runStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx contex
 	return database.WorkspaceBuildOrchestration{}, sql.ErrNoRows
 }
 
-// seedPendingOrchestration overwrites parentJob's OrganizationID and
-// Type.
+// Note: it overwrites parentJob's OrganizationID and Type.
 func seedPendingOrchestration(
 	ctx context.Context,
 	t *testing.T,
@@ -187,39 +186,79 @@ func seedPendingOrchestration(
 	return job, parentBuild
 }
 
-// GetWorkspaceByID returns soft-deleted rows, so the orchestrator
-// must guard against them explicitly to avoid starting a build for
-// them.
-func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
-	t.Parallel()
-
-	// GIVEN: a soft-deleted workspace whose parent stop build
-	// succeeded and a pending orchestration to start it.
-	ctx := testutil.Context(t, testutil.WaitShort)
-	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
-
+// succeededJob returns a provisioner job in the succeeded state.
+func succeededJob() database.ProvisionerJob {
 	now := dbtime.Now()
-	parentJob, parentBuild := seedPendingOrchestration(ctx, t, db, true, database.ProvisionerJob{
+	return database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: now, Valid: true},
 		CompletedAt: sql.NullTime{Time: now, Valid: true},
-	})
-	require.Equal(t, database.ProvisionerJobStatusSucceeded, parentJob.JobStatus)
+	}
+}
 
-	o := newTestOrchestrator(t, db, nil)
+// A succeeded parent whose workspace can no longer be started
+// (deleted or dormant) must fail the orchestration without creating a
+// child build.
+func TestWorkspaceBuildOrchestratorFailsForUnstartableWorkspace(t *testing.T) {
+	t.Parallel()
 
-	// WHEN: the orchestrator processes the row.
-	found, err := o.processNext(ctx)
-	require.NoError(t, err)
-	require.True(t, found)
+	cases := []struct {
+		name string
+		// seed builds a pending orchestration whose workspace cannot
+		// start, and returns its parent build.
+		seed      func(ctx context.Context, t *testing.T, db database.Store) database.WorkspaceBuild
+		wantError string
+	}{
+		{
+			name: "Deleted",
+			seed: func(ctx context.Context, t *testing.T, db database.Store) database.WorkspaceBuild {
+				job, build := seedPendingOrchestration(ctx, t, db, true, succeededJob())
+				require.Equal(t, database.ProvisionerJobStatusSucceeded, job.JobStatus)
+				return build
+			},
+			wantError: "workspace was deleted",
+		},
+		{
+			name: "Dormant",
+			seed: func(ctx context.Context, t *testing.T, db database.Store) database.WorkspaceBuild {
+				job, build := seedPendingOrchestration(ctx, t, db, false, succeededJob())
+				require.Equal(t, database.ProvisionerJobStatusSucceeded, job.JobStatus)
+				_, err := db.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+					ID:        build.WorkspaceID,
+					DormantAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+				})
+				require.NoError(t, err)
+				return build
+			},
+			wantError: "workspace is dormant",
+		},
+	}
 
-	// THEN: the orchestration resolves as failed without creating a
-	// child build.
-	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuild.ID)
-	require.NoError(t, err)
-	require.Equal(t, "failed", orchestration.Status)
-	require.False(t, orchestration.ChildBuildID.Valid)
-	require.True(t, orchestration.Error.Valid)
-	require.Equal(t, "workspace was deleted", orchestration.Error.String)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN: a pending orchestration whose workspace cannot start.
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+			parentBuild := tc.seed(ctx, t, db)
+
+			o := newTestOrchestrator(t, db, nil)
+
+			// WHEN: the orchestrator processes the row.
+			found, err := o.processNext(ctx)
+			require.NoError(t, err)
+			require.True(t, found)
+
+			// THEN: the orchestration resolves as failed without creating
+			// a child build.
+			orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, rawDB, parentBuild.ID)
+			require.NoError(t, err)
+			require.Equal(t, "failed", orchestration.Status)
+			require.False(t, orchestration.ChildBuildID.Valid)
+			require.True(t, orchestration.Error.Valid)
+			require.Equal(t, tc.wantError, orchestration.Error.String)
+		})
+	}
 }
 
 // If a pending parent build is canceled before any provisioner

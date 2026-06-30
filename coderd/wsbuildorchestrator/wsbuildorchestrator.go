@@ -248,6 +248,21 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 		found = true
 		orchestrationID = orchestration.ID
 
+		// markFailed resolves the locked orchestration as failed with
+		// a message, so a row that cannot make progress does not keep
+		// blocking later ones.
+		markFailed := func(msg string) error {
+			_, err := tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
+				Error:     sql.NullString{String: msg, Valid: true},
+				UpdatedAt: dbtime.Now(),
+				ID:        orchestration.ID,
+			})
+			if err != nil {
+				return xerrors.Errorf("mark workspace build orchestration as failed: %w", err)
+			}
+			return nil
+		}
+
 		// parentBuild and parentJob are guaranteed to exist by
 		// foreign keys on the locked orchestration row, so an error
 		// here is unexpected and likely transient. Return it to
@@ -280,53 +295,19 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 			if parentJob.Error.Valid && parentJob.Error.String != "" {
 				parentFailure = fmt.Sprintf("parent workspace build failed: %s", parentJob.Error.String)
 			}
-			_, err = tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
-				Error: sql.NullString{
-					String: parentFailure,
-					Valid:  true,
-				},
-				UpdatedAt: dbtime.Now(),
-				ID:        orchestration.ID,
-			})
-			if err != nil {
-				return xerrors.Errorf("mark workspace build orchestration as failed: %w", err)
-			}
-			return nil
+			return markFailed(parentFailure)
 		default:
 			// This should be unreachable because the row-locking query
 			// only selects terminal parent jobs. Mark the row as failed
 			// because retrying would block later orchestrations.
-			_, err = tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
-				Error: sql.NullString{
-					String: fmt.Sprintf("unexpected parent job status %q", parentJob.JobStatus),
-					Valid:  true,
-				},
-				UpdatedAt: dbtime.Now(),
-				ID:        orchestration.ID,
-			})
-			if err != nil {
-				return xerrors.Errorf("mark workspace build orchestration as failed: %w", err)
-			}
-			return nil
+			return markFailed(fmt.Sprintf("unexpected parent job status %q", parentJob.JobStatus))
 		}
 
 		childBuildRequest, err := childBuildRequestFromOrchestration(orchestration)
 		if err != nil {
 			// Mark the row failed to avoid retrying work that cannot
 			// make progress.
-			errMsg := err.Error()
-			_, err = tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
-				Error: sql.NullString{
-					String: errMsg,
-					Valid:  true,
-				},
-				UpdatedAt: dbtime.Now(),
-				ID:        orchestration.ID,
-			})
-			if err != nil {
-				return xerrors.Errorf("mark workspace build orchestration as failed: %w", err)
-			}
-			return nil
+			return markFailed(err.Error())
 		}
 
 		workspace, err = tx.GetWorkspaceByID(sysCtx, parentBuild.WorkspaceID)
@@ -334,19 +315,16 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 			return xerrors.Errorf("get workspace: %w", err)
 		}
 
+		// GetWorkspaceByID returns soft-deleted rows.
 		if workspace.Deleted {
-			_, err = tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
-				Error: sql.NullString{
-					String: "workspace was deleted",
-					Valid:  true,
-				},
-				UpdatedAt: dbtime.Now(),
-				ID:        orchestration.ID,
-			})
-			if err != nil {
-				return xerrors.Errorf("mark workspace build orchestration as failed: %w", err)
-			}
-			return nil
+			return markFailed("workspace was deleted")
+		}
+
+		// A dormant workspace must be woken before it can start.
+		// Starting it while still dormant would leave it running but
+		// still subject to deleting_at, which could auto-delete it.
+		if workspace.DormantAt.Valid {
+			return markFailed("workspace is dormant")
 		}
 
 		childBuild, provisionerJob, err := o.createBuild(sysCtx, tx, workspace, parentBuild.InitiatorID, childBuildRequest)
