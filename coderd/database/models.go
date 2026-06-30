@@ -4602,6 +4602,8 @@ type AIBridgeToolUsage struct {
 	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
+	// Specific to the OpenAI Responses API: the unique id of the output item that carried the tool call. Distinct from provider_tool_call_id (the call_id correlation key), which is empty for hosted tools. Empty for the chat completions and Anthropic messages APIs, which have no separate item id.
+	ProviderItemID sql.NullString `db:"provider_item_id" json:"provider_item_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge

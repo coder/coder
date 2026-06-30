@@ -1305,7 +1305,7 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 
 const getAIBridgeToolUsagesByInterceptionID = `-- name: GetAIBridgeToolUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id
 FROM
 	aibridge_tool_usages
 WHERE
@@ -1336,6 +1336,7 @@ func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, 
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.ProviderToolCallID,
+			&i.ProviderItemID,
 		); err != nil {
 			return nil, err
 		}
@@ -1566,11 +1567,11 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 
 const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, provider_tool_call_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, provider_item_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::jsonb, '{}'::jsonb), $11
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::jsonb, '{}'::jsonb), $12
 )
-RETURNING id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id
+RETURNING id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id
 `
 
 type InsertAIBridgeToolUsageParams struct {
@@ -1578,6 +1579,7 @@ type InsertAIBridgeToolUsageParams struct {
 	InterceptionID     uuid.UUID       `db:"interception_id" json:"interception_id"`
 	ProviderResponseID string          `db:"provider_response_id" json:"provider_response_id"`
 	ProviderToolCallID sql.NullString  `db:"provider_tool_call_id" json:"provider_tool_call_id"`
+	ProviderItemID     sql.NullString  `db:"provider_item_id" json:"provider_item_id"`
 	Tool               string          `db:"tool" json:"tool"`
 	ServerUrl          sql.NullString  `db:"server_url" json:"server_url"`
 	Input              string          `db:"input" json:"input"`
@@ -1593,6 +1595,7 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		arg.InterceptionID,
 		arg.ProviderResponseID,
 		arg.ProviderToolCallID,
+		arg.ProviderItemID,
 		arg.Tool,
 		arg.ServerUrl,
 		arg.Input,
@@ -1614,6 +1617,7 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.ProviderToolCallID,
+		&i.ProviderItemID,
 	)
 	return i, err
 }
@@ -2279,7 +2283,7 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 
 const listAIBridgeToolUsagesByInterceptionIDs = `-- name: ListAIBridgeToolUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id
 FROM
 	aibridge_tool_usages
 WHERE
@@ -2310,6 +2314,7 @@ func (q *sqlQuerier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.ProviderToolCallID,
+			&i.ProviderItemID,
 		); err != nil {
 			return nil, err
 		}
