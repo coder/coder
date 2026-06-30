@@ -56,9 +56,9 @@ RETURNING *;
 
 -- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, provider_tool_call_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, provider_item_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @provider_item_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 
