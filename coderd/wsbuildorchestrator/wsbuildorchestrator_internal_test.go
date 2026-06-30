@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -20,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
@@ -55,29 +55,57 @@ func TestWorkspaceBuildOrchestratorSubscribeQueuesWakeOnPubsub(t *testing.T) {
 	testutil.RequireReceive(ctx, t, o.wakeCh)
 }
 
-func TestWorkspaceBuildOrchestratorProcessesPromptlyAfterWake(t *testing.T) {
+func TestWorkspaceBuildOrchestratorRunProcessesOnWakeAndPoll(t *testing.T) {
 	t.Parallel()
 
-	const waitBeforeBackupPoll = time.Second
-	require.Greater(t, backupPollInterval, waitBeforeBackupPoll)
-
-	ctx := testutil.Context(t, waitBeforeBackupPoll)
-	store := &runStore{
-		calls: make(chan struct{}),
+	cases := []struct {
+		name string
+		// trigger causes the run loop to process another pass, either
+		// via a wake signal or by advancing past the backup poll.
+		trigger func(ctx context.Context, o *Orchestrator, mClock *quartz.Mock)
+	}{
+		{
+			name: "Wake",
+			trigger: func(_ context.Context, o *Orchestrator, _ *quartz.Mock) {
+				o.wake()
+			},
+		},
+		{
+			name: "BackupPoll",
+			trigger: func(ctx context.Context, _ *Orchestrator, mClock *quartz.Mock) {
+				mClock.Advance(backupPollInterval).MustWait(ctx)
+			},
+		},
 	}
-	o := newTestOrchestrator(t, store, nil)
 
-	go o.run(ctx)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// run() processes once before waiting for wakes. Drain that
-	// initial pass.
-	testutil.RequireReceive(ctx, t, store.calls)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			mClock := quartz.NewMock(t)
+			store := &runStore{
+				calls: make(chan struct{}),
+			}
+			o := New(Options{
+				Logger:   testutil.Logger(t),
+				Database: store,
+				Clock:    mClock,
+			})
 
-	o.wake()
+			go o.run(ctx)
 
-	// This pass must come from the wake because the backup poll
-	// cannot fire before the context expires.
-	testutil.RequireReceive(ctx, t, store.calls)
+			// Drain the initial pass. run() creates the backup poll
+			// ticker and then processes (sends) once before
+			// waiting. So, receiving here also ensures the ticker
+			// exists before we advance the clock.
+			testutil.RequireReceive(ctx, t, store.calls)
+
+			tc.trigger(ctx, o, mClock)
+			// Now this pass can only come from the trigger.
+			testutil.RequireReceive(ctx, t, store.calls)
+		})
+	}
 }
 
 type runStore struct {

@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -50,6 +51,7 @@ type Orchestrator struct {
 	deploymentValues  *codersdk.DeploymentValues
 	experiments       codersdk.Experiments
 	builderMetrics    *wsbuilder.Metrics
+	clock             quartz.Clock
 
 	wakeCh chan struct{}
 
@@ -72,10 +74,15 @@ type Options struct {
 	DeploymentValues  *codersdk.DeploymentValues
 	Experiments       codersdk.Experiments
 	BuilderMetrics    *wsbuilder.Metrics
+	Clock             quartz.Clock
 }
 
 // New constructs an Orchestrator. Call Start to begin processing.
 func New(opts Options) *Orchestrator {
+	clock := opts.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
 	return &Orchestrator{
 		logger:            opts.Logger.Named("workspace_build_orchestrator"),
 		db:                opts.Database,
@@ -85,6 +92,7 @@ func New(opts Options) *Orchestrator {
 		deploymentValues:  opts.DeploymentValues,
 		experiments:       opts.Experiments,
 		builderMetrics:    opts.BuilderMetrics,
+		clock:             clock,
 		// Keep one pending wake signal while the worker is between
 		// runs. One is enough because each run drains all ready
 		// orchestration rows.
@@ -174,7 +182,7 @@ func (o *Orchestrator) wake() {
 }
 
 func (o *Orchestrator) run(ctx context.Context) {
-	ticker := time.NewTicker(backupPollInterval)
+	ticker := o.clock.NewTicker(backupPollInterval)
 	defer ticker.Stop()
 
 	for {
