@@ -294,17 +294,12 @@ func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, 
 			return
 		}
 
-		delay := time.Duration(0)
-		if n > 1 {
-			delay = totalDuration / time.Duration(n-1)
-		}
-		i := 0
+		// Delay after every chunk, including the last, so the stream stays open
+		// for roughly totalDuration even when there is a single chunk (small
+		// --response-payload-size or single-word text).
+		delay := totalDuration / time.Duration(n)
 		for chunk := range chunks {
 			if !yield(chunk) {
-				return
-			}
-			i++
-			if i == n {
 				return
 			}
 			if delay <= 0 {
