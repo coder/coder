@@ -230,11 +230,6 @@ data "coder_parameter" "ides" {
     icon  = "/icon/code.svg"
   }
   option {
-    name  = "VS Code Desktop"
-    value = "vscode-desktop"
-    icon  = "/icon/code.svg"
-  }
-  option {
     name  = "Cursor"
     value = "cursor"
     icon  = "/icon/cursor.svg"
@@ -429,15 +424,6 @@ module "code-server" {
   version  = "~> 1.0"
   agent_id = coder_agent.main.id
   order    = 1
-}
-
-module "vscode-desktop" {
-  count    = data.coder_workspace.me.start_count * (contains(local.ides, "vscode-desktop") ? 1 : 0)
-  source   = "registry.coder.com/coder/vscode-desktop/coder"
-  version  = "~> 1.0"
-  agent_id = coder_agent.main.id
-  folder   = "/home/coder"
-  order    = 2
 }
 
 module "cursor" {
