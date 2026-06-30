@@ -317,9 +317,10 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 			// The stored child build request cannot be reconstructed.
 			// Mark the row failed to avoid retrying work that cannot
 			// make progress.
+			errMsg := err.Error()
 			_, err = tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
 				Error: sql.NullString{
-					String: err.Error(),
+					String: errMsg,
 					Valid:  true,
 				},
 				UpdatedAt: dbtime.Now(),
