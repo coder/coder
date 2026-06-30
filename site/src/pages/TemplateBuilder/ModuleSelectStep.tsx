@@ -243,7 +243,8 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				</TabsList>
 			</Tabs>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(var(--step-content-max-h)-80px)] overflow-y-auto">
+			{/* 420px accounts for navbar, page header, card padding, search, tabs, and nav controls */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
 				{visibleModules.length ? (
 					visibleModules.map((m) => (
 						<ModuleCard

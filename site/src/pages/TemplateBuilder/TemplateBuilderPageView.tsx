@@ -15,6 +15,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+
 import { docs } from "#/utils/docs";
 import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
 import {
@@ -134,14 +135,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div
-						className="p-6 border border-solid rounded-lg"
-						style={
-							{
-								"--step-content-max-h": "calc(100vh - 340px)",
-							} as React.CSSProperties
-						}
-					>
+					<div className="p-6 border border-solid rounded-lg">
 						{renderStepContent(
 							currentStep.id,
 							state,
