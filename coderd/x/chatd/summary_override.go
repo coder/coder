@@ -30,10 +30,8 @@ func readSummaryGenerationModelOverride(
 }
 
 // resolveSummaryGenerationModelOverride resolves the deployment-wide summary
-// generation model override. overrideSet is true when an override was
-// configured; in that case any returned error is a hard failure and the caller
-// should skip summary generation. When overrideSet is false, callers fall back
-// to the chat's configured model.
+// override. overrideSet reports whether one was configured; if true, any error is
+// a hard failure (skip generation), and if false the caller uses the chat's model.
 func (p *Server) resolveSummaryGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,

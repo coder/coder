@@ -97,7 +97,6 @@ func TestResolveSummaryGenerationModelOverride_SetUnusableHardFails(t *testing.T
 	db := dbmock.NewMockStore(ctrl)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, _ := titleOverrideTestChatAndMessages(t)
-	// A disabled config is treated as unavailable.
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", false)
 
 	db.EXPECT().GetChatSummaryGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
@@ -110,8 +109,7 @@ func TestResolveSummaryGenerationModelOverride_SetUnusableHardFails(t *testing.T
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 		modelBuildOptions{},
 	)
-	// overrideSet is true even on a hard failure so the caller skips generation
-	// instead of falling back to the chat model.
+	// overrideSet stays true on a hard failure so the caller skips generation.
 	require.Error(t, err)
 	require.True(t, overrideSet)
 	require.ErrorContains(t, err, "summary generation model override is unavailable")

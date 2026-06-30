@@ -5014,10 +5014,8 @@ func (p *Server) generateAndStoreChatSummary(
 	p.updateChatSummary(ctx, chat, chat.HistoryVersion, summary, logger)
 }
 
-// resolveChatSummaryModel resolves the model for summary generation. It prefers
-// the deployment summary-generation override when set; a configured-but-unusable
-// override is a hard failure that skips generation (preserving any existing
-// summary). Otherwise it falls back to the chat's configured model.
+// resolveChatSummaryModel prefers a usable deployment override, skips generation
+// on a set-but-unusable one, and otherwise uses the chat's configured model.
 func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
 	chat database.Chat,
