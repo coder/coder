@@ -1244,7 +1244,8 @@ type PromoteQueuedResult struct {
 
 const defaultUserCompletionSummary = "Marked complete by user."
 
-// ApplyGoalMutationOptions controls a metadata-only goal mutation.
+// ApplyGoalMutationOptions controls a goal mutation sent without a
+// chat message.
 type ApplyGoalMutationOptions struct {
 	ChatID    uuid.UUID
 	CreatedBy uuid.UUID
@@ -1258,7 +1259,8 @@ type ApplyGoalMutationResult struct {
 }
 
 // ApplyGoalMutation applies a goal lifecycle mutation without sending a
-// chat message or starting an agent turn.
+// chat message. Completing a running goal requests interruption so the
+// active turn can drain partial output and stop.
 func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOptions) (ApplyGoalMutationResult, error) {
 	if opts.ChatID == uuid.Nil {
 		return ApplyGoalMutationResult{}, xerrors.New("chat_id is required")
@@ -1269,8 +1271,9 @@ func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOp
 	}
 
 	var result ApplyGoalMutationResult
+	var publishStatusChange bool
 	machine := p.newChatMachine(opts.ChatID)
-	updateErr := machine.Update(ctx, func(_ *chatstate.Tx, store database.Store) error {
+	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1286,6 +1289,17 @@ func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOp
 			return err
 		}
 		result.Chat = lockedChat
+		if mutation.Action == codersdk.ChatGoalMutationActionComplete && lockedChat.Status == database.ChatStatusRunning {
+			if _, err := tx.Interrupt(chatstate.InterruptInput{Reason: "Chat goal marked complete by user"}); err != nil {
+				return xerrors.Errorf("interrupt completed chat goal run: %w", err)
+			}
+			latest, err := store.GetChatByID(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("reload chat after goal mutation interruption: %w", err)
+			}
+			result.Chat = latest
+			publishStatusChange = true
+		}
 		result.Goal = goal
 		return nil
 	})
@@ -1293,6 +1307,9 @@ func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOp
 		return ApplyGoalMutationResult{}, updateErr
 	}
 	p.publishChatGoalChange(result.Chat, result.Goal)
+	if publishStatusChange {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
 	return result, nil
 }
 

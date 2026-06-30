@@ -522,6 +522,24 @@ When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up
 
 No other input states are supported.
 
+### `PATCH /api/experimental/chats/{chat}/goal`
+
+This endpoint applies goal lifecycle mutations without inserting a chat
+message. Most actions only mutate the current goal row and publish a
+`goal_change` watch event.
+
+For `complete`, a running root chat also uses `Interrupt(goal_complete)` so
+an active agent turn is canceled through the normal interruption path:
+
+- `R0 -> complete goal + Interrupt(goal_complete) -> I0`
+- `R1 -> complete goal + Interrupt(goal_complete) -> I1`
+
+When the transition lands in `I0` or `I1`, the chat is later picked up by a
+`ChatRunner` to apply `FinishInterruption(partial?)`, preserving any partial
+assistant output and queued backlog.
+
+Other input states do not get an execution-state transition from this endpoint.
+
 ### `POST /api/experimental/chats/{chat}/tool-results`
 
 This endpoint uses `CompleteRequiresAction(results)`:

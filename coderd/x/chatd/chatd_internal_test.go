@@ -1928,6 +1928,63 @@ func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected
 	t.Fatalf("field %q not found in log entry", name)
 }
 
+func TestApplyGoalMutationCompleteInterruptsRunningChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	goal, err := f.db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+		RootChatID:      chat.ID,
+		Objective:       "finish the work",
+		CreatedByUserID: f.user.ID,
+	})
+	require.NoError(t, err)
+
+	pubsub := newRecordingPubsub(f.pubsub)
+	server := &Server{
+		db:     f.db,
+		pubsub: pubsub,
+		logger: testutil.Logger(t),
+		clock:  quartz.NewReal(),
+	}
+	summary := "done by user"
+	result, err := server.ApplyGoalMutation(dbauthz.AsSystemRestricted(ctx), ApplyGoalMutationOptions{
+		ChatID:    chat.ID,
+		CreatedBy: f.user.ID,
+		Mutation: codersdk.ChatGoalMutation{
+			Action:            codersdk.ChatGoalMutationActionComplete,
+			GoalID:            &goal.ID,
+			CompletionSummary: &summary,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.Goal)
+	require.Equal(t, database.ChatGoalStatusComplete, result.Goal.Status)
+	require.Equal(t, database.ChatStatusInterrupting, result.Chat.Status)
+
+	latest, err := f.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusInterrupting, latest.Status)
+
+	var sawGoalChange bool
+	var sawStatusChange bool
+	for _, event := range pubsub.watchEvents(t) {
+		if event.Chat.ID != chat.ID {
+			continue
+		}
+		switch event.Kind {
+		case codersdk.ChatWatchEventKindGoalChange:
+			sawGoalChange = true
+		case codersdk.ChatWatchEventKindStatusChange:
+			sawStatusChange = true
+			require.Equal(t, codersdk.ChatStatusInterrupting, event.Chat.Status)
+		}
+	}
+	require.True(t, sawGoalChange)
+	require.True(t, sawStatusChange)
+}
+
 func TestActiveGoalSystemPrompt(t *testing.T) {
 	t.Parallel()
 
