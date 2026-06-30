@@ -20,9 +20,7 @@ func TestBuildOpenAIChoice(t *testing.T) {
 		t.Parallel()
 
 		srv := &Server{toolCallsPerTurn: 0}
-		req := openAIExecuteRequest(0)
-		req.Tools = nil
-		choice := srv.buildOpenAIChoice(req)
+		choice := srv.buildOpenAIChoice(openAIExecuteRequest(0))
 		require.Equal(t, openAIStopFinishReason, choice.FinishReason)
 		require.Empty(t, choice.Message.ToolCalls)
 		require.Equal(t, openAIDefaultResponseText, choice.Message.Content)

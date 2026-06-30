@@ -52,6 +52,7 @@ type Server struct {
 	minStreamDuration   time.Duration
 	maxStreamDuration   time.Duration
 	responsePayloadSize int
+	responsePayload     string
 	toolCallsPerTurn    int
 	toolCallCommand     string
 
@@ -178,6 +179,10 @@ func (s *Server) Start(ctx context.Context, cfg Config) error {
 	s.minStreamDuration = cfg.MinStreamDuration
 	s.maxStreamDuration = cfg.MaxStreamDuration
 	s.responsePayloadSize = cfg.ResponsePayloadSize
+	s.responsePayload = ""
+	if s.responsePayloadSize > 0 {
+		s.responsePayload = strings.Repeat("x", s.responsePayloadSize)
+	}
 	s.toolCallsPerTurn = cfg.ToolCallsPerTurn
 	s.toolCallCommand = cfg.ToolCallCommand
 
@@ -234,7 +239,7 @@ func (s *Server) APIAddress() string {
 
 func (s *Server) responseText(fallback string) string {
 	if s.responsePayloadSize > 0 {
-		return strings.Repeat("x", s.responsePayloadSize)
+		return s.responsePayload
 	}
 	return fallback
 }
@@ -252,10 +257,9 @@ func (s *Server) randomStreamDuration() time.Duration {
 	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta)))
 }
 
-// streamContentChunks yields content as one chunk when totalDuration is
-// non-positive. Otherwise, it spaces generated chunks across totalDuration.
-// Fixed-size payloads use byte windows because generated fixed payloads are
-// ASCII.
+// streamContentChunks paces content across totalDuration. The fixed-size path
+// slices content by byte offset, which is rune-safe only because that payload
+// is ASCII (see responseText).
 func (s *Server) streamContentChunks(ctx context.Context, totalDuration time.Duration, content string) iter.Seq[string] {
 	if totalDuration <= 0 || content == "" {
 		return func(yield func(string) bool) {
@@ -287,6 +291,22 @@ func streamWordChunks(content string) []string {
 	return chunks
 }
 
+// sleepContext blocks until d elapses or ctx is canceled. It reports whether
+// the duration elapsed so callers can stop work when the context is done.
+func sleepContext(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
 func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, chunks iter.Seq[string]) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		if n == 0 {
@@ -302,16 +322,8 @@ func streamPacedChunks(ctx context.Context, totalDuration time.Duration, n int, 
 			if !yield(chunk) {
 				return
 			}
-			if delay <= 0 {
-				continue
-			}
-
-			timer := time.NewTimer(delay)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
+			if !sleepContext(ctx, delay) {
 				return
-			case <-timer.C:
 			}
 		}
 	}
@@ -375,8 +387,8 @@ func (s *Server) handleOpenAIWithLabels(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if s.artificialLatency > 0 {
-		time.Sleep(s.artificialLatency)
+	if !sleepContext(ctx, s.artificialLatency) {
+		return
 	}
 
 	choice := s.buildOpenAIChoice(req)
@@ -442,8 +454,8 @@ func (s *Server) handleResponsesWithLabels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if s.artificialLatency > 0 {
-		time.Sleep(s.artificialLatency)
+	if !sleepContext(ctx, s.artificialLatency) {
+		return
 	}
 
 	var resp responsesResponse
@@ -518,8 +530,8 @@ func (s *Server) handleAnthropicWithLabels(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if s.artificialLatency > 0 {
-		time.Sleep(s.artificialLatency)
+	if !sleepContext(ctx, s.artificialLatency) {
+		return
 	}
 
 	var resp anthropicResponse
