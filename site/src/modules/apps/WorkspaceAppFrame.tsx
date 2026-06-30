@@ -63,7 +63,7 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 						variant="subtle"
 						onClick={(e) => {
 							e.preventDefault();
-							if (frameRef.current?.contentWindow) {
+							if (frameRef.current?.contentWindow && link.href) {
 								frameRef.current.contentWindow.location.href = link.href;
 							}
 						}}
@@ -83,7 +83,11 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={link.href} target="_blank" rel="noreferrer">
+								<RouterLink
+									to={link.href ?? ""}
+									target="_blank"
+									rel="noreferrer"
+								>
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>
@@ -94,7 +98,11 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 			)}
 
 			{app.health === "healthy" || app.health === "disabled" ? (
-				<WorkspaceIframe ref={frameRef} src={link.href} title={link.label} />
+				<WorkspaceIframe
+					ref={frameRef}
+					src={link.href ?? undefined}
+					title={link.label}
+				/>
 			) : app.health === "unhealthy" ? (
 				<div className="w-full h-full flex flex-col items-center justify-center p-4">
 					<h3 className="m-0 font-medium text-content-primary text-base text-center">

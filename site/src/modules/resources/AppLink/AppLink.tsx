@@ -114,6 +114,17 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
+	if (link.href === null) {
+		canClick = false;
+		icon = (
+			<CircleAlertIcon
+				aria-hidden="true"
+				className="size-icon-sm text-content-warning"
+			/>
+		);
+		primaryTooltip = "This app has an invalid URL and cannot be opened";
+	}
+
 	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
 		canClick = false;
 	}
@@ -141,7 +152,7 @@ export const AppLink: FC<AppLinkProps> = ({
 	const button = grouped ? (
 		<DropdownMenuItem asChild>
 			<a
-				href={canClick ? link.href : undefined}
+				href={canClick && link.href ? link.href : undefined}
 				onClick={link.onClick}
 				target={app.open_in === "tab" ? "_blank" : undefined}
 				rel={app.open_in === "tab" ? "noreferrer" : undefined}
@@ -154,7 +165,7 @@ export const AppLink: FC<AppLinkProps> = ({
 	) : (
 		<AgentButton asChild>
 			<a
-				href={canClick ? link.href : undefined}
+				href={canClick && link.href ? link.href : undefined}
 				onClick={link.onClick}
 				target={app.open_in === "tab" ? "_blank" : undefined}
 				rel={app.open_in === "tab" ? "noreferrer" : undefined}
