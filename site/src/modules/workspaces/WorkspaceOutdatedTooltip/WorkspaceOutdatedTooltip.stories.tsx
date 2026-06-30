@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import type { FC } from "react";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "#/components/Table/Table";
+import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -48,3 +56,47 @@ const Example: Story = {
 };
 
 export { Example as WorkspaceOutdatedTooltip };
+
+// Renders the tooltip inside a row whose own onClick navigates on click. The
+// tooltip's trigger must stop propagation so the popover can open instead of
+// the parent row swallowing the click. Regression coverage for the
+// `useClickableTableRow` usage on the workspaces list.
+const onRowClick = fn();
+
+const ClickableRowDecorator = (Story: FC) => {
+	const clickableProps = useClickableTableRow({ onClick: onRowClick });
+	return (
+		<Table>
+			<TableBody>
+				<TableRow {...clickableProps}>
+					<TableCell>
+						<Story />
+					</TableCell>
+				</TableRow>
+			</TableBody>
+		</Table>
+	);
+};
+
+export const InsideClickableRow: Story = {
+	decorators: [ClickableRowDecorator],
+	beforeEach: () => {
+		onRowClick.mockClear();
+	},
+	play: async ({ canvasElement, step }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await step("clicking the trigger opens the popover", async () => {
+			await userEvent.click(body.getByRole("button", { name: "More info" }));
+			await waitFor(() =>
+				expect(screen.getByRole("dialog")).toHaveTextContent(
+					MockTemplateVersion.message,
+				),
+			);
+		});
+
+		await step("clicking the trigger does not navigate the row", async () => {
+			expect(onRowClick).not.toHaveBeenCalled();
+		});
+	},
+};

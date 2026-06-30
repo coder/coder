@@ -35,11 +35,24 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
+	// The trigger lives inside containers that treat clicks as navigation
+	// (e.g. workspace rows wired up by `useClickableTableRow`). Without
+	// stopping propagation, the row's onClick would navigate away before the
+	// popover paints. We also stop propagation on keyboard activation so the
+	// trigger keeps working when focused via Tab.
+	const stopPropagation = (event: React.SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
 	return (
 		<HelpPopover open={isOpen} onOpenChange={setIsOpen}>
 			{children ? (
 				<HelpPopoverTrigger asChild>
-					<span className="flex items-center gap-1.5 cursor-help">
+					<span
+						className="flex items-center gap-1.5 cursor-help"
+						onClick={stopPropagation}
+						onKeyDown={stopPropagation}
+					>
 						<InfoIcon
 							css={(theme) => ({
 								color: theme.roles.notice.outline,
@@ -50,7 +63,12 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					</span>
 				</HelpPopoverTrigger>
 			) : (
-				<HelpPopoverIconTrigger size="small" hoverEffect={false}>
+				<HelpPopoverIconTrigger
+					size="small"
+					hoverEffect={false}
+					onClick={stopPropagation}
+					onKeyDown={stopPropagation}
+				>
 					<InfoIcon
 						css={(theme) => ({
 							color: theme.roles.notice.outline,
