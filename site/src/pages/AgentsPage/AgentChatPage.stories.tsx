@@ -112,6 +112,7 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 			],
 		},
 	],
+	unsupported_providers: [],
 };
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [

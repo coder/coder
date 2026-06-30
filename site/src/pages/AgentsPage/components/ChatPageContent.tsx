@@ -176,6 +176,7 @@ interface ChatPageInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -245,6 +246,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -521,6 +523,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			canConfigureAgentSetup={canConfigureAgentSetup}
 			providerCount={providerCount}
 			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
 		/>
 	);
 

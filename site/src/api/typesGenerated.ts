@@ -1150,6 +1150,13 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"exectrace",
 ];
 
+// From codersdk/aiproviders.go
+export type AgentsUnsupportedProviderType = "copilot";
+
+export const AgentsUnsupportedProviderTypes: AgentsUnsupportedProviderType[] = [
+	"copilot",
+];
+
 // From codersdk/chats.go
 /**
  * AnthropicInlineImageCapBytes is Anthropic's documented per-image
@@ -2702,6 +2709,11 @@ export interface ChatModelVercelProviderOptions {
  */
 export interface ChatModelsResponse {
 	readonly providers: readonly ChatModelProvider[];
+	/**
+	 * UnsupportedProviders lists configured providers the Agents harness
+	 * cannot use, so the UI can explain the empty state.
+	 */
+	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
 // From codersdk/chats.go
@@ -3125,6 +3137,19 @@ export interface ChatToolResultPart {
 	 * reasoning started streaming.
 	 */
 	readonly created_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUnsupportedProvider is a configured provider the Agents harness cannot
+ * use.
+ */
+export interface ChatUnsupportedProvider {
+	/**
+	 * Provider is the provider type, e.g. "copilot".
+	 */
+	readonly provider: string;
+	readonly display_name: string;
 }
 
 // From codersdk/chats.go
