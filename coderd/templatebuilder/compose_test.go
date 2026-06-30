@@ -99,6 +99,27 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
 	})
 
+	t.Run("GCPWindowsBase", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "gcp-windows",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, result.MainTF)
+		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
+	})
+
+	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "azure-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
+	})
+
 	t.Run("SensitiveVariable", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
