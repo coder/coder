@@ -1,5 +1,6 @@
 import { type FC, useEffect, useRef, useState } from "react";
 import {
+	type QueryClient,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -43,6 +44,7 @@ import {
 import {
 	invalidateWorkspaceMutationQueries,
 	workspaceById,
+	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -60,6 +62,8 @@ import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
+	notifyDeleteFailed,
+	notifyDeleteQueueState,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
@@ -84,6 +88,12 @@ export const shouldInvalidateFilteredChatList = (
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+
+const getCachedWorkspace = (
+	queryClient: QueryClient,
+	workspaceId: string,
+): TypesGen.Workspace | undefined =>
+	queryClient.getQueryData<TypesGen.Workspace>(workspaceByIdKey(workspaceId));
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -233,7 +243,7 @@ const AgentsPage: FC = () => {
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
 			),
-		onSuccess: ({ chatId }) => {
+		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
@@ -250,10 +260,16 @@ const AgentsPage: FC = () => {
 				organizationName,
 				username: user.username,
 			});
+			notifyDeleteQueueState(
+				getCachedWorkspace(queryClient, workspaceId),
+				deleteBuild,
+			);
 		},
-		onError: (error) => {
-			toast.error(
-				getErrorMessage(error, "Failed to archive and delete workspace."),
+		onError: (error, { workspaceId }) => {
+			notifyDeleteFailed(
+				getCachedWorkspace(queryClient, workspaceId),
+				error,
+				(path) => navigate(path),
 			);
 		},
 	});
