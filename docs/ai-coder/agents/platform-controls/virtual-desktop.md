@@ -23,10 +23,10 @@ Lets agents drive a graphical desktop inside the workspace through
 
 ## Configuration
 
-Once the experiment is enabled, configure the computer use provider under
+Once the experiment is enabled, configure the computer-use provider under
 **AI Settings** > **Coder Agents** > **Virtual desktop**.
 
-Choose a **Computer use provider** (Anthropic or OpenAI). It also requires:
+Choose a **Computer use provider** (Anthropic or OpenAI). Virtual desktop also requires:
 
 - The [portabledesktop](https://registry.coder.com/modules/coder/portabledesktop)
   module installed in the workspace template.

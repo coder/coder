@@ -1083,19 +1083,19 @@
 									"title": "Advisor",
 									"description": "Strategic guidance for root agent chats",
 									"path": "./ai-coder/agents/platform-controls/advisor.md",
-									"state": ["beta"]
+									"state": ["early access"]
 								},
 								{
 									"title": "Virtual desktop",
 									"description": "Allow agents to use a graphical desktop within workspaces",
 									"path": "./ai-coder/agents/platform-controls/virtual-desktop.md",
-									"state": ["beta"]
+									"state": ["early access"]
 								},
 								{
 									"title": "Chat debug logging",
 									"description": "Record detailed traces of chat turns for troubleshooting",
 									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md",
-									"state": ["beta"]
+									"state": ["early access"]
 								}
 							]
 						},

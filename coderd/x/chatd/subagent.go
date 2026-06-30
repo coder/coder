@@ -114,10 +114,6 @@ type listAgentsArgs struct {
 	Offset *int `json:"offset,omitempty"`
 }
 
-func (p *Server) isDesktopEnabled() bool {
-	return p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop)
-}
-
 func subagentModelOverrideLogLabel(
 	overrideContext codersdk.ChatModelOverrideContext,
 ) string {
