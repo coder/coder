@@ -21,6 +21,11 @@ const (
 	WorkspaceAppsTokenDuration = time.Minute
 	OIDCConvertTokenDuration   = time.Minute * 5
 	TailnetResumeTokenDuration = time.Hour * 24
+	// NATSCALeafValidity is the maximum lifetime of a leaf certificate
+	// minted under the NATS cluster CA. Old CA rows must remain valid trust
+	// roots for this long after rotation so that replicas holding leaves
+	// signed by the old CA can still be verified.
+	NATSCALeafValidity = time.Hour * 24 * 30
 
 	// defaultRotationInterval is the default interval at which keys are checked for rotation.
 	defaultRotationInterval = time.Minute * 10
@@ -67,6 +72,15 @@ func WithClock(clock quartz.Clock) RotatorOption {
 func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 	return func(r *rotator) {
 		r.keyDuration = keyDuration
+	}
+}
+
+// WithFeatures sets the crypto key features the rotator manages, replacing the
+// default set. Use this to opt experiment- or deployment-gated features (such
+// as the NATS cluster CA) into rotation only when their owner is active.
+func WithFeatures(features []database.CryptoKeyFeature) RotatorOption {
+	return func(r *rotator) {
+		r.features = slices.Clone(features)
 	}
 }
 
@@ -126,10 +140,7 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 				return xerrors.Errorf("get keys: %w", err)
 			}
 
-			featureKeys, err := keysByFeature(cryptokeys, k.features)
-			if err != nil {
-				return xerrors.Errorf("keys by feature: %w", err)
-			}
+			featureKeys := keysByFeature(cryptokeys, k.features)
 
 			now := dbtime.Time(k.clock.Now().UTC())
 			for feature, keys := range featureKeys {
@@ -189,7 +200,7 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 }
 
 func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature database.CryptoKeyFeature, startsAt time.Time) (database.CryptoKey, error) {
-	secret, err := generateNewSecret(feature)
+	secret, err := generateNewSecret(feature, startsAt, k.keyDuration)
 	if err != nil {
 		return database.CryptoKey{}, xerrors.Errorf("generate new secret: %w", err)
 	}
@@ -246,7 +257,11 @@ func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database
 	return []database.CryptoKey{updatedKey, newKey}, nil
 }
 
-func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
+// generateNewSecret generates the secret for a new key of the given feature.
+// keyDuration is the rotator's key duration; it is only used by features whose
+// secret encodes its own validity window (currently only the NATS CA, whose
+// certificate must outlive the key row's active-signer period).
+func generateNewSecret(feature database.CryptoKeyFeature, startsAt time.Time, keyDuration time.Duration) (string, error) {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateKey(32)
@@ -256,6 +271,8 @@ func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
+	case database.CryptoKeyFeatureNATSCA:
+		return generateCASecret(startsAt, keyDuration)
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
 }
@@ -279,6 +296,8 @@ func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration
+	case database.CryptoKeyFeatureNATSCA:
+		return NATSCALeafValidity
 	default:
 		return 0
 	}
@@ -297,19 +316,25 @@ func shouldRotateKey(key database.CryptoKey, keyDuration time.Duration, now time
 	return !now.Add(time.Hour).UTC().Before(expirationTime)
 }
 
-func keysByFeature(keys []database.CryptoKey, features []database.CryptoKeyFeature) (map[database.CryptoKeyFeature][]database.CryptoKey, error) {
+// keysByFeature groups keys by feature, restricted to the managed feature set.
+// GetCryptoKeys returns rows for every feature, but the rotator only manages a
+// subset (features can be gated, e.g. nats_ca behind an experiment). Keys for
+// features outside the managed set belong to features this rotator is not
+// responsible for and are skipped, so their presence (for example nats_ca rows
+// left over from a prior experiment-on run) does not abort rotation of the
+// managed features.
+func keysByFeature(keys []database.CryptoKey, features []database.CryptoKeyFeature) map[database.CryptoKeyFeature][]database.CryptoKey {
 	m := map[database.CryptoKeyFeature][]database.CryptoKey{}
 	for _, feature := range features {
 		m[feature] = []database.CryptoKey{}
 	}
 	for _, key := range keys {
 		if _, ok := m[key.Feature]; !ok {
-			return nil, xerrors.Errorf("unknown feature: %s", key.Feature)
+			continue
 		}
-
 		m[key.Feature] = append(m[key.Feature], key)
 	}
-	return m, nil
+	return m
 }
 
 // minStartsAt ensures the minimum starts_at time we use for a new
