@@ -397,10 +397,8 @@ func TestResolver_SkillsOnlyFromFixedContainers(t *testing.T) {
 }
 
 // TestResolver_SymlinkedSkillDirectoryFollowed verifies a skill
-// directory reached through a symlink inside a recognized container is
-// discovered. DirEntry.IsDir reports false for a symlink, so the naive
-// scan would silently drop it. The resolved directory stays inside the
-// scan root, so it is followed and read.
+// directory reached through a symlink whose target stays inside the
+// scan root is discovered.
 func TestResolver_SymlinkedSkillDirectoryFollowed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
@@ -435,7 +433,7 @@ func TestResolver_SymlinkedSkillDirectoryFollowed(t *testing.T) {
 // TestResolver_SymlinkedSkillDirectoryEscapingRejected guards the skill
 // directory boundary. A symlinked skill directory whose target resolves
 // to a sensitive location outside the scan root is rejected as
-// StatusInvalid and ships no payload or usable name.
+// StatusInvalid.
 func TestResolver_SymlinkedSkillDirectoryEscapingRejected(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
