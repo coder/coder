@@ -1,4 +1,5 @@
 import { type FC, type ReactNode, useReducer, useState } from "react";
+
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -68,6 +69,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	const currentIndex = nearestVisible(stepIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
+
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
 	const isFirstStep = prevIndex === -1;
@@ -82,6 +84,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 
 	const handleBack = () => {
+		window.scrollTo(0, 0);
 		setStepIndex(prevIndex);
 	};
 
@@ -90,6 +93,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			onCreateTemplate(state);
 			return;
 		}
+		window.scrollTo(0, 0);
 		setStepIndex(nextIndex);
 	};
 
@@ -130,7 +134,14 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="p-6 border border-solid rounded-lg">
+					<div
+						className="p-6 border border-solid rounded-lg"
+						style={
+							{
+								"--step-content-max-h": "calc(100vh - 340px)",
+							} as React.CSSProperties
+						}
+					>
 						{renderStepContent(
 							currentStep.id,
 							state,
@@ -158,7 +169,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				</div>
 
 				{/* Sidebar */}
-				<div className="w-64 shrink-0 hidden md:block">
+				<div className="w-64 shrink-0 hidden md:block sticky top-0 self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						selectedTemplate={

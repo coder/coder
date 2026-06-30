@@ -120,7 +120,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 				Set values for module variables.
 			</TemplateBuilderSubtitle>
 
-			<div className="flex flex-col gap-6">
+			<div className="flex flex-col gap-6 max-h-[var(--step-content-max-h)] overflow-y-auto">
 				{selectedModules.map((mod) => {
 					const configurableVars = mod.variables.filter((v) => !v.sensitive);
 					const sensitiveVars = mod.variables.filter((v) => v.sensitive);
