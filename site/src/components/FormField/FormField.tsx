@@ -7,12 +7,14 @@ import type { FormHelpers } from "#/utils/formUtils";
 type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 	field: FormHelpers;
 	label: ReactNode;
+	showOptional?: boolean;
 	description?: ReactNode;
 };
 
 export const FormField: FC<FormFieldProps> = ({
 	field,
 	label,
+	showOptional,
 	description,
 	className,
 	...inputProps
@@ -34,14 +36,19 @@ export const FormField: FC<FormFieldProps> = ({
 		<div className="flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-xs font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				)}
+				) : showOptional ? (
+					<>
+						{" "}
+						<span className="text-content-secondary">(optional)</span>
+					</>
+				) : null}
 			</Label>
 			{description && (
 				<div id={descriptionId} className="text-xs text-content-secondary">

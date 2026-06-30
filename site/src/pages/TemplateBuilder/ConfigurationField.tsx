@@ -100,6 +100,7 @@ const TextField: FC<TextFieldDefinition> = ({
 		id={id}
 		field={field}
 		label={label}
+		showOptional
 		description={description}
 		required={required}
 		placeholder={placeholder}
@@ -122,12 +123,17 @@ const SelectField: FC<SelectFieldDefinition> = ({
 		<div className="!col-end-1 flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
+					</>
+				) : (
+					<>
+						{" "}
+						<span className="text-content-secondary">(optional)</span>
 					</>
 				)}
 			</Label>
@@ -170,12 +176,17 @@ const RadioField: FC<RadioFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
+					</>
+				) : (
+					<>
+						{" "}
+						<span className="text-content-secondary">(optional)</span>
 					</>
 				)}
 			</Label>
@@ -293,12 +304,17 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required && (
+				{required ? (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
+					</>
+				) : (
+					<>
+						{" "}
+						<span className="text-content-secondary">(optional)</span>
 					</>
 				)}
 			</Label>
