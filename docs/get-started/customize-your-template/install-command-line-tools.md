@@ -1,6 +1,6 @@
 # Install your own command-line tools
 
-Now that you've finished [Launch your first workspace](../index.md), you can add your favorite command-line tools to every workspace.
+Now that you [launched your first workspace](../index.md), you can add your favorite command-line tools to every workspace.
 
 The Quickstart template installs system languages through the **Programming Languages** parameter, but it doesn't carry the small command-line tools you may often use, such as [`bat`](https://github.com/sharkdp/bat) or [`ripgrep`](https://github.com/BurntSushi/ripgrep).
 You can install those yourself with a package manager like [Homebrew](https://brew.sh/) or [mise](https://mise.jdx.dev/).

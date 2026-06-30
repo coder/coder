@@ -75,6 +75,9 @@ Because the local Coder server is already connected to GitHub, you don't configu
 
 On your workspace, select **Update**.
 The update form shows a **Login with GitHub** button: select it, follow the prompts to authorize Coder, then select **Update and restart**.
+The following screenshot shows the **External Authentication** section of the workspace creation screen before connecting GitHub:
+
+![External Authentication with GitHub before logging in](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
 
 ### CLI
 
@@ -89,6 +92,9 @@ If you aren't authenticated yet, Coder prints a URL to log in with GitHub; open 
 </div>
 
 Once you authorize Coder, the workspace starts, and Coder stores and refreshes your GitHub token for later builds.
+After authorizing Coder, Coder replaces the **Login with GitHub** button with an **Authenticated** message:
+
+![External Authentication with GitHub after logging in](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
 
 ## Step 3: Clone a private repository
 

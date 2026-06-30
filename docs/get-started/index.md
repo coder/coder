@@ -231,7 +231,7 @@ Templates define what's in your development environment. The following is a basi
 
 4. Select **Save**.
 
-   ![Create template](../images/screenshots/create-template.png)
+   ![Create template](../images/screenshots/create-quickstart-template.png)
 
 **What just happened?**
 You defined a template, a reusable blueprint for dev environments, in your Coder deployment.
@@ -263,6 +263,8 @@ Now it's time to launch a workspace.
    - **Git Repository (Optional)**: the Git repository you want to clone into your workspace. Leave this field blank to skip it.
 
    **Note:** If you use any of the JetBrains IDEs as your preferred IDE (such as PyCharm, GoLand, or RustRover), select **JetBrains IDEs** as the value. A new parameter will appear, with which you can choose your preferred JetBrains IDE.
+
+     ![Workspace creation screen](../images/screenshots/create-workspace.png)_Workspace creation screen_
 
 4. Launch your workspace by selecting **Create workspace**.
 

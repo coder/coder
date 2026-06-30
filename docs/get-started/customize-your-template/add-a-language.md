@@ -42,6 +42,10 @@ data "coder_parameter" "languages" {
 }
 ```
 
+This produces the following dropdown parameter:
+
+![Programming Language dropdown parameter from the Quickstart template](../../images/screenshots/quickstart-language-param.png)_Programming Language dropdown parameter from the Quickstart template_
+
 Adding an `option` adds a choice to that list.
 
 ## Step 1: Add the Ruby option
@@ -109,6 +113,10 @@ coder update <your-workspace> --always-prompt
 When prompted for **Programming Languages**, add **Ruby**, then let the workspace rebuild.
 
 </div>
+
+Adding the Ruby option to the parameter shows the following:
+
+![Programming Language dropdown parameter from the Quickstart template with Ruby](../../images/screenshots/quickstart-language-param-ruby.png)_Programming Language dropdown parameter from the Quickstart template with Ruby_
 
 ## Step 3: Check whether Ruby is installed
 
@@ -187,7 +195,10 @@ This time the workspace reports a Ruby version.
 ## Step 5: Add a Ruby preset
 
 Steps 1 through 4 make Ruby selectable as a parameter and install it at startup.
-The Quickstart template also ships presets: named bundles of parameter values that appear on the workspace creation form.
+The Quickstart template also ships presets: named bundles of parameter values that appear on the workspace creation form:
+
+![Default presets with the Quickstart template](../../images/screenshots/quickstart-default-presets.png)_Default presets with the Quickstart template_
+
 The shipped presets cover combinations like Go and Python, but none selects Ruby, so add one to keep the parameter and preset choices in sync.
 
 In `main.tf`, find the `# --- Presets ---` section and add a Ruby preset next to the existing ones:
@@ -197,15 +208,24 @@ data "coder_workspace_preset" "ruby_dev" {
   name = "Ruby Development"
   icon = "/icon/ruby.svg"
   parameters = {
-    languages = jsonencode(["ruby"])
-    ides      = jsonencode(["code-server"])
-    git_repo  = ""
+    languages      = jsonencode(["ruby"])
+    ides           = jsonencode(["code-server", "jetbrains"])
+    jetbrains_ides = jsonencode(["RM"])
+    git_repo       = ""
   }
 }
 ```
 
+This preset adds JetBrains RubyMine as a default option for the language, but you can customize the preferred IDEs in this default based on your needs.
+
 Publish the template again.
-The next time you create a workspace, **Ruby Development** appears in the preset list and preselects Ruby.
+The next time you create a workspace, **Ruby Development** appears in the preset list and preselects Ruby:
+
+![Updated presets with the Quickstart template](../../images/screenshots/quickstart-updated-presets.png)_Updated presets with the Quickstart template_
+
+Expanding the preset parameters after selecting **Ruby Development** shows the parameter values Coder will use to create the workspace:
+
+![Expanded parameter values for the Ruby Development preset](../../images/screenshots/quickstart-ruby-preset.png)_Expanded parameter values for the Ruby Development preset_
 
 ## What just happened
 
@@ -217,6 +237,8 @@ You changed two different things to add one language:
 A parameter collects a choice.
 A startup script acts on it.
 A new language needs both.
+
+You also added support for a new preset, so workspace users can launch a workspace from this template quickly, without having to fill out the parameters manually.
 
 <details>
 <summary>How does Coder install the language you pick?</summary>
@@ -667,9 +689,10 @@ data "coder_workspace_preset" "ruby_dev" {
   name = "Ruby Development"
   icon = "/icon/ruby.svg"
   parameters = {
-    languages = jsonencode(["ruby"])
-    ides      = jsonencode(["code-server"])
-    git_repo  = ""
+    languages      = jsonencode(["ruby"])
+    ides           = jsonencode(["code-server", "jetbrains"])
+    jetbrains_ides = jsonencode(["RM"])
+    git_repo       = ""
   }
 }
 
@@ -848,7 +871,7 @@ echo "Language setup complete."
 
 ## What's next?
 
-Now that you added a language, [install your own command-line tools](./install-command-line-tools.md).
+Now that you added a language, you can [install your own command-line tools](./install-command-line-tools.md).
 
 ## Learn more
 
