@@ -438,49 +438,52 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
 	},
 	&database.Chat{}: {
-		"id":                          ActionTrack,
-		"owner_id":                    ActionTrack,
-		"owner_username":              ActionIgnore,
-		"owner_name":                  ActionIgnore,
-		"organization_id":             ActionIgnore, // Never changes after creation.
-		"workspace_id":                ActionTrack,
-		"build_id":                    ActionIgnore, // Internal lifecycle.
-		"agent_id":                    ActionIgnore, // Internal lifecycle.
-		"title":                       ActionSecret, // May contain sensitive content.
-		"status":                      ActionIgnore, // Churns every message.
-		"worker_id":                   ActionIgnore, // Internal.
-		"started_at":                  ActionIgnore,
-		"heartbeat_at":                ActionIgnore, // Internal.
-		"created_at":                  ActionIgnore, // Never changes.
-		"updated_at":                  ActionIgnore, // Bumped on every mutation.
-		"parent_chat_id":              ActionIgnore, // Immutable after creation.
-		"root_chat_id":                ActionIgnore, // Immutable after creation.
-		"last_model_config_id":        ActionIgnore, // Churns every message.
-		"archived":                    ActionTrack,
-		"last_error":                  ActionIgnore, // Internal.
-		"last_turn_summary":           ActionIgnore, // Internal cached display text.
-		"mode":                        ActionTrack,
-		"mcp_server_ids":              ActionTrack,
-		"labels":                      ActionTrack,
-		"user_acl":                    ActionTrack,
-		"group_acl":                   ActionTrack,
-		"pin_order":                   ActionTrack,
-		"last_read_message_id":        ActionIgnore, // User-scoped read cursor.
-		"context_aggregate_hash":      ActionIgnore, // Agent-pushed context snapshot state.
-		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
-		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.
-		"context_error":               ActionIgnore, // Agent-pushed context snapshot state.
-		"dynamic_tools":               ActionIgnore, // Internal lifecycle.
-		"plan_mode":                   ActionIgnore, // Can flip back and forth during a session.
-		"client_type":                 ActionIgnore, // Set at creation.
-		"snapshot_version":            ActionIgnore, // Internal state machine version.
-		"history_version":             ActionIgnore, // Internal state machine version.
-		"queue_version":               ActionIgnore, // Internal state machine version.
-		"retry_state":                 ActionIgnore, // Internal transient retry UI state.
-		"retry_state_version":         ActionIgnore, // Internal state machine version.
-		"generation_attempt":          ActionIgnore, // Internal retry counter.
-		"runner_id":                   ActionIgnore, // Internal ownership identifier.
-		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
+		"id":                             ActionTrack,
+		"owner_id":                       ActionTrack,
+		"owner_username":                 ActionIgnore,
+		"owner_name":                     ActionIgnore,
+		"organization_id":                ActionIgnore, // Never changes after creation.
+		"workspace_id":                   ActionTrack,
+		"build_id":                       ActionIgnore, // Internal lifecycle.
+		"agent_id":                       ActionIgnore, // Internal lifecycle.
+		"title":                          ActionSecret, // May contain sensitive content.
+		"status":                         ActionIgnore, // Churns every message.
+		"worker_id":                      ActionIgnore, // Internal.
+		"started_at":                     ActionIgnore,
+		"heartbeat_at":                   ActionIgnore, // Internal.
+		"created_at":                     ActionIgnore, // Never changes.
+		"updated_at":                     ActionIgnore, // Bumped on every mutation.
+		"parent_chat_id":                 ActionIgnore, // Immutable after creation.
+		"root_chat_id":                   ActionIgnore, // Immutable after creation.
+		"last_model_config_id":           ActionIgnore, // Churns every message.
+		"archived":                       ActionTrack,
+		"last_error":                     ActionIgnore, // Internal.
+		"last_turn_summary":              ActionIgnore, // Internal cached display text.
+		"mode":                           ActionTrack,
+		"mcp_server_ids":                 ActionTrack,
+		"labels":                         ActionTrack,
+		"user_acl":                       ActionTrack,
+		"group_acl":                      ActionTrack,
+		"pin_order":                      ActionTrack,
+		"last_read_message_id":           ActionIgnore, // User-scoped read cursor.
+		"context_aggregate_hash":         ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_since":            ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_resources":        ActionIgnore, // Agent-pushed context snapshot state.
+		"context_error":                  ActionIgnore, // Agent-pushed context snapshot state.
+		"dynamic_tools":                  ActionIgnore, // Internal lifecycle.
+		"plan_mode":                      ActionIgnore, // Can flip back and forth during a session.
+		"client_type":                    ActionIgnore, // Set at creation.
+		"snapshot_version":               ActionIgnore, // Internal state machine version.
+		"history_version":                ActionIgnore, // Internal state machine version.
+		"queue_version":                  ActionIgnore, // Internal state machine version.
+		"retry_state":                    ActionIgnore, // Internal transient retry UI state.
+		"retry_state_version":            ActionIgnore, // Internal state machine version.
+		"generation_attempt":             ActionIgnore, // Internal retry counter.
+		"runner_id":                      ActionIgnore, // Internal ownership identifier.
+		"requires_action_deadline_at":    ActionIgnore, // Internal pending-action deadline.
+		"manual_compaction_requested_by": ActionIgnore, // Internal pending-compaction metadata.
+		"manual_compaction_api_key_id":   ActionIgnore, // Internal pending-compaction metadata.
+		"manual_compaction_requested_at": ActionIgnore, // Internal pending-compaction metadata.
 	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,
