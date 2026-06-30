@@ -1,7 +1,7 @@
 import { TrashIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
-import { Link } from "#/components/Link/Link";
+import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
 import {
 	ConfigurationField,
 	ConfigurationFieldContainer,
@@ -30,36 +30,13 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
 			<header className="flex items-start gap-6 mb-6">
-				<div className="flex flex-1 items-center gap-3 min-w-0">
-					<figure className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border m-0 mb-3">
-						{iconUrl ? (
-							<img
-								src={iconUrl}
-								alt={`${name} icon`}
-								className="size-7 object-contain"
-							/>
-						) : (
-							<div className="size-7 rounded bg-surface-primary" />
-						)}
-					</figure>
-					<div>
-						<h3 className="text-md font-semibold text-content-primary my-0">
-							{name}
-						</h3>
-						<p className="text-sm font-normal text-content-secondary inline">
-							{description}
-						</p>
-						{detailsUrl && (
-							<Link
-								href={detailsUrl}
-								target="_blank"
-								size="sm"
-								className="text-xs font-normal ml-1"
-							>
-								View details
-							</Link>
-						)}
-					</div>
+				<div className="flex-1">
+					<TemplateBuilderAvatarData
+						name={name}
+						description={description}
+						iconUrl={iconUrl}
+						detailsUrl={detailsUrl}
+					/>
 				</div>
 				{onRemove && (
 					<Button

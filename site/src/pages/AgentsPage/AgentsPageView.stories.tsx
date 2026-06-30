@@ -27,14 +27,13 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
-import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsPage from "./AgentSettingsPage";
-import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
@@ -166,7 +165,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
-	<AgentSettingsAgentsPageView
+	<CoderAgentsPageView
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
@@ -215,10 +214,13 @@ const agentsRouting = {
 				},
 				{ path: "admin", element: <AgentsRouteElement /> },
 				{ path: "agents", element: <AgentsRouteElement /> },
-				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
+				{
+					path: "spend",
+					element: <Navigate to="/ai/settings/spend" replace />,
+				},
 				{
 					path: "usage",
-					element: <Navigate to="/agents/settings/spend" replace />,
+					element: <Navigate to="/ai/settings/spend" replace />,
 				},
 			],
 		},
@@ -226,6 +228,11 @@ const agentsRouting = {
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const aiSettingsRouting = {
+	path: "/ai/settings/spend",
+	element: <div>Spend limits and usage</div>,
 };
 
 const setInnerWidthForStory = (width: number) => {
@@ -254,7 +261,6 @@ const AgentTopBarRouteElement = () => {
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
 			onArchiveAgent={fn()}
 			onArchiveAndDeleteWorkspace={fn()}
-			onRegenerateTitle={fn()}
 			onUnarchiveAgent={fn()}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -354,7 +360,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	args: defaultArgs,
@@ -398,6 +404,7 @@ const meta: Meta<typeof AgentsPageView> = {
 					],
 				},
 			],
+			unsupported_providers: [],
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
@@ -1011,7 +1018,7 @@ export const WithAgentSelected: Story = {
 				path: "/agents/chat-1",
 				pathParams: { agentId: "chat-1" },
 			},
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 };
@@ -1063,7 +1070,7 @@ export const OpensAnalyticsForAdmins: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1085,7 +1092,7 @@ export const OpensAnalyticsForNonAdmins: Story = {
 		permissions: MockNoPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1136,7 +1143,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
-export const OpensAdminSubPanelOnMobile: Story = {
+export const OpensExperimentsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1144,7 +1151,7 @@ export const OpensAdminSubPanelOnMobile: Story = {
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/settings" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1153,15 +1160,12 @@ export const OpensAdminSubPanelOnMobile: Story = {
 		);
 
 		await expect(
-			await screen.findByRole("link", { name: "Providers" }),
-		).toBeInTheDocument();
-		await expect(
-			await screen.findByRole("link", { name: "Spend" }),
+			await screen.findByRole("heading", { name: "Experiments" }),
 		).toBeInTheDocument();
 	},
 };
 
-export const SettingsViewResets: Story = {
+export const SettingsViewExperimentsLink: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1175,32 +1179,13 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
-		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
+		await userEvent.click(
+			await screen.findByRole("link", { name: "Manage agents" }),
+		);
+
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Configure spend limits and monitor usage across your deployment.",
-				),
-			).toBeInTheDocument();
-		});
-
-		// Step back to the top-level settings panel, then back to conversations.
-		const backToSettingsButton = await screen.findByRole("link", {
-			name: "Back to settings",
-		});
-		await userEvent.click(backToSettingsButton);
-		const backToAgentsButton = await screen.findByRole("link", {
-			name: "Back to agents",
-		});
-		await userEvent.click(backToAgentsButton);
-
-		// Re-open settings, should reset to General
-		await openSettingsView(canvasElement);
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
+				screen.getByText("Opt in to experimental features."),
 			).toBeInTheDocument();
 		});
 	},

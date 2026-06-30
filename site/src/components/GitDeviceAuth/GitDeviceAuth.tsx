@@ -72,7 +72,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 }) => {
 	let status = (
 		<p className="flex items-center justify-center gap-2 text-content-disabled">
-			<CircularProgress size={16} color="secondary" data-chromatic="ignore" />
+			<CircularProgress size={16} color="secondary" data-pixel="ignore" />
 			Checking for authentication...
 		</p>
 	);

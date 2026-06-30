@@ -358,6 +358,7 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	authorizedSecurityTags := []string{
 		"CoderSessionToken",
 		"CoderProvisionerKey",
+		"AIGatewayKey",
 	}
 
 	if comment.router == "/api/v2/updatecheck" ||

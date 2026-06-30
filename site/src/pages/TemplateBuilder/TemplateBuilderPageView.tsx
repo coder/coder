@@ -20,6 +20,7 @@ import {
 	BaseTemplateParametersStep,
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
+import { BuildingTemplateLoader } from "./BuildingTemplateLoader";
 import { ModuleSelectStep } from "./ModuleSelectStep";
 import {
 	ModuleSettingsStep,
@@ -33,6 +34,7 @@ import {
 	type StepId,
 	WIZARD_STEPS,
 } from "./steps";
+import { TemplateAlternatives } from "./TemplateAlternatives";
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
@@ -103,6 +105,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		});
 	};
 
+	if (isCreating) {
+		return <BuildingTemplateLoader />;
+	}
+
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
@@ -143,14 +149,12 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue || isCreating}>
-							{isCreating
-								? "Creating..."
-								: isLastStep
-									? "Create Template"
-									: "Continue"}
+						<Button onClick={handleNext} disabled={!canContinue}>
+							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
+
+					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
 
 				{/* Sidebar */}

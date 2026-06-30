@@ -172,7 +172,7 @@ export const ModelFormFields: FC<{
 								}
 								disabled={setDefaultDisabled}
 							/>
-							Set as default model
+							Set as Coder Agents default model
 						</label>
 					</div>
 					<div className="grid gap-1.5">

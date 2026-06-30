@@ -382,7 +382,7 @@ export const MobileShiftedVisualViewport: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
@@ -418,7 +418,7 @@ export const MobileOffsetTopDoesNotCollapse: Story = {
 	decorators: [MobileDecorator],
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
