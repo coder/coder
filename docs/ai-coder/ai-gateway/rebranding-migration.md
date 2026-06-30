@@ -9,14 +9,19 @@ AI Bridge has been renamed to **AI Gateway**. This is a cosmetic rebrand to make
 the feature easier to understand. It changes user-visible names, configuration
 options, the canonical HTTP API path, and the Prometheus metric names.
 
-**This release does not break existing deployments.** Old names keep working as
-deprecated aliases, there are no database changes, and no configuration changes
-are required to upgrade.
+> [!NOTE]
+> This release does not break existing deployments. Old names keep working as
+> deprecated aliases, there are no database changes, and no configuration
+> changes are required to upgrade.
 
-The deprecated aliases may be removed in a future release, so we recommend
-migrating as soon as possible.
+The old `aibridge` names are retained for backward compatibility. There is no
+planned removal date, but we recommend adopting the new `ai_gateway` names so
+your configuration matches the current documentation.
 
-We will only use the new name for future settings, with no aliases.
+> [!IMPORTANT]
+> New settings added in every area except the database (configuration options,
+> environment variables, CLI flags, and API paths) will use only the new
+> `ai_gateway` name, with no `aibridge` alias.
 
 ## At a glance
 
@@ -144,9 +149,15 @@ old `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>` prefix is accepted as a deprecated alias
 
 Unlike the scalar settings above, you **cannot mix the two prefixes**. Setting
 both `CODER_AIBRIDGE_PROVIDER_*` and `CODER_AI_GATEWAY_PROVIDER_*` variables in
-the same deployment is an error. Move every provider variable onto the new
-`CODER_AI_GATEWAY_PROVIDER_*` prefix together (for example
-`CODER_AIBRIDGE_PROVIDER_0_TYPE` becomes `CODER_AI_GATEWAY_PROVIDER_0_TYPE`).
+the same deployment causes startup to fail with:
+
+```text
+cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*
+```
+
+Move every provider variable onto the new `CODER_AI_GATEWAY_PROVIDER_*` prefix
+together (for example `CODER_AIBRIDGE_PROVIDER_0_TYPE` becomes
+`CODER_AI_GATEWAY_PROVIDER_0_TYPE`).
 
 ## HTTP API
 
@@ -157,6 +168,10 @@ continue to serve the same handlers.
 
 If you have external integrations calling the API directly, update them to the
 new path at your convenience. No immediate action is required.
+
+AI clients (such as Claude Code, Codex, and other tools) that are configured
+with a base URL pointing at the legacy `/api/v2/aibridge` path continue to work,
+but should be updated to the new `/api/v2/ai-gateway` base URL.
 
 ## Metrics
 
@@ -172,7 +187,8 @@ series is exported under both prefixes from the same underlying collector, so
 existing dashboards, alerts, and recording rules keep working immediately after
 upgrade with no changes.
 
-To avoid a gap in your observability when the old metric names are removed:
+The old prefixes are retained for backward compatibility with no planned removal
+date. To keep your observability aligned with the new names:
 
 1. Update Grafana dashboards, Prometheus alerting rules, and recording rules to
    reference the new `coder_ai_gateway_*` and `coder_ai_gateway_proxy_*` names.
