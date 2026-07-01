@@ -118,7 +118,6 @@ func insertAgentChatTestModelConfig(
 	})
 
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
 		CreatedBy:    createdBy,
 		UpdatedBy:    createdBy,
