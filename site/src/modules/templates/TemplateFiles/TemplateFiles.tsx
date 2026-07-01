@@ -61,7 +61,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 	return (
 		<div>
 			<div className="flex items-start gap-8">
-				<div className="sticky top-[112px] w-[240px] shrink-0 overflow-auto rounded-lg border border-solid border-surface-quaternary py-1">
+				<div className="sticky top-28 w-[240px] shrink-0 overflow-auto rounded-lg border border-solid border-surface-quaternary py-1">
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
