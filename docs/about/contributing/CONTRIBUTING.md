@@ -232,6 +232,10 @@ RC tags can be created from `main` or from a release branch. The
 `create-release-branch` type creates `release/X.Y` and tags the next RC in one
 step, continuing the RC numbering sequence.
 
+> The automated `create-release-branch` workflow (Tag and Release) is still
+> experimental. Cutting the branch by hand is the current default; see
+> [Cutting a release branch](#cutting-a-release-branch) below.
+
 ```text
 main:  --*--*--*--*--*--*--*--*--*--
               |  rc.0   rc.1  |
@@ -258,13 +262,12 @@ main:  --*--*--*--*--*--*--*--*--*--
 The workflow validates that commits are on the expected branch for each release
 type.
 
-### Cutting a release branch manually
+### Cutting a release branch
 
-The preferred way to start a new release is the automated
-`create-release-branch` workflow described in [Workflow](#workflow) above, which
-creates `release/X.Y` and tags the next release candidate in a single step. If
-you need to create a release branch by hand, cut it from the commit you want to
-release.
+Cutting a `release/X.Y` branch from the commit you want to release is the
+current default way to start a new release. The automated
+`create-release-branch` workflow described in [Workflow](#workflow) above is
+still experimental, so cut the branch by hand using the steps below.
 
 Replace the placeholders in the commands below:
 
