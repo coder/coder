@@ -1549,22 +1549,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
-
-export const chatDesktopEnabled = () => ({
-	queryKey: chatDesktopEnabledKey,
-	queryFn: () => API.experimental.getChatDesktopEnabled(),
-});
-
-export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatDesktopEnabled,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatDesktopEnabledKey,
-		});
-	},
-});
-
 const chatPersonalModelOverridesAdminSettingsKey = [
 	...chatsKey,
 	"admin-personal-model-overrides",

@@ -143,7 +143,4 @@ export const Loading: Story = {
 		users: [],
 		isLoading: true,
 	},
-	parameters: {
-		chromatic: { pauseAnimationAtEnd: true },
-	},
 };

@@ -1002,8 +1002,9 @@ export const Addons: Addon[] = ["ai_governance"];
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled toggles the advisor runtime. When false, advisor is not
-	 * attached to new chats.
+	 * Enabled reflects whether the chat-advisor experiment is active.
+	 * The experiment flag is the sole gate; this field is read-only and
+	 * always matches the experiment state regardless of the stored DB value.
 	 */
 	readonly enabled: boolean;
 	/**
@@ -1148,6 +1149,13 @@ export const AgentSubsystems: AgentSubsystem[] = [
 	"envbox",
 	"envbuilder",
 	"exectrace",
+];
+
+// From codersdk/aiproviders.go
+export type AgentsUnsupportedProviderType = "copilot";
+
+export const AgentsUnsupportedProviderTypes: AgentsUnsupportedProviderType[] = [
+	"copilot",
 ];
 
 // From codersdk/chats.go
@@ -2049,14 +2057,6 @@ export const ChatDebugStepOperations: ChatDebugStepOperation[] = [
 
 // From codersdk/chats.go
 /**
- * ChatDesktopEnabledResponse is the response for getting the desktop setting.
- */
-export interface ChatDesktopEnabledResponse {
-	readonly enable_desktop: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * ChatDiffContents represents the resolved diff text for a chat.
  */
 export interface ChatDiffContents {
@@ -2485,8 +2485,7 @@ export interface ChatModelCallConfig {
  */
 export interface ChatModelConfig {
 	readonly id: string;
-	readonly provider: string;
-	readonly ai_provider_id?: string;
+	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -2702,6 +2701,11 @@ export interface ChatModelVercelProviderOptions {
  */
 export interface ChatModelsResponse {
 	readonly providers: readonly ChatModelProvider[];
+	/**
+	 * UnsupportedProviders lists configured providers the Agents harness
+	 * cannot use, so the UI can explain the empty state.
+	 */
+	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
 // From codersdk/chats.go
@@ -3129,6 +3133,19 @@ export interface ChatToolResultPart {
 
 // From codersdk/chats.go
 /**
+ * ChatUnsupportedProvider is a configured provider the Agents harness cannot
+ * use.
+ */
+export interface ChatUnsupportedProvider {
+	/**
+	 * Provider is the provider type, e.g. "copilot".
+	 */
+	readonly provider: string;
+	readonly display_name: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatUsageLimitConfig is the deployment-wide default usage limit config.
  */
 export interface ChatUsageLimitConfig {
@@ -3499,7 +3516,6 @@ export interface CreateChatMessageResponse {
  * CreateChatModelConfigRequest creates a chat model config.
  */
 export interface CreateChatModelConfigRequest {
-	readonly provider?: string;
 	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
@@ -4568,8 +4584,9 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "ai-gateway-cost-control"
-	| "agent-app-tabs"
 	| "auto-fill-parameters"
+	| "chat-advisor"
+	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
 	| "minimum-implicit-member"
@@ -4581,8 +4598,9 @@ export type Experiment =
 
 export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
-	"agent-app-tabs",
 	"auto-fill-parameters",
+	"chat-advisor",
+	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
 	"minimum-implicit-member",
@@ -8797,8 +8815,9 @@ export interface UpdateActiveTemplateVersion {
  */
 export interface UpdateAdvisorConfigRequest {
 	/**
-	 * Enabled toggles the advisor runtime. When false, advisor is not
-	 * attached to new chats.
+	 * Enabled reflects whether the chat-advisor experiment is active.
+	 * The experiment flag is the sole gate; this field is read-only and
+	 * always matches the experiment state regardless of the stored DB value.
 	 */
 	readonly enabled: boolean;
 	/**
@@ -8876,18 +8895,9 @@ export interface UpdateChatDebugRetentionDaysRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
- */
-export interface UpdateChatDesktopEnabledRequest {
-	readonly enable_desktop: boolean;
-}
-
-// From codersdk/chats.go
-/**
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
-	readonly provider?: string;
 	readonly ai_provider_id?: string;
 	readonly model?: string;
 	readonly display_name?: string;

@@ -43,7 +43,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -138,7 +137,6 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -178,7 +176,7 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 
 	dispatcher := &recordingWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{db: db, pubsub: ps, webpushDispatcher: dispatcher}
+	server := &Server{ctx: t.Context(), db: db, pubsub: ps, webpushDispatcher: dispatcher}
 	server.maybeFinalizeTurnStatusLabelAndPush(
 		context.WithoutCancel(ctx),
 		chat,
@@ -222,7 +220,6 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -260,6 +257,7 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 
 	dispatcher := &recordingWebpushDispatcher{}
 	server := &Server{
+		ctx:               t.Context(),
 		db:                db,
 		pubsub:            ps,
 		logger:            slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),

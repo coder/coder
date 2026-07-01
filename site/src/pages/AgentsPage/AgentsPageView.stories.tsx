@@ -31,7 +31,6 @@ import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgen
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
@@ -70,7 +69,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: defaultModelConfigID,
-		provider: "openai",
+		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -181,14 +180,31 @@ const AgentsRouteElement = () => (
 			is_malformed: false,
 		}}
 		modelConfigsData={[]}
+		providerTypeByID={new Map()}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		isFetchingModelConfigs={false}
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
+		showAdvisorSettings={false}
+		advisorConfigData={undefined}
+		isAdvisorConfigLoading={false}
+		isAdvisorConfigFetching={false}
+		isAdvisorConfigLoadError={false}
+		onSaveAdvisorConfig={fn()}
+		isSavingAdvisorConfig={false}
+		isSaveAdvisorConfigError={false}
+		saveAdvisorConfigError={undefined}
+		showVirtualDesktopSettings={false}
+		computerUseProviderData={undefined}
+		isLoadingComputerUseProvider={false}
+		onSaveComputerUseProvider={fn()}
+		isSavingComputerUseProvider={false}
+		computerUseProviderSaveError={null}
 	/>
 );
 
@@ -207,13 +223,22 @@ const agentsRouting = {
 					path: "instructions",
 					element: <Navigate to="/ai/settings/instructions" replace />,
 				},
-				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{
 					path: "lifecycle",
 					element: <Navigate to="/ai/settings/lifecycle" replace />,
 				},
-				{ path: "admin", element: <AgentsRouteElement /> },
-				{ path: "agents", element: <AgentsRouteElement /> },
+				{
+					path: "admin",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "agents",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "coder-agents",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
 				{
 					path: "spend",
 					element: <Navigate to="/ai/settings/spend" replace />,
@@ -231,8 +256,11 @@ const agentsRouting = {
 };
 
 const aiSettingsRouting = {
-	path: "/ai/settings/spend",
-	element: <div>Spend limits and usage</div>,
+	path: "/ai/settings",
+	children: [
+		{ path: "coder-agents", element: <AgentsRouteElement /> },
+		{ path: "spend", element: <div>Spend limits and usage</div> },
+	],
 };
 
 const setInnerWidthForStory = (width: number) => {
@@ -402,11 +430,12 @@ const meta: Meta<typeof AgentsPageView> = {
 					],
 				},
 			],
+			unsupported_providers: [],
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
 				id: defaultModelConfigID,
-				provider: "openai",
+				ai_provider_id: "provider-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
 				enabled: true,
@@ -417,11 +446,22 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-openai",
+					type: "openai",
+					name: "openai",
+					display_name: "OpenAI",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
+			},
+		]);
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
-		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
-			enable_desktop: false,
-		});
-		spyOn(API.experimental, "updateChatDesktopEnabled").mockResolvedValue();
 		spyOn(API.experimental, "getChatDebugLogging").mockResolvedValue({
 			allow_users: false,
 			forced_by_deployment: false,
@@ -1140,7 +1180,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
-export const OpensExperimentsFromManageAgentsOnMobile: Story = {
+export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1152,17 +1192,23 @@ export const OpensExperimentsFromManageAgentsOnMobile: Story = {
 		}),
 	},
 	play: async () => {
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
 
+		await userEvent.click(manageAgentsLink);
+
 		await expect(
-			await screen.findByRole("heading", { name: "Experiments" }),
+			await screen.findByRole("heading", { name: "Coder Agents" }),
 		).toBeInTheDocument();
 	},
 };
 
-export const SettingsViewExperimentsLink: Story = {
+export const SettingsViewCoderAgentsLink: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1176,13 +1222,21 @@ export const SettingsViewExperimentsLink: Story = {
 			).toBeInTheDocument();
 		});
 
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
+
+		await userEvent.click(manageAgentsLink);
 
 		await waitFor(() => {
 			expect(
-				screen.getByText("Opt in to experimental features."),
+				screen.getByText(
+					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
+				),
 			).toBeInTheDocument();
 		});
 	},

@@ -96,14 +96,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 	const isSettingsPanel = isSettingsView(sidebarView);
-	const isFallbackToUserPanel =
-		sidebarView.panel === "settings-admin" && !isAdmin;
-	const settingsPanel =
-		sidebarView.panel === "settings-admin" && isAdmin
-			? "settings-admin"
-			: "settings";
-	const settingsSection =
-		isSettingsPanel && !isFallbackToUserPanel ? sidebarView.section : undefined;
+	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
 		...userChatProviderConfigs(),
 		enabled: isSettingsPanel && !isAdmin,
@@ -161,7 +154,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			/>
 			<SettingsPanel
 				isSettingsPanel={isSettingsPanel}
-				settingsPanel={settingsPanel}
 				settingsSection={settingsSection}
 				showApiKeysItem={showApiKeysItem}
 				isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}

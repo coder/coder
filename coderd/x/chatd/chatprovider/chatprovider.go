@@ -5,7 +5,7 @@ import (
 	"mime"
 	"net/http"
 	neturl "net/url"
-	"sort"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -46,15 +46,60 @@ var providerDisplayNameByName = map[string]string{
 	fantasyopenaicompat.Name: "OpenAI Compatible",
 	fantasyopenrouter.Name:   "OpenRouter",
 	fantasyvercel.Name:       "Vercel AI Gateway",
+	// Copilot is unsupported but still needs a display name for the
+	// unsupported list and AI Settings.
+	string(codersdk.AIProviderTypeCopilot): "GitHub Copilot",
 }
 
 // ProviderDisplayName returns a default display name for a provider.
 func ProviderDisplayName(provider string) string {
 	normalized := NormalizeProvider(provider)
+	if normalized == "" {
+		// Fall back for providers the harness cannot normalize, like copilot.
+		normalized = strings.ToLower(strings.TrimSpace(provider))
+	}
 	if displayName, ok := providerDisplayNameByName[normalized]; ok {
 		return displayName
 	}
 	return normalized
+}
+
+// AgentsSupportsProvider reports whether the Agents harness can use the
+// provider type.
+func AgentsSupportsProvider(provider string) bool {
+	providerType := codersdk.AIProviderType(strings.ToLower(strings.TrimSpace(provider)))
+	if codersdk.IsAgentsUnsupportedProviderType(providerType) {
+		return false
+	}
+	return NormalizeProvider(provider) != ""
+}
+
+// UnsupportedProviders returns the configured providers the Agents harness
+// cannot use, deduplicated by provider type.
+func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupportedProvider {
+	seen := make(map[string]struct{}, len(configured))
+	unsupported := make([]codersdk.ChatUnsupportedProvider, 0)
+	for _, provider := range configured {
+		if AgentsSupportsProvider(provider.Provider) {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(provider.Provider))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unsupported = append(unsupported, codersdk.ChatUnsupportedProvider{
+			Provider:    key,
+			DisplayName: ProviderDisplayName(provider.Provider),
+		})
+	}
+	slices.SortFunc(unsupported, func(a, b codersdk.ChatUnsupportedProvider) int {
+		return strings.Compare(a.Provider, b.Provider)
+	})
+	return unsupported
 }
 
 // ProviderAllowsAmbientCredentials reports whether provider can use
@@ -615,8 +660,8 @@ func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 }
 
 func sortChatModels(models []codersdk.ChatModel) {
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].Model < models[j].Model
+	slices.SortFunc(models, func(a, b codersdk.ChatModel) int {
+		return strings.Compare(a.Model, b.Model)
 	})
 }
 
@@ -734,13 +779,13 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 	}
 
 	for _, separator := range []string{":", "/"} {
-		parts := strings.SplitN(modelRef, separator, 2)
-		if len(parts) != 2 {
+		before, after, found := strings.Cut(modelRef, separator)
+		if !found {
 			continue
 		}
 
-		provider := NormalizeProvider(parts[0])
-		modelID := strings.TrimSpace(parts[1])
+		provider := NormalizeProvider(before)
+		modelID := strings.TrimSpace(after)
 		if provider != "" && modelID != "" {
 			return provider, modelID, true
 		}

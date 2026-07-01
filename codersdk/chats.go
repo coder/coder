@@ -701,6 +701,17 @@ type ChatModelProvider struct {
 // ChatModelsResponse is the catalog returned from chat model discovery.
 type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
+	// UnsupportedProviders lists configured providers the Agents harness
+	// cannot use, so the UI can explain the empty state.
+	UnsupportedProviders []ChatUnsupportedProvider `json:"unsupported_providers"`
+}
+
+// ChatUnsupportedProvider is a configured provider the Agents harness cannot
+// use.
+type ChatUnsupportedProvider struct {
+	// Provider is the provider type, e.g. "copilot".
+	Provider    string `json:"provider"`
+	DisplayName string `json:"display_name"`
 }
 
 // ChatSystemPromptResponse is the response body for the chat system prompt
@@ -865,23 +876,14 @@ type UpdateUserChatCompactionThresholdRequest struct {
 	ThresholdPercent int32 `json:"threshold_percent" validate:"min=0,max=100"`
 }
 
-// ChatDesktopEnabledResponse is the response for getting the desktop setting.
-type ChatDesktopEnabledResponse struct {
-	EnableDesktop bool `json:"enable_desktop"`
-}
-
-// UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
-type UpdateChatDesktopEnabledRequest struct {
-	EnableDesktop bool `json:"enable_desktop"`
-}
-
 // AdvisorConfig is the deployment-wide runtime configuration for the
 // experimental chat advisor.
 //
 // EXPERIMENTAL: this type is experimental and is subject to change.
 type AdvisorConfig struct {
-	// Enabled toggles the advisor runtime. When false, advisor is not
-	// attached to new chats.
+	// Enabled reflects whether the chat-advisor experiment is active.
+	// The experiment flag is the sole gate; this field is read-only and
+	// always matches the experiment state regardless of the stored DB value.
 	Enabled bool `json:"enabled"`
 	// MaxUsesPerRun caps how many times the advisor can be invoked per
 	// chat run. 0 means unlimited.
@@ -1247,8 +1249,7 @@ type CreateUserChatProviderKeyRequest struct {
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	Provider             string               `json:"provider"`
-	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
+	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
@@ -1459,7 +1460,6 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string               `json:"provider,omitempty"`
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -1472,7 +1472,6 @@ type CreateChatModelConfigRequest struct {
 
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
-	Provider             string               `json:"provider,omitempty"`
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -2636,33 +2635,6 @@ func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserC
 	}
 	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// GetChatDesktopEnabled returns the deployment-wide desktop setting.
-func (c *ExperimentalClient) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/desktop-enabled", nil)
-	if err != nil {
-		return ChatDesktopEnabledResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDesktopEnabledResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatDesktopEnabledResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
-func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.

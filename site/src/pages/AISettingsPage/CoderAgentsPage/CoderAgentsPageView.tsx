@@ -1,10 +1,13 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
+import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
@@ -31,8 +34,10 @@ export interface CoderAgentsPageViewProps {
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
+	providerTypeByID: ReadonlyMap<string, string>;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
+	isFetchingModelConfigs: boolean;
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
@@ -42,6 +47,29 @@ export interface CoderAgentsPageViewProps {
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
+	showAdvisorSettings: boolean;
+	advisorConfigData: TypesGen.AdvisorConfig | undefined;
+	isAdvisorConfigLoading: boolean;
+	isAdvisorConfigFetching: boolean;
+	isAdvisorConfigLoadError: boolean;
+	onSaveAdvisorConfig: (
+		req: TypesGen.UpdateAdvisorConfigRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingAdvisorConfig: boolean;
+	isSaveAdvisorConfigError: boolean;
+	saveAdvisorConfigError: unknown;
+	showVirtualDesktopSettings: boolean;
+	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
+	isLoadingComputerUseProvider: boolean;
+	onSaveComputerUseProvider: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatComputerUseProviderRequest,
+		unknown
+	>;
+	isSavingComputerUseProvider: boolean;
+	computerUseProviderSaveError: Error | null;
 }
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
@@ -56,8 +84,10 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
+	providerTypeByID,
 	modelConfigsError,
 	isLoadingModelConfigs,
+	isFetchingModelConfigs,
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
@@ -67,6 +97,21 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
+	showAdvisorSettings,
+	advisorConfigData,
+	isAdvisorConfigLoading,
+	isAdvisorConfigFetching,
+	isAdvisorConfigLoadError,
+	onSaveAdvisorConfig,
+	isSavingAdvisorConfig,
+	isSaveAdvisorConfigError,
+	saveAdvisorConfigError,
+	showVirtualDesktopSettings,
+	computerUseProviderData,
+	isLoadingComputerUseProvider,
+	onSaveComputerUseProvider,
+	isSavingComputerUseProvider,
+	computerUseProviderSaveError,
 }) => {
 	const enabledModelConfigs = (modelConfigsData ?? []).filter(
 		(modelConfig) => modelConfig.enabled,
@@ -102,6 +147,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 						description="Used by delegated agents that can edit files or run commands."
 						modelOverrideData={generalModelOverrideData}
 						enabledModelConfigs={enabledModelConfigs}
+						providerTypeByID={providerTypeByID}
 						modelConfigsError={modelConfigsError}
 						isLoading={isLoadingModelConfigs}
 						onSaveModelOverride={onSaveGeneralModelOverride}
@@ -115,6 +161,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					description="Leave unset to use Coder's title default, which prefers fast models from configured providers."
 					modelOverrideData={titleGenerationModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
+					providerTypeByID={providerTypeByID}
 					modelConfigsError={modelConfigsError}
 					isLoading={isLoadingModelConfigs}
 					onSaveModelOverride={onSaveTitleGenerationModel}
@@ -129,6 +176,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					description="Used for read-only codebase exploration before work returns to the main agent."
 					modelOverrideData={exploreModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
+					providerTypeByID={providerTypeByID}
 					modelConfigsError={modelConfigsError}
 					isLoading={isLoadingModelConfigs}
 					onSaveModelOverride={onSaveExploreModelOverride}
@@ -136,6 +184,31 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					isSaveError={isSaveExploreModelOverrideError}
 					saveErrorMessage="Failed to save Explore model override."
 				/>
+				{showVirtualDesktopSettings && (
+					<VirtualDesktopSettings
+						computerUseProviderData={computerUseProviderData}
+						isLoadingComputerUseProvider={isLoadingComputerUseProvider}
+						onSaveComputerUseProvider={onSaveComputerUseProvider}
+						isSavingComputerUseProvider={isSavingComputerUseProvider}
+						computerUseProviderSaveError={computerUseProviderSaveError}
+					/>
+				)}
+				{showAdvisorSettings && (
+					<AdvisorSettings
+						advisorConfigData={advisorConfigData}
+						isAdvisorConfigLoading={isAdvisorConfigLoading}
+						isAdvisorConfigFetching={isAdvisorConfigFetching}
+						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+						modelConfigs={modelConfigsData ?? []}
+						modelConfigsError={modelConfigsError}
+						isLoadingModelConfigs={isLoadingModelConfigs}
+						isFetchingModelConfigs={isFetchingModelConfigs}
+						onSaveAdvisorConfig={onSaveAdvisorConfig}
+						isSavingAdvisorConfig={isSavingAdvisorConfig}
+						isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+						saveAdvisorConfigError={saveAdvisorConfigError}
+					/>
+				)}
 			</div>
 		</div>
 	);

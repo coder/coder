@@ -61,7 +61,7 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,
@@ -457,7 +457,7 @@ export const LoadingPersonalModelOverrides: Story = {
 export const NoModelsConfigured: Story = {
 	args: {
 		...defaultArgs,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
@@ -470,7 +470,7 @@ export const MissingProviderAndModelSetup: Story = {
 		canConfigureAgentSetup: true,
 		providerCount: 0,
 		modelCount: 0,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
