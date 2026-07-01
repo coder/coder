@@ -205,17 +205,15 @@ const OrganizationMembersPage: FC = () => {
 				}}
 				description={
 					<div className="flex flex-col gap-4">
-						<p>
-							Removing this member will:
-							<ul>
-								<li>Remove the member from all groups in this organization</li>
-								<li>Remove all user role assignments</li>
-								<li>
-									Orphan all the member's workspaces associated with this
-									organization
-								</li>
-							</ul>
-						</p>
+						<p>Removing this member will:</p>
+						<ul>
+							<li>Remove the member from all groups in this organization</li>
+							<li>Remove all user role assignments</li>
+							<li>
+								Orphan all the member's workspaces associated with this
+								organization
+							</li>
+						</ul>
 
 						<p className="pb-5">Are you sure you want to remove this member?</p>
 					</div>
