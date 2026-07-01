@@ -13,13 +13,13 @@ import {
 	formatProviderLabel,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
-	getNormalizedModelRef,
 	getUnsupportedProviderNames,
 	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
 	providerTypeByIDFromConfigs,
 	providerTypeByIDFromUserConfigs,
 	resolveModelOptionId,
+	resolveModelSelector,
 } from "./modelOptions";
 
 const createConfig = (
@@ -60,20 +60,6 @@ const createProviderConfig = (
 	allow_user_api_key: false,
 	allow_central_api_key_fallback: false,
 	...overrides,
-});
-
-describe("getNormalizedModelRef", () => {
-	it("returns empty strings for malformed values", () => {
-		expect(getNormalizedModelRef({ provider: undefined, model: null })).toEqual(
-			{ provider: "", model: "" },
-		);
-	});
-
-	it("trims and normalizes provider values", () => {
-		expect(
-			getNormalizedModelRef({ provider: " OpenAI ", model: " gpt-4o " }),
-		).toEqual({ provider: "openai", model: "gpt-4o" });
-	});
 });
 
 describe("hasUserFixableProviders", () => {
@@ -275,30 +261,8 @@ describe("resolveModelOptionId", () => {
 		expect(resolveModelOptionId("config-2", modelOptions)).toBe("config-2");
 	});
 
-	it("returns the config ID for a legacy provider:model match", () => {
-		expect(resolveModelOptionId("openai:gpt-4o", modelOptions)).toBe(
-			"config-1",
-		);
-	});
-
 	it("returns an empty string when no option matches", () => {
 		expect(resolveModelOptionId("openai:gpt-5", modelOptions)).toBe("");
-	});
-
-	it("returns the first duplicate legacy match deterministically", () => {
-		const duplicateModelOptions = [
-			...modelOptions,
-			{
-				id: "config-3",
-				provider: "openai",
-				model: "gpt-4o",
-				displayName: "GPT-4o duplicate",
-			},
-		] as const;
-
-		expect(resolveModelOptionId("openai:gpt-4o", duplicateModelOptions)).toBe(
-			"config-1",
-		);
 	});
 });
 
@@ -677,5 +641,62 @@ describe("getUnsupportedProviderNames", () => {
 	it("tolerates a missing catalog", () => {
 		expect(getUnsupportedProviderNames(undefined)).toEqual([]);
 		expect(getUnsupportedProviderNames(null)).toEqual([]);
+	});
+});
+
+describe("resolveModelSelector", () => {
+	const config = createConfig({
+		id: "config-openai",
+		ai_provider_id: "prov-openai",
+		model: "gpt-4o",
+		display_name: "GPT-4o",
+		context_limit: 128_000,
+	});
+	const catalog = createCatalog([
+		{ provider: "openai", available: true, models: [] },
+	]);
+	const userProviderConfigs = [
+		{
+			provider_id: "prov-openai",
+			provider: "openai",
+			display_name: "OpenAI",
+			has_user_api_key: false,
+			has_central_api_key_fallback: true,
+			byok_enabled: true,
+		},
+	];
+
+	it("stays loading and drops options while the provider query is pending", () => {
+		// Catalog + configs have resolved, but provider identity has not, so
+		// the provider map is empty. Options must be dropped and the flag must
+		// stay loading rather than flashing "No Models".
+		const state = resolveModelSelector(
+			{ data: [config], isLoading: false },
+			{ data: catalog, isLoading: false },
+			{ data: undefined, isLoading: true },
+		);
+
+		expect(state.isModelCatalogLoading).toBe(true);
+		expect(state.options).toEqual([]);
+	});
+
+	it("resolves options once every query settles", () => {
+		const state = resolveModelSelector(
+			{ data: [config], isLoading: false },
+			{ data: catalog, isLoading: false },
+			{ data: userProviderConfigs, isLoading: false },
+		);
+
+		expect(state.isModelCatalogLoading).toBe(false);
+		expect(state.modelCatalog).toBe(catalog);
+		expect(state.options).toEqual([
+			{
+				id: "config-openai",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o",
+				contextLimit: 128_000,
+			},
+		]);
 	});
 });

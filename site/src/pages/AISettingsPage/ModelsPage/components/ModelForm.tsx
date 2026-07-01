@@ -145,8 +145,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 			const selectedProviderConfigID =
 				selectedProviderState?.providerConfig?.id;
-			const editingProviderConfigID =
-				editingModel?.ai_provider_id?.trim() ?? "";
+			const editingProviderConfigID = editingModel?.ai_provider_id.trim() ?? "";
 
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {

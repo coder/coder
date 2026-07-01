@@ -3549,22 +3549,13 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 		AIProviderID: providerID,
 	}).Return(database.UserAIProviderKey{}, sql.ErrConnDone)
 
-	runID := uuid.New()
 	var gotProvider sql.NullString
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 			gotProvider = params.Provider
-			return database.ChatDebugRun{
-				ID:       runID,
-				ChatID:   params.ChatID,
-				Provider: params.Provider,
-			}, nil
+			return database.ChatDebugRun{ChatID: params.ChatID, Provider: params.Provider}, nil
 		},
 	)
-	// finishDebugRun(nil) finalizes the run: AggregateRunSummary reads the run's
-	// steps and UpdateRun persists the terminal status.
-	db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, nil)
-	db.EXPECT().UpdateChatDebugRun(gomock.Any(), gomock.Any()).Return(database.ChatDebugRun{ID: runID, ChatID: chat.ID}, nil)
 
 	server := &Server{
 		db:                      db,
@@ -3575,7 +3566,7 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 	debugSvc := chatdebug.NewService(db, logger, nil)
 	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
 
-	titleCtx, titleModel, finishDebugRun := server.prepareManualTitleDebugRun(
+	server.prepareManualTitleDebugRun(
 		ctx,
 		debugSvc,
 		chat,
@@ -3585,13 +3576,6 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 		nil,
 		fallbackModel,
 	)
-	// Route resolution failed, so the title model stays the fallback we passed,
-	// while the returned context still carries the created debug run.
-	require.NotNil(t, titleCtx)
-	require.Equal(t, fantasy.LanguageModel(fallbackModel), titleModel)
-
-	// Finalize the run through its natural lifecycle.
-	finishDebugRun(nil)
 
 	require.True(t, gotProvider.Valid, "debug run provider should be populated from the linked config")
 	require.Equal(t, "anthropic", gotProvider.String)

@@ -10,6 +10,7 @@ import {
 	createChat,
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,
+	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
@@ -23,12 +24,12 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
-import { useModelOptions } from "./hooks/useModelOptions";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
 	getUnsupportedProviderNames,
+	resolveModelSelector,
 } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
@@ -46,6 +47,7 @@ const AgentCreatePage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -57,7 +59,11 @@ const AgentCreatePage: FC = () => {
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
 	const { options: catalogModelOptions, isModelCatalogLoading } =
-		useModelOptions();
+		resolveModelSelector(
+			chatModelConfigsQuery,
+			chatModelsQuery,
+			userProviderConfigsQuery,
+		);
 	const providerCount =
 		permissions.editDeploymentConfig &&
 		chatProviderConfigsQuery.isSuccess &&

@@ -1,3 +1,4 @@
+import type { UseQueryResult } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../components/ChatElements";
 import {
@@ -5,17 +6,12 @@ import {
 	asString,
 } from "../components/ChatElements/runtimeTypeUtils";
 
-type RuntimeModelRef = {
-	readonly provider?: unknown;
-	readonly model?: unknown;
-};
-
 type CatalogModelLike =
 	| TypesGen.ChatModel
-	| (RuntimeModelRef & {
+	| {
 			readonly id?: unknown;
 			readonly display_name?: unknown;
-	  });
+	  };
 
 type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
 	readonly models?: readonly CatalogModelLike[];
@@ -49,16 +45,6 @@ export const countConfiguredProviderConfigs = (
 			return provider !== "" && availableProviders.has(provider);
 		}).length ?? 0
 	);
-};
-
-export const getNormalizedModelRef = (
-	value: Pick<TypesGen.ChatModel, "provider" | "model"> | RuntimeModelRef,
-): { readonly provider: string; readonly model: string } => {
-	const modelRef = value ?? {};
-	return {
-		provider: asString(modelRef.provider).trim().toLowerCase(),
-		model: asString(modelRef.model).trim(),
-	};
 };
 
 const getCatalogProviders = (
@@ -151,10 +137,9 @@ const getAvailableProviders = (
 };
 
 /**
- * Resolves a stored model reference (config ID or legacy
- * "provider:model" string) to the ID of a matching model option.
- * Returns the matched option ID, or an empty string if no match is
- * found.
+ * Resolves a stored model config ID to the ID of a matching model
+ * option. Returns the matched option ID, or an empty string when the
+ * stored ID is blank or no longer matches an available option.
  */
 export const resolveModelOptionId = (
 	storedRef: string | null | undefined,
@@ -168,13 +153,6 @@ export const resolveModelOptionId = (
 	const directMatch = modelOptions.find((option) => option.id === normalized);
 	if (directMatch) {
 		return directMatch.id;
-	}
-
-	const legacyMatch = modelOptions.find(
-		(option) => `${option.provider}:${option.model}` === normalized,
-	);
-	if (legacyMatch) {
-		return legacyMatch.id;
 	}
 
 	return "";
@@ -256,6 +234,45 @@ export const getModelOptionsFromConfigs = (
 		return a.displayName.localeCompare(b.displayName);
 	});
 };
+
+// Read slice of a react-query result. The field types come from UseQueryResult
+// by indexed access, not Pick (which would distribute over v5's status union),
+// so they track the library rather than being hand-maintained.
+type SelectorQuery<T> = {
+	readonly data: UseQueryResult<T>["data"];
+	readonly isLoading: UseQueryResult<T>["isLoading"];
+};
+
+interface ModelSelectorState {
+	readonly options: readonly ModelSelectorOption[];
+	readonly isModelCatalogLoading: boolean;
+	readonly modelCatalog: TypesGen.ChatModelsResponse | undefined;
+	readonly hasConfiguredModels: boolean;
+}
+
+// Provider identity comes from a separate query (userChatProviderConfigs).
+// Folding all three loading states into one flag here spares every caller the
+// "configs loaded but providers still pending" window that would otherwise
+// build an empty provider map, drop every option, and flash "No Models".
+export const resolveModelSelector = (
+	modelConfigs: SelectorQuery<readonly TypesGen.ChatModelConfig[]>,
+	catalog: SelectorQuery<TypesGen.ChatModelsResponse>,
+	userProviderConfigs: SelectorQuery<
+		readonly TypesGen.UserChatProviderConfig[]
+	>,
+): ModelSelectorState => ({
+	options: getModelOptionsFromConfigs(
+		modelConfigs.data,
+		catalog.data,
+		providerTypeByIDFromUserConfigs(userProviderConfigs.data),
+	),
+	isModelCatalogLoading:
+		modelConfigs.isLoading ||
+		catalog.isLoading ||
+		userProviderConfigs.isLoading,
+	modelCatalog: catalog.data,
+	hasConfiguredModels: hasConfiguredModelsInCatalog(catalog.data),
+});
 
 // getProviderForModelOption returns the provider string for the
 // currently-selected model option, or undefined when the selection
