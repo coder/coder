@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	entcoderd "github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
@@ -228,35 +229,65 @@ func TestAIGatewayServeMissingEntitlement(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 }
 
-func TestAIGatewayServeDeletedKeyClosesActiveSession(t *testing.T) {
+func TestAIGatewayServeTrackKeyUsageClosesActiveSession(t *testing.T) {
 	t.Parallel()
 
-	tick := make(chan time.Time, 1)
-	opts := aibridgeOpts(t)
-	opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
-		return tick, func() {}
+	tests := []struct {
+		name   string
+		mutate func(context.Context, *codersdk.Client, *entcoderd.API, codersdk.CreateAIGatewayKeyResponse) error
+	}{
+		{
+			name: "DeletedKey",
+			mutate: func(ctx context.Context, client *codersdk.Client, _ *entcoderd.API, created codersdk.CreateAIGatewayKeyResponse) error {
+				//nolint:gocritic // Owner role is needed for gateway key management.
+				return client.DeleteAIGatewayKey(ctx, created.ID)
+			},
+		},
+		{
+			name: "RevokedEntitlement",
+			mutate: func(_ context.Context, _ *codersdk.Client, api *entcoderd.API, _ codersdk.CreateAIGatewayKeyResponse) error {
+				api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
+					entitlements.Features[codersdk.FeatureAIBridge] = codersdk.Feature{
+						Entitlement: codersdk.EntitlementNotEntitled,
+						Enabled:     false,
+					}
+				})
+				return nil
+			},
+		},
 	}
 
-	client, _ := coderdenttest.New(t, opts)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	//nolint:gocritic // Owner role is needed for gateway key management.
-	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-delete-active"})
-	require.NoError(t, err)
+			tick := make(chan time.Time, 1)
+			opts := aibridgeOpts(t)
+			opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+				return tick, func() {}
+			}
 
-	dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
-	require.NoError(t, err)
+			client, _, api, _ := coderdenttest.NewWithAPI(t, opts)
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-	//nolint:gocritic // Owner role is needed for gateway key management.
-	require.NoError(t, client.DeleteAIGatewayKey(ctx, created.ID))
+			//nolint:gocritic // Owner role is needed for gateway key management.
+			created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-active"})
+			require.NoError(t, err)
 
-	tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
-	require.Eventually(t, func() bool {
-		select {
-		case <-dc.DRPCConn().Closed():
-			return true
-		default:
-			return false
-		}
-	}, testutil.WaitShort, testutil.IntervalFast)
+			dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
+			require.NoError(t, err)
+
+			require.NoError(t, tt.mutate(ctx, client, api, created))
+
+			tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
+			require.Eventually(t, func() bool {
+				select {
+				case <-dc.DRPCConn().Closed():
+					return true
+				default:
+					return false
+				}
+			}, testutil.WaitShort, testutil.IntervalFast)
+		})
+	}
 }
