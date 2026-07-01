@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // CommandExecutor abstracts running CLI commands so that a dry-run
@@ -60,7 +63,18 @@ func (realExecutor) Run(name string, args ...string) error {
 
 func (realExecutor) RunMutation(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
-	return cmd.Run()
+	// Capture stderr so that a failing mutation surfaces the command's
+	// error output (e.g. git's "fatal:" message) in the returned error
+	// instead of only the exit status.
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return xerrors.Errorf("%s: %w", msg, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (realExecutor) RunMutationStdout(stdout, stderr io.Writer, name string, args ...string) error {
