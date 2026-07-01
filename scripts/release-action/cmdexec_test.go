@@ -111,18 +111,15 @@ func TestShelljoin(t *testing.T) {
 	}{
 		{"simple", []string{"a", "b"}, "a b"},
 		{"space", []string{"a", "has space"}, "a 'has space'"},
-		{"quote", []string{"it's"}, "\"it's\""},
+		// shelljoin uses POSIX single-quote escaping, so an embedded
+		// single quote becomes '"'"'.
+		{"quote", []string{"it's"}, `'it'"'"'s'`},
 		{"empty", []string{}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got := shelljoin(tt.args)
-			// The quote test just checks it doesn't panic and wraps.
-			if tt.name == "quote" {
-				assert.Contains(t, got, "it")
-				return
-			}
 			assert.Equal(t, tt.want, got)
 		})
 	}

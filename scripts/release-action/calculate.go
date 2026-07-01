@@ -97,7 +97,16 @@ func resolveCommit(exec CommandExecutor, ref, commitSHA string) (string, error) 
 		if !isHexSHA(commitSHA) {
 			return "", xerrors.Errorf("invalid commit SHA %q: must be a hex string", commitSHA)
 		}
-		return commitSHA, nil
+		// Resolve to a full commit SHA. The idempotency checks in
+		// createAndPushTag/createAndPushBranch compare targetRef
+		// against full SHAs (git rev-parse of an existing tag,
+		// ls-remote branch output), so a short SHA passed via the
+		// commit input would never match and would break re-runs.
+		sha, err := gitOutput(exec, "rev-parse", "--verify", commitSHA+"^{commit}")
+		if err != nil {
+			return "", xerrors.Errorf("resolve commit %s: %w", commitSHA, err)
+		}
+		return sha, nil
 	}
 	sha, err := gitOutput(exec, "rev-parse", fmt.Sprintf("origin/%s", ref))
 	if err != nil {
