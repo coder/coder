@@ -840,6 +840,7 @@ func New(options *Options) *API {
 			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 			AIGatewayRoutingEnabled:        chatAIGatewayRoutingEnabled,
 			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+			Experiments:                    experiments,
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
@@ -1279,18 +1280,22 @@ func New(options *Options) *API {
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
 				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
 				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
-				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
-				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/goals", api.getChatGoalsEnabled)
 				r.Put("/goals", api.putChatGoalsEnabled)
-				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
+					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
+					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+				})
 				r.Get("/debug-logging", api.getChatDebugLogging)
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
-				r.Get("/advisor", api.getChatAdvisorConfig)
-				r.Put("/advisor", api.putChatAdvisorConfig)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
+					r.Get("/advisor", api.getChatAdvisorConfig)
+					r.Put("/advisor", api.putChatAdvisorConfig)
+				})
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)

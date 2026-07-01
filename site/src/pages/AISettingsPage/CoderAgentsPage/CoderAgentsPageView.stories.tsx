@@ -114,12 +114,18 @@ const buildArgs = (
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
 	isSaveAdminOverridesError: false,
+	goalsEnabledData: { enabled: false },
+	isLoadingGoalsEnabled: false,
+	onSaveGoalsEnabled: fn(),
+	isSavingGoalsEnabled: false,
+	isSaveGoalsEnabledError: false,
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
+	isFetchingModelConfigs: false,
 	onSaveGeneralModelOverride: fn(),
 	isSavingGeneralModelOverride: false,
 	isSaveGeneralModelOverrideError: false,
@@ -129,6 +135,21 @@ const buildArgs = (
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
+	showAdvisorSettings: false,
+	advisorConfigData: undefined,
+	isAdvisorConfigLoading: false,
+	isAdvisorConfigFetching: false,
+	isAdvisorConfigLoadError: false,
+	onSaveAdvisorConfig: fn(),
+	isSavingAdvisorConfig: false,
+	isSaveAdvisorConfigError: false,
+	saveAdvisorConfigError: undefined,
+	showVirtualDesktopSettings: false,
+	computerUseProviderData: undefined,
+	isLoadingComputerUseProvider: false,
+	onSaveComputerUseProvider: fn(),
+	isSavingComputerUseProvider: false,
+	computerUseProviderSaveError: null,
 	...overrides,
 });
 
@@ -182,8 +203,13 @@ export const AllOverridesUnset: Story = {
 		).toBeVisible();
 
 		expect(canvas.getByText("Allow personal model overrides")).toBeVisible();
+		expect(canvas.getByText("Chat goals")).toBeVisible();
+		expect(
+			canvas.getByRole("switch", { name: "Enable chat goals" }),
+		).not.toBeChecked();
 		const headings = await canvas.findAllByRole("heading", { level: 3 });
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
+			"Chat goals",
 			"General model",
 			"Title generation model",
 			"Explore subagent model",
@@ -240,6 +266,24 @@ export const PersonalOverridesEnabled: Story = {
 		});
 
 		expect(toggle).toBeChecked();
+	},
+};
+
+export const ChatGoalsEnabled: Story = {
+	args: buildArgs({
+		goalsEnabledData: { enabled: true },
+	}),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable chat goals",
+		});
+
+		expect(toggle).toBeChecked();
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(args.onSaveGoalsEnabled).toHaveBeenCalledWith({ enabled: false });
+		});
 	},
 };
 
@@ -463,5 +507,123 @@ export const UnavailableSavedModels: Story = {
 				name: "Unavailable model",
 			}),
 		).toBeInTheDocument();
+	},
+};
+
+export const AdvisorSettingsVisible: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max uses per run",
+			}),
+		).toHaveValue(3);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max output tokens",
+			}),
+		).toHaveValue(16384);
+		expect(
+			within(section).getByRole("combobox", { name: "Advisor model" }),
+		).toBeInTheDocument();
+
+		// Changing a value exposes the Save button.
+		const maxUses = within(section).getByRole("spinbutton", {
+			name: "Max uses per run",
+		});
+		await userEvent.clear(maxUses);
+		await userEvent.type(maxUses, "5");
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				expect.objectContaining({ max_uses_per_run: 5 }),
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const AdvisorClearButton: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: generalModelConfig.id,
+		},
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		const clearButton = within(section).getByRole("button", { name: "Clear" });
+		await userEvent.click(clearButton);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max uses per run",
+			}),
+		).toHaveValue(0);
+		expect(
+			within(section).getByRole("spinbutton", {
+				name: "Max output tokens",
+			}),
+		).toHaveValue(0);
+		expect(
+			within(section).getByRole("combobox", { name: "Advisor model" }),
+		).toHaveTextContent("Use chat model");
+	},
+};
+
+export const VirtualDesktopSettingsVisible: Story = {
+	args: buildArgs({
+		showVirtualDesktopSettings: true,
+		computerUseProviderData: { provider: "anthropic" },
+	}),
+	play: async ({ canvasElement }) => {
+		const section = await getSection(canvasElement, "Virtual desktop");
+		expect(
+			within(section).getByRole("combobox", {
+				name: "Computer use provider",
+			}),
+		).toHaveTextContent("Anthropic");
+	},
+};
+
+export const VirtualDesktopProviderChange: Story = {
+	args: buildArgs({
+		showVirtualDesktopSettings: true,
+		computerUseProviderData: { provider: "anthropic" },
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Virtual desktop");
+		const trigger = within(section).getByRole("combobox", {
+			name: "Computer use provider",
+		});
+		await userEvent.click(trigger);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(await body.findByRole("option", { name: "OpenAI" }));
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveComputerUseProvider).toHaveBeenCalledWith(
+				{ provider: "openai" },
+				expect.anything(),
+			);
+		});
 	},
 };

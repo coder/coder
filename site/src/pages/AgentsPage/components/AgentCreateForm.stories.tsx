@@ -508,7 +508,7 @@ export const LoadingPersonalModelOverrides: Story = {
 export const NoModelsConfigured: Story = {
 	args: {
 		...defaultArgs,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
@@ -521,7 +521,7 @@ export const MissingProviderAndModelSetup: Story = {
 		canConfigureAgentSetup: true,
 		providerCount: 0,
 		modelCount: 0,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,

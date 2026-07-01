@@ -11,7 +11,7 @@ export const AIBudgetUsage: FC<{
 		return (
 			<span className="whitespace-nowrap">
 				{formatBudgetUSD(currentSpend)}{" "}
-				<span className="text-content-disabled">/ unlimited USD</span>
+				<span className="text-content-disabled">/ Unlimited USD</span>
 			</span>
 		);
 	}

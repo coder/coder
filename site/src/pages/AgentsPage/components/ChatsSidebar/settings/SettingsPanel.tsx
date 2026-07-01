@@ -4,7 +4,6 @@ import {
 	BotIcon,
 	BoxesIcon,
 	CoinsIcon,
-	FlaskConicalIcon,
 	KeyIcon,
 	LayoutTemplateIcon,
 	PanelLeftCloseIcon,
@@ -146,8 +145,8 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						<SettingsNavItem
 							icon={Settings2Icon}
 							label="Manage agents"
-							active={settingsSection === "experiments"}
-							to="/agents/settings/experiments"
+							active={settingsSection === "coder-agents"}
+							to="/agents/settings/coder-agents"
 							state={location.state}
 						/>
 					)}
@@ -202,13 +201,6 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						active={false}
 						to="/ai/settings/instructions"
 						trailingIcon={ArrowUpRightIcon}
-					/>
-					<SettingsNavItem
-						icon={FlaskConicalIcon}
-						label="Experiments"
-						active={settingsSection === "experiments"}
-						to="/agents/settings/experiments"
-						state={location.state}
 					/>
 					<SettingsNavItem
 						icon={RefreshCwIcon}

@@ -7,12 +7,19 @@ import {
 } from "react-query";
 import { API } from "#/api/api";
 import {
+	chatAdvisorConfig,
+	chatComputerUseProvider,
+	chatGoalsEnabled,
 	chatModelConfigs,
 	chatPersonalModelOverridesAdminSettings,
+	updateChatAdvisorConfig,
+	updateChatComputerUseProvider,
+	updateChatGoalsEnabled,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
@@ -48,8 +55,13 @@ const updateChatModelOverrideMutation = (
 
 const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
+	const showAdvisorSettings = experiments.includes("chat-advisor");
+	const showVirtualDesktopSettings = experiments.includes(
+		"chat-virtual-desktop",
+	);
 
 	const personalModelOverridesAdminSettingsQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
@@ -68,6 +80,18 @@ const CoderAgentsPage: FC = () => {
 		enabled: canEditDeploymentConfig,
 	});
 	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const advisorConfigQuery = useQuery({
+		...chatAdvisorConfig(),
+		enabled: canEditDeploymentConfig && showAdvisorSettings,
+	});
+	const computerUseProviderQuery = useQuery({
+		...chatComputerUseProvider(),
+		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
+	});
+	const goalsEnabledQuery = useQuery({
+		...chatGoalsEnabled(),
+		enabled: canEditDeploymentConfig,
+	});
 	const savePersonalModelOverridesAdminSettingsMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
@@ -82,6 +106,15 @@ const CoderAgentsPage: FC = () => {
 	);
 	const saveExploreModelOverrideMutation = useMutation(
 		updateChatModelOverrideMutation(queryClient, exploreOverrideContext),
+	);
+	const saveAdvisorConfigMutation = useMutation(
+		updateChatAdvisorConfig(queryClient),
+	);
+	const saveComputerUseProviderMutation = useMutation(
+		updateChatComputerUseProvider(queryClient),
+	);
+	const saveGoalsEnabledMutation = useMutation(
+		updateChatGoalsEnabled(queryClient),
 	);
 
 	return (
@@ -105,12 +138,18 @@ const CoderAgentsPage: FC = () => {
 				isSaveAdminOverridesError={
 					savePersonalModelOverridesAdminSettingsMutation.isError
 				}
+				goalsEnabledData={goalsEnabledQuery.data}
+				isLoadingGoalsEnabled={goalsEnabledQuery.isLoading}
+				onSaveGoalsEnabled={saveGoalsEnabledMutation.mutate}
+				isSavingGoalsEnabled={saveGoalsEnabledMutation.isPending}
+				isSaveGoalsEnabledError={saveGoalsEnabledMutation.isError}
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
 				modelConfigsError={modelConfigsQuery.error}
 				isLoadingModelConfigs={modelConfigsQuery.isLoading}
+				isFetchingModelConfigs={modelConfigsQuery.isFetching}
 				onSaveGeneralModelOverride={saveGeneralModelOverrideMutation.mutate}
 				isSavingGeneralModelOverride={
 					saveGeneralModelOverrideMutation.isPending
@@ -132,6 +171,21 @@ const CoderAgentsPage: FC = () => {
 				isSaveExploreModelOverrideError={
 					saveExploreModelOverrideMutation.isError
 				}
+				showAdvisorSettings={showAdvisorSettings}
+				advisorConfigData={advisorConfigQuery.data}
+				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
+				isAdvisorConfigFetching={advisorConfigQuery.isFetching}
+				isAdvisorConfigLoadError={advisorConfigQuery.isError}
+				onSaveAdvisorConfig={saveAdvisorConfigMutation.mutate}
+				isSavingAdvisorConfig={saveAdvisorConfigMutation.isPending}
+				isSaveAdvisorConfigError={saveAdvisorConfigMutation.isError}
+				saveAdvisorConfigError={saveAdvisorConfigMutation.error}
+				showVirtualDesktopSettings={showVirtualDesktopSettings}
+				computerUseProviderData={computerUseProviderQuery.data}
+				isLoadingComputerUseProvider={computerUseProviderQuery.isLoading}
+				onSaveComputerUseProvider={saveComputerUseProviderMutation.mutate}
+				isSavingComputerUseProvider={saveComputerUseProviderMutation.isPending}
+				computerUseProviderSaveError={saveComputerUseProviderMutation.error}
 			/>
 		</RequirePermission>
 	);

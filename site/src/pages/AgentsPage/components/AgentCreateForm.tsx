@@ -132,6 +132,7 @@ interface AgentCreateFormProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
@@ -157,6 +158,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
@@ -560,6 +562,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						canConfigureAgentSetup={canConfigureAgentSetup}
 						providerCount={providerCount}
 						modelCount={modelCount}
+						unsupportedProviderNames={unsupportedProviderNames}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

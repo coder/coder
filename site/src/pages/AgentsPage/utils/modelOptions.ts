@@ -119,6 +119,35 @@ export const hasUserFixableProviders = (
 	);
 };
 
+const getCatalogUnsupportedProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly TypesGen.ChatUnsupportedProvider[] => {
+	const unsupported = catalog?.unsupported_providers;
+	return Array.isArray(unsupported) ? unsupported : [];
+};
+
+/**
+ * Display names of configured providers the Agents harness cannot serve,
+ * but only when no supported provider is configured. A supported provider
+ * missing its API key returns an empty list, keeping normal setup guidance.
+ */
+export const getUnsupportedProviderNames = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly string[] => {
+	const unsupported = getCatalogUnsupportedProviders(catalog);
+	if (unsupported.length === 0) {
+		return [];
+	}
+	if (getCatalogProviders(catalog).length > 0) {
+		return [];
+	}
+	return unsupported.map(
+		(provider) =>
+			asString(provider.display_name).trim() ||
+			asString(provider.provider).trim(),
+	);
+};
+
 const getAvailableProviders = (
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): ReadonlySet<string> => {

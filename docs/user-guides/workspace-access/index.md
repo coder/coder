@@ -80,6 +80,13 @@ successful, you'll see the following message:
 Your workspace is now accessible via `ssh coder.<workspace_name>`
 (for example, `ssh coder.myEnv` if your workspace is named `myEnv`).
 
+> [!TIP]
+> If you use a third-party SSH client that discovers hosts by parsing
+> `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that
+> enumerate known hosts), run `coder config-ssh --no-wildcard` instead. This
+> generates an individual `Host` entry per workspace rather than a single
+> wildcard block, making your workspaces visible to those tools.
+
 ## Visual Studio Code
 
 You can develop in your Coder workspace remotely with

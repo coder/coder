@@ -20,6 +20,16 @@ const HeaderCoderToken = "X-Coder-AI-Governance-Token" //nolint:gosec // This is
 // request forwarded to aibridged for cross-service log correlation.
 const HeaderCoderRequestID = "X-Coder-AI-Governance-Request-Id"
 
+// HeaderAgentFirewallSessionID is injected by Agent Firewall on requests
+// routed through it. It carries the firewall session UUID so that AI
+// Gateway can correlate interceptions with firewall audit events.
+const HeaderAgentFirewallSessionID = "X-Coder-Agent-Firewall-Session-Id"
+
+// HeaderAgentFirewallSequenceNumber is injected alongside the session ID
+// by Agent Firewall. It carries a monotonically increasing sequence
+// number that orders network requests within a single firewall session.
+const HeaderAgentFirewallSequenceNumber = "X-Coder-Agent-Firewall-Sequence-Number"
+
 // Copilot provider.
 const (
 	ProviderCopilotBusiness   = "copilot-business"

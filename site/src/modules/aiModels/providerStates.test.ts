@@ -42,6 +42,7 @@ describe("deriveProviderStates", () => {
 				{ ...MockChatModelProvider, provider: "anthropic" },
 				{ ...MockChatModelProvider, provider: "google" },
 			],
+			unsupported_providers: [],
 		};
 		const modelConfigs = [
 			{ ...MockChatModelConfig, id: "m-vercel", provider: "vercel" },
@@ -118,6 +119,7 @@ describe("deriveProviderStates", () => {
 			providers: [
 				{ ...MockChatModelProvider, provider: "openai", available: true },
 			],
+			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], null, catalog);
@@ -154,6 +156,7 @@ describe("deriveProviderStates", () => {
 					unavailable_reason: "fetch_failed",
 				},
 			],
+			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], null, catalog);
@@ -186,6 +189,7 @@ describe("deriveProviderStates", () => {
 					],
 				},
 			],
+			unsupported_providers: [],
 		};
 
 		const states = deriveProviderStates([], providerConfigs, catalog);

@@ -5,10 +5,9 @@ type SidebarView =
 	| { panel: "analytics" };
 
 const ADMIN_SETTINGS_SECTIONS = new Set([
-	"agents",
+	"coder-agents",
 	"mcp-servers",
 	"spend",
-	"experiments",
 ]);
 
 /**

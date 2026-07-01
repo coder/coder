@@ -1,4 +1,5 @@
 import { type FC, type ReactNode, useReducer, useState } from "react";
+
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -14,6 +15,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+
 import { docs } from "#/utils/docs";
 import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
 import {
@@ -34,6 +36,7 @@ import {
 	type StepId,
 	WIZARD_STEPS,
 } from "./steps";
+import { TemplateAlternatives } from "./TemplateAlternatives";
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
@@ -67,6 +70,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	const currentIndex = nearestVisible(stepIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
+
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
 	const isFirstStep = prevIndex === -1;
@@ -81,6 +85,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 
 	const handleBack = () => {
+		window.scrollTo(0, 0);
 		setStepIndex(prevIndex);
 	};
 
@@ -89,6 +94,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			onCreateTemplate(state);
 			return;
 		}
+		window.scrollTo(0, 0);
 		setStepIndex(nextIndex);
 	};
 
@@ -152,10 +158,12 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
+
+					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
 
 				{/* Sidebar */}
-				<div className="w-64 shrink-0 hidden md:block">
+				<div className="w-64 shrink-0 hidden md:block sticky top-0 self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						selectedTemplate={

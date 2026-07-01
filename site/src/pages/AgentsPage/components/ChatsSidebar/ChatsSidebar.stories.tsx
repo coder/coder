@@ -1986,6 +1986,45 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 };
 
+export const AgentWithWorkspaceMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-workspace",
+				title: "Agent with workspace",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent with workspace")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText(
+			"Open actions for Agent with workspace",
+		);
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
 export const PinnedChatsSection: Story = {
 	args: {
 		chats: [
@@ -2282,7 +2321,7 @@ export const SettingsAdminCoderAgentsEntryPreserved: Story = {
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/agents" },
+			location: { path: "/agents/settings/coder-agents" },
 			routing: settingsRouting,
 		}),
 	},
