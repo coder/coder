@@ -135,7 +135,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="p-6 border border-solid rounded-lg">
+					<div className="p-6 border border-solid rounded-lg overflow-x-auto">
 						{renderStepContent(
 							currentStep.id,
 							state,
