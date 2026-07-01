@@ -1099,8 +1099,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			var aibridgeDaemon *aibridged.Server
 
-			warnDeprecatedChatAIGatewayRoutingFlag(ctx, logger, inv.Command.Options)
-
 			// Both seed (writes) and build (reads) of AI providers need
 			// options.Database to be dbcrypt-wrapped, which only happens
 			// inside newAPI. The context is detached: the shutdown
@@ -2929,26 +2927,6 @@ func ConfigureHTTPServers(logger slog.Logger, inv *serpent.Invocation, cfg *code
 	}
 
 	return httpServers, nil
-}
-
-// warnDeprecatedChatAIGatewayRoutingFlag logs a warning when the operator
-// explicitly sets the deprecated `chat-ai-gateway-routing-enabled` option.
-// AI Gateway routing is now the only routing path; the option is accepted
-// for upgrade safety but its value has no effect.
-func warnDeprecatedChatAIGatewayRoutingFlag(ctx context.Context, logger slog.Logger, opts serpent.OptionSet) {
-	opt := opts.ByFlag("chat-ai-gateway-routing-enabled")
-	if opt == nil {
-		return
-	}
-	switch opt.ValueSource {
-	case serpent.ValueSourceFlag, serpent.ValueSourceEnv, serpent.ValueSourceYAML:
-		logger.Warn(ctx,
-			"chat-ai-gateway-routing-enabled is deprecated and has no effect; "+
-				"AI Gateway routing is the only routing path. "+
-				"Remove the option from your configuration; it will be deleted in a future release",
-			slog.F("source", opt.ValueSource),
-		)
-	}
 }
 
 // redirectHTTPToHTTPSDeprecation handles deprecation of the --tls-redirect-http-to-https flag and

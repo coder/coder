@@ -119,8 +119,7 @@ func (p *Server) newDebugAwareModel(
 	route aiGatewayModelRoute,
 	opts modelBuildOptions,
 ) (fantasy.LanguageModel, bool, error) {
-	providerHint := route.ModelProviderHint
-	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, providerHint)
+	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, route.ModelProviderHint)
 	if err != nil {
 		return nil, false, err
 	}
