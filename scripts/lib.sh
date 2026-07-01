@@ -221,6 +221,14 @@ retry() {
 		log "retry: no command specified"
 		return 1
 	fi
+	if ! [[ $max_attempts =~ ^[0-9]+$ ]] || ((max_attempts < 1)); then
+		log "retry: max_attempts must be a positive integer, got: ${max_attempts}"
+		return 1
+	fi
+	if ! [[ $delay =~ ^[0-9]+$ ]]; then
+		log "retry: base_delay_seconds must be a non-negative integer, got: ${delay}"
+		return 1
+	fi
 
 	local max_delay=60
 	local attempt=1

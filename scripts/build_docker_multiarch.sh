@@ -79,11 +79,11 @@ done
 log "--- Creating multi-arch Docker image ($target)"
 retry 3 10 -- docker manifest create \
 	"$target" \
-	"${create_args[@]}"
+	"${create_args[@]}" 1>&2
 
 if [[ "$push" == 1 ]]; then
 	log "--- Pushing multi-arch Docker image ($target)"
-	retry 3 10 -- docker manifest push "$target"
+	retry 3 10 -- docker manifest push "$target" 1>&2
 fi
 
 echo "$target"
