@@ -4983,19 +4983,44 @@ func (p *Server) generateAndStoreChatSummary(
 	p.updateChatSummary(ctx, chat, chat.HistoryVersion, summary, logger)
 }
 
+// resolveChatSummaryModel prefers a usable deployment override, skips generation
+// on a set-but-unusable one, and otherwise uses the chat's configured model.
 func (p *Server) resolveChatSummaryModel(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
-	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
-	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
+	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model, its config, and provider keys.
+	model, dbConfig, keys, _, _, _, _, err := p.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		logger.Debug(ctx, "failed to resolve chat model for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, database.ChatModelConfig{}, false
 	}
+
+	overrideConfig, overrideModel, _, _, overrideSet, overrideErr := p.resolveSummaryGenerationModelOverride(
+		ctx, chat, keys, modelOpts,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			logger.Warn(ctx, "summary generation model override unavailable, skipping summary generation",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", summaryGenerationOverrideContext),
+				slog.Error(overrideErr),
+			)
+			return nil, database.ChatModelConfig{}, false
+		}
+		logger.Debug(ctx, "failed to resolve summary generation model override",
+			slog.F("chat_id", chat.ID),
+			slog.F("override_context", summaryGenerationOverrideContext),
+			slog.Error(overrideErr),
+		)
+	}
+	if overrideSet {
+		return overrideModel, overrideConfig, true
+	}
+
 	return model, dbConfig, true
 }
 

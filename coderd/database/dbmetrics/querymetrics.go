@@ -1770,6 +1770,14 @@ func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSummaryGenerationModelOverride(ctx)
+	m.queryLatencies.WithLabelValues("GetChatSummaryGenerationModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSummaryGenerationModelOverride").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatSystemPrompt(ctx)
@@ -6223,6 +6231,14 @@ func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentio
 	r0 := m.s.UpsertChatRetentionDays(ctx, retentionDays)
 	m.queryLatencies.WithLabelValues("UpsertChatRetentionDays").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatRetentionDays").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatSummaryGenerationModelOverride(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatSummaryGenerationModelOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatSummaryGenerationModelOverride").Inc()
 	return r0
 }
 

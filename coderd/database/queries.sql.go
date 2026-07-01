@@ -24611,6 +24611,18 @@ func (q *sqlQuerier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	return retention_days, err
 }
 
+const getChatSummaryGenerationModelOverride = `-- name: GetChatSummaryGenerationModelOverride :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_summary_generation_model_override'), '') :: text AS model_config_id
+`
+
+func (q *sqlQuerier) GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatSummaryGenerationModelOverride)
+	var model_config_id string
+	err := row.Scan(&model_config_id)
+	return model_config_id, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
@@ -25057,6 +25069,16 @@ WHERE site_configs.key = 'agents_chat_retention_days'
 
 func (q *sqlQuerier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {
 	_, err := q.db.ExecContext(ctx, upsertChatRetentionDays, retentionDays)
+	return err
+}
+
+const upsertChatSummaryGenerationModelOverride = `-- name: UpsertChatSummaryGenerationModelOverride :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_summary_generation_model_override', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_summary_generation_model_override'
+`
+
+func (q *sqlQuerier) UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatSummaryGenerationModelOverride, value)
 	return err
 }
 
