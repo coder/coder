@@ -162,7 +162,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
 
-				{/* Sidebar */}
+				{/* Sidebar (top position is 72px so that it can sit below nav) */}
 				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
