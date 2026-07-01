@@ -7,10 +7,8 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { ChatSummaryPanel } from "./ChatSummaryPanel";
 
-const chatId = MockChat.id;
-
 const mockCost: TypesGen.ChatCost = {
-	root_chat_id: chatId,
+	root_chat_id: MockChat.id,
 	total_cost_micros: 1_250_000,
 	priced_message_count: 8,
 	unpriced_message_count: 0,
@@ -53,7 +51,7 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 	component: ChatSummaryPanel,
 	decorators: [PanelFrame, withDashboardProvider],
 	args: {
-		chatId,
+		chatId: MockChat.id,
 		isVisible: true,
 	},
 };
