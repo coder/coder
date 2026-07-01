@@ -3,6 +3,7 @@ import { expect, screen, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
+	MockAuditorRole,
 	MockBuildInfo,
 	MockTasks,
 	MockUserMember,
@@ -56,7 +57,10 @@ export const ForAdmin: Story = {
 
 export const ForAuditor: Story = {
 	args: {
-		user: MockUserMember,
+		user: {
+			...MockUserMember,
+			roles: [MockAuditorRole],
+		},
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -140,6 +144,35 @@ export const ForOrganizationMember: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewAISettings: false,
+		canViewOrganizations: true,
+		canManageOrganizations: false,
+		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.queryByRole("button", { name: "Admin settings" }),
+		).not.toBeInTheDocument();
+
+		const buttons = canvas.getAllByRole("button");
+		const userMenuButton = buttons[buttons.length - 1];
+		if (!userMenuButton) {
+			throw new Error("User menu button not found");
+		}
+
+		await userEvent.click(userMenuButton);
+		expect(await screen.findByText("Organizations")).toBeInTheDocument();
+	},
+};
+
+export const ForRegularMemberWithAdminSurfacePermissions: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: true,
+		canViewDeployment: true,
+		canViewHealth: true,
+		canViewAISettings: true,
 		canViewOrganizations: true,
 		canManageOrganizations: false,
 		canCreateChat: false,

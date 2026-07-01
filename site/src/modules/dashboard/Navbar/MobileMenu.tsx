@@ -38,6 +38,7 @@ type MobileMenuPermissions = {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
 	canManageOrganizations: boolean;
+	canViewAdminSettings: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
@@ -61,11 +62,12 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
 	const hasSomeAdminPermission =
-		permissions.canViewDeployment ||
-		permissions.canManageOrganizations ||
-		permissions.canViewAuditLog ||
-		permissions.canViewConnectionLog ||
-		permissions.canViewHealth;
+		permissions.canViewAdminSettings &&
+		(permissions.canViewDeployment ||
+			permissions.canManageOrganizations ||
+			permissions.canViewAuditLog ||
+			permissions.canViewConnectionLog ||
+			permissions.canViewHealth);
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>

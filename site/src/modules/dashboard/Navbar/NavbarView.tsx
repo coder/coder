@@ -62,6 +62,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
+	const canViewAdminSettings = user.roles.length > 0 || canManageOrganizations;
 
 	return (
 		<div
@@ -129,13 +130,13 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 				<div className="hidden md:block">
 					<DeploymentDropdown
-						canViewAuditLog={canViewAuditLog}
+						canViewAuditLog={canViewAdminSettings && canViewAuditLog}
 						canViewOrganizations={canManageOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewConnectionLog={canViewConnectionLog}
-						canViewAIBridge={canViewAIBridge}
-						canViewAISettings={canViewAISettings}
-						canViewHealth={canViewHealth}
+						canViewDeployment={canViewAdminSettings && canViewDeployment}
+						canViewConnectionLog={canViewAdminSettings && canViewConnectionLog}
+						canViewAIBridge={canViewAdminSettings && canViewAIBridge}
+						canViewAISettings={canViewAdminSettings && canViewAISettings}
+						canViewHealth={canViewAdminSettings && canViewHealth}
 					/>
 				</div>
 
@@ -171,6 +172,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewConnectionLog={canViewConnectionLog}
 						canViewOrganizations={canViewOrganizations}
 						canManageOrganizations={canManageOrganizations}
+						canViewAdminSettings={canViewAdminSettings}
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 					/>
