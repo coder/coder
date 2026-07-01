@@ -784,6 +784,7 @@ describe("ChatsSidebar subtitles", () => {
 		expect(
 			screen.getByText("Migrate coder/coder away from MUI"),
 		).toBeInTheDocument();
+		expect(screen.getByLabelText("Active goal")).toBeInTheDocument();
 		expect(screen.getByText("GPT-4o streaming…")).toBeInTheDocument();
 		expect(screen.queryByText("Generic chat title")).not.toBeInTheDocument();
 	});

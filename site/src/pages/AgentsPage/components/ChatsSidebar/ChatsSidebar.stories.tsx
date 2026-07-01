@@ -281,6 +281,7 @@ export const ActiveGoalChat: Story = {
 			canvas.getByText("Migrate coder/coder away from MUI"),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
+		await expect(canvas.getByLabelText("Active goal")).toBeInTheDocument();
 		expect(canvas.queryByText("Generic chat title")).not.toBeInTheDocument();
 	},
 };

@@ -7,6 +7,7 @@ import {
 	PinIcon,
 	PinOffIcon,
 	SquarePenIcon,
+	TargetIcon,
 	Trash2Icon,
 	UsersIcon,
 } from "lucide-react";
@@ -277,6 +278,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							{({ isActive }) => (
 								<div className="min-w-0 flex-1 overflow-hidden text-left">
 									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+										{activeGoalObjective && (
+											<TargetIcon
+												className="size-3.5 shrink-0 text-content-secondary"
+												aria-label="Active goal"
+												data-testid={`agents-tree-active-goal-${chat.id}`}
+											/>
+										)}
 										<span
 											aria-busy={isRegeneratingThisChat}
 											className={cn(
