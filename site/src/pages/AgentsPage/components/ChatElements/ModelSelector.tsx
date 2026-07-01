@@ -38,8 +38,6 @@ interface ModelSelectorProps {
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
 	contentClassName?: string;
-	open?: boolean;
-	onOpenChange?: (open: boolean) => void;
 	onTriggerTouchStart?: () => void;
 	enableMobileFullWidthDropdown?: boolean;
 }
@@ -76,22 +74,16 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	dropdownSide = "bottom",
 	dropdownAlign = "start",
 	contentClassName,
-	open,
-	onOpenChange,
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
 }) => {
-	const [internalOpen, setInternalOpen] = useState(false);
+	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const isOpen = open ?? internalOpen;
-	const setOpen = (nextOpen: boolean) => {
+	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
 			setSearch("");
 		}
-		onOpenChange?.(nextOpen);
-		if (open === undefined) {
-			setInternalOpen(nextOpen);
-		}
+		setOpen(nextOpen);
 	};
 	const selectedModel = options.find((option) => option.id === value);
 	const isDisabled = disabled || options.length === 0;
@@ -117,11 +109,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	})();
 
 	return (
-		<Popover open={isOpen} onOpenChange={setOpen}>
+		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
 					aria-label={selectedModel ? selectedModel.displayName : placeholder}
-					aria-expanded={isOpen}
+					aria-expanded={open}
 					aria-haspopup="listbox"
 					disabled={isDisabled}
 					role="combobox"
@@ -136,7 +128,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					<span className="truncate">
 						{selectedModel ? selectedModel.displayName : placeholder}
 					</span>
-					<ChevronDownIcon open={isOpen} className="size-icon-sm" />
+					<ChevronDownIcon open={open} className="size-icon-sm" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -188,7 +180,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										isSelected={option.id === value}
 										onSelect={() => {
 											onValueChange(option.id);
-											setOpen(false);
+											handleOpenChange(false);
 										}}
 									/>
 								))}
