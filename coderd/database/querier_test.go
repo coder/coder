@@ -12524,8 +12524,6 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, chat.Summary.Valid)
 	require.False(t, chat.SummaryGeneratedAt.Valid)
 
-	// Writing a summary stores it, records summary_generated_at, and does not
-	// bump updated_at.
 	affected, err := db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
@@ -12540,7 +12538,6 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.True(t, fetched.SummaryGeneratedAt.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
-	// Blank summaries are stored as NULL.
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
@@ -12554,9 +12551,7 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, fetched.Summary.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
-	// Establish a known-good summary, then advance history_version with a new
-	// turn so a write carrying the stale history_version is rejected. This is
-	// how background summary writes racing a newer turn lose.
+	// Background summaries generated from stale history must lose to newer turns.
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,

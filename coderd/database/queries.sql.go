@@ -12365,12 +12365,8 @@ type UpdateChatSummaryParams struct {
 	ExpectedHistoryVersion int64          `db:"expected_history_version" json:"expected_history_version"`
 }
 
-// Stores the summary and stamps summary_generated_at (used to schedule the
-// next regeneration).
-// Guards on history_version, not updated_at (left untouched), so the write
-// is rejected only when the message history changed under it; unrelated
-// worker state transitions cannot block it. Same pattern as
-// UpdateChatLastTurnSummary.
+// The history_version fence lets background summary writes ignore worker-only
+// updates while losing to newer message history.
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatSummary, arg.Summary, arg.ID, arg.ExpectedHistoryVersion)
 	if err != nil {

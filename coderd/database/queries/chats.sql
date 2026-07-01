@@ -1359,12 +1359,8 @@ WHERE
     AND history_version = @expected_history_version::bigint;
 
 -- name: UpdateChatSummary :execrows
--- Stores the summary and stamps summary_generated_at (used to schedule the
--- next regeneration).
--- Guards on history_version, not updated_at (left untouched), so the write
--- is rejected only when the message history changed under it; unrelated
--- worker state transitions cannot block it. Same pattern as
--- UpdateChatLastTurnSummary.
+-- The history_version fence lets background summary writes ignore worker-only
+-- updates while losing to newer message history.
 UPDATE chats
 SET
     summary = sqlc.narg('summary')::text,

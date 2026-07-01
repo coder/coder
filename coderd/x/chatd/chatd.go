@@ -4894,15 +4894,12 @@ func (p *Server) updateLastTurnSummary(
 }
 
 const (
-	// Cadence gate bounding LLM spend: turns before the first summary, then
-	// turns between refreshes.
 	summaryFirstTurnThreshold   = 1
 	summaryRefreshTurnThreshold = 3
-	// Skip summaries for chats too short to need one.
-	summaryMinTranscriptRunes  = 200
-	chatSummaryWorkTimeout     = 120 * time.Second
-	chatSummaryGenerateTimeout = 60 * time.Second
-	chatSummaryWriteTimeout    = 5 * time.Second
+	summaryMinTranscriptRunes   = 200
+	chatSummaryWorkTimeout      = 120 * time.Second
+	chatSummaryGenerateTimeout  = 60 * time.Second
+	chatSummaryWriteTimeout     = 5 * time.Second
 )
 
 // maybeGenerateChatSummaryAsync launches best-effort whole-chat summary
@@ -4938,11 +4935,8 @@ func (p *Server) generateAndStoreChatSummary(
 	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
 	authCtx := dbauthz.AsChatd(ctx)
 
-	// Read the chat (and its history_version) before the transcript: if a turn
-	// commits between the two reads, the captured history_version stays behind
-	// the transcript, so UpdateChatSummary rejects the stale write instead of
-	// persisting a summary that omits the new turn. The fresh read also gives
-	// the cadence gate the latest Summary/SummaryGeneratedAt.
+	// If a turn commits after this read, the stale history_version makes the
+	// eventual summary write lose instead of omitting that newer turn.
 	chat, err := p.db.GetChatByID(authCtx, chat.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to re-read chat for summary",
@@ -5010,8 +5004,6 @@ func (p *Server) resolveChatSummaryModel(
 	return model, dbConfig, true
 }
 
-// shouldGenerateChatSummary is the cadence gate: first summary after enough
-// turns, then every summaryRefreshTurnThreshold turns since the last one.
 func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessage) bool {
 	if !chat.Summary.Valid {
 		return countCompletedTurnsSince(messages, time.Time{}) >= summaryFirstTurnThreshold
