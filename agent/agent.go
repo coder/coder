@@ -2291,11 +2291,33 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Redact env values. This endpoint is unauthenticated on loopback,
+	// reachable by any process regardless of Unix user. Keys are preserved
+	// so operators can still see which variables are configured.
+	debugManifest := *sdkManifest
+	if len(sdkManifest.EnvironmentVariables) > 0 {
+		envs := make(map[string]string, len(sdkManifest.EnvironmentVariables))
+		for k, v := range sdkManifest.EnvironmentVariables {
+			// Preserve empty values, which carry no secret, matching
+			// sanitizeEnv in support/support.go.
+			if v == "" {
+				envs[k] = v
+				continue
+			}
+			envs[k] = redactedManifestEnvValue
+		}
+		debugManifest.EnvironmentVariables = envs
+	}
+
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+	if err := json.NewEncoder(w).Encode(debugManifest); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
 	}
 }
+
+// redactedManifestEnvValue matches the marker used by sanitizeEnv in
+// support/support.go so a support bundle and this endpoint agree.
+const redactedManifestEnvValue = "***REDACTED***"
 
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
