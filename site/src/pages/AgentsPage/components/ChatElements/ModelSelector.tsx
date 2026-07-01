@@ -214,10 +214,7 @@ const ModelOptionItem: FC<ModelOptionItemProps> = ({
 }) => {
 	return (
 		<CommandItem
-			role="option"
-			aria-selected={isSelected}
 			value={option.id}
-			keywords={[option.displayName, option.model]}
 			onSelect={onSelect}
 			className={cn(
 				"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
