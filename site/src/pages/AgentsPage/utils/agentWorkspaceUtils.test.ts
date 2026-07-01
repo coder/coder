@@ -413,8 +413,33 @@ describe("archiveChatAndDeleteWorkspace", () => {
 		const err = await promise.catch((e: unknown) => e);
 		expect((err as ArchiveAndDeleteError).step).toBe("archive");
 		expect((err as ArchiveAndDeleteError).cause).toBe(cause);
+		expect((err as ArchiveAndDeleteError).deleteEnqueued).toBe(true);
 		expect(doDelete).toHaveBeenCalledTimes(1);
 		expect(doArchive).toHaveBeenCalledTimes(1);
+	});
+
+	it("marks archive failures with deleteEnqueued=false when delete was skipped", async () => {
+		const doArchive = vi.fn(async () => {
+			throw new Error("archive failed");
+		});
+		const doDelete = vi.fn(async () => {
+			throw {
+				isAxiosError: true,
+				response: { status: 410, data: { message: "gone" } },
+			};
+		});
+
+		const promise = archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+		);
+		const err = (await promise.catch(
+			(e: unknown) => e,
+		)) as ArchiveAndDeleteError;
+		expect(err.step).toBe("archive");
+		expect(err.deleteEnqueued).toBe(false);
 	});
 
 	it("returns the delete build payload on success", async () => {
@@ -692,7 +717,7 @@ describe("shouldNavigateAfterArchive", () => {
 	});
 });
 
-const buildWorkspace = (overrides: Partial<Workspace> = {}): Workspace =>
+const makeWorkspace = (overrides: Partial<Workspace> = {}): Workspace =>
 	({
 		id: "ws-1",
 		name: "my-workspace",
@@ -723,7 +748,7 @@ describe("notifyDeleteQueueState", () => {
 	});
 
 	it("is silent when no build is returned (workspace already gone)", () => {
-		notifyDeleteQueueState(buildWorkspace(), null);
+		notifyDeleteQueueState(makeWorkspace(), null);
 		expect(toastWarning).not.toHaveBeenCalled();
 		expect(toastInfo).not.toHaveBeenCalled();
 		expect(toastSuccess).not.toHaveBeenCalled();
@@ -735,18 +760,18 @@ describe("notifyDeleteQueueState", () => {
 	});
 
 	it("is silent when matched_provisioners is absent (older servers)", () => {
-		notifyDeleteQueueState(buildWorkspace(), makeDeleteBuild());
+		notifyDeleteQueueState(makeWorkspace(), makeDeleteBuild());
 		expect(toastWarning).not.toHaveBeenCalled();
 	});
 
 	it("is silent on the happy path (at least one matching provisioner)", () => {
-		notifyDeleteQueueState(buildWorkspace(), makeDeleteBuild({ count: 2 }));
+		notifyDeleteQueueState(makeWorkspace(), makeDeleteBuild({ count: 2 }));
 		expect(toastWarning).not.toHaveBeenCalled();
 	});
 
 	it("warns when no matching provisioners exist (count = 0)", () => {
 		notifyDeleteQueueState(
-			buildWorkspace({ name: "stuck-ws" }),
+			makeWorkspace({ name: "stuck-ws" }),
 			makeDeleteBuild({ count: 0 }),
 		);
 		expect(toastWarning).toHaveBeenCalledTimes(1);
@@ -780,7 +805,7 @@ describe("notifyArchiveAndDeleteFailed", () => {
 	it("includes workspace name and an Open workspace action when delete fails", () => {
 		const onOpen = vi.fn();
 		notifyArchiveAndDeleteFailed(
-			buildWorkspace({ name: "left-behind", owner_name: "bob" }),
+			makeWorkspace({ name: "left-behind", owner_name: "bob" }),
 			new ArchiveAndDeleteError("delete", {}),
 			onOpen,
 		);
@@ -799,26 +824,41 @@ describe("notifyArchiveAndDeleteFailed", () => {
 		expect(onOpen).toHaveBeenCalledWith("/@bob/left-behind");
 	});
 
-	it("announces partial success when only the archive step fails", () => {
+	it("announces partial success when only the archive step fails after enqueue", () => {
 		const onOpen = vi.fn();
 		notifyArchiveAndDeleteFailed(
-			buildWorkspace({ name: "deleting-ws" }),
-			new ArchiveAndDeleteError("archive", new Error("forbidden")),
+			makeWorkspace({ name: "deleting-ws" }),
+			new ArchiveAndDeleteError("archive", new Error("forbidden"), true),
 			onOpen,
 		);
 		expect(toastError).toHaveBeenCalledTimes(1);
 		const [message, options] = toastError.mock.calls[0] as [string, undefined];
 		expect(message).toContain("deleting-ws");
+		expect(message).toContain("Deleting");
 		expect(message).toContain("failed to archive");
 		expect(options).toBeUndefined();
 		expect(onOpen).not.toHaveBeenCalled();
+	});
+
+	it("omits the 'Deleting' claim when the workspace was already gone (delete swallowed)", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace({ name: "already-gone" }),
+			new ArchiveAndDeleteError("archive", new Error("forbidden"), false),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const message = toastError.mock.calls[0][0] as string;
+		expect(message).toContain("already-gone");
+		expect(message).toContain("Failed to archive");
+		expect(message).not.toContain("Deleting");
 	});
 
 	it("handles archive-step failure with no workspace in cache", () => {
 		const onOpen = vi.fn();
 		notifyArchiveAndDeleteFailed(
 			undefined,
-			new ArchiveAndDeleteError("archive", new Error("forbidden")),
+			new ArchiveAndDeleteError("archive", new Error("forbidden"), true),
 			onOpen,
 		);
 		expect(toastError).toHaveBeenCalledTimes(1);
@@ -831,7 +871,7 @@ describe("notifyArchiveAndDeleteFailed", () => {
 	it("surfaces the original error's message when present", () => {
 		const onOpen = vi.fn();
 		notifyArchiveAndDeleteFailed(
-			buildWorkspace(),
+			makeWorkspace(),
 			new ArchiveAndDeleteError(
 				"delete",
 				new Error("template version archived"),
@@ -845,7 +885,7 @@ describe("notifyArchiveAndDeleteFailed", () => {
 	it("falls back to the delete branch (with action) for non-tagged errors", () => {
 		const onOpen = vi.fn();
 		notifyArchiveAndDeleteFailed(
-			buildWorkspace({ name: "raw-ws", owner_name: "carol" }),
+			makeWorkspace({ name: "raw-ws", owner_name: "carol" }),
 			new Error("raw"),
 			onOpen,
 		);

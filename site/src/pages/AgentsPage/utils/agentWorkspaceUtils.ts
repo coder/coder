@@ -92,18 +92,26 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 /**
  * Thrown by `archiveChatAndDeleteWorkspace` to identify which step
  * failed. Callers branch on `step` to produce the right user-facing
- * message.
+ * message. `deleteEnqueued` distinguishes an archive-after-delete
+ * failure (workspace is being deleted) from an archive failure that
+ * followed a swallowed 404/410 (workspace was already gone).
  */
 export class ArchiveAndDeleteError extends Error {
 	readonly step: "delete" | "archive";
+	readonly deleteEnqueued: boolean;
 	declare readonly cause: unknown;
 
-	constructor(step: "delete" | "archive", cause: unknown) {
+	constructor(
+		step: "delete" | "archive",
+		cause: unknown,
+		deleteEnqueued = false,
+	) {
 		super(
 			step === "delete" ? "workspace delete failed" : "chat archive failed",
 			{ cause },
 		);
 		this.step = step;
+		this.deleteEnqueued = deleteEnqueued;
 	}
 }
 
@@ -134,7 +142,7 @@ export async function archiveChatAndDeleteWorkspace(
 	try {
 		await doArchive(chatId);
 	} catch (error) {
-		throw new ArchiveAndDeleteError("archive", error);
+		throw new ArchiveAndDeleteError("archive", error, deleteBuild !== null);
 	}
 	return { chatId, workspaceId, deleteBuild };
 }
@@ -266,7 +274,11 @@ export function notifyArchiveAndDeleteFailed(
 
 	if (step === "archive") {
 		const label = workspace ? `"${workspace.name}"` : "the workspace";
-		const prefix = `Deleting ${label}, but failed to archive the chat.`;
+		const deleteEnqueued =
+			error instanceof ArchiveAndDeleteError && error.deleteEnqueued;
+		const prefix = deleteEnqueued
+			? `Deleting ${label}, but failed to archive the chat.`
+			: `Failed to archive the chat for ${label}.`;
 		const detail = getErrorMessage(cause, "");
 		toast.error(detail ? `${prefix} ${detail}` : prefix);
 		return;
