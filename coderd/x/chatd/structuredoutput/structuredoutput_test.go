@@ -9,11 +9,10 @@ import (
 	fantasyschema "charm.land/fantasy/schema"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-func ptr[T any](v T) *T { return &v }
 
 const validSchema = `{
 	"type": "object",
@@ -110,10 +109,10 @@ func TestValidate(t *testing.T) {
 		// Omitted and explicit true are accepted.
 		require.Nil(t, structuredoutput.Validate(jsonSchemaFormat(validSchema)))
 		format := jsonSchemaFormat(validSchema)
-		format.JSONSchema.Strict = ptr(true)
+		format.JSONSchema.Strict = ptr.Ref(true)
 		require.Nil(t, structuredoutput.Validate(format))
 		// Explicit false is rejected rather than silently ignored.
-		format.JSONSchema.Strict = ptr(false)
+		format.JSONSchema.Strict = ptr.Ref(false)
 		err := structuredoutput.Validate(format)
 		require.NotNil(t, err)
 		require.Equal(t, "response_format.json_schema.strict", err.Field)

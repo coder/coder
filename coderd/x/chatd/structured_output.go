@@ -33,15 +33,7 @@ This turn requires a structured final answer.
 // SDK clients: the tool-result part's Result field carries the
 // canonical validated JSON of the unwrapped "output" value.
 func ExtractStructuredOutputValue(messages []database.ChatMessage) (json.RawMessage, bool, error) {
-	start := 0
-	for i, msg := range messages {
-		if msg.Deleted || msg.Compressed {
-			continue
-		}
-		if msg.Role == database.ChatMessageRoleUser {
-			start = i + 1
-		}
-	}
+	start := activeTurnStart(messages)
 	for i := len(messages) - 1; i >= start; i-- {
 		msg := messages[i]
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
@@ -77,49 +69,46 @@ func activeTurnResponseFormat(
 	logger slog.Logger,
 	messages []database.ChatMessage,
 ) *structuredoutput.Request {
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Deleted || message.Compressed || message.Role != database.ChatMessageRoleUser {
-			continue
-		}
-		// Only user-authored (user-visible) messages carry the
-		// response-format part. Skip hidden model-visibility user
-		// rows (e.g. injected context) like
-		// activeTurnAPIKeyIDFromMessages does.
-		if !isUserVisibleChatMessage(message) {
-			continue
-		}
-		parts, err := chatprompt.ParseContent(message)
-		if err != nil {
-			logger.Warn(ctx, "failed to parse user message for response format",
-				slog.F("message_id", message.ID),
-				slog.Error(err),
-			)
-			return nil
-		}
-		var format *codersdk.ChatResponseFormat
-		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeResponseFormat && part.ResponseFormat != nil {
-				format = part.ResponseFormat
-			}
-		}
-		if format == nil {
-			return nil
-		}
-		request, verr := structuredoutput.NewRequest(format)
-		if verr != nil {
-			// The HTTP layer validates before persisting, so a
-			// persisted-but-invalid format indicates a version skew
-			// or manual edit. Degrade to a normal turn rather than
-			// failing generation forever.
-			logger.Warn(ctx, "persisted response format is invalid; ignoring",
-				slog.F("message_id", message.ID),
-				slog.F("field", verr.Field),
-				slog.F("detail", verr.Detail),
-			)
-			return nil
-		}
-		return request
+	// Only user-authored (user-visible) messages carry the
+	// response-format part. Skip hidden model-visibility user rows
+	// (e.g. injected context) like activeTurnAPIKeyIDFromMessages
+	// does.
+	idx := lastMessageIndex(messages, func(message database.ChatMessage) bool {
+		return message.Role == database.ChatMessageRoleUser && isUserVisibleChatMessage(message)
+	})
+	if idx == -1 {
+		return nil
 	}
-	return nil
+	message := messages[idx]
+	parts, err := chatprompt.ParseContent(message)
+	if err != nil {
+		logger.Warn(ctx, "failed to parse user message for response format",
+			slog.F("message_id", message.ID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	var format *codersdk.ChatResponseFormat
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeResponseFormat && part.ResponseFormat != nil {
+			format = part.ResponseFormat
+		}
+	}
+	if format == nil {
+		return nil
+	}
+	request, verr := structuredoutput.NewRequest(format)
+	if verr != nil {
+		// The HTTP layer validates before persisting, so a
+		// persisted-but-invalid format indicates a version skew
+		// or manual edit. Degrade to a normal turn rather than
+		// failing generation forever.
+		logger.Warn(ctx, "persisted response format is invalid; ignoring",
+			slog.F("message_id", message.ID),
+			slog.F("field", verr.Field),
+			slog.F("detail", verr.Detail),
+		)
+		return nil
+	}
+	return request
 }

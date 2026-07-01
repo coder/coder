@@ -61,7 +61,10 @@ type Request struct {
 	Description string
 	Schema      json.RawMessage
 
-	compiled *jsonschema.Schema
+	// schemaMap is the decoded Schema object, parsed once during
+	// NewRequest so tool definitions never reparse the raw bytes.
+	schemaMap map[string]any
+	compiled  *jsonschema.Schema
 }
 
 // Validate checks a request-level response_format. A nil format is
@@ -163,6 +166,7 @@ func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError
 		Name:        js.Name,
 		Description: js.Description,
 		Schema:      js.Schema,
+		schemaMap:   root,
 		compiled:    compiled,
 	}, nil
 }
@@ -236,19 +240,10 @@ func (t *finalizerTool) Info() fantasy.ToolInfo {
 		description += " Output description: " + t.req.Description
 	}
 
-	// The caller schema arrives pre-validated as a JSON object, so
-	// unmarshaling into a map cannot fail for requests built through
-	// NewRequest. Fall back to an unconstrained object if it somehow
-	// does; run-time validation still enforces the real schema.
-	var schemaAsMap map[string]any
-	if err := json.Unmarshal(t.req.Schema, &schemaAsMap); err != nil {
-		schemaAsMap = map[string]any{"type": "object"}
-	}
-
 	return fantasy.ToolInfo{
 		Name:        ToolName,
 		Description: description,
-		Parameters:  map[string]any{outputProperty: schemaAsMap},
+		Parameters:  map[string]any{outputProperty: t.req.schemaMap},
 		Required:    []string{outputProperty},
 		Parallel:    false,
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -615,12 +616,12 @@ func TestResolveChainMode_BlocksAfterStructuredOutputStopAfterTurn(t *testing.T)
 	modelConfigID := uuid.New()
 	finalizerCall := codersdk.ChatMessageToolCall(
 		"call-finalizer",
-		"coder_structured_output",
+		structuredoutput.ToolName,
 		json.RawMessage(`{"output":{"answer":"42"}}`),
 	)
 	finalizerResult := codersdk.ChatMessageToolResult(
 		"call-finalizer",
-		"coder_structured_output",
+		structuredoutput.ToolName,
 		json.RawMessage(`{"answer":"42"}`),
 		false,
 		false,

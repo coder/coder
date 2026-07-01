@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
-	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -61,12 +60,12 @@ type generationPrepared struct {
 	DynamicToolNames   map[string]bool
 	StopAfterTools     map[string]struct{}
 	ExclusiveToolNames map[string]bool
-	// StructuredOutput is non-nil when the active turn requested a
-	// server-validated structured final output. It gates required
-	// tool choice and turn-completion semantics.
-	StructuredOutput   *structuredoutput.Request
-	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
+	// StructuredOutputRequired is true when the active turn
+	// requested a server-validated structured final output. It gates
+	// required tool choice and turn-completion semantics.
+	StructuredOutputRequired bool
+	BuiltinToolNames         map[string]bool
+	ToolNameToConfigID       map[string]uuid.UUID
 
 	MaxSteps   int
 	Compaction *generationCompaction
@@ -354,7 +353,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				dynamicToolNames:           prepared.DynamicToolNames,
 				exclusiveToolNames:         prepared.ExclusiveToolNames,
 				stopAfterTools:             prepared.StopAfterTools,
-				structuredOutputRequired:   prepared.StructuredOutput != nil,
+				structuredOutputRequired:   prepared.StructuredOutputRequired,
 				maxSteps:                   prepared.MaxSteps,
 				compactionEnabled:          prepared.Compaction != nil,
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
@@ -633,7 +632,7 @@ func (s *taskStarter) generateAssistant(
 	// finalizer result. Provider rejections of required tool choice
 	// surface as normal generation errors, never a silent downgrade.
 	var toolChoice *fantasy.ToolChoice
-	if prepared.StructuredOutput != nil {
+	if prepared.StructuredOutputRequired {
 		required := fantasy.ToolChoiceRequired
 		toolChoice = &required
 	}
@@ -660,7 +659,7 @@ func (s *taskStarter) generateAssistant(
 		// A structured output turn must not finish without a
 		// validated finalizer result; an empty model response is an
 		// error there rather than a graceful completion.
-		if prepared.StructuredOutput != nil {
+		if prepared.StructuredOutputRequired {
 			return s.finishGenerationError(ctx, machine, input, attempt, errStructuredOutputNotProduced, generationAttemptRequired)
 		}
 		return s.finishGenerationTurn(ctx, machine, input, attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)

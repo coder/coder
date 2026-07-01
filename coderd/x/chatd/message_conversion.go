@@ -470,10 +470,10 @@ func usageFromMessage(msg database.ChatMessage) fantasy.Usage {
 	return usage
 }
 
-func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterTools map[string]struct{}) (bool, error) {
-	if len(stopAfterTools) == 0 {
-		return false, nil
-	}
+// activeTurnStart returns the index just past the latest non-deleted,
+// non-compressed user message, i.e. the first assistant/tool row of
+// the active turn.
+func activeTurnStart(messages []database.ChatMessage) int {
 	start := 0
 	for i, msg := range messages {
 		if msg.Deleted || msg.Compressed {
@@ -483,7 +483,14 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 			start = i + 1
 		}
 	}
-	for _, msg := range messages[start:] {
+	return start
+}
+
+func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterTools map[string]struct{}) (bool, error) {
+	if len(stopAfterTools) == 0 {
+		return false, nil
+	}
+	for _, msg := range messages[activeTurnStart(messages):] {
 		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
 			continue
 		}
