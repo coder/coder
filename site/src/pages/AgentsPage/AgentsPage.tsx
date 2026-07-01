@@ -61,8 +61,9 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
-	notifyDeleteFailed,
+	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
@@ -266,11 +267,20 @@ const AgentsPage: FC = () => {
 			);
 		},
 		onError: (error, { workspaceId }) => {
-			notifyDeleteFailed(
+			notifyArchiveAndDeleteFailed(
 				getCachedWorkspace(queryClient, workspaceId),
 				error,
 				(path) => navigate(path),
 			);
+			// When the archive step is the one that failed, the delete
+			// already ran server-side. Invalidate workspace-related
+			// caches so any stale workspace state elsewhere refreshes.
+			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
+				void invalidateWorkspaceMutationQueries(queryClient, {
+					organizationName,
+					username: user.username,
+				});
+			}
 		},
 	});
 	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
@@ -428,7 +438,10 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						onSettled: () => {
+						// Navigate only on success. On error the chat is
+						// still visible (delete-first order), so redirecting
+						// away would strand the user's retry surface.
+						onSuccess: () => {
 							navigateAfterArchive(chatId);
 						},
 					},
@@ -439,10 +452,7 @@ const AgentsPage: FC = () => {
 				// about interrupting a live workspace, which is moot
 				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
-					// Navigate only on success. The proceed/confirm paths
-					// use onSettled because their pre-existing behavior
-					// navigates regardless of delete outcome. This path
-					// has no delete step, so a failed archive should not
+					// No delete step here, so a failed archive should not
 					// redirect the user.
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
@@ -461,8 +471,12 @@ const AgentsPage: FC = () => {
 		if (pendingArchiveAndDelete && !isArchiving) {
 			const { chatId: archivedChatId } = pendingArchiveAndDelete;
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
+				// Close the dialog regardless; navigate only on success so
+				// a delete failure keeps the chat's retry surface reachable.
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
+				},
+				onSuccess: () => {
 					navigateAfterArchive(archivedChatId);
 				},
 			});
