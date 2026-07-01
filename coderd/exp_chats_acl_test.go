@@ -72,8 +72,11 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		ResourceID:   chat.ID,
 		UserID:       firstUser.UserID,
 	}))
-	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
-	require.Len(t, sent, 2)
+	var sent []*notificationstest.FakeNotification
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
+		return len(sent) == 2
+	}, testutil.IntervalFast)
 	byUserID := map[uuid.UUID]*notificationstest.FakeNotification{}
 	for _, notification := range sent {
 		byUserID[notification.UserID] = notification
@@ -211,6 +214,59 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	}))
 	_, err = groupMemberClientExp.GetChat(ctx, chat.ID)
 	requireSDKError(t, err, http.StatusNotFound)
+}
+
+// TestChatACLSharingExcludesGroupMemberInitiator verifies that a non-owner
+// initiator who is a member of a newly shared group is not self-notified, and
+// that a reader granted through both a direct ACL entry and a group is
+// notified only once.
+func TestChatACLSharingExcludesGroupMemberInitiator(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	notifyEnq := &notificationstest.FakeEnqueuer{}
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.NotificationsEnqueuer = notifyEnq
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	// A non-owner org admin can share another user's chat via ActionShare.
+	adminClient, admin := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
+	adminExp := codersdk.NewExperimentalClient(adminClient)
+	_, groupMember := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+	// The group contains both the sharing initiator and another member.
+	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: admin.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: groupMember.ID})
+
+	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "admin shared chat")
+
+	// Share with the group, and also with groupMember directly so that reader
+	// is granted access through both paths (exercises deduplication).
+	err := adminExp.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			groupMember.ID.String(): codersdk.ChatRoleRead,
+		},
+		GroupRoles: map[string]codersdk.ChatRole{
+			group.ID.String(): codersdk.ChatRoleRead,
+		},
+	})
+	require.NoError(t, err)
+
+	var sent []*notificationstest.FakeNotification
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
+		return len(sent) == 1
+	}, testutil.IntervalFast)
+	// groupMember is notified exactly once despite the direct and group grants.
+	// The initiator (admin) and owner (firstUser) are never notified.
+	require.Equal(t, groupMember.ID, sent[0].UserID)
+	for _, notification := range sent {
+		require.NotEqual(t, admin.ID, notification.UserID)
+		require.NotEqual(t, firstUser.UserID, notification.UserID)
+	}
 }
 
 func TestChatACLSubChatInheritance(t *testing.T) {
