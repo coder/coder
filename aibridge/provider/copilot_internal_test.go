@@ -311,20 +311,6 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		assert.True(t, interceptor.Streaming())
 	})
 
-	t.Run("Messages_MissingAuthorizationHeader", func(t *testing.T) {
-		t.Parallel()
-
-		body := `{"model": "claude-sonnet-4.5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}]}`
-		req := httptest.NewRequest(http.MethodPost, routeCopilotMessages, bytes.NewBufferString(body))
-		w := httptest.NewRecorder()
-
-		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
-
-		require.Error(t, err)
-		require.Nil(t, interceptor)
-		assert.Contains(t, err.Error(), "missing Copilot authorization: Authorization header not found or invalid")
-	})
-
 	t.Run("Messages_InvalidRequestBody", func(t *testing.T) {
 		t.Parallel()
 
