@@ -48,13 +48,29 @@ const anthropicModels: ModelSelectorOption[] = [
 
 const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
 
+const formatProviderLabel = (provider: string): string => {
+	const labels: Record<string, string> = {
+		openai: "OpenAI",
+		anthropic: "Anthropic",
+	};
+	return labels[provider] ?? provider;
+};
+
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
 	component: ModelSelector,
+	decorators: [
+		(Story) => (
+			<div className="flex w-72 justify-start rounded-lg border border-solid border-border-default bg-surface-primary p-4">
+				<Story />
+			</div>
+		),
+	],
 	args: {
 		options: openAIModels,
 		value: "",
 		onValueChange: fn(),
+		formatProviderLabel,
 	},
 };
 
@@ -62,7 +78,7 @@ export default meta;
 type Story = StoryObj<typeof ModelSelector>;
 
 // ---------------------------------------------------------------------------
-// Single provider stories
+// Trigger (closed) stories
 // ---------------------------------------------------------------------------
 
 export const Default: Story = {};
@@ -104,27 +120,22 @@ export const Disabled: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Multiple providers (grouped)
+// Open-by-default stories (visualize the dropdown without an interaction)
 // ---------------------------------------------------------------------------
 
-export const MultipleProviders: Story = {
+export const OpenSingleProvider: Story = {
 	args: {
-		options: allModels,
-		value: "anthropic/claude-sonnet-4",
+		options: openAIModels,
+		value: "openai/gpt-4o",
+		open: true,
 	},
 };
 
-export const MultipleProvidersWithCustomLabel: Story = {
+export const OpenMultipleProviders: Story = {
 	args: {
 		options: allModels,
-		value: "",
-		formatProviderLabel: (provider: string) => {
-			const labels: Record<string, string> = {
-				openai: "OpenAI",
-				anthropic: "Anthropic",
-			};
-			return labels[provider] ?? provider;
-		},
+		value: "openai/o3-mini",
+		open: true,
 	},
 };
 
@@ -140,7 +151,7 @@ export const NoOptions: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Play function – selection interaction
+// Play functions: interaction smoke tests
 // ---------------------------------------------------------------------------
 
 export const SelectsModel: Story = {
@@ -151,16 +162,29 @@ export const SelectsModel: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-
-		// Open the popover by clicking the trigger.
 		const trigger = canvas.getByRole("combobox");
 		await userEvent.click(trigger);
 
-		// The dropdown should appear with model options.
-		const listbox = await within(document.body).findByRole("listbox");
-		const option = within(listbox).getByText("GPT-4o Mini");
+		// The popover is portaled, so the option renders in document.body.
+		const option = await within(document.body).findByText("GPT-4o Mini");
 		await userEvent.click(option);
 
 		expect(args.onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
+	},
+};
+
+export const SearchFiltersOptions: Story = {
+	args: {
+		options: anthropicModels,
+		value: "",
+		open: true,
+	},
+	play: async () => {
+		const body = within(document.body);
+		const search = await body.findByPlaceholderText("Search...");
+		await userEvent.type(search, "haiku");
+
+		expect(await body.findByText("Claude 3.5 Haiku")).toBeInTheDocument();
+		expect(body.queryByText("Claude Sonnet 4")).not.toBeInTheDocument();
 	},
 };

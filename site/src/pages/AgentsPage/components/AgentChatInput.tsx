@@ -1411,7 +1411,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								formatProviderLabel={formatProviderLabel}
 								className="md:shrink"
 								dropdownSide="top"
-								dropdownAlign="center"
+								dropdownAlign="start"
 								enableMobileFullWidthDropdown
 							/>
 						)}
