@@ -397,7 +397,7 @@ var (
 					rbac.ResourceInboxNotification.Type:   {policy.ActionCreate},
 					rbac.ResourceWebpushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:    {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
-					rbac.ResourceGroupMember.Type:         {policy.ActionRead},
+					rbac.ResourceGroupMember.Type:         {policy.ActionRead},                      // To resolve group-shared notification recipients
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},

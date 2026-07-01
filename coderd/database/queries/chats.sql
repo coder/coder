@@ -3090,4 +3090,3 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- created_at ASC flows through to dbpurge's digest truncation; see
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
-

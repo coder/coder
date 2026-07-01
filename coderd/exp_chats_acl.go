@@ -215,11 +215,16 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiatorID uuid.UUID) error {
-	oldReaders, err := api.effectiveChatReaders(ctx, oldChat)
+	// Resolving recipients reads group membership and enqueues notifications,
+	// neither of which the sharing user is authorized to do.
+	//nolint:gocritic // Notifier actor is required to read members and enqueue.
+	notifierCtx := dbauthz.AsNotifier(ctx)
+
+	oldReaders, err := api.effectiveChatReaders(notifierCtx, oldChat)
 	if err != nil {
 		return xerrors.Errorf("resolve previous chat readers: %w", err)
 	}
-	newReaders, err := api.effectiveChatReaders(ctx, newChat)
+	newReaders, err := api.effectiveChatReaders(notifierCtx, newChat)
 	if err != nil {
 		return xerrors.Errorf("resolve current chat readers: %w", err)
 	}
@@ -229,8 +234,6 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 		if _, alreadyReader := oldReaders[userID]; alreadyReader {
 			continue
 		}
-		// The initiator is sharing the chat, so they should not be told the
-		// chat was shared with them.
 		if userID == initiatorID {
 			continue
 		}
@@ -254,8 +257,7 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	eg.SetLimit(10)
 	for _, userID := range recipientIDs {
 		eg.Go(func() error {
-			//nolint:gocritic // Need notifier actor to enqueue notifications.
-			_, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), userID, notifications.TemplateChatShared, labels, initiatorID.String(), newChat.ID)
+			_, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiatorID.String(), newChat.ID)
 			if err != nil {
 				return xerrors.Errorf("enqueue chat shared notification: %w", err)
 			}
@@ -287,8 +289,7 @@ func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (m
 		if err != nil {
 			continue
 		}
-		//nolint:gocritic // Notifier reads group members to deliver notifications to them.
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsNotifier(ctx), database.GetGroupMembersByGroupIDParams{
+		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
 			GroupID:       groupID,
 			IncludeSystem: false,
 		})
