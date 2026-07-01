@@ -274,7 +274,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		})
 	}
 	if req.Settings.Bedrock != nil {
-		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		validations = append(validations, validateAIProviderBedrockSettings(*req.Settings.Bedrock)...)
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
@@ -325,7 +325,7 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
 	}
 	if req.Settings != nil && req.Settings.Bedrock != nil {
-		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		validations = append(validations, validateAIProviderBedrockSettings(*req.Settings.Bedrock)...)
 	}
 	return validations
 }
@@ -344,6 +344,31 @@ func validateAIProviderName(name string) []ValidationError {
 		validations = append(validations, ValidationError{
 			Field:  "name",
 			Detail: fmt.Sprintf("name must match %s (lowercase alphanumeric, hyphens between words)", AIProviderNameRegex),
+		})
+	}
+	return validations
+}
+
+// validateAIProviderBedrockSettings validates the Bedrock-specific settings
+// shared by create and update requests: the role ARN, the endpoint value, and
+// the mantle endpoint's region requirement.
+func validateAIProviderBedrockSettings(b AIProviderBedrockSettings) []ValidationError {
+	var validations []ValidationError
+	validations = append(validations, validateAIProviderRoleARN(b.RoleARN)...)
+	switch b.Endpoint {
+	case "", AIProviderBedrockEndpointInvokeModel, AIProviderBedrockEndpointMantle:
+	default:
+		validations = append(validations, ValidationError{
+			Field:  "settings.endpoint",
+			Detail: fmt.Sprintf("unsupported endpoint %q (expected %q or %q)", b.Endpoint, AIProviderBedrockEndpointInvokeModel, AIProviderBedrockEndpointMantle),
+		})
+	}
+	// The mantle endpoint signs SigV4 and builds its host from the region, so a
+	// region is required even when a custom base URL is supplied.
+	if b.ResolvedEndpoint() == AIProviderBedrockEndpointMantle && b.Region == "" {
+		validations = append(validations, ValidationError{
+			Field:  "settings.region",
+			Detail: "region is required for the mantle endpoint",
 		})
 	}
 	return validations

@@ -8,6 +8,22 @@ const AIProviderSettingsTypeBedrock = "bedrock"
 // AIProviderBedrockSettings.
 const AIProviderBedrockSettingsVersion = 1
 
+// AIProviderBedrockEndpoint selects which AWS Bedrock transport a provider
+// targets.
+type AIProviderBedrockEndpoint string
+
+const (
+	// AIProviderBedrockEndpointInvokeModel is the legacy InvokeModel transport
+	// (bedrock-runtime.{region}.amazonaws.com), which translates the native
+	// Messages request into Bedrock's InvokeModel format. It is the default
+	// when no endpoint is set.
+	AIProviderBedrockEndpointInvokeModel AIProviderBedrockEndpoint = "invoke-model"
+	// AIProviderBedrockEndpointMantle is the mantle transport
+	// (bedrock-mantle.{region}.api.aws/anthropic/v1/messages), which is
+	// wire-identical to api.anthropic.com and requires only SigV4 signing.
+	AIProviderBedrockEndpointMantle AIProviderBedrockEndpoint = "mantle"
+)
+
 // AIProviderBedrockSettings configures providers that authenticate
 // against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
 // servers strip them from GET and list responses. Both secret fields
@@ -35,6 +51,19 @@ type AIProviderBedrockSettings struct {
 	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
 	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string `json:"role_arn,omitempty"`
+	// Endpoint selects the Bedrock transport. An empty value resolves to
+	// AIProviderBedrockEndpointInvokeModel, so existing rows keep the legacy
+	// behavior without a schema version bump.
+	Endpoint AIProviderBedrockEndpoint `json:"endpoint,omitempty"`
+}
+
+// ResolvedEndpoint returns the configured endpoint, mapping the empty value to
+// the legacy InvokeModel transport so callers never have to special-case it.
+func (b AIProviderBedrockSettings) ResolvedEndpoint() AIProviderBedrockEndpoint {
+	if b.Endpoint == "" {
+		return AIProviderBedrockEndpointInvokeModel
+	}
+	return b.Endpoint
 }
 
 // IsConfigured reports whether any load-bearing Bedrock field is set,

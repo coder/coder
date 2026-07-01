@@ -25,6 +25,21 @@ type Anthropic struct {
 	SendActorHeaders bool
 }
 
+// BedrockEndpoint selects which AWS Bedrock transport a provider targets.
+type BedrockEndpoint string
+
+const (
+	// BedrockEndpointInvokeModel is the legacy InvokeModel transport
+	// (bedrock-runtime.{region}.amazonaws.com), which translates the native
+	// Messages request into Bedrock's InvokeModel format. It is the default
+	// for the zero value.
+	BedrockEndpointInvokeModel BedrockEndpoint = "invoke-model"
+	// BedrockEndpointMantle is the mantle transport
+	// (bedrock-mantle.{region}.api.aws/anthropic/v1/messages), which is
+	// wire-identical to api.anthropic.com and requires only SigV4 signing.
+	BedrockEndpointMantle BedrockEndpoint = "mantle"
+)
+
 type AWSBedrock struct {
 	Region                     string
 	AccessKey, AccessKeySecret string
@@ -38,6 +53,9 @@ type AWSBedrock struct {
 	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
 	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string
+	// Endpoint selects the Bedrock transport. The zero value behaves as
+	// BedrockEndpointInvokeModel.
+	Endpoint BedrockEndpoint
 }
 
 // OpenAI carries configuration for an OpenAI provider.

@@ -352,6 +352,7 @@ func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) 
 		Model:           bedrockSettings.Model,
 		SmallFastModel:  bedrockSettings.SmallFastModel,
 		RoleARN:         bedrockSettings.RoleARN,
+		Endpoint:        aibridge.BedrockEndpoint(bedrockSettings.ResolvedEndpoint()),
 	}
 }
 
