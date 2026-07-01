@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	json "encoding/json"
 	reflect "reflect"
 	time "time"
@@ -192,21 +191,6 @@ func (m *MockStore) AutoArchiveInactiveChats(ctx context.Context, arg database.A
 func (mr *MockStoreMockRecorder) AutoArchiveInactiveChats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoArchiveInactiveChats", reflect.TypeOf((*MockStore)(nil).AutoArchiveInactiveChats), ctx, arg)
-}
-
-// BackfillChatModelConfigProvider mocks base method.
-func (m *MockStore) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BackfillChatModelConfigProvider", ctx, arg)
-	ret0, _ := ret[0].(sql.Result)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BackfillChatModelConfigProvider indicates an expected call of BackfillChatModelConfigProvider.
-func (mr *MockStoreMockRecorder) BackfillChatModelConfigProvider(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillChatModelConfigProvider", reflect.TypeOf((*MockStore)(nil).BackfillChatModelConfigProvider), ctx, arg)
 }
 
 // BackoffChatDiffStatus mocks base method.
@@ -875,20 +859,6 @@ func (m *MockStore) DeleteChatModelConfigsByAIProviderID(ctx context.Context, ai
 func (mr *MockStoreMockRecorder) DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatModelConfigsByAIProviderID", reflect.TypeOf((*MockStore)(nil).DeleteChatModelConfigsByAIProviderID), ctx, aiProviderID)
-}
-
-// DeleteChatModelConfigsByProvider mocks base method.
-func (m *MockStore) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatModelConfigsByProvider", ctx, provider)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteChatModelConfigsByProvider indicates an expected call of DeleteChatModelConfigsByProvider.
-func (mr *MockStoreMockRecorder) DeleteChatModelConfigsByProvider(ctx, provider any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatModelConfigsByProvider", reflect.TypeOf((*MockStore)(nil).DeleteChatModelConfigsByProvider), ctx, provider)
 }
 
 // DeleteChatQueuedMessage mocks base method.
@@ -1945,6 +1915,21 @@ func (m *MockStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeUserPromptsByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeUserPromptsByInterceptionID), ctx, interceptionID)
+}
+
+// GetAIGatewayKeyByHashedSecret mocks base method.
+func (m *MockStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIGatewayKeyByHashedSecret", ctx, hashedSecret)
+	ret0, _ := ret[0].(database.AIGatewayKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIGatewayKeyByHashedSecret indicates an expected call of GetAIGatewayKeyByHashedSecret.
+func (mr *MockStoreMockRecorder) GetAIGatewayKeyByHashedSecret(ctx, hashedSecret any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyByHashedSecret), ctx, hashedSecret)
 }
 
 // GetAIModelPriceByProviderModel mocks base method.
@@ -3718,10 +3703,10 @@ func (mr *MockStoreMockRecorder) GetEnabledChatModelConfigByID(ctx, id any) *gom
 }
 
 // GetEnabledChatModelConfigs mocks base method.
-func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (m *MockStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.GetEnabledChatModelConfigsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEnabledChatModelConfigs", ctx)
-	ret0, _ := ret[0].([]database.ChatModelConfig)
+	ret0, _ := ret[0].([]database.GetEnabledChatModelConfigsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9501,6 +9486,21 @@ func (m *MockStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionEnded(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIBridgeInterceptionEnded", reflect.TypeOf((*MockStore)(nil).UpdateAIBridgeInterceptionEnded), ctx, arg)
+}
+
+// UpdateAIGatewayKeyLastHeartbeatAt mocks base method.
+func (m *MockStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIGatewayKeyLastHeartbeatAt", ctx, id)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIGatewayKeyLastHeartbeatAt indicates an expected call of UpdateAIGatewayKeyLastHeartbeatAt.
+func (mr *MockStoreMockRecorder) UpdateAIGatewayKeyLastHeartbeatAt(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayKeyLastHeartbeatAt", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayKeyLastHeartbeatAt), ctx, id)
 }
 
 // UpdateAIProvider mocks base method.

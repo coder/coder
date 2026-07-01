@@ -29,6 +29,7 @@ const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, num
 // @Param request body codersdk.CreateAIGatewayKeyRequest true "Create AI Gateway key request"
 // @Success 201 {object} codersdk.CreateAIGatewayKeyResponse
 // @Router /api/v2/ai-gateway/keys [post]
+// @x-apidocgen {"skip": true}
 func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -117,6 +118,7 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 // @Tags Enterprise
 // @Success 200 {array} codersdk.AIGatewayKey
 // @Router /api/v2/ai-gateway/keys [get]
+// @x-apidocgen {"skip": true}
 func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -147,6 +149,7 @@ func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 // @Param key path string true "Key ID" format(uuid)
 // @Success 204
 // @Router /api/v2/ai-gateway/keys/{key} [delete]
+// @x-apidocgen {"skip": true}
 func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -186,27 +189,27 @@ func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.Old = database.AIGatewayKey{
-		ID:           deleted.ID,
-		Name:         deleted.Name,
-		SecretPrefix: deleted.SecretPrefix,
-		CreatedAt:    deleted.CreatedAt,
-		LastUsedAt:   deleted.LastUsedAt,
+		ID:              deleted.ID,
+		Name:            deleted.Name,
+		SecretPrefix:    deleted.SecretPrefix,
+		CreatedAt:       deleted.CreatedAt,
+		LastHeartbeatAt: deleted.LastHeartbeatAt,
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
 func convertAIGatewayKey(row database.ListAIGatewayKeysRow) codersdk.AIGatewayKey {
-	var lastUsed *time.Time
-	if row.LastUsedAt.Valid {
-		t := row.LastUsedAt.Time
-		lastUsed = &t
+	var lastHeartbeat *time.Time
+	if row.LastHeartbeatAt.Valid {
+		t := row.LastHeartbeatAt.Time
+		lastHeartbeat = &t
 	}
 	return codersdk.AIGatewayKey{
-		ID:         row.ID,
-		Name:       row.Name,
-		KeyPrefix:  row.SecretPrefix,
-		CreatedAt:  row.CreatedAt,
-		LastUsedAt: lastUsed,
+		ID:              row.ID,
+		Name:            row.Name,
+		KeyPrefix:       row.SecretPrefix,
+		CreatedAt:       row.CreatedAt,
+		LastHeartbeatAt: lastHeartbeat,
 	}
 }

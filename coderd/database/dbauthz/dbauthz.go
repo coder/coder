@@ -486,6 +486,7 @@ var (
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChat.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceAIProvider.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIGatewayKey.Type:           {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -637,12 +638,12 @@ var (
 	// See aibridged package.
 	subjectAibridged = rbac.Subject{
 		Type:         rbac.SubjectAibridged,
-		FriendlyName: "AI Bridge Daemon",
+		FriendlyName: "AI Gateway Daemon",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "aibridged"},
-				DisplayName: "AI Bridge Daemon",
+				DisplayName: "AI Gateway Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceUser.Type: {
 						policy.ActionRead,         // Required to validate API key owner is active.
@@ -1723,13 +1724,6 @@ func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.Aut
 	return q.db.AutoArchiveInactiveChats(ctx, arg)
 }
 
-func (q *querier) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.BackfillChatModelConfigProvider(ctx, arg)
-}
-
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	// This is a system-level operation used by the gitsync
 	// background worker to reschedule failed refreshes. Same
@@ -2110,13 +2104,6 @@ func (q *querier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiPr
 		return err
 	}
 	return q.db.DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID)
-}
-
-func (q *querier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.DeleteChatModelConfigsByProvider(ctx, provider)
 }
 
 func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
@@ -2751,6 +2738,16 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 		return nil, err
 	}
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
+}
+
+// Authenticates a standalone AI Gateway replica by its hashed key secret, returning the matched key.
+func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor reading the AI Gateway key it authenticates against.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayKey); err != nil {
+		return database.AIGatewayKey{}, err
+	}
+	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
 }
 
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
@@ -3666,7 +3663,7 @@ func (q *querier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUI
 	return q.db.GetEnabledChatModelConfigByID(ctx, id)
 }
 
-func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.GetEnabledChatModelConfigsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -7020,6 +7017,16 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 		return database.AIBridgeInterception{}, err
 	}
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
+}
+
+// Records heartbeat liveness for a key used in active DRPC session between coderd and standalone AI Gateway.
+func (q *querier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor recording connection liveness on the AI Gateway key.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayKey); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
 }
 
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {

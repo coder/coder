@@ -1250,7 +1250,6 @@ func TestChatContextHydration(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1381,7 +1380,6 @@ func TestGetAuthorizedChats(t *testing.T) {
 		DisplayName: "OpenAI",
 	})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1645,7 +1643,6 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1766,7 +1763,6 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1869,7 +1865,6 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -11097,24 +11092,21 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 	enabledConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: string(enabledProvider.Type),
-		Model:    "openrouter-model-" + uuid.NewString(),
+		Model: "openrouter-model-" + uuid.NewString(),
 		AIProviderID: uuid.NullUUID{
 			UUID:  enabledProvider.ID,
 			Valid: true,
 		},
 	})
 	disabledProviderConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: string(disabledProvider.Type),
-		Model:    "vercel-model-" + uuid.NewString(),
+		Model: "vercel-model-" + uuid.NewString(),
 		AIProviderID: uuid.NullUUID{
 			UUID:  disabledProvider.ID,
 			Valid: true,
 		},
 	})
 	disabledModelConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: string(enabledProvider.Type),
-		Model:    "disabled-model-" + uuid.NewString(),
+		Model: "disabled-model-" + uuid.NewString(),
 		AIProviderID: uuid.NullUUID{
 			UUID:  enabledProvider.ID,
 			Valid: true,
@@ -11125,14 +11117,14 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	require.NoError(t, err)
-	require.True(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == enabledConfig.ID
+	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+		return row.ChatModelConfig.ID == enabledConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == disabledProviderConfig.ID
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+		return row.ChatModelConfig.ID == disabledProviderConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == disabledModelConfig.ID
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 
 	config, err := store.GetEnabledChatModelConfigByID(ctx, enabledConfig.ID)
@@ -11150,16 +11142,16 @@ func insertChatModelConfigForTest(
 	ctx context.Context,
 	t testing.TB,
 	store database.Store,
+	providerType string,
 	params database.InsertChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
 	t.Helper()
 	if params.AIProviderID.Valid {
 		return store.InsertChatModelConfig(ctx, params)
 	}
-	providerName := params.Provider
+	providerName := providerType
 	if providerName == "" {
 		providerName = "openai"
-		params.Provider = providerName
 	}
 	providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	if err != nil {
@@ -11198,8 +11190,7 @@ func TestInsertChatMessages(t *testing.T) {
 	) database.ChatModelConfig {
 		t.Helper()
 
-		modelConfig, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-			Provider:             provider,
+		modelConfig, err := insertChatModelConfigForTest(ctx, t, store, provider, database.InsertChatModelConfigParams{
 			Model:                model,
 			DisplayName:          displayName,
 			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
@@ -11410,8 +11401,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		APIKey:     "test-key",
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -11786,8 +11776,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 			CentralApiKeyEnabled: true,
 		})
 
-		modelCfg, err := insertChatModelConfigForTest(bg, t, db, database.InsertChatModelConfigParams{
-			Provider:             "openai",
+		modelCfg, err := insertChatModelConfigForTest(bg, t, db, "openai", database.InsertChatModelConfigParams{
 			Model:                "test-model",
 			DisplayName:          "Test Model",
 			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -11966,8 +11955,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(bg, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(bg, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -12058,8 +12046,7 @@ func TestChatLabels(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -12357,8 +12344,7 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -12494,8 +12480,7 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -12686,8 +12671,7 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -12943,8 +12927,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13381,8 +13364,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13514,8 +13496,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13628,8 +13609,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13752,8 +13732,7 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13849,8 +13828,7 @@ func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testi
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13960,8 +13938,7 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14045,7 +14022,6 @@ func TestGetChatsFilter(t *testing.T) {
 	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
@@ -14343,8 +14319,7 @@ func TestChatHasUnread(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14938,9 +14913,9 @@ func TestAIGatewayKeysQueries(t *testing.T) {
 	require.Len(t, keys, 2)
 
 	requireAIGatewayKeysRow(t, keys[0], first, firstRow.CreatedAt)
-	require.False(t, keys[0].LastUsedAt.Valid)
+	require.False(t, keys[0].LastHeartbeatAt.Valid)
 	requireAIGatewayKeysRow(t, keys[1], second, secondRow.CreatedAt)
-	require.False(t, keys[1].LastUsedAt.Valid)
+	require.False(t, keys[1].LastHeartbeatAt.Valid)
 
 	deleted, err := db.DeleteAIGatewayKey(ctx, first.ID)
 	require.NoError(t, err)
@@ -14956,6 +14931,85 @@ func TestAIGatewayKeysQueries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
 	requireAIGatewayKeysRow(t, keys[0], second, secondRow.CreatedAt)
+}
+
+func TestGetAIGatewayKeyByHashedSecret(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	first := aiGatewayKeyParams("lookup-first", "key_lookup1")
+	second := aiGatewayKeyParams("lookup-second", "key_lookup2")
+
+	_, err := db.InsertAIGatewayKey(ctx, first)
+	require.NoError(t, err)
+	_, err = db.InsertAIGatewayKey(ctx, second)
+	require.NoError(t, err)
+
+	key, err := db.GetAIGatewayKeyByHashedSecret(ctx, first.HashedSecret)
+	require.NoError(t, err)
+	require.Equal(t, first.ID, key.ID)
+	require.Equal(t, first.Name, key.Name)
+	require.Equal(t, first.SecretPrefix, key.SecretPrefix)
+	require.Equal(t, first.HashedSecret, key.HashedSecret)
+
+	key, err = db.GetAIGatewayKeyByHashedSecret(ctx, second.HashedSecret)
+	require.NoError(t, err)
+	require.Equal(t, second.ID, key.ID)
+
+	// An unknown secret returns no rows
+	key, err = db.GetAIGatewayKeyByHashedSecret(ctx, []byte("does-not-exist"))
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	require.Empty(t, key.ID)
+}
+
+func TestUpdateAIGatewayKeyLastHeartbeatAt(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	params := aiGatewayKeyParams("liveness-key", "key_live___")
+	row, err := db.InsertAIGatewayKey(ctx, params)
+	require.NoError(t, err)
+
+	// last_heartbeat_at starts NULL until a session records liveness.
+	keys, err := db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.False(t, keys[0].LastHeartbeatAt.Valid)
+
+	rows, err := db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, params.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
+
+	keys, err = db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.True(t, keys[0].LastHeartbeatAt.Valid)
+	// The database stamps the timestamp, so compare against the row's
+	// DB-generated CreatedAt to avoid client clock skew.
+	require.False(t, keys[0].LastHeartbeatAt.Time.Before(row.CreatedAt))
+
+	// Updating a key that does not exist is a no-op, not an error.
+	rows, err = db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, uuid.New())
+	require.NoError(t, err)
+	require.EqualValues(t, 0, rows)
+
+	// Set last_heartbeat_at to old time to confirm the update overwrites it with a fresh timestamp.
+	staleTime := row.CreatedAt.Add(-time.Hour)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE ai_gateway_keys SET last_heartbeat_at = $1 WHERE id = $2", staleTime, params.ID)
+	require.NoError(t, err)
+
+	rows, err = db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, params.ID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
+
+	keys, err = db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.True(t, keys[0].LastHeartbeatAt.Time.After(staleTime))
 }
 
 func aiGatewayKeyParams(name string, secretPrefix string) database.InsertAIGatewayKeyParams {

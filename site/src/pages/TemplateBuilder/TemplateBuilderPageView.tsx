@@ -1,4 +1,5 @@
 import { type FC, type ReactNode, useReducer, useState } from "react";
+
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -14,12 +15,14 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+
 import { docs } from "#/utils/docs";
 import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
 import {
 	BaseTemplateParametersStep,
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
+import { BuildingTemplateLoader } from "./BuildingTemplateLoader";
 import { ModuleSelectStep } from "./ModuleSelectStep";
 import {
 	ModuleSettingsStep,
@@ -33,6 +36,7 @@ import {
 	type StepId,
 	WIZARD_STEPS,
 } from "./steps";
+import { TemplateAlternatives } from "./TemplateAlternatives";
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
@@ -66,6 +70,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	const currentIndex = nearestVisible(stepIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
+
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
 	const isFirstStep = prevIndex === -1;
@@ -80,6 +85,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 
 	const handleBack = () => {
+		window.scrollTo(0, 0);
 		setStepIndex(prevIndex);
 	};
 
@@ -88,6 +94,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			onCreateTemplate(state);
 			return;
 		}
+		window.scrollTo(0, 0);
 		setStepIndex(nextIndex);
 	};
 
@@ -103,6 +110,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		});
 	};
 
+	if (isCreating) {
+		return <BuildingTemplateLoader />;
+	}
+
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
@@ -112,7 +123,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 					<Link
 						href={docs("/admin/templates")}
 						target="_blank"
-						className="ml-1"
+						className="ml-1 font-normal"
 					>
 						View docs
 					</Link>
@@ -124,13 +135,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					{renderStepContent(
-						currentStep.id,
-						state,
-						dispatch,
-						moduleVarMap,
-						createError,
-					)}
+					<div className="p-6 border border-solid rounded-lg">
+						{renderStepContent(
+							currentStep.id,
+							state,
+							dispatch,
+							moduleVarMap,
+							createError,
+						)}
+					</div>
 
 					{/* Navigation controls */}
 					<div className="flex justify-end mt-6 gap-2">
@@ -141,18 +154,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue || isCreating}>
-							{isCreating
-								? "Creating..."
-								: isLastStep
-									? "Create Template"
-									: "Continue"}
+						<Button onClick={handleNext} disabled={!canContinue}>
+							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
+
+					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
 
 				{/* Sidebar */}
-				<div className="w-64 shrink-0 hidden md:block">
+				<div className="w-64 shrink-0 hidden md:block sticky top-0 self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						selectedTemplate={

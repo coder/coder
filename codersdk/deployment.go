@@ -623,6 +623,7 @@ type DeploymentValues struct {
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
+	Cluster                                 ClusterConfig                        `json:"cluster,omitempty" typescript:",notnull"`
 	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                                   PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
@@ -882,6 +883,10 @@ type DERPConfig struct {
 	Path            serpent.String `json:"path" typescript:",notnull"`
 }
 
+type ClusterConfig struct {
+	Host serpent.String `json:"host" typescript:",notnull"`
+}
+
 type UsageStatsConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
@@ -967,6 +972,13 @@ type OIDCConfig struct {
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
+
+	// EmailFallback allows OIDC logins to fall back to email-based matching
+	// when the `linked_id` (issuer+subject) does not match an existing user
+	// link. INSECURE: weakens the linked_id check. It exists for IdP
+	// brokers that do not issue a stable `sub` for the same user across
+	// connections.
+	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1449,6 +1461,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
  a peer to peer connection, Coder uses a distributed relay network backed by
  Tailscale and WireGuard.`,
 			YAML: "derp",
+		}
+		deploymentGroupNetworkingCluster = serpent.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "Cluster",
+			Description: `Configure network clustering. Coder Servers in the primary region form a cluster by
+communicating directly.`,
+			YAML: "cluster",
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
@@ -1980,7 +1999,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
-		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Description: "Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
 		Flag:        "ai-gateway-dump-dir",
 		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
 		Value:       &c.AI.BridgeConfig.APIDumpDir,
@@ -3022,6 +3041,20 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			// as a flag as an escape hatch for now.
 			Hidden: true,
 		},
+		{
+			Name: "OIDC Insecure Email Fallback (DANGEROUS)",
+			Description: "INSECURE: Allow OIDC logins to fall back to email-based matching when " +
+				"the linked_id (issuer+subject) does not match an existing user link. " +
+				"Required for IdP brokers that do not issue a stable 'sub' for the same user across connections. " +
+				"The existing user_link's linked_id is preserved on fallback. " +
+				"Only enable if you understand and accept the risk.",
+			Flag:   "dangerous-oidc-email-fallback",
+			Env:    "CODER_DANGEROUS_OIDC_EMAIL_FALLBACK",
+			YAML:   "dangerousOidcEmailFallback",
+			Value:  &c.OIDC.EmailFallback,
+			Group:  &deploymentGroupOIDC,
+			Hidden: true,
+		},
 		// Telemetry settings
 		telemetryEnable,
 		{
@@ -3570,6 +3603,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.BrowserOnly,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "browserOnly",
+		},
+		{
+			Name:        "Cluster Host",
+			Description: "Hostname or (more commonly) IP to reach this replica for clustering.",
+			Flag:        "cluster-host",
+			Env:         "CODER_CLUSTER_HOST",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.Cluster.Host,
+			Group:       &deploymentGroupNetworkingCluster,
+			YAML:        "clusterHost",
 		},
 		{
 			Name:        "SCIM API Key",
@@ -5154,7 +5197,8 @@ const (
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
-	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
+	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5179,8 +5223,10 @@ func (e Experiment) DisplayName() string {
 		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
-	case ExperimentAgentAppTabs:
-		return "Coder Agents App and Port Tabs"
+	case ExperimentChatAdvisor:
+		return "Chat Advisor"
+	case ExperimentChatVirtualDesktop:
+		return "Chat Virtual Desktop"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5201,7 +5247,8 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
-	ExperimentAgentAppTabs,
+	ExperimentChatAdvisor,
+	ExperimentChatVirtualDesktop,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

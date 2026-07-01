@@ -280,6 +280,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:       vals.OIDC.EmailFallback.Value(),
 	}, nil
 }
 
@@ -1116,9 +1117,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			// Must run after newAPI so options.Database is dbcrypt-wrapped.
 			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
-			// Must run after BackfillBedrockProviderType; shares aibridgeInitCtx so
-			// a timeout on the first backfill will skip this one until next startup.
-			coderd.BackfillChatModelConfigProviderStrings(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
@@ -1133,12 +1131,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
 				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
-				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
-				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
-				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}

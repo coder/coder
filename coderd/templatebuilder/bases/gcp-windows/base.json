@@ -1,0 +1,6 @@
+{
+	"id": "gcp-windows",
+	"display_name": "Google Compute Engine (Windows)",
+	"os": "windows",
+	"default_context": {}
+}

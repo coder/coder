@@ -58,7 +58,6 @@ func newTestFixture(t *testing.T) *testFixture {
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  "openai",
 		IsDefault: true,
 	})
 	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})

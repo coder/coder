@@ -39,10 +39,14 @@ const renderSubagentLabel = (
 				return providedTitle
 					? `Messaging ${providedTitle}`
 					: `Messaging ${fallbackTitle}…`;
-			case "close":
+			case "interrupt":
 				return providedTitle
-					? `Terminating ${providedTitle}`
-					: `Terminating ${fallbackTitle}`;
+					? `Interrupting ${providedTitle}`
+					: `Interrupting ${fallbackTitle}`;
+			case "list":
+				return providedTitle
+					? `Listing ${providedTitle}`
+					: `Listing ${fallbackTitle}`;
 		}
 	})();
 

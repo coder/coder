@@ -102,17 +102,17 @@ func (p *Server) preferredShortTextCandidates(
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
-	configs []database.ChatModelConfig,
+	configs []database.GetEnabledChatModelConfigsRow,
 ) (database.ChatModelConfig, bool) {
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.Model), preferred.model) {
+			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
 				continue
 			}
-			return config, true
+			return config.ChatModelConfig, true
 		}
 	}
 	return database.ChatModelConfig{}, false
@@ -141,9 +141,11 @@ type generatedTurnStatusLabel struct {
 // chat-creation endpoint right after the chat and its initial user
 // message are persisted.
 //
-// The work runs in a tracked goroutine with a detached context so it
-// neither blocks the HTTP response nor is canceled when the request
-// completes. It resolves the chat's model and provider keys, then
+// The work runs in a tracked goroutine with a context detached from the
+// request but bound to the server: it neither blocks the HTTP response
+// nor is canceled when the request completes, and Close cancels it
+// instead of blocking on the title timeout while a provider is
+// unreachable. It resolves the chat's model and provider keys, then
 // delegates to maybeGenerateChatTitle, which only acts on the first user
 // turn (see titleInput) and is otherwise a no-op. Errors are logged and
 // swallowed.
@@ -166,24 +168,31 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	if _, ok := titleInput(chat, messages); !ok {
 		return
 	}
-	// Detach from the request lifetime so title generation can finish
-	// even after the create response is written.
-	titleCtx := context.WithoutCancel(ctx)
+	// Detach from request; bind to server so Close cancels it.
+	titleCtx, stopTitleCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
+		defer stopTitleCtx()
 		modelOpts := modelBuildOptionsFromMessages(messages)
-		titleCtx = withActiveTurnAPIKeyID(titleCtx, modelOpts)
-		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(titleCtx, chat, modelOpts)
+		turnCtx := withActiveTurnAPIKeyID(titleCtx, modelOpts)
+		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
 		if err != nil {
-			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
+			logger.Debug(turnCtx, "failed to resolve model for automatic title generation",
+				slog.Error(err),
+			)
+			return
+		}
+		providerType, err := route.providerHint()
+		if err != nil {
+			logger.Debug(titleCtx, "failed to resolve provider type for automatic title generation",
 				slog.Error(err),
 			)
 			return
 		}
 		p.maybeGenerateChatTitle(
-			titleCtx,
+			turnCtx,
 			chat,
 			messages,
-			modelConfig.Provider,
+			providerType,
 			modelConfig.Model,
 			model,
 			route,
@@ -194,7 +203,8 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			p.existingDebugService(),
 		)
 	}); err != nil {
-		logger.Error(titleCtx, "failed to schedule automatic chat title generation",
+		stopTitleCtx()
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule automatic chat title generation",
 			slog.F("chat_id", chat.ID),
 			slog.F("owner_id", chat.OwnerID),
 			slog.Error(err),
@@ -256,8 +266,16 @@ func (p *Server) maybeGenerateChatTitle(
 
 	var candidates []shortTextCandidate
 	if overrideSet {
+		overrideProvider, err := overrideRoute.providerHint()
+		if err != nil {
+			logger.Debug(ctx, "failed to resolve provider type for title generation override",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			return
+		}
 		candidates = []shortTextCandidate{{
-			provider: overrideConfig.Provider,
+			provider: overrideProvider,
 			model:    overrideConfig.Model,
 			route:    overrideRoute,
 			lm:       overrideModel,

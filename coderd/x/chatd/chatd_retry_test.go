@@ -103,7 +103,6 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		})
 		user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:  "openai",
 			Model:     "gpt-4o",
 			Enabled:   true,
 			CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},

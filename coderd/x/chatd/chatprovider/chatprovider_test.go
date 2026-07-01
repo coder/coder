@@ -265,7 +265,6 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -416,7 +415,6 @@ func TestReasoningEffortFromChat(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -509,7 +507,6 @@ func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -658,7 +655,6 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -742,7 +738,6 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -890,7 +885,6 @@ func TestPruneDisabledProviderKeys(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1742,4 +1736,41 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			require.Equal(t, tt.wantModel, model)
 		})
 	}
+}
+
+func TestUnsupportedProviders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("copilot only", func(t *testing.T) {
+		t.Parallel()
+		got := chatprovider.UnsupportedProviders([]chatprovider.ConfiguredProvider{
+			{Provider: string(codersdk.AIProviderTypeCopilot)},
+		})
+		require.Equal(t, []codersdk.ChatUnsupportedProvider{
+			{
+				Provider:    "copilot",
+				DisplayName: "GitHub Copilot",
+			},
+		}, got)
+	})
+
+	t.Run("supported provider omitted", func(t *testing.T) {
+		t.Parallel()
+		got := chatprovider.UnsupportedProviders([]chatprovider.ConfiguredProvider{
+			{Provider: fantasyanthropic.Name},
+			{Provider: fantasyopenai.Name},
+		})
+		require.Empty(t, got)
+	})
+
+	t.Run("dedup by type and skip supported", func(t *testing.T) {
+		t.Parallel()
+		got := chatprovider.UnsupportedProviders([]chatprovider.ConfiguredProvider{
+			{Provider: fantasyanthropic.Name},
+			{Provider: string(codersdk.AIProviderTypeCopilot)},
+			{Provider: "Copilot"},
+		})
+		require.Len(t, got, 1)
+		require.Equal(t, "copilot", got[0].Provider)
+	})
 }

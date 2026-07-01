@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -38,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -78,99 +78,10 @@ func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
 	return key.ID
 }
 
-type chatAIGatewayRecordedRequest struct {
-	ProviderName  string
-	Source        aibridge.Source
-	APIKeyID      string
-	Path          string
-	Authorization string
-	XAPIKey       string
-	CoderToken    string
-}
-
-type chatAIGatewayTestFactory struct {
-	target       *url.URL
-	transport    http.RoundTripper
-	preservePath bool
-	mu           sync.Mutex
-	requests     []chatAIGatewayRecordedRequest
-}
-
-func newChatAIGatewayTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
-	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport}
-}
-
-func newChatAIGatewayPreservePathTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
-	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport, preservePath: true}
-}
-
-func (f *chatAIGatewayTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
-	return chatAIGatewayRoundTripper{factory: f, providerName: providerName, source: source}, nil
-}
-
-func (f *chatAIGatewayTestFactory) requestsSnapshot() []chatAIGatewayRecordedRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return slices.Clone(f.requests)
-}
-
-type chatAIGatewayRoundTripper struct {
-	factory      *chatAIGatewayTestFactory
-	providerName string
-	source       aibridge.Source
-}
-
-func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
-	t.factory.mu.Lock()
-	t.factory.requests = append(t.factory.requests, chatAIGatewayRecordedRequest{
-		ProviderName:  t.providerName,
-		Source:        t.source,
-		APIKeyID:      apiKeyID,
-		Path:          req.URL.Path,
-		Authorization: req.Header.Get("Authorization"),
-		XAPIKey:       req.Header.Get("X-Api-Key"),
-		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
-	})
-	t.factory.mu.Unlock()
-
-	targetURL := *t.factory.target
-	if t.factory.preservePath {
-		targetURL.Path = req.URL.Path
-	} else {
-		targetURL.Path = strings.TrimPrefix(req.URL.Path, "/v1")
-		if targetURL.Path == "" {
-			targetURL.Path = "/"
-		}
-	}
-	targetURL.RawQuery = req.URL.RawQuery
-
-	cloned := req.Clone(req.Context())
-	cloned.URL = &targetURL
-	cloned.Host = t.factory.target.Host
-	return t.factory.transport.RoundTrip(cloned)
-}
-
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
 	var ptr atomic.Pointer[aibridge.TransportFactory]
 	ptr.Store(&factory)
 	return &ptr
-}
-
-func directChatRoutingDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
-	t.Helper()
-
-	values := coderdtest.DeploymentValues(t)
-	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-	return values
 }
 
 func openAIToolName(tool chattest.OpenAITool) string {
@@ -284,11 +195,11 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -387,7 +298,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		"list_templates", "read_template", "create_workspace",
 		"start_workspace", "stop_workspace",
 	}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents"}
 
 	// Identify root and subagent calls. Root chat calls include
 	// spawn_agent; the subagent call does not. Because the root chat
@@ -441,11 +352,11 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -608,11 +519,12 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4732,11 +4644,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4897,11 +4809,11 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -5328,6 +5240,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -5366,7 +5279,7 @@ func highUsageReadFileResponse(path string) chattest.AnthropicResponse {
 	return chattest.AnthropicStreamingResponse(chunks...)
 }
 
-func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
+func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -5401,7 +5314,7 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 			return chattest.AnthropicStreamingResponse()
 		}
 	})
-	factory := newChatAIGatewayPreservePathTestFactory(t, anthropicURL)
+	factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	provider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
@@ -5480,14 +5393,14 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 	require.True(t, compressed.summaries[0].APIKeyID.Valid)
 	require.Equal(t, apiKey.ID, compressed.summaries[0].APIKeyID.String)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "sk-user-aibridge", req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "sk-user-aibridge", req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
 }
 
@@ -7800,7 +7713,6 @@ func updateChatModelCompressionThreshold(t *testing.T, db database.Store, model 
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -7817,7 +7729,6 @@ func updateChatModelContextLimit(t *testing.T, db database.Store, model database
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -7836,7 +7747,6 @@ func updateChatModelCallConfig(t *testing.T, db database.Store, model database.C
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -8223,6 +8133,7 @@ func newActiveTestServer(
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -8419,6 +8330,8 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 			if tt.wantTitleGenerationRuns > 0 {
 				require.Equal(t, string(codersdk.ChatDebugRunKindTitleGeneration), runs[0].Kind)
 				require.Equal(t, string(tt.wantDebugStatus), runs[0].Status)
+				require.True(t, runs[0].Provider.Valid)
+				require.Equal(t, "openai", runs[0].Provider.String)
 				require.True(t, runs[0].FinishedAt.Valid)
 				require.True(t, runs[0].HistoryTipMessageID.Valid)
 				require.Equal(t, message.ID, runs[0].HistoryTipMessageID.Int64)
@@ -8464,14 +8377,14 @@ func seedChatDependenciesWithProvider(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    provider,
 		DisplayName: provider,
 		BaseUrl:     baseURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  provider,
-		IsDefault: true,
+		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:    true,
 	})
 	return user, org, model
 }
@@ -8509,8 +8422,8 @@ func seedChatDependenciesWithProviderPolicy(
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  provider,
-		IsDefault: true,
+		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:    true,
 	})
 
 	return user, org, providerConfig, model
@@ -8568,13 +8481,32 @@ func insertChatModelConfigWithCallConfig(
 	options, err := json.Marshal(callConfig)
 	require.NoError(t, err)
 
+	// Reuse the newest AI provider of this type (creating a bare one only when
+	// none exists) so the config links the seeded provider carrying the mock
+	// base URL and API key rather than a fresh credential-less one.
+	providers, err := db.GetAIProviders(context.Background(), database.GetAIProvidersParams{IncludeDisabled: true})
+	require.NoError(t, err)
+	var aiProvider database.AIProvider
+	for _, candidate := range providers {
+		if candidate.Type != database.AIProviderType(provider) {
+			continue
+		}
+		if aiProvider.ID == uuid.Nil || candidate.CreatedAt.After(aiProvider.CreatedAt) {
+			aiProvider = candidate
+		}
+	}
+	if aiProvider.ID == uuid.Nil {
+		aiProvider = dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AIProviderType(provider),
+		})
+	}
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    provider,
-		Model:       model,
-		DisplayName: model,
-		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		Options:     options,
+		AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		Model:        model,
+		DisplayName:  model,
+		CreatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
+		Options:      options,
 	})
 }
 
@@ -9407,9 +9339,6 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		BaseUrl:     anthropicSrv.URL,
 	})
 
-	err := db.UpsertChatDesktopEnabled(ctx, true)
-	require.NoError(t, err)
-
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -9537,7 +9466,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
 		"spawn_agent",
-		"wait_agent", "message_agent", "close_agent",
+		"wait_agent", "message_agent", "interrupt_agent", "list_agents",
 	}
 	for _, tool := range subagentTools {
 		require.NotContains(t, childTools, tool,
@@ -9602,6 +9531,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -9759,7 +9689,6 @@ func seedAIGatewayOpenAITestDependencies(
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     string(database.AIProviderTypeOpenai),
 		Model:        "gpt-4o-mini",
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
@@ -9776,7 +9705,7 @@ func seedAIGatewayOpenAITestDependencies(
 	return user, org, provider, model, apiKey
 }
 
-func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
+func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -9790,7 +9719,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Chat"}`)
 	})
-	factory := newChatAIGatewayTestFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 
@@ -9824,28 +9753,23 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
-	require.Contains(t, requests, chatAIGatewayRecordedRequest{
-		ProviderName:  provider.Name,
-		Source:        aibridge.SourceAgents,
-		APIKeyID:      apiKey.ID,
-		Path:          "/v1/responses",
-		Authorization: "Bearer sk-user-aibridge",
-		CoderToken:    "delegated",
-	})
+	require.True(t, slices.ContainsFunc(requests, func(req chattest.RecordedRequest) bool {
+		return req.Request.URL.Path == "/v1/responses"
+	}), "no request to /v1/responses found")
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
-		require.Empty(t, req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
-		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Empty(t, req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
+		require.True(t, strings.HasPrefix(req.Request.URL.Path, "/v1/"), "unexpected aibridge path %q", req.Request.URL.Path)
 	}
 }
 
-func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
+func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -9859,7 +9783,7 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Workspace"}`)
 	})
-	factory := newChatAIGatewayTestFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
@@ -9908,14 +9832,14 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 	require.NoError(t, err)
 	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
 }
 
@@ -11351,12 +11275,13 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:              deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:              coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon:      true,
 		ChatdInstructionLookupTimeout: testutil.WaitLong,
 	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -11694,51 +11619,61 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	require.Equal(t, activeChat.ID, acquired[0].ID)
 }
 
-func TestAdvisorGating_Disabled(t *testing.T) {
+// TestAdvisorGating_ExperimentDisabled verifies that the advisor tool is
+// not attached when the chat-advisor experiment is absent from the
+// experiments list, even if the DB-stored advisor config has Enabled=true.
+func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	var toolsMu sync.Mutex
-	var capturedTools []string
-	var capturedMessages []chattest.OpenAIMessage
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	var firstCallTools []string
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
 
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
+		if streamedCallCount.Add(1) == 1 {
+			names := make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				names = append(names, tool.Function.Name)
+			}
+			streamedCallsMu.Lock()
+			firstCallTools = names
+			streamedCallsMu.Unlock()
 		}
-		toolsMu.Lock()
-		capturedTools = names
-		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-		toolsMu.Unlock()
 
 		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("advisor is not available")...,
+			chattest.OpenAITextChunks("done")...,
 		)
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         false,
+		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	experiments := slices.DeleteFunc(
+		slices.Clone(codersdk.ExperimentsKnown),
+		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatAdvisor },
+	)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Experiments = experiments
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "advisor-disabled",
+		Title:          "advisor-experiment-disabled",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
+			codersdk.ChatMessageText("help me plan this"),
 		},
 	})
 	require.NoError(t, err)
@@ -11748,22 +11683,20 @@ func TestAdvisorGating_Disabled(t *testing.T) {
 		if getErr != nil {
 			return false
 		}
-		return got.Status == database.ChatStatusWaiting ||
-			got.Status == database.ChatStatusError
+		if got.Status != database.ChatStatusWaiting &&
+			got.Status != database.ChatStatusError {
+			return false
+		}
+		return streamedCallCount.Load() >= 1
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	toolsMu.Lock()
-	tools := append([]string(nil), capturedTools...)
-	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
-	toolsMu.Unlock()
+	streamedCallsMu.Lock()
+	tools := append([]string(nil), firstCallTools...)
+	streamedCallsMu.Unlock()
 
-	require.NotEmpty(t, messages, "expected a streamed LLM request")
+	require.NotEmpty(t, tools, "expected at least one streamed LLM request")
 	require.NotContains(t, tools, "advisor",
-		"advisor tool should not be registered when disabled")
-	for _, msg := range messages {
-		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"advisor guidance should not be injected when disabled")
-	}
+		"advisor tool must not be registered when the chat-advisor experiment is absent")
 }
 
 func TestAdvisorGating_RootChat(t *testing.T) {
@@ -12578,6 +12511,160 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		"advisor snapshot must retain the turn 1 user message even when chain mode is active")
 	require.Contains(t, string(gotAdvisorBody), turn1Reply,
 		"advisor snapshot must retain the turn 1 assistant message even when chain mode is active")
+}
+
+// TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
+// provider-switch contract:
+//
+//  1. A turn using model MA (backed by provider A) produces a
+//     provider-executed (PE) tool call in the DB.
+//  2. A subsequent turn using model MB (backed by provider B) does NOT
+//     send that PE tool call to provider B.
+//  3. A further turn back to MA sends the PE tool call to provider A again.
+//  4. The DB row is never mutated; the filter is read-time only.
+func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// Given: two AI providers A and B
+	const peToolCallID = "pe_switch_test_id"
+
+	chanA := make(chan string, 4)
+	chanB := make(chan string, 4)
+
+	serverAURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		chanA <- string(req.RawBody)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from A")...)
+	})
+	serverBURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		chanB <- string(req.RawBody)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from B")...)
+	})
+	cpA := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverAURL,
+	})
+	cpB := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverBURL,
+	})
+
+	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model A",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
+	})
+	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model B",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
+	})
+
+	server := newActiveTestServer(t, db, ps)
+
+	// Given: an initial conversation turn with model A that produces provider-executed
+	// tool call results
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
+		Title:              "provider-switch-test",
+		ModelConfigID:      mA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, mA.ID, uuid.Nil,
+		[]codersdk.ChatMessagePart{
+			{
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Args:             json.RawMessage(`{"query":"coder"}`),
+				ProviderExecuted: true,
+			},
+			{
+				Type:             codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Result:           json.RawMessage(`"search results"`),
+				ProviderExecuted: true,
+			},
+			codersdk.ChatMessageText("here is the answer"),
+		},
+	)
+
+	// When: a conversation turn is executed with model B
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mB.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue with B")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// When: a further conversation turn is executed with model A again
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mA.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("back to A")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// Then: the provider-executed tool call results should still be in the database
+	allMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: chat.ID,
+	})
+	require.NoError(t, err)
+	var peRowFound bool
+	for _, msg := range allMessages {
+		if msg.Role != database.ChatMessageRoleAssistant || msg.ModelConfigID.UUID != mA.ID {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, p := range parts {
+			if p.ProviderExecuted && p.ToolCallID == peToolCallID {
+				peRowFound = true
+			}
+		}
+	}
+	require.True(t, peRowFound, "PE tool call must still be in the DB after provider switches")
+
+	// Skip initial generation request
+	_ = testutil.TryReceive(ctx, t, chanA)
+
+	// Then: PE tool call ID from A must not appear in the request to provider B
+	turn2Body := testutil.TryReceive(ctx, t, chanB)
+	require.NotContains(t, turn2Body, peToolCallID,
+		"provider B must not receive the PE tool call from provider A")
+
+	// Then: PE tool call ID must appear in the second request to provider A
+	turn3Body := testutil.TryReceive(ctx, t, chanA)
+	require.Contains(t, turn3Body, peToolCallID,
+		"provider A must receive its own PE tool call when switching back")
 }
 
 func seedAdvisorConfig(

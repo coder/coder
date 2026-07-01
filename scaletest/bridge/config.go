@@ -20,7 +20,7 @@ const (
 
 type Config struct {
 	// Mode determines how requests are made.
-	// "bridge": Create users in Coder and use their session tokens to make requests through AI Bridge.
+	// "bridge": Create users in Coder and use their session tokens to make requests through AI Gateway.
 	// "direct": Make requests directly to UpstreamURL without user creation.
 	Mode RequestMode `json:"mode"`
 

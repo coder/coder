@@ -5,7 +5,6 @@ package dbmetrics
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"slices"
 	"time"
@@ -183,14 +182,6 @@ func (m queryMetricsStore) AutoArchiveInactiveChats(ctx context.Context, arg dat
 	r0, r1 := m.s.AutoArchiveInactiveChats(ctx, arg)
 	m.queryLatencies.WithLabelValues("AutoArchiveInactiveChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AutoArchiveInactiveChats").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
-	start := time.Now()
-	r0, r1 := m.s.BackfillChatModelConfigProvider(ctx, arg)
-	m.queryLatencies.WithLabelValues("BackfillChatModelConfigProvider").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackfillChatModelConfigProvider").Inc()
 	return r0, r1
 }
 
@@ -535,14 +526,6 @@ func (m queryMetricsStore) DeleteChatModelConfigsByAIProviderID(ctx context.Cont
 	r0 := m.s.DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID)
 	m.queryLatencies.WithLabelValues("DeleteChatModelConfigsByAIProviderID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatModelConfigsByAIProviderID").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatModelConfigsByProvider(ctx, provider)
-	m.queryLatencies.WithLabelValues("DeleteChatModelConfigsByProvider").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatModelConfigsByProvider").Inc()
 	return r0
 }
 
@@ -1127,6 +1110,14 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	r0, r1 := m.s.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 	m.queryLatencies.WithLabelValues("GetAIBridgeUserPromptsByInterceptionID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeUserPromptsByInterceptionID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
+	m.queryLatencies.WithLabelValues("GetAIGatewayKeyByHashedSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayKeyByHashedSecret").Inc()
 	return r0, r1
 }
 
@@ -2010,7 +2001,7 @@ func (m queryMetricsStore) GetEnabledChatModelConfigByID(ctx context.Context, id
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]database.GetEnabledChatModelConfigsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetEnabledChatModelConfigs(ctx)
 	m.queryLatencies.WithLabelValues("GetEnabledChatModelConfigs").Observe(time.Since(start).Seconds())
@@ -5039,6 +5030,14 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	r0, r1 := m.s.UpdateAIBridgeInterceptionEnded(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIBridgeInterceptionEnded").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayKeyLastHeartbeatAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayKeyLastHeartbeatAt").Inc()
 	return r0, r1
 }
 

@@ -40,7 +40,7 @@ the most important.
 - [Vitest](https://vitest.dev/) for integration testing
 - [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
 - [Storybook](https://storybook.js.org/) and
-  [Chromatic](https://www.chromatic.com/) for visual testing
+  [pixel-storybook](https://www.npmjs.com/package/@coder/pixel-storybook) for visual testing
 - [pnpm](https://pnpm.io/) as the package manager
 
 ## Structure
@@ -290,7 +290,7 @@ We use unit and integration tests mostly for testing code that does _not_ pertai
 ### Visual Testing – Storybook
 
 We use Storybook for testing all of our React code. For static components, you simply add a story that renders the components with the props that you would like to test, and Storybook will record snapshots of it to ensure that it isn't changed unintentionally. If you would like to test an interaction with the component, then you can add an interaction test by specifying a `play` function for the story. For stories with an interaction test, a snapshot will be recorded of the end state of the component. We use
-[Chromatic](https://www.chromatic.com/) to manage and compare snapshots in CI.
+[pixel-storybook](https://www.npmjs.com/package/@coder/pixel-storybook) to manage and compare snapshots in CI.
 
 To learn more about testing components that fetch API data, refer to the
 [**Where to fetch data**](#where-to-fetch-data) section.

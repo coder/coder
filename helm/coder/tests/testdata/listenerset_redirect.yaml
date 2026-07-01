@@ -1,0 +1,26 @@
+coder:
+  image:
+    tag: latest
+  httproute:
+    enable: true
+    parentRefs:
+    - name: fake-gateway
+      namespace: fake-ns
+    host: coder.example.com
+    httpsRedirect:
+      enable: true
+      parentRefs:
+      - name: fake-gateway
+        port: 80
+  listenerset:
+    enable: true
+    parentRef:
+      name: fake-gateway
+      namespace: fake-ns
+    listeners:
+    - name: https
+      port: 443
+      protocol: HTTPS
+    - name: http
+      port: 80
+      protocol: HTTP

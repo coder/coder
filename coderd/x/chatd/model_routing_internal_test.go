@@ -125,7 +125,6 @@ func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
 
 	server := &Server{db: db}
 	route, err := server.resolveModelRouteForConfig(ctx, ownerID, database.ChatModelConfig{
-		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}, chatprovider.ProviderAPIKeys{})
 	require.NoError(t, err)
@@ -238,7 +237,6 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 	modelConfig := database.ChatModelConfig{
 		ID:           uuid.New(),
 		Model:        "gpt-4",
-		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
 
@@ -779,19 +777,6 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 	}
 }
 
-func TestDirectModelBuildDoesNotRequireActiveAPIKeyID(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{}
-	model, err := server.newModel(t.Context(), modelClientRequest{
-		Chat:      database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		ModelName: "gpt-4",
-		UserAgent: chatprovider.UserAgent(),
-	}, newDirectModelRoute("openai", chatprovider.ProviderAPIKeys{OpenAI: "sk-test"}), modelBuildOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, model)
-}
-
 func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	t.Parallel()
 
@@ -827,6 +812,41 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	require.Equal(t, modelName, resolvedModel)
 	require.Equal(t, "primary-openai", factory.providerName)
 	require.Equal(t, aibridge.SourceAgents, factory.source)
+}
+
+func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	providerID := uuid.New()
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		t.Fatal("transport must not be used without an API key ID")
+		return nil, xerrors.New("unreachable")
+	})}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	server := &Server{
+		aiGatewayRoutingEnabled:  true,
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+	}
+	provider := chattool.ComputerUseProviderOpenAI
+	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
+	require.True(t, ok)
+
+	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
+		t.Context(),
+		chat,
+		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
+		provider,
+		modelProvider,
+		modelName,
+		modelBuildOptions{}, // no ActiveAPIKeyID
+	)
+	require.Error(t, err)
+	require.Nil(t, model)
+	require.False(t, debugEnabled)
+	require.Empty(t, resolvedProvider)
+	require.Empty(t, resolvedModel)
+	require.Contains(t, err.Error(), `resolve computer use model for provider "openai" model "gpt-5.5"`)
+	require.Contains(t, err.Error(), "active turn API key ID")
 }
 
 func TestAIBridgeDelegatedContextPropagation(t *testing.T) {

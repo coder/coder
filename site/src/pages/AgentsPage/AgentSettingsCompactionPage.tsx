@@ -4,13 +4,16 @@ import {
 	chatModelConfigs,
 	deleteUserCompactionThreshold,
 	updateUserCompactionThreshold,
+	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
+import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: FC = () => {
 	const queryClient = useQueryClient();
 	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const saveThresholdMutation = useMutation(
 		updateUserCompactionThreshold(queryClient),
@@ -31,9 +34,14 @@ const AgentSettingsCompactionPage: FC = () => {
 	const handleResetThreshold = (modelConfigId: string) =>
 		resetThresholdMutation.mutateAsync(modelConfigId);
 
+	const providerTypeByID = providerTypeByIDFromUserConfigs(
+		providerConfigsQuery.data,
+	);
+
 	return (
 		<AgentSettingsCompactionPageView
 			modelConfigsData={modelConfigsQuery.data}
+			providerTypeByID={providerTypeByID}
 			modelConfigsError={modelConfigsQuery.error}
 			isLoadingModelConfigs={modelConfigsQuery.isLoading}
 			thresholds={thresholdsQuery.data?.thresholds}

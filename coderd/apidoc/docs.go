@@ -1434,7 +1434,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             },
             "post": {
                 "consumes": [
@@ -1471,7 +1474,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/keys/{key}": {
@@ -1500,7 +1506,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/models": {
@@ -1530,6 +1539,28 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/v2/ai-gateway/serve": {
+            "get": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "AI Gateway serve",
+                "operationId": "ai-gateway-serve",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "AIGatewayKey": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/sessions": {
@@ -15256,7 +15287,7 @@ const docTemplate = `{
                 "key_prefix": {
                     "type": "string"
                 },
-                "last_used_at": {
+                "last_heartbeat_at": {
                     "type": "string",
                     "format": "date-time"
                 },
@@ -15490,6 +15521,7 @@ const docTemplate = `{
                 "ai_gateway_key:create",
                 "ai_gateway_key:delete",
                 "ai_gateway_key:read",
+                "ai_gateway_key:update",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -15724,6 +15756,7 @@ const docTemplate = `{
                 "APIKeyScopeAiGatewayKeyCreate",
                 "APIKeyScopeAiGatewayKeyDelete",
                 "APIKeyScopeAiGatewayKeyRead",
+                "APIKeyScopeAiGatewayKeyUpdate",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -17511,6 +17544,13 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatModelProvider"
                     }
+                },
+                "unsupported_providers": {
+                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                    }
                 }
             }
         },
@@ -17765,6 +17805,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatUnsupportedProvider": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Provider is the provider type, e.g. \"copilot\".",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatUser": {
             "type": "object",
             "required": [
@@ -17837,6 +17889,14 @@ const docTemplate = `{
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"
             ]
+        },
+        "codersdk.ClusterConfig": {
+            "type": "object",
+            "properties": {
+                "host": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -19174,6 +19234,9 @@ const docTemplate = `{
                 "cli_upgrade_message": {
                     "type": "string"
                 },
+                "cluster": {
+                    "$ref": "#/definitions/codersdk.ClusterConfig"
+                },
                 "config": {
                     "type": "string"
                 },
@@ -19567,12 +19630,14 @@ const docTemplate = `{
                 "nats_pubsub",
                 "minimum-implicit-member",
                 "ai-gateway-cost-control",
-                "agent-app-tabs"
+                "chat-advisor",
+                "chat-virtual-desktop"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
-                "ExperimentAgentAppTabs": "Enables workspace-app and port preview tabs in the Coder Agents right panel.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
@@ -19593,7 +19658,8 @@ const docTemplate = `{
                 "Enables embedded NATS pubsub.",
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
-                "Enables workspace-app and port preview tabs in the Coder Agents right panel."
+                "Enables the advisor tool for root agent chats.",
+                "Enables virtual desktop and computer use provider for agents."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19606,7 +19672,8 @@ const docTemplate = `{
                 "ExperimentNATSPubsub",
                 "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
-                "ExperimentAgentAppTabs"
+                "ExperimentChatAdvisor",
+                "ExperimentChatVirtualDesktop"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -21271,6 +21338,10 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "email_fallback": {
+                    "description": "EmailFallback allows OIDC logins to fall back to email-based matching\nwhen the ` + "`" + `linked_id` + "`" + ` (issuer+subject) does not match an existing user\nlink. INSECURE: weakens the linked_id check. It exists for IdP\nbrokers that do not issue a stable ` + "`" + `sub` + "`" + ` for the same user across\nconnections.",
+                    "type": "boolean"
                 },
                 "email_field": {
                     "type": "string"
@@ -25156,6 +25227,11 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
+                "avatar_url": {
+                    "description": "AvatarURL is only applied for users whose login type is password or\nnone. For other login types the avatar is synced from the identity\nprovider on login, so a submitted value is ignored.",
+                    "type": "string",
+                    "format": "uri"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -28895,6 +28971,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "AIGatewayKey": {
+            "type": "apiKey",
+            "name": "X-AI-Governance-Gateway-Key",
+            "in": "header"
+        },
         "Authorization": {
             "type": "apiKey",
             "name": "Authorizaiton",
