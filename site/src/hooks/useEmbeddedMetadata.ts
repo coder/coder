@@ -252,13 +252,11 @@ export const useEmbeddedMetadata = makeUseEmbeddedMetadata(
 	defaultMetadataManager,
 );
 
-// useAIGatewayDisabled reports whether the deployment has AI Gateway
-// disabled, defaulting to "enabled" (false) when the embedded metadata is
-// unavailable (e.g. in dev/Storybook), so pages don't show a false
-// disabled-state notice outside production.
-export function useAIGatewayDisabled(): boolean {
+// useAIGatewayEnabled reports the deployment's ai-gateway-enabled
+// metadata value directly (no inversion), defaulting to true when the
+// embedded metadata is unavailable (e.g. in dev/Storybook), so pages
+// don't show a false disabled-state notice outside production.
+export function useAIGatewayEnabled(): boolean {
 	const { metadata } = useEmbeddedMetadata();
-	return metadata["ai-gateway-enabled"].available
-		? !metadata["ai-gateway-enabled"].value
-		: false;
+	return metadata["ai-gateway-enabled"].value ?? true;
 }

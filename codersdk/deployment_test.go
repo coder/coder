@@ -1187,18 +1187,6 @@ func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {
 	opts := dv.Options()
 	require.NoError(t, opts.SetDefaults())
 	require.True(t, dv.AI.Chat.AIGatewayRoutingEnabled.Value())
-
-	// The option is deprecated but still accepted for upgrade safety.
-	// It will be removed in a future release.
-	var chatOpt *serpent.Option
-	for i, opt := range opts {
-		if opt.Flag == "chat-ai-gateway-routing-enabled" {
-			chatOpt = &opts[i]
-			break
-		}
-	}
-	require.NotNil(t, chatOpt, "deprecated option must still exist")
-	require.Contains(t, chatOpt.Description, "Deprecated")
 }
 
 func TestAIBudgetConfigParsing(t *testing.T) {

@@ -337,28 +337,17 @@ export const NoModelOptions: Story = {
 
 export const AIGatewayDisabledShowsSetupNotice: Story = {
 	args: {
-		canConfigureAgentSetup: true,
-		providerCount: 1,
-		modelCount: 1,
-		aiGatewayDisabled: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/Enable it in your deployment config/),
-		).toBeInTheDocument();
-	},
-};
-
-export const AIGatewayDisabledNonAdminShowsSetupNotice: Story = {
-	args: {
+		// canConfigureAgentSetup: false and providerCount/modelCount left
+		// undefined simulates the model-catalog query still loading, which
+		// used to make an admin briefly see the wrong copy before this was
+		// fixed to short-circuit on aiGatewayDisabled directly.
 		canConfigureAgentSetup: false,
 		aiGatewayDisabled: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText(/Contact your admin to enable it/),
+			canvas.getByText(/Enable it in your deployment config/),
 		).toBeInTheDocument();
 	},
 };

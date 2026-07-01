@@ -9,8 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/coderd/x/chatd"
 )
 
 func TestStripSlashesMW(t *testing.T) {
@@ -76,20 +74,12 @@ func TestStripSlashesMW(t *testing.T) {
 // gitsync.Worker's own nil check on its callback and panic when the
 // worker later invoked it. This test proves the returned func is a
 // true nil (not a non-nil method value wrapping a nil receiver) when
-// chatDaemon is nil, and a working, callable func when it isn't.
+// chatDaemon is nil. The non-nil case is already exercised by
+// coderd/exp_chats_test.go, which calls PublishDiffStatusChange on a
+// real chatDaemon from a full-server test.
 func TestChatDaemonPublishDiffStatusChangeFunc(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NilChatDaemon", func(t *testing.T) {
-		t.Parallel()
-		fn := chatDaemonPublishDiffStatusChangeFunc(nil)
-		require.Nil(t, fn, "func value must be a true nil, not a bound method on a nil receiver")
-	})
-
-	t.Run("NonNilChatDaemon", func(t *testing.T) {
-		t.Parallel()
-		daemon := &chatd.Server{}
-		fn := chatDaemonPublishDiffStatusChangeFunc(daemon)
-		require.NotNil(t, fn)
-	})
+	fn := chatDaemonPublishDiffStatusChangeFunc(nil)
+	require.Nil(t, fn, "func value must be a true nil, not a bound method on a nil receiver")
 }
