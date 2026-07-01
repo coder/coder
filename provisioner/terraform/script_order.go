@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -45,8 +46,10 @@ type scriptOrderDataSource struct {
 	moduleAddress string
 }
 
-// orderableScript is a coder_script resource alongside the proto script it
-// produced and the agent or devcontainer the script attached to.
+// orderableScript is a script that a coder_script_order rule can select:
+// either a coder_script resource, or the synthetic script built from a
+// coder_agent's legacy inline startup_script. It pairs the proto script it
+// produced with the agent or devcontainer the script attached to.
 type orderableScript struct {
 	address string
 	script  *proto.Script
@@ -65,6 +68,17 @@ type scriptOrderRuleAttributes struct {
 
 type scriptOrderAttributes struct {
 	Rule []scriptOrderRuleAttributes `mapstructure:"rule"`
+}
+
+// scriptOrderSingleStringToSliceHook lets a plain string decode into a
+// []string field as a single-element slice. It exists so decoding
+// tolerates the earlier, unreleased coder_script_order schema where "run"
+// was a single selector string rather than a list.
+func scriptOrderSingleStringToSliceHook(from reflect.Kind, to reflect.Kind, data interface{}) (interface{}, error) {
+	if from != reflect.String || to != reflect.Slice {
+		return data, nil
+	}
+	return []interface{}{data}, nil
 }
 
 // scriptOrderEdge records why a dependency exists so conflicting duplicate
@@ -109,8 +123,19 @@ func applyScriptOrder(dataSources map[string]scriptOrderDataSource, scripts []*o
 	edges := map[string]map[string]scriptOrderEdge{}
 	for _, ds := range sortedDataSources {
 		var attrs scriptOrderAttributes
-		err := mapstructure.Decode(ds.resource.AttributeValues, &attrs)
+		decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+			// coder_script_order shipped an earlier, unreleased schema where
+			// "run" was a single string selector instead of a list. Accept
+			// that shape too so a coderd/provisioner upgrade never hard-fails
+			// a build just because a template is pinned to a
+			// terraform-provider-coder version that still emits a scalar.
+			DecodeHook: mapstructure.ComposeDecodeHookFunc(scriptOrderSingleStringToSliceHook),
+			Result:     &attrs,
+		})
 		if err != nil {
+			return nil, xerrors.Errorf("build decoder for %q: %w", ds.resource.Address, err)
+		}
+		if err := decoder.Decode(ds.resource.AttributeValues); err != nil {
 			return nil, xerrors.Errorf("decode script order attributes for %q: %w", ds.resource.Address, err)
 		}
 
@@ -208,8 +233,12 @@ func applyScriptOrder(dataSources map[string]scriptOrderDataSource, scripts []*o
 	}
 
 	// Emit dependencies in address order so output is deterministic.
-	// Script ids are computed at apply; during plan they can be empty, in
-	// which case the rules are validated but no dependency is emitted.
+	// A coder_script resource's id is computed at apply; during plan it
+	// can be empty, in which case the rules are validated but no
+	// dependency is emitted. The legacy coder_agent startup script's
+	// synthetic id has no such plan/apply distinction, but at most one
+	// exists per agent, so it can never form a same-owner pair with
+	// itself and hit this skip.
 	for _, runAddr := range sortedKeys(edges) {
 		run := byAddress[runAddr]
 		for _, depAddr := range sortedKeys(edges[runAddr]) {
@@ -231,7 +260,8 @@ func applyScriptOrder(dataSources map[string]scriptOrderDataSource, scripts []*o
 // that declared the data source and returns every matching script that is
 // associated with an agent, sorted by address. A selector whose matches
 // are all unattached resolves to nothing; only a selector that matches no
-// coder_script at all is an error.
+// orderable script at all (no coder_script, and no coder_agent with a
+// startup_script) is an error.
 func resolveScriptOrderSelector(ds scriptOrderDataSource, selector string, scripts []*orderableScript) ([]*orderableScript, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {

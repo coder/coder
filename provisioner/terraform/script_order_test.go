@@ -758,3 +758,73 @@ func TestScriptOrder_NestedModulesWithOwnDataSources(t *testing.T) {
 	// root_prep is never ordered itself.
 	require.Empty(t, findConvertedScript(t, state, "root-prep").OrderDependencies)
 }
+
+// TestScriptOrder_LegacySingleStringRun proves that a rule's "run" attribute
+// still decodes when it arrives as a single string instead of a list. An
+// earlier, unreleased build of coder_script_order used a single-selector
+// "run" attribute; templates pinned to a terraform-provider-coder version
+// from that window must not hard-fail an entire build on the next
+// coderd/provisioner upgrade just because of this shape difference.
+func TestScriptOrder_LegacySingleStringRun(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+		Resources: []*tfjson.StateResource{
+			scriptOrderComputeResource(),
+			scriptOrderAgentResource("main", "agent-main"),
+			scriptOrderScriptResource("coder_script.clone", "id-clone", "agent-main", "clone"),
+			scriptOrderScriptResource("coder_script.install", "id-install", "agent-main", "install"),
+			scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
+				// "run" as a bare string, matching the schema shipped before
+				// array selectors were added.
+				"run":   "coder_script.install",
+				"after": []any{"coder_script.clone"},
+			}),
+		},
+	}}, scriptOrderGraph("main"), logger)
+	require.NoError(t, err)
+	require.Equal(t, []*proto.ScriptOrderDependency{
+		{ScriptId: "id-clone", Requires: "success"},
+	}, findConvertedScript(t, state, "install").OrderDependencies)
+}
+
+// TestScriptOrder_LegacyAgentSelectorCrossAgentRejected proves the new
+// coder_agent.<name> selector participates in the existing cross-agent
+// validation the same way a coder_script selector does: ordering a script
+// after a different agent's legacy startup script must fail, not silently
+// resolve to nothing or panic on a nil owner.
+func TestScriptOrder_LegacyAgentSelectorCrossAgentRejected(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+	agentB := scriptOrderAgentWithStartupScript("b", "agent-b", "echo legacy-b")
+	_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+		Resources: []*tfjson.StateResource{
+			scriptOrderComputeResource(),
+			scriptOrderAgentResource("a", "agent-a"),
+			agentB,
+			scriptOrderScriptResource("coder_script.install", "id-install", "agent-a", "install"),
+			scriptOrderRuleResource("data.coder_script_order.boot", map[string]any{
+				"run":   []any{"coder_script.install"},
+				"after": []any{"coder_agent.b"},
+			}),
+		},
+	}}, scriptOrderGraph("a", "b"), logger)
+	require.ErrorContains(t, err, "different agents")
+}
+
+// TestScriptOrder_LegacyStartupScriptIdEmptyWithoutScriptOrder proves the
+// synthetic correlation id on a legacy startup script is left empty when
+// the template has no coder_script_order data source at all, so templates
+// that don't use the feature see no change to their converted state.
+func TestScriptOrder_LegacyStartupScriptIdEmptyWithoutScriptOrder(t *testing.T) {
+	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+		Resources: []*tfjson.StateResource{
+			scriptOrderComputeResource(),
+			scriptOrderAgentWithStartupScript("main", "agent-main", "echo legacy-startup"),
+		},
+	}}, scriptOrderGraph("main"), logger)
+	require.NoError(t, err)
+	require.Empty(t, findConvertedScript(t, state, "Startup Script").Id)
+}
