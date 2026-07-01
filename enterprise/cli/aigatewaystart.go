@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -51,12 +51,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			"gateway-to-coderd authentication. A user login or session token is " +
 			"not required.",
 		Handler: func(inv *serpent.Invocation) error {
-			// Derive a single signal-aware context so a stop signal interrupts
-			// every phase, including connecting to coderd and the initial
-			// provider fetch, not just the serving select below. Using a
-			// non-signal context for startup left Ctrl+C ignored until the
-			// gateway had finished starting up.
-			ctx, stop := inv.SignalNotifyContext(inv.Context(), agpl.StopSignals...)
+			signalCtx, stop := inv.SignalNotifyContext(inv.Context(), agpl.StopSignals...)
 			defer stop()
 
 			if key == "" {
@@ -84,9 +79,10 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			// Metrics and tracing are not yet exposed by standalone mode yet
 			// (TODO AIGOV-317), but the pool and the reloader require a metrics
 			// object and a tracer.
-			metrics := aibridge.NewMetrics(prometheus.NewRegistry())
-			providerMetrics := aibridged.NewMetrics(prometheus.NewRegistry())
-			tracer := trace.NewNoopTracerProvider().Tracer("aibridged")
+			registry := prometheus.NewRegistry()
+			metrics := aibridge.NewMetrics(registry)
+			providerMetrics := aibridged.NewMetrics(registry)
+			tracer := tracenoop.NewTracerProvider().Tracer("aibridged")
 
 			// Standalone Gateway starts with an empty pool. Providers are
 			// fetched later via GetAIProviders DRPC and pool is updated.
@@ -96,7 +92,9 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			dialer := aibridged.NewWebsocketDialer(serverURL, transport, key)
-			srv, err := aibridged.New(ctx, pool, dialer, logger.Named("aibridged"), tracer)
+			daemonCtx, daemonCancel := context.WithCancel(context.Background())
+			defer daemonCancel()
+			srv, err := aibridged.New(daemonCtx, pool, dialer, logger.Named("aibridged"), tracer)
 			if err != nil {
 				return xerrors.Errorf("start AI Gateway daemon: %w", err)
 			}
@@ -106,15 +104,14 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			// success.
 			// TODO(AIGOV-465): the standalone gateway has no refresh trigger
 			// yet, so this runs once on startup.
+			clientFn := func() (aibridged.DRPCClient, error) {
+				return srv.ClientContext(signalCtx)
+			}
 			providerLogger := logger.Named("aibridge.providers")
-			reloader := agpl.NewPoolRPCReloader(pool, srv.Client, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
-			if err := loadProviders(ctx, reloader, providerLogger); err != nil {
-				// A stop signal during startup cancels ctx (and the daemon's
-				// lifecycle). Treat that as a graceful shutdown rather than a
-				// failure, so interrupting before the gateway is serving still
-				// exits cleanly.
-				if ctx.Err() != nil {
-					logger.Info(ctx, "shutting down standalone AI Gateway")
+			reloader := agpl.NewPoolRPCReloader(pool, clientFn, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
+			if err := loadProviders(signalCtx, reloader, providerLogger); err != nil {
+				if signalCtx.Err() != nil {
+					logger.Info(signalCtx, "shutting down standalone AI Gateway")
 					return nil
 				}
 				return xerrors.Errorf("initialize ai providers: %w", err)
@@ -137,7 +134,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 			defer listener.Close()
 
-			logger.Info(ctx, "standalone AI Gateway listening",
+			logger.Info(signalCtx, "standalone AI Gateway listening",
 				slog.F("address", listener.Addr().String()),
 				slog.F("tls", tlsCertFile != ""),
 			)
@@ -157,8 +154,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}()
 
 			select {
-			case <-ctx.Done():
-				logger.Info(ctx, "shutting down standalone AI Gateway")
+			case <-signalCtx.Done():
+				logger.Info(signalCtx, "shutting down standalone AI Gateway")
 			case err := <-serveErr:
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					return xerrors.Errorf("serve: %w", err)
