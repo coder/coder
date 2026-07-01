@@ -39,8 +39,13 @@ func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
 
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
+	return newTestServerWithDialer(t, nil, nil)
+}
 
-	logger := slogtest.Make(t, nil)
+func newTestServerWithDialer(t *testing.T, dialer aibridged.Dialer, loggerOptions *slogtest.Options) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
+	t.Helper()
+
+	logger := slogtest.Make(t, loggerOptions)
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
 	pool := mock.NewMockPooler(ctrl)
@@ -49,12 +54,12 @@ func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock
 	client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 	pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
 
-	srv, err := aibridged.New(
-		t.Context(),
-		pool,
-		func(ctx context.Context) (aibridged.DRPCClient, error) {
+	if dialer == nil {
+		dialer = func(ctx context.Context) (aibridged.DRPCClient, error) {
 			return client, nil
-		}, logger, testTracer)
+		}
+	}
+	srv, err := aibridged.New(t.Context(), pool, dialer, logger, testTracer)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())
@@ -90,6 +95,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		applyMocksFn   func(client *mock.MockDRPCClient, pool *mock.MockPooler)
 		dialerFn       aibridged.Dialer
 		contextFn      func() context.Context
+		ignoreLogs     bool
 		expectedErr    error
 		expectedStatus int
 	}{
@@ -126,7 +132,20 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 			expectedStatus: http.StatusForbidden,
 		},
 
-		// TODO: coderd connection-related failures.
+		// Coderd connection-related failures.
+		{
+			name: "fatal dial error",
+			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
+				return nil, codersdk.ReadBodyAsError(&http.Response{
+					StatusCode: http.StatusForbidden,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(bytes.NewBufferString(`{"message":"forbidden"}`)),
+				})
+			},
+			ignoreLogs:     true,
+			expectedErr:    aibridged.ErrConnect,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
 
 		// Pool-related failures.
 		{
@@ -146,7 +165,11 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv, client, pool := newTestServer(t)
+			var loggerOptions *slogtest.Options
+			if tc.ignoreLogs {
+				loggerOptions = &slogtest.Options{IgnoreErrors: true}
+			}
+			srv, client, pool := newTestServerWithDialer(t, tc.dialerFn, loggerOptions)
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
