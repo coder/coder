@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -222,12 +223,9 @@ func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 	mustWriteFile(t, filepath.Join(target, "AGENTS.md"), "shared guidance")
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
-	var found bool
-	for _, r := range snap.Resources {
-		if r.Kind == agentcontext.KindInstructionFile && r.SourcePath == link {
-			found = true
-		}
-	}
+	found := slices.ContainsFunc(snap.Resources, func(r agentcontext.Resource) bool {
+		return r.Kind == agentcontext.KindInstructionFile && r.SourcePath == link
+	})
 	require.True(t, found,
 		"in-bounds symlinked source must be scanned via its resolved target")
 }
@@ -319,6 +317,10 @@ func TestManager_RepointedSymlinkDroppedOnResync(t *testing.T) {
 
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
+	// Builtin roots are empty under the test HOME and the repointed source
+	// is dropped, so the snapshot has no resources.
+	require.Empty(t, snap.Resources,
+		"repointed out-of-bounds source must produce no resources")
 	for _, r := range snap.Resources {
 		require.NotEqual(t, secret, r.Source,
 			"repointed out-of-bounds source must be dropped")

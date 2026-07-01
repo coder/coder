@@ -494,6 +494,37 @@ func TestResolver_SameNamedSkillsBuiltinWins(t *testing.T) {
 		"builtin/home root must win the name conflict")
 }
 
+// TestResolver_SameNamedSkillsLexicalTieBreak verifies that when two
+// non-builtin roots contribute a skill with the same front-matter Name,
+// the lexically smaller source path wins regardless of walk order.
+func TestResolver_SameNamedSkillsLexicalTieBreak(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	rootA := filepath.Join(parent, "a")
+	rootB := filepath.Join(parent, "b")
+	mustWriteSkill(t, filepath.Join(rootA, ".agents", "skills"), "shared", "from a")
+	mustWriteSkill(t, filepath.Join(rootB, ".agents", "skills"), "shared", "from b")
+
+	r := &agentcontext.Resolver{}
+	// List rootB first so walk order favors b; the lexical tie-break must
+	// still pick a. Neither root is builtin.
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: rootB},
+		{Path: rootA},
+	})
+
+	var skills []agentcontext.Resource
+	for _, res := range snap.Resources {
+		if res.Kind == agentcontext.KindSkill {
+			skills = append(skills, res)
+		}
+	}
+	require.Len(t, skills, 1, "same-named skills must collapse to one")
+	require.Equal(t, "shared", skills[0].Name)
+	require.Equal(t, "from a", skills[0].Description,
+		"lexically smaller source path must win the tie-break")
+}
+
 func TestResolver_UserSourceAttribution(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

@@ -313,13 +313,11 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 	}
 
 	m.mu.Lock()
-	if idx, ok := m.sourceIndex[identity]; ok {
-		out := m.sources[idx]
+	if !m.addSourceLocked(identity, false) {
+		out := m.sources[m.sourceIndex[identity]]
 		m.mu.Unlock()
 		return out, nil
 	}
-	m.sourceIndex[identity] = len(m.sources)
-	m.sources = append(m.sources, Source{Path: identity})
 	m.mu.Unlock()
 
 	m.signal()

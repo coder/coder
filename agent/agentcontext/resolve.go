@@ -643,11 +643,11 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 		// file and the directory link slips past the boundary
 		// check.
 		if e.Type()&fs.ModeSymlink != 0 {
-			resolved, rerr := filepath.EvalSymlinks(skillDir)
-			if rerr != nil {
+			resolved, err := filepath.EvalSymlinks(skillDir)
+			if err != nil {
 				continue
 			}
-			if info, serr := os.Stat(resolved); serr != nil || !info.IsDir() {
+			if info, err := os.Stat(resolved); err != nil || !info.IsDir() {
 				continue
 			}
 			if !dirWithinScanRoot(resolved, root.Path) {
@@ -705,8 +705,7 @@ func dirWithinScanRoot(resolved, scanRoot string) bool {
 // usable index agree.
 func dedupSkillsByName(resources []Resource) []Resource {
 	winnerIdx := make(map[string]int)
-	for i := range resources {
-		res := resources[i]
+	for i, res := range resources {
 		if res.Kind != KindSkill || res.Name == "" {
 			continue
 		}
@@ -715,8 +714,7 @@ func dedupSkillsByName(resources []Resource) []Resource {
 		}
 	}
 	out := make([]Resource, 0, len(resources))
-	for i := range resources {
-		res := resources[i]
+	for i, res := range resources {
 		if res.Kind == KindSkill && res.Name != "" && winnerIdx[res.Name] != i {
 			continue
 		}
