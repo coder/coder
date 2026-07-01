@@ -1434,7 +1434,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             },
             "post": {
                 "consumes": [
@@ -1471,7 +1474,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/keys/{key}": {
@@ -1500,7 +1506,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/models": {
@@ -1548,7 +1557,10 @@ const docTemplate = `{
                     {
                         "AIGatewayKey": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/v2/ai-gateway/sessions": {
@@ -17536,6 +17548,13 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatModelProvider"
                     }
+                },
+                "unsupported_providers": {
+                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                    }
                 }
             }
         },
@@ -17786,6 +17805,18 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tool_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatUnsupportedProvider": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "description": "Provider is the provider type, e.g. \"copilot\".",
                     "type": "string"
                 }
             }
@@ -19605,12 +19636,14 @@ const docTemplate = `{
                 "nats_pubsub",
                 "minimum-implicit-member",
                 "ai-gateway-cost-control",
-                "agent-app-tabs"
+                "chat-advisor",
+                "chat-virtual-desktop"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
-                "ExperimentAgentAppTabs": "Enables workspace-app and port preview tabs in the Coder Agents right panel.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
@@ -19631,7 +19664,8 @@ const docTemplate = `{
                 "Enables embedded NATS pubsub.",
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
-                "Enables workspace-app and port preview tabs in the Coder Agents right panel."
+                "Enables the advisor tool for root agent chats.",
+                "Enables virtual desktop and computer use provider for agents."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19644,7 +19678,8 @@ const docTemplate = `{
                 "ExperimentNATSPubsub",
                 "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
-                "ExperimentAgentAppTabs"
+                "ExperimentChatAdvisor",
+                "ExperimentChatVirtualDesktop"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

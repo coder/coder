@@ -139,8 +139,12 @@ describe("parseBedrockRegionFromBaseUrl", () => {
 });
 
 describe("isBedrockProvider", () => {
-	it("recognises a discriminated bedrock provider", () => {
-		expect(isBedrockProvider(MockAIProviderBedrock)).toBe(true);
+	it("recognises a legacy bedrock provider stored as type=anthropic", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			type: "anthropic",
+		};
+		expect(isBedrockProvider(provider)).toBe(true);
 	});
 
 	it("recognises a provider with explicit bedrock type", () => {
@@ -332,9 +336,9 @@ describe("providerFormValuesToCreate", () => {
 	});
 
 	describe("Bedrock", () => {
-		it('maps Bedrock to a wire `type:"anthropic"`', () => {
+		it('maps Bedrock to a wire `type:"bedrock"`', () => {
 			const req = providerFormValuesToCreate(baseBedrockFormValues);
-			expect(req.type).toBe("anthropic");
+			expect(req.type).toBe("bedrock");
 		});
 
 		it("derives the region from a canonical AWS URL", () => {
@@ -669,10 +673,10 @@ describe("aiProviderToFormValues", () => {
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
 	});
 
-	it("seeds Bedrock form values from an explicit Bedrock provider type", () => {
+	it("seeds Bedrock form values from a legacy anthropic-typed provider", () => {
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
-			type: "bedrock",
+			type: "anthropic",
 		};
 		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("bedrock");
@@ -723,12 +727,12 @@ describe("aiProviderToFormValues", () => {
 
 	it("handles a Bedrock provider whose settings are null", () => {
 		// `isBedrockProvider` will return false, so the provider falls
-		// through to the anthropic branch. The helper must not throw.
+		// through to the generic branch. The helper must not throw.
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
 			settings: null as unknown as AIProvider["settings"],
 		};
 		const values = aiProviderToFormValues(provider);
-		expect(values.type).toBe("anthropic");
+		expect(values.type).toBe("bedrock");
 	});
 });

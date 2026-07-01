@@ -30,11 +30,11 @@ import (
 // last_heartbeat_at for its authenticating key.
 const aiGatewayKeyHeartbeatInterval = 60 * time.Second
 
-// aiGatewayServe upgrades the connection to a WebSocket and serves the DRPC
-// services (Recorder, MCPConfigurator, Authorizer) to a remote standalone AI
-// Gateway replica, mirroring the embedded case. AI Gateway key authentication is
-// enforced before the WebSocket upgrade. License entitlement is enforced by
-// middleware on the route.
+// aiGatewayServe upgrades the connection to a WebSocket and serves the aibridged
+// DRPC services (Recorder, MCPConfigurator, Authorizer, ProviderConfigurator) to a remote standalone
+// AI Gateway replica, mirroring the embedded case. AI Gateway key
+// authentication is enforced before the WebSocket upgrade. License entitlement
+// is enforced by middleware on the route.
 //
 // @Summary AI Gateway serve
 // @ID ai-gateway-serve
@@ -42,6 +42,7 @@ const aiGatewayKeyHeartbeatInterval = 60 * time.Second
 // @Tags Enterprise
 // @Success 101
 // @Router /api/v2/ai-gateway/serve [get]
+// @x-apidocgen {"skip": true}
 func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get(codersdk.AIGatewayKeyHeader)
 	if key == "" {

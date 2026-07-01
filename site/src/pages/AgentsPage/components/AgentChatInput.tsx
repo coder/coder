@@ -66,7 +66,6 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
-import { formatProviderLabel } from "../utils/modelOptions";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -192,6 +191,7 @@ interface AgentChatInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 }
 
 export interface AttachedWorkspaceInfo {
@@ -394,6 +394,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames = [],
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice = canConfigureAgentSetup
@@ -1070,12 +1071,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount}
 							modelCount={modelCount}
+							unsupportedProviderNames={unsupportedProviderNames}
 						/>
 					) : (
 						<AgentSetupNotice
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							unsupportedProviderNames={unsupportedProviderNames}
 						/>
 					)}
 				</div>
@@ -1404,7 +1407,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
 								className="md:shrink"
 								dropdownSide="top"
 								dropdownAlign="center"

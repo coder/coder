@@ -14,8 +14,11 @@ import { beforeCoderTest, resetExternalAuthKey } from "../hooks";
 
 test.describe
 	.skip("externalAuth", () => {
+		let closeWebServer: (() => Promise<void>) | undefined;
+
 		test.beforeAll(async ({ baseURL }) => {
-			const srv = await createServer(gitAuth.webPort);
+			const { app: srv, close } = await createServer(gitAuth.webPort);
+			closeWebServer = close;
 
 			// The GitHub validate endpoint returns the currently authenticated user!
 			srv.use(gitAuth.validatePath, (_req, res) => {
@@ -32,6 +35,10 @@ test.describe
 					`${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=${req.query.state}`,
 				);
 			});
+		});
+
+		test.afterAll(async () => {
+			await closeWebServer?.();
 		});
 
 		test.beforeEach(async ({ context, page }) => {
@@ -51,43 +58,49 @@ test.describe
 			};
 
 			// Start a server to mock the GitHub API.
-			const srv = await createServer(gitAuth.devicePort);
-			srv.use(gitAuth.validatePath, (_req, res) => {
-				res.write(JSON.stringify(ghUser));
-				res.end();
-			});
-			srv.use(gitAuth.codePath, (_req, res) => {
-				res.write(JSON.stringify(device));
-				res.end();
-			});
-			srv.use(gitAuth.installationsPath, (_req, res) => {
-				res.write(JSON.stringify(ghInstall));
-				res.end();
-			});
+			const { app: srv, close: closeServer } = await createServer(
+				gitAuth.devicePort,
+			);
+			try {
+				srv.use(gitAuth.validatePath, (_req, res) => {
+					res.write(JSON.stringify(ghUser));
+					res.end();
+				});
+				srv.use(gitAuth.codePath, (_req, res) => {
+					res.write(JSON.stringify(device));
+					res.end();
+				});
+				srv.use(gitAuth.installationsPath, (_req, res) => {
+					res.write(JSON.stringify(ghInstall));
+					res.end();
+				});
 
-			const token = {
-				access_token: "",
-				error: "authorization_pending",
-				error_description: "",
-			};
-			// First we send a result from the API that the token hasn't been
-			// authorized yet to ensure the UI reacts properly.
-			const sentPending = new Awaiter();
-			srv.use(gitAuth.tokenPath, (_req, res) => {
-				res.write(JSON.stringify(token));
-				res.end();
-				sentPending.done();
-			});
+				const token = {
+					access_token: "",
+					error: "authorization_pending",
+					error_description: "",
+				};
+				// First we send a result from the API that the token hasn't been
+				// authorized yet to ensure the UI reacts properly.
+				const sentPending = new Awaiter();
+				srv.use(gitAuth.tokenPath, (_req, res) => {
+					res.write(JSON.stringify(token));
+					res.end();
+					sentPending.done();
+				});
 
-			await page.goto(`/external-auth/${gitAuth.deviceProvider}`, {
-				waitUntil: "domcontentloaded",
-			});
-			await page.getByText(device.user_code).isVisible();
-			await sentPending.wait();
-			// Update the token to be valid and ensure the UI updates!
-			token.error = "";
-			token.access_token = "hello-world";
-			await page.waitForSelector("text=1 organization authorized");
+				await page.goto(`/external-auth/${gitAuth.deviceProvider}`, {
+					waitUntil: "domcontentloaded",
+				});
+				await page.getByText(device.user_code).isVisible();
+				await sentPending.wait();
+				// Update the token to be valid and ensure the UI updates!
+				token.error = "";
+				token.access_token = "hello-world";
+				await page.waitForSelector("text=1 organization authorized");
+			} finally {
+				await closeServer();
+			}
 		});
 
 		test("external auth web", async ({ page }) => {

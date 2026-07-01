@@ -118,7 +118,7 @@ coder:
 ```
 
 You can view our
-[Helm README](../../helm/coder#readme) for
+[Helm README](../../helm/coder/README.md) for
 details on the values that are available, or you can view the
 [values.yaml](../../helm/coder/values.yaml)
 file directly.

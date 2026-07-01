@@ -67,6 +67,16 @@ export type UsePaginatedQueryOptions<
 		onInvalidPageChange?: (params: InvalidPageParams) => void;
 
 		/**
+		 * Defaults to 25 records per page.
+		 */
+		recordsPerPage?: number;
+
+		/**
+		 * Defaults to false. Preserves scroll position when pagination updates the URL.
+		 */
+		preventScrollReset?: boolean;
+
+		/**
 		 * Defaults to true. Allows you to disable prefetches for pages where making
 		 * a request is very expensive.
 		 */
@@ -103,6 +113,8 @@ export function usePaginatedQuery<
 		onInvalidPageChange,
 		searchParams: outerSearchParams,
 		queryFn: outerQueryFn,
+		recordsPerPage = DEFAULT_RECORDS_PER_PAGE,
+		preventScrollReset = false,
 		prefetch = true,
 		staleTime = 60 * 1000, // One minute
 		...extraOptions
@@ -111,7 +123,7 @@ export function usePaginatedQuery<
 	const [innerSearchParams, setSearchParams] = useSearchParams();
 	const searchParams = outerSearchParams ?? innerSearchParams;
 
-	const limit = DEFAULT_RECORDS_PER_PAGE;
+	const limit = recordsPerPage;
 	const currentPage = parsePage(searchParams);
 	const currentPageOffset = (currentPage - 1) * limit;
 
@@ -234,8 +246,9 @@ export function usePaginatedQuery<
 
 		const withoutPage = getParamsWithoutPage(searchParams);
 		if (onInvalidPageChange === undefined) {
-			withoutPage.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
-			setSearchParams(withoutPage);
+			const nextSearchParams = outerSearchParams ?? withoutPage;
+			nextSearchParams.set(PAGE_NUMBER_PARAMS_KEY, String(clamped));
+			setSearchParams(nextSearchParams, { preventScrollReset });
 		} else {
 			const params: InvalidPageParams = {
 				limit,
@@ -277,8 +290,10 @@ export function usePaginatedQuery<
 			return;
 		}
 
-		searchParams.set(PAGE_NUMBER_PARAMS_KEY, String(cleanedInput));
-		setSearchParams(searchParams);
+		const nextSearchParams =
+			outerSearchParams ?? new URLSearchParams(searchParams);
+		nextSearchParams.set(PAGE_NUMBER_PARAMS_KEY, String(cleanedInput));
+		setSearchParams(nextSearchParams, { preventScrollReset });
 	};
 
 	// Have to do a type assertion for final return type to make React Query's
@@ -415,8 +430,8 @@ type QueryPageParams = {
 	pageNumber: number;
 
 	/**
-	 * The number of data records to pull per query. Currently hard-coded based
-	 * off the value from PaginationWidget's utils file
+	 * The number of data records requested for each page. Defaults to
+	 * DEFAULT_RECORDS_PER_PAGE and can be overridden with recordsPerPage.
 	 */
 	limit: number;
 

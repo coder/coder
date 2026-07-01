@@ -413,7 +413,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					</Sidebar>
 
 					<div className="flex flex-col w-full min-h-full overflow-hidden">
-						<div className="flex-1 overflow-y-auto" data-chromatic="ignore">
+						<div className="flex-1 overflow-y-auto" data-pixel="ignore">
 							{activePath ? (
 								isEditorValueBinary ? (
 									<div

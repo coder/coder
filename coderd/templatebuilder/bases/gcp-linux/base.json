@@ -1,0 +1,6 @@
+{
+	"id": "gcp-linux",
+	"display_name": "Google Compute Engine (Linux)",
+	"os": "linux",
+	"default_context": {}
+}

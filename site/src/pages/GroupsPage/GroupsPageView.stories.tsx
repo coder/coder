@@ -82,7 +82,7 @@ export const WithAIBudgets: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			await canvas.findByTestId("group-ai-unlimited"),
-		).toHaveTextContent("$25,492 / unlimited USD");
+		).toHaveTextContent("$25,492 / Unlimited USD");
 		await expect(await canvas.findByTestId("group-ai-under")).toHaveTextContent(
 			"$10 / $50 USD",
 		);
