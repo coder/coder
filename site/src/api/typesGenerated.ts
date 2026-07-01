@@ -339,10 +339,7 @@ export interface AIProviderBedrockSettings {
 	 * ExternalID is the STS external ID sent on the AssumeRole call when
 	 * RoleARN is set. The server generates and owns it: create and update
 	 * reject any client-supplied value that differs from the stored one (an
-	 * update may echo the stored value back). Operators add it to the target
-	 * role's trust policy as an sts:ExternalId condition to constrain the
-	 * assumption to this deployment. It is not a secret and is returned on
-	 * GET.
+	 * update may echo the stored value back).
 	 */
 	readonly external_id?: string;
 }
