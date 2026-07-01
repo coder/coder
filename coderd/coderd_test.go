@@ -263,14 +263,11 @@ func TestHealthz(t *testing.T) {
 	assert.Equal(t, "OK", string(body))
 }
 
-// TestAIGatewayDisabledStartupAndShutdown regression-tests that the server
-// starts up and shuts down cleanly when the AI Gateway is disabled at the
-// deployment level, in which case api.chatDaemon stays nil. Before this
-// test was added, the git sync worker captured api.chatDaemon.PublishDiffStatusChange
-// as a method value unconditionally (a method value on a nil receiver is
-// itself non-nil, so the worker's own nil check on its callback did not
-// help), and api.chatDaemon.Close() was called unconditionally during
-// shutdown; both dereferenced the nil receiver and panicked.
+// TestAIGatewayDisabledStartupAndShutdown verifies the server starts and
+// shuts down cleanly when the AI Gateway is disabled, leaving api.chatDaemon
+// nil. It exercises the startup path (git sync worker callback binding, see
+// chatDaemonPublishDiffStatusChangeFunc) and the shutdown path (Close on a
+// nil daemon), both of which panicked before the nil guards were added.
 func TestAIGatewayDisabledStartupAndShutdown(t *testing.T) {
 	t.Parallel()
 

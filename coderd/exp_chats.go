@@ -115,12 +115,11 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
-// requireChatDaemon ensures the chat daemon is running. When the in-memory
-// AI Gateway is disabled by deployment config, the chat daemon is not
-// constructed. Chat operations that depend on the daemon (creating,
-// mutating, or streaming a chat) should soft-fail with a 503 Service
-// Unavailable and a clear remediation message. Pure reads (e.g. getChat)
-// do not need this guard.
+// requireChatDaemon reports whether the chat daemon exists, writing a 503
+// Service Unavailable with a remediation message when it does not. The
+// daemon is nil when the in-memory AI Gateway is disabled by deployment
+// config. Operations that depend on it (creating, mutating, or streaming a
+// chat) must call this; pure reads (e.g. getChat) do not.
 func (api *API) requireChatDaemon(ctx context.Context, rw http.ResponseWriter) bool {
 	if api.chatDaemon != nil {
 		return true

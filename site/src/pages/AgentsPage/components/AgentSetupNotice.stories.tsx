@@ -88,9 +88,8 @@ export const MemberOnlyUnsupportedProvider: Story = {
 	},
 };
 
-// AI Gateway is disabled deployment-wide, independent of provider/model
-// configuration, and independent of isAdmin since there's no in-app
-// settings page for this deployment-level flag for any audience.
+// AI Gateway disabled takes precedence even when providers and models are
+// configured and the viewer is an admin.
 export const AIGatewayDisabled: Story = {
 	args: {
 		isAdmin: true,

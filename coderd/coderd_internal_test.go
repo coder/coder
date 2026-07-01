@@ -67,16 +67,11 @@ func TestStripSlashesMW(t *testing.T) {
 	}
 }
 
-// TestChatDaemonPublishDiffStatusChangeFunc regression-tests the guard
-// that fixes a nil-pointer panic: a Go method value on a nil pointer
-// receiver is itself non-nil, so binding
-// chatDaemon.PublishDiffStatusChange unconditionally would defeat
-// gitsync.Worker's own nil check on its callback and panic when the
-// worker later invoked it. This test proves the returned func is a
-// true nil (not a non-nil method value wrapping a nil receiver) when
-// chatDaemon is nil. The non-nil case is already exercised by
-// coderd/exp_chats_test.go, which calls PublishDiffStatusChange on a
-// real chatDaemon from a full-server test.
+// TestChatDaemonPublishDiffStatusChangeFunc verifies that
+// chatDaemonPublishDiffStatusChangeFunc returns a true nil, not a method
+// value bound to a nil receiver, when chatDaemon is nil. See that function
+// for why the distinction matters. The non-nil path is covered by
+// coderd/exp_chats_test.go.
 func TestChatDaemonPublishDiffStatusChangeFunc(t *testing.T) {
 	t.Parallel()
 

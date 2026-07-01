@@ -842,9 +842,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	// Title generation always routes through the AI Gateway transport
-	// factory, so the fake model response is synthesized via the
-	// transport's RoundTripper instead of a real HTTP test server.
+	// Title generation routes through the transport factory, so the model
+	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requireOpenAIResponsesRequestModel(t, req, modelConfig.Model)
 		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
@@ -1020,9 +1019,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	// Title generation always routes through the AI Gateway transport
-	// factory, so the fake model response is synthesized via the
-	// transport's RoundTripper instead of a real HTTP test server.
+	// Title generation routes through the transport factory, so the model
+	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requireOpenAIResponsesRequestModel(t, req, modelConfig.Model)
 		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
