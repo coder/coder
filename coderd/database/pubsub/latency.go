@@ -72,3 +72,10 @@ func (lm *LatencyMeasurer) Measure(ctx context.Context, p Pubsub) (send, recv ti
 func (lm *LatencyMeasurer) latencyChannelName() string {
 	return fmt.Sprintf("latency-measure:%s", lm.channel)
 }
+
+// isMeasurementChannel reports whether event is this measurer's internal
+// probe channel. Callers use it to keep the latency probe's transient
+// subscription out of the current_events/current_subscribers gauges.
+func (lm *LatencyMeasurer) isMeasurementChannel(event string) bool {
+	return event == lm.latencyChannelName()
+}

@@ -807,7 +807,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.Database = database.New(sqlDB)
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 
-			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			// Build a single shared pubsub metrics instance, registered once
+			// when Prometheus is enabled. Both backends record into it with
+			// their own `backend` label value.
+			var pubsubMetrics *pubsub.Metrics
+			if options.DeploymentValues.Prometheus.Enable {
+				pubsubMetrics = pubsub.NewMetrics(options.PrometheusRegistry)
+			}
+
+			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL, pubsubMetrics)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
@@ -815,25 +823,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.ReplicaSyncPubsub = pgPubsub
 			defer pgPubsub.Close()
 
-			if options.DeploymentValues.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(pgPubsub)
-			}
-
 			// Use NATS for pubsub if the experiment is enabled.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
 				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
+					Metrics:          pubsubMetrics,
 				})
 				if err != nil {
 					return xerrors.Errorf("create nats pubsub: %w", err)
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
-
-				if options.DeploymentValues.Prometheus.Enable {
-					options.PrometheusRegistry.MustRegister(natsps)
-				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
