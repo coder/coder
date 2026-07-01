@@ -1,36 +1,34 @@
-# GitHub release workflow.
-name: Release
+# Tag and release workflow (GitHub Actions-driven, manual).
+#
+# This is the newer release pipeline driven entirely by the
+# scripts/release-action Go tool. It is triggered manually from the
+# Actions UI. The legacy release.yaml workflow remains in place and is
+# triggered by the scripts/releaser Go tool.
+name: Tag and Release
 on:
   workflow_dispatch:
     inputs:
-      release_channel:
+      release_type:
         type: choice
-        description: Release channel
-        options:
-          - mainline
-          - stable
-          - rc
-      release_notes:
-        description: Release notes for the publishing the release. This is required to create a release.
-      dry_run:
-        description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
-        type: boolean
+        description: "Type of release (use 'Use workflow from' to pick the branch)"
         required: true
+        options:
+          - rc
+          - release
+          - create-release-branch
+      commit_sha:
+        description: "Optional: commit SHA to tag (defaults to HEAD of selected branch)"
+        type: string
+        default: ""
+      dry_run:
+        description: "Dry run: calculate the version and print the release plan without creating tags, branches, or publishing."
+        type: boolean
         default: false
 
 permissions:
   contents: read
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
-
-env:
-  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
-  # booleans, not strings.
-  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
-  CODER_RELEASE: ${{ !inputs.dry_run }}
-  CODER_DRY_RUN: ${{ inputs.dry_run }}
-  CODER_RELEASE_CHANNEL: ${{ inputs.release_channel }}
-  CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
   # Only allow maintainers/admins to release.
@@ -59,9 +57,124 @@ jobs:
 
             if (!allowed) core.setFailed('Denied: requires maintain or admin');
 
+
+  prepare-release:
+    name: Prepare release
+    needs: [check-perms]
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.prepare.outputs.version }}
+      previous_version: ${{ steps.prepare.outputs.previous_version }}
+      stable: ${{ steps.prepare.outputs.stable }}
+      target_ref: ${{ steps.prepare.outputs.target_ref }}
+      create_branch: ${{ steps.prepare.outputs.create_branch }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
+
+      - name: Prepare release (calculate version, create tag and branch)
+        id: prepare
+        env:
+          RELEASE_TYPE: ${{ inputs.release_type }}
+          REF_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          args=(--type "$RELEASE_TYPE" --ref "$REF_NAME")
+          if [[ -n "$COMMIT_SHA" ]]; then
+            args+=(--commit "$COMMIT_SHA")
+          fi
+          if [[ "$DRY_RUN" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+
+          output=$(go run ./scripts/release-action prepare-release "${args[@]}")
+          echo "Raw output: $output"
+
+          version=$(echo "$output" | jq -r '.version')
+          previous_version=$(echo "$output" | jq -r '.previous_version')
+          stable=$(echo "$output" | jq -r '.stable')
+          target_ref=$(echo "$output" | jq -r '.target_ref')
+          create_branch=$(echo "$output" | jq -r '.create_branch // empty')
+
+          # Validate required outputs are non-empty.
+          for var in version previous_version target_ref; do
+            eval "val=\$$var"
+            if [[ -z "$val" || "$val" == "null" ]]; then
+              echo "::error::prepare-release returned empty or null '$var'"
+              exit 1
+            fi
+          done
+
+          {
+            echo "version=$version"
+            echo "previous_version=$previous_version"
+            echo "stable=$stable"
+            echo "target_ref=$target_ref"
+            echo "create_branch=$create_branch"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Release preparation"
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Version | \`$version\` |"
+            echo "| Previous | \`$previous_version\` |"
+            echo "| Stable | \`$stable\` |"
+            echo "| Target ref | \`$target_ref\` |"
+            if [[ -n "$create_branch" ]]; then
+              echo "| Create branch | \`$create_branch\` |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "> **Dry run:** no tags, branches, or releases were created. The build and publish jobs are skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Generate release notes
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          PREV_VERSION: ${{ steps.prepare.outputs.previous_version }}
+        run: |
+          set -euo pipefail
+          go run ./scripts/release-action generate-notes \
+            --version "$VERSION" \
+            --previous-version "$PREV_VERSION" > /tmp/release_notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: /tmp/release_notes.md
+          retention-days: 30
+
   release:
     name: Build and publish
-    needs: [check-perms]
+    needs: [check-perms, prepare-release]
+    # Skip the build and publish steps entirely in dry-run mode. This
+    # cascades to publish-homebrew, publish-winget, and update-docs,
+    # which all depend on this job.
+    if: ${{ !inputs.dry_run }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
       # Required to publish a release
@@ -75,6 +188,8 @@ jobs:
       # Required for GitHub Actions attestation
       attestations: write
     env:
+      CODER_RELEASE: "true"
+      CODER_RELEASE_STABLE: ${{ needs.prepare-release.outputs.stable }}
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -86,7 +201,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -99,66 +214,36 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Print version
-        id: version
+      - name: Checkout release commit
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
-          version="$(./scripts/version.sh)"
+          git checkout "refs/tags/$VERSION"
+
+      - name: Print version
+        id: version
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          # VERSION comes from the env block, not a misspelling of the local 'version'.
+          # shellcheck disable=SC2153
+          # Strip the "v" prefix for use in build steps.
+          version="${VERSION#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           # Speed up future version.sh calls.
           echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
           echo "$version"
 
-      # Verify that all expectations for a release are met.
-      - name: Verify release input
-        if: ${{ !inputs.dry_run }}
-        run: |
-          set -euo pipefail
+      - name: Download release notes
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: release-notes
+          path: /tmp
 
-          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
-            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
-            exit 1
-          fi
-
-          # Derive the release branch from the version tag.
-          # Non-RC releases must be on a release/X.Y branch.
-          # RC tags are allowed on any branch (typically main).
-          version="$(./scripts/version.sh)"
-          # Strip any pre-release suffix first (e.g. 2.32.0-rc.0 -> 2.32.0)
-          base_version="${version%%-*}"
-          # Then strip patch to get major.minor (e.g. 2.32.0 -> 2.32)
-          release_branch="release/${base_version%.*}"
-
-          if [[ "$version" == *-rc.* ]]; then
-            echo "RC release detected, skipping release branch check (RC tags are cut from main)."
-          else
-            branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
-            if [[ -z "${branch_contains_tag}" ]]; then
-              echo "Ref tag must exist in a branch named ${release_branch} when creating a non-RC release, did you use scripts/release.sh?"
-              exit 1
-            fi
-          fi
-
-          if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
-            echo "Release notes are required to create a release, did you use scripts/release.sh?"
-            exit 1
-          fi
-
-          echo "Release inputs verified:"
-          echo
-          echo "- Ref: ${GITHUB_REF}"
-          echo "- Version: ${version}"
-          echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
-          echo "- Release branch: ${release_branch}"
-          echo "- Release notes: true"
-
-      - name: Create release notes file
-        run: |
-          set -euo pipefail
-
-          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
-          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> "$GITHUB_ENV"
+      - name: Set release notes env
+        run: echo CODER_RELEASE_NOTES_FILE=/tmp/release_notes.md >> "$GITHUB_ENV"
 
       - name: Show release notes
         run: |
@@ -283,12 +368,8 @@ jobs:
         id: image-base-tag
         run: |
           set -euo pipefail
-          if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
-            # Empty value means use the default and avoid building a fresh one.
-            echo "tag=" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
-          fi
+          # Empty value means use the default and avoid building a fresh one.
+          echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Create empty base-build-context directory
         if: steps.image-base-tag.outputs.tag != ''
@@ -350,7 +431,7 @@ jobs:
 
       - name: GitHub Attestation for Base Docker image
         id: attest_base
-        if: ${{ !inputs.dry_run && steps.build_base_image.outputs.digest != '' }}
+        if: ${{ steps.build_base_image.outputs.digest != '' }}
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
@@ -362,13 +443,6 @@ jobs:
         id: build_docker
         run: |
           set -euxo pipefail
-
-          # we can't build multi-arch if the images aren't pushed, so quit now
-          # if dry-running
-          if [[ "$CODER_RELEASE" != *t* ]]; then
-            echo Skipping multi-arch docker builds due to dry-run.
-            exit 0
-          fi
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
@@ -403,7 +477,6 @@ jobs:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
       - name: SBOM Generation and Attestation
-        if: ${{ !inputs.dry_run }}
         env:
           COSIGN_EXPERIMENTAL: '1'
           MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
@@ -439,7 +512,6 @@ jobs:
 
       - name: Resolve Docker image digests for attestation
         id: docker_digests
-        if: ${{ !inputs.dry_run }}
         continue-on-error: true
         env:
           MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
@@ -457,7 +529,7 @@ jobs:
 
       - name: GitHub Attestation for Docker image
         id: attest_main
-        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.multiarch_digest != '' }}
+        if: ${{ steps.docker_digests.outputs.multiarch_digest != '' }}
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
@@ -467,7 +539,7 @@ jobs:
 
       - name: GitHub Attestation for "latest" Docker image
         id: attest_latest
-        if: ${{ !inputs.dry_run && steps.docker_digests.outputs.latest_digest != '' }}
+        if: ${{ steps.docker_digests.outputs.latest_digest != '' }}
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
@@ -477,7 +549,6 @@ jobs:
 
       - name: GitHub Attestation for release binaries
         id: attest_binaries
-        if: ${{ !inputs.dry_run }}
         continue-on-error: true
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
@@ -493,7 +564,6 @@ jobs:
 
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
-        if: ${{ !inputs.dry_run }}
         run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
           if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
             echo "::warning::GitHub attestation for base image failed"
@@ -517,7 +587,6 @@ jobs:
         run: ls -lh build
 
       - name: Publish Coder CLI binaries and detached signatures to GCS
-        if: ${{ !inputs.dry_run }}
         run: |
           set -euxo pipefail
 
@@ -544,19 +613,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          publish_args=()
-          if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
-            publish_args+=(--stable)
-          fi
-          if [[ $CODER_RELEASE_CHANNEL == "rc" ]]; then
-            publish_args+=(--rc)
-          fi
-          if [[ $CODER_DRY_RUN == *t* ]]; then
-            publish_args+=(--dry-run)
-          fi
-          declare -p publish_args
-
-          # Build the list of files to publish
+          # Build the list of files to publish.
           files=(
             ./build/*_installer.exe
             ./build/*.zip
@@ -568,27 +625,31 @@ jobs:
             "./coder_${VERSION}_sbom.spdx.json"
           )
 
-          # Only include the latest SBOM file if it was created
+          # Only include the latest SBOM file if it was created.
           if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
             files+=(./coder_latest_sbom.spdx.json)
           fi
 
-          ./scripts/release/publish.sh \
-            "${publish_args[@]}" \
+          stable_flag=()
+          if [[ "$CODER_RELEASE_STABLE" == "true" ]]; then
+            stable_flag=(--stable)
+          fi
+
+          go run ./scripts/release-action publish \
+            --version "v${VERSION}" \
+            "${stable_flag[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             "${files[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
       # Mark the Linear release as shipped.
       - name: Extract Linear release version
-        if: ${{ !inputs.dry_run }}
         id: linear_version
         run: |
-          # Skip RC releases — they must not complete the Linear release.
+          # Skip RC releases. They must not complete the Linear release.
           if [[ "$VERSION" == *-rc* ]]; then
             echo "RC release (${VERSION}), skipping Linear release completion."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -603,7 +664,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
 
       - name: Complete Linear release
-        if: ${{ !inputs.dry_run && steps.linear_version.outputs.skip != 'true' }}
+        if: ${{ steps.linear_version.outputs.skip != 'true' }}
         continue-on-error: true
         uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
         with:
@@ -622,7 +683,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # 3.0.1
 
       - name: Publish Helm Chart
-        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           version="$(./scripts/version.sh)"
@@ -638,44 +698,20 @@ jobs:
           helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
           helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
 
-      - name: Upload artifacts to actions (if dry-run)
-        if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: release-artifacts
-          path: |
-            ./build/*_installer.exe
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.tgz
-            ./build/*.apk
-            ./build/*.deb
-            ./build/*.rpm
-            ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
-          retention-days: 7
-
-      - name: Upload latest sbom artifact to actions (if dry-run)
-        if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: latest-sbom-artifact
-          path: ./coder_latest_sbom.spdx.json
-          retention-days: 7
-
       - name: Send repository-dispatch event
-        if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+        if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
-    needs: release
-    if: ${{ !inputs.dry_run && inputs.release_channel == 'mainline' }}
+    needs: [release, prepare-release]
+    if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' && needs.prepare-release.outputs.stable == 'true' }}
 
     steps:
       - name: Harden Runner
@@ -747,11 +783,12 @@ jobs:
             -a "${GITHUB_ACTOR}" \
             -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
+
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
-    needs: release
-    if: ${{ !inputs.dry_run && inputs.release_channel != 'rc' }}
+    needs: [release, prepare-release]
+    if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}
 
     steps:
       - name: Harden Runner
@@ -765,7 +802,7 @@ jobs:
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -839,3 +876,44 @@ jobs:
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.version }}
+
+
+  update-docs:
+    name: Update release docs
+    needs: [prepare-release, release]
+    if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Update release calendar
+        run: ./scripts/update-release-calendar.sh
+
+      - name: Create docs update PR
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: update release docs for ${{ needs.prepare-release.outputs.version }}"
+          title: "docs: update release docs for ${{ needs.prepare-release.outputs.version }}"
+          body: "Automated docs update for release ${{ needs.prepare-release.outputs.version }}."
+          branch: docs/release-${{ needs.prepare-release.outputs.version }}
+          base: main

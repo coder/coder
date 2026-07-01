@@ -425,3 +425,53 @@ func Test_isHexSHA(t *testing.T) {
 		})
 	}
 }
+
+func Test_resolveCommit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShortSHAResolvedToFull", func(t *testing.T) {
+		t.Parallel()
+		const full = "1234567890abcdef1234567890abcdef12345678"
+		var gotArgs []string
+		mock := &mockExecutor{
+			RunOutputFunc: func(_ string, args ...string) (string, error) {
+				gotArgs = args
+				return full, nil
+			},
+		}
+		got, err := resolveCommit(mock, "main", "1234567")
+		require.NoError(t, err)
+		require.Equal(t, full, got)
+		require.Equal(t, []string{"rev-parse", "--verify", "1234567^{commit}"}, gotArgs)
+	})
+
+	t.Run("EmptyResolvesRefHead", func(t *testing.T) {
+		t.Parallel()
+		const full = "abcdef1234567890abcdef1234567890abcdef12"
+		var gotArgs []string
+		mock := &mockExecutor{
+			RunOutputFunc: func(_ string, args ...string) (string, error) {
+				gotArgs = args
+				return full, nil
+			},
+		}
+		got, err := resolveCommit(mock, "main", "")
+		require.NoError(t, err)
+		require.Equal(t, full, got)
+		require.Equal(t, []string{"rev-parse", "origin/main"}, gotArgs)
+	})
+
+	t.Run("InvalidSHANotResolved", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		mock := &mockExecutor{
+			RunOutputFunc: func(_ string, _ ...string) (string, error) {
+				called = true
+				return "", nil
+			},
+		}
+		_, err := resolveCommit(mock, "main", "zzzzzzz")
+		require.Error(t, err)
+		require.False(t, called, "git should not be invoked for an invalid SHA")
+	})
+}
