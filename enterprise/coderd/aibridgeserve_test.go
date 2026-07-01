@@ -257,8 +257,8 @@ func TestAIGatewayServeTrackKeyUsageClosesActiveSession(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			tick := make(chan time.Time, 1)
@@ -271,13 +271,13 @@ func TestAIGatewayServeTrackKeyUsageClosesActiveSession(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			//nolint:gocritic // Owner role is needed for gateway key management.
-			created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-active"})
+			created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "key-name"})
 			require.NoError(t, err)
 
 			dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
 			require.NoError(t, err)
 
-			require.NoError(t, tt.mutate(ctx, client, api, created))
+			require.NoError(t, tc.mutate(ctx, client, api, created))
 
 			tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
 			require.Eventually(t, func() bool {

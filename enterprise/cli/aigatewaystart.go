@@ -76,7 +76,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				logger = logger.Leveled(slog.LevelDebug)
 			}
 
-			// Metrics and tracing are not yet exposed by standalone mode yet
+			// Metrics and tracing are not exposed by standalone mode yet
 			// (TODO AIGOV-317), but the pool and the reloader require a metrics
 			// object and a tracer.
 			registry := prometheus.NewRegistry()
@@ -136,6 +136,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 
 			logger.Info(signalCtx, "standalone AI Gateway listening",
 				slog.F("address", listener.Addr().String()),
+				slog.F("coder_url", serverURL.String()),
 				slog.F("tls", tlsCertFile != ""),
 			)
 
