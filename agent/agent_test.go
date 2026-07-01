@@ -3672,6 +3672,9 @@ func TestAgent_DebugServer(t *testing.T) {
 	//nolint:dogsled
 	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
 		DERPMap: derpMap,
+		EnvironmentVariables: map[string]string{
+			"AWS_SECRET_ACCESS_KEY": "super-secret-value-12345",
+		},
 	}, []agentsdk.WorkspaceSecret{
 		{EnvName: "DEBUG_SECRET", Value: []byte("super-secret-value-12345")},
 	}, 0, func(c *agenttest.Client, o *agent.Options) {
@@ -3798,6 +3801,34 @@ func TestAgent_DebugServer(t *testing.T) {
 		// to leak through JSON encoding.
 		var v agentsdk.Manifest
 		require.NoError(t, json.Unmarshal(body, &v))
+	})
+
+	t.Run("ManifestEnvVarValuesRedacted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/manifest", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+
+		// Environment variable values may carry template-provided
+		// credentials, so the debug endpoint must not expose them.
+		require.NotContains(t, string(body), "super-secret-value-12345")
+
+		var v agentsdk.Manifest
+		require.NoError(t, json.Unmarshal(body, &v))
+
+		// The key is preserved so operators can confirm which
+		// variables are configured, but the value is redacted.
+		require.Contains(t, v.EnvironmentVariables, "AWS_SECRET_ACCESS_KEY")
+		require.Equal(t, "*redacted*", v.EnvironmentVariables["AWS_SECRET_ACCESS_KEY"])
 	})
 
 	t.Run("Logs", func(t *testing.T) {

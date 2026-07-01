@@ -2291,11 +2291,30 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Redact environment variable values before serving the manifest. This
+	// debug endpoint is unauthenticated on the loopback interface, so it is
+	// reachable by any process in the workspace regardless of Unix user. The
+	// keys are preserved so operators can still confirm which variables are
+	// configured without exposing template-provided values that may carry
+	// credentials.
+	debugManifest := *sdkManifest
+	if len(sdkManifest.EnvironmentVariables) > 0 {
+		envs := make(map[string]string, len(sdkManifest.EnvironmentVariables))
+		for k := range sdkManifest.EnvironmentVariables {
+			envs[k] = redactedManifestEnvValue
+		}
+		debugManifest.EnvironmentVariables = envs
+	}
+
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
+	if err := json.NewEncoder(w).Encode(debugManifest); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
 	}
 }
+
+// redactedManifestEnvValue replaces environment variable values in the
+// unauthenticated debug manifest response.
+const redactedManifestEnvValue = "*redacted*"
 
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
