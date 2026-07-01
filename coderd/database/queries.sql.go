@@ -12410,9 +12410,7 @@ func (q *sqlQuerier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg 
 const updateChatSummary = `-- name: UpdateChatSummary :execrows
 UPDATE chats
 SET
-    summary = NULLIF(REGEXP_REPLACE(
-        $1::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
-    ), ''),
+    summary = $1::text,
     summary_generated_at = NOW()
 WHERE
     id = $2::uuid
@@ -12425,10 +12423,12 @@ type UpdateChatSummaryParams struct {
 	ExpectedHistoryVersion int64          `db:"expected_history_version" json:"expected_history_version"`
 }
 
-// Stores blank summaries as NULL. summary_generated_at drives the regeneration
-// cadence. The staleness guard is history_version (not updated_at, which is
-// preserved), mirroring UpdateChatLastTurnSummary: a background write racing a
-// newer message change loses, but worker transitions cannot reject a fresh write.
+// Stores the summary and stamps summary_generated_at (used to schedule the
+// next regeneration).
+// Guards on history_version, not updated_at (left untouched), so the write
+// is rejected only when the message history changed under it; unrelated
+// worker state transitions cannot block it. Same pattern as
+// UpdateChatLastTurnSummary.
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatSummary, arg.Summary, arg.ID, arg.ExpectedHistoryVersion)
 	if err != nil {

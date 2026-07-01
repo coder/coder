@@ -12544,7 +12544,7 @@ func TestUpdateChatSummary(t *testing.T) {
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
-		Summary:                sql.NullString{String: " \n\t ", Valid: true},
+		Summary:                sql.NullString{},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
