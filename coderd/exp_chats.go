@@ -2043,10 +2043,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	if !api.requireChatDaemon(ctx, rw) {
-		return
-	}
-
 	// Use the cached diff status from the database rather than
 	// resolving it inline. Inline resolution calls out to the
 	// git provider API (e.g. GitHub) on every request which

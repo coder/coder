@@ -1056,6 +1056,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
+	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -1064,6 +1065,7 @@ const AgentChatPage: FC = () => {
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
+		aiGatewayDisabled,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
@@ -1155,7 +1157,6 @@ const AgentChatPage: FC = () => {
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
-	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
