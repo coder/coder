@@ -1654,6 +1654,62 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, member.ID, task.OwnerID)
 	})
+
+	t.Run("AuthzDenialShortCircuitsExternalAuth", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			taskExternalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// The caller is a normal org member (so it can read the template
+		// version and resolve "me" as the workspace owner) but is banned from
+		// creating workspaces via a negative org-level workspace:create
+		// permission. This reaches the workspace-create authorization gate and
+		// fails it, which is exactly the ordering under test: the authz denial
+		// must short-circuit before requireWorkspaceOwnerExternalAuth runs.
+		bannedClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID,
+			rbac.ScopedRoleOrgWorkspaceCreationBan(first.OrganizationID))
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The owner ("me") has NOT authenticated with the required GitHub
+		// provider. If the external auth preflight ran first (the pre-fix
+		// ordering) this request would fail with externalAuthRequiredMessage.
+		// Provide an explicit name so we can assert no task row was inserted.
+		req := codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "build me a web app",
+			Name:              coderdtest.RandomUsername(t),
+			DisplayName:       "My Task",
+		}
+		_, err := bannedClient.CreateTask(ctx, codersdk.Me, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		// The workspace-create authorization denial wins: we get the authz
+		// message, NOT the external auth requirement. This proves the authz
+		// checks run before (and short-circuit) the external auth preflight.
+		require.Equal(t, "Unauthorized to create workspace.", apiErr.Message)
+		require.NotEqual(t, externalAuthRequiredMessage, apiErr.Message)
+
+		// The denial must short-circuit before any task row is inserted.
+		_, err = bannedClient.TaskByOwnerAndName(ctx, codersdk.Me, req.Name)
+		apiErr = nil
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
 }
 
 func TestTasksCreate(t *testing.T) {
