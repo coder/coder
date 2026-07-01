@@ -3,6 +3,10 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -182,7 +186,7 @@ func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T)
 
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
 
-	server := &Server{db: db, aiGatewayRoutingEnabled: true}
+	server := &Server{db: db}
 	_, err := server.resolveModelRouteForProviderType(
 		ctx,
 		uuid.New(),
@@ -766,6 +770,23 @@ func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) data
 	return message
 }
 
+// requireOutgoingRequestModel asserts that the outgoing request body
+// requests wantModel. This is so that mock transports can still
+// verify the outgoing request asked for the expected model.
+func requireOutgoingRequestModel(t testing.TB, req *http.Request, wantModel string) {
+	t.Helper()
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(strings.NewReader(string(body)))
+
+	var decoded struct {
+		Model string `json:"model"`
+	}
+	require.NoError(t, json.Unmarshal(body, &decoded))
+	require.Equal(t, wantModel, decoded.Model)
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -821,30 +842,41 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		require.Equal(t, "gpt-4o-mini", req.Model)
-		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
-	})
+	// Title generation routes through the transport factory, so the model
+	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOutgoingRequestModel(t, req, modelConfig.Model)
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 
 	server := &Server{
-		db:          db,
-		logger:      logger,
-		pubsub:      pubsub,
-		configCache: newChatConfigCache(context.Background(), db, clock),
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
 	}, nil).AnyTimes()
+
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
 	}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
@@ -952,7 +984,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	ownerID := uuid.New()
 	chatID := uuid.New()
 	modelConfigID := uuid.New()
+	providerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
 	wantTitle := "Review PR 23633"
 
 	chat := database.Chat{
@@ -965,7 +999,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	lockedChat := chat
 	lockedChat.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
 	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
-	providerID := uuid.New()
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
 		Model:        "gpt-4o-mini",
@@ -994,30 +1027,40 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		require.Equal(t, "gpt-4o-mini", req.Model)
-		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
-	})
+	// Title generation routes through the transport factory, so the model
+	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOutgoingRequestModel(t, req, modelConfig.Model)
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 
 	server := &Server{
-		db:          db,
-		logger:      logger,
-		pubsub:      pubsub,
-		configCache: newChatConfigCache(context.Background(), db, clock),
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
 	}, nil).AnyTimes()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
 	}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
@@ -1030,12 +1073,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		mustChatMessage(
+		withChatMessageAPIKeyID(mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		),
+		), activeAPIKeyID),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,
@@ -3558,10 +3601,9 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 	)
 
 	server := &Server{
-		db:                      db,
-		logger:                  logger,
-		aiGatewayRoutingEnabled: true,
-		allowBYOK:               true,
+		db:        db,
+		logger:    logger,
+		allowBYOK: true,
 	}
 	debugSvc := chatdebug.NewService(db, logger, nil)
 	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
@@ -3571,7 +3613,6 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 		debugSvc,
 		chat,
 		modelConfig,
-		chatprovider.ProviderAPIKeys{},
 		modelBuildOptions{},
 		nil,
 		fallbackModel,

@@ -17,6 +17,7 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -40,6 +41,7 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const aiGatewayDisabled = !useAIGatewayEnabled();
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -169,6 +171,7 @@ const AgentCreatePage: FC = () => {
 				providerCount={providerCount}
 				modelCount={modelCount}
 				unsupportedProviderNames={unsupportedProviderNames}
+				aiGatewayDisabled={aiGatewayDisabled}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={isModelCatalogLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}

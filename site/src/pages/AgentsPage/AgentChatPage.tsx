@@ -48,6 +48,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -1060,6 +1061,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
+	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -1068,6 +1070,7 @@ const AgentChatPage: FC = () => {
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
+		aiGatewayDisabled,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
@@ -1159,7 +1162,11 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+		!hasModelOptions ||
+		isArchived ||
+		isChatSettingsPending ||
+		isViewerNotOwner ||
+		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
@@ -1651,6 +1658,7 @@ const AgentChatPage: FC = () => {
 			providerCount={providerCount}
 			modelCount={modelCount}
 			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

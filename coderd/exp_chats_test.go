@@ -4562,6 +4562,38 @@ func TestGetChat(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
+	// AIGatewayDisabled regression-tests that getChat is a pure DB read that
+	// still works when the AI Gateway is disabled and api.chatDaemon is nil.
+	// It builds the server without starting the test AI bridge daemon
+	// (unlike every other subtest here) and seeds the chat directly into the
+	// database, since the create-chat route itself requires the daemon.
+	t.Run("AIGatewayDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := coderdtest.DeploymentValues(t)
+		require.NoError(t, values.AI.BridgeConfig.Enabled.Set("false"))
+		opts := newChatTestOptions(t, values)
+		rawClient, _, api := coderdtest.NewWithAPI(t, opts)
+		client := codersdk.NewExperimentalClient(rawClient)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		modelConfig := dbgen.ChatModelConfig(t, api.Database, database.ChatModelConfig{})
+		seededChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "ai gateway disabled chat",
+		})
+
+		chatResult, err := client.GetChat(ctx, seededChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, seededChat.ID, chatResult.ID)
+		require.Equal(t, firstUser.UserID, chatResult.OwnerID)
+		require.Equal(t, modelConfig.ID, chatResult.LastModelConfigID)
+		require.Equal(t, "ai gateway disabled chat", chatResult.Title)
+	})
+
 	t.Run("FilesHydrated", func(t *testing.T) {
 		t.Parallel()
 
