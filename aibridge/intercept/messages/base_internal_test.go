@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -16,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -86,14 +88,14 @@ func TestAWSBedrockValidation(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cfg         *config.AWSBedrock
+		cfg         config.AWSBedrock
 		expectError bool
 		errorMsg    string
 	}{
 		// Valid cases: static credentials.
 		{
 			name: "static credentials with region",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -103,7 +105,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name: "static credentials with base url",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				BaseURL:         "http://bedrock.internal",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -118,7 +120,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 			//
 			// See TestAWSBedrockIntegration which validates this.
 			name: "static credentials with base url & region",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -129,7 +131,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		// Invalid cases.
 		{
 			name: "missing region & base url",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -140,31 +142,8 @@ func TestAWSBedrockValidation(t *testing.T) {
 			errorMsg:    "region or base url required",
 		},
 		{
-			name: "missing access key",
-			cfg: &config.AWSBedrock{
-				Region:          "us-east-1",
-				AccessKeySecret: "test-secret",
-				Model:           "test-model",
-				SmallFastModel:  "test-small-model",
-			},
-			expectError: true,
-			errorMsg:    "both access key and access key secret must be provided together",
-		},
-		{
-			name: "missing access key secret",
-			cfg: &config.AWSBedrock{
-				Region:          "us-east-1",
-				AccessKey:       "test-key",
-				AccessKeySecret: "",
-				Model:           "test-model",
-				SmallFastModel:  "test-small-model",
-			},
-			expectError: true,
-			errorMsg:    "both access key and access key secret must be provided together",
-		},
-		{
 			name: "missing model",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -176,7 +155,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name: "missing small fast model",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -188,15 +167,9 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name:        "all fields empty",
-			cfg:         &config.AWSBedrock{},
+			cfg:         config.AWSBedrock{},
 			expectError: true,
 			errorMsg:    "region or base url required",
-		},
-		{
-			name:        "nil config",
-			cfg:         nil,
-			expectError: true,
-			errorMsg:    "nil config given",
 		},
 	}
 
@@ -204,8 +177,13 @@ func TestAWSBedrockValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			base := &interceptionBase{}
-			opts, err := base.withAWSBedrockOptions(context.Background(), tt.cfg)
+			base := &interceptionBase{
+				bedrock: &BedrockRuntime{
+					Cfg:   tt.cfg,
+					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+				},
+			}
+			opts, err := base.withAWSBedrockOptions(context.Background())
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -218,87 +196,16 @@ func TestAWSBedrockValidation(t *testing.T) {
 	}
 }
 
-// TestAWSBedrockCredentialChain tests credential resolution via the AWS SDK default credential chain.
-// NOTE: Cannot use t.Parallel() here because subtests use t.Setenv which requires sequential execution.
-func TestAWSBedrockCredentialChain(t *testing.T) {
-	tests := []struct {
-		name        string
-		cfg         *config.AWSBedrock
-		envVars     map[string]string
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name: "temporary credentials via env",
-			cfg: &config.AWSBedrock{
-				Region:         "us-east-1",
-				Model:          "test-model",
-				SmallFastModel: "test-small-model",
-			},
-			envVars: map[string]string{
-				"AWS_ACCESS_KEY_ID":     "test-key",
-				"AWS_SECRET_ACCESS_KEY": "test-secret",
-			},
-		},
-		{
-			name: "temporary credentials with session token via env",
-			cfg: &config.AWSBedrock{
-				Region:         "us-east-1",
-				Model:          "test-model",
-				SmallFastModel: "test-small-model",
-			},
-			envVars: map[string]string{
-				"AWS_ACCESS_KEY_ID":     "test-key",
-				"AWS_SECRET_ACCESS_KEY": "test-secret",
-				"AWS_SESSION_TOKEN":     "test-session-token",
-			},
-		},
-		{
-			// When static credentials are not provided and no environment credentials are set,
-			// the SDK default credential chain fails to resolve credentials.
-			name: "error when no credential source is configured",
-			cfg: &config.AWSBedrock{
-				Region:         "us-east-1",
-				Model:          "test-model",
-				SmallFastModel: "test-small-model",
-			},
-			envVars: map[string]string{
-				"AWS_ACCESS_KEY_ID":                      "",
-				"AWS_SECRET_ACCESS_KEY":                  "",
-				"AWS_SESSION_TOKEN":                      "",
-				"AWS_PROFILE":                            "",
-				"AWS_SHARED_CREDENTIALS_FILE":            "/dev/null",
-				"AWS_CONFIG_FILE":                        "/dev/null",
-				"AWS_WEB_IDENTITY_TOKEN_FILE":            "",
-				"AWS_ROLE_ARN":                           "",
-				"AWS_ROLE_SESSION_NAME":                  "",
-				"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": "",
-				"AWS_CONTAINER_CREDENTIALS_FULL_URI":     "",
-				"AWS_CONTAINER_AUTHORIZATION_TOKEN":      "",
-				"AWS_EC2_METADATA_DISABLED":              "true",
-			},
-			expectError: true,
-			errorMsg:    "no AWS credentials found",
-		},
-	}
+// TestAWSBedrockOptionsRequireRuntime verifies that option assembly fails when
+// the Bedrock runtime was not set. This should never happen in practice, since
+// withAWSBedrockOptions is only called when i.bedrock != nil.
+func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
+	t.Parallel()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, val := range tt.envVars {
-				t.Setenv(key, val)
-			}
-			base := &interceptionBase{}
-			opts, err := base.withAWSBedrockOptions(context.Background(), tt.cfg)
-
-			if tt.expectError {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				require.NotEmpty(t, opts)
-				require.NoError(t, err)
-			}
-		})
-	}
+	base := &interceptionBase{}
+	_, err := base.withAWSBedrockOptions(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nil bedrock runtime")
 }
 
 func TestAccumulateUsage(t *testing.T) {
@@ -853,6 +760,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectThinkingType: "adaptive",
 		},
 		{
+			name:               "opus_4_8_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "eu.anthropic.claude-opus-4-8",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
 			// outputs) with a 400 even though it accepts output_config.effort.
 			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
@@ -877,9 +790,11 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
-				bedrockCfg: &config.AWSBedrock{
-					Model:          tc.bedrockModel,
-					SmallFastModel: "anthropic.claude-haiku-3-5",
+				bedrock: &BedrockRuntime{
+					Cfg: config.AWSBedrock{
+						Model:          tc.bedrockModel,
+						SmallFastModel: "anthropic.claude-haiku-3-5",
+					},
 				},
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),
@@ -1041,6 +956,10 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 		expectedRetryAfter time.Duration
 	}{
 		{
+			name:       "nil_returns_nil",
+			keyPoolErr: nil,
+		},
+		{
 			// Rate-limited with no cooldown: 429, no Retry-After.
 			name:               "rate_limited_zero_retry_after",
 			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindRateLimited},
@@ -1066,6 +985,10 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := ResponseErrorFromKeyPool(tc.keyPoolErr)
+			if tc.keyPoolErr == nil {
+				assert.Nil(t, got)
+				return
+			}
 			require.NotNil(t, got)
 			assert.Equal(t, tc.expectedStatus, got.StatusCode)
 			assert.Equal(t, tc.expectedRetryAfter, got.RetryAfter)
@@ -1127,7 +1050,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cfg: config.Anthropic{KeyPool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)

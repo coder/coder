@@ -26,7 +26,7 @@ export const Idle: Story = {};
 
 export const OnCancel: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
@@ -41,7 +41,7 @@ export const OnCancel: Story = {
 
 export const OnConfirmSuccess: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	decorators: [withToaster],
 	play: async ({ canvasElement, args }) => {
@@ -61,7 +61,7 @@ export const OnConfirmSuccess: Story = {
 
 export const OnConfirmFailure: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	decorators: [withToaster],
 	args: {

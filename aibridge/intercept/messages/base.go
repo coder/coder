@@ -16,8 +16,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -65,32 +64,39 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-examples-2025-10-29": true,
 }
 
-type interceptionBase struct {
-	id           uuid.UUID
-	providerName string
-	reqPayload   RequestPayload
+// BedrockRuntime carries everything a Bedrock-backed interception needs: the
+// static Bedrock config plus the AWS credentials provider.
+type BedrockRuntime struct {
+	Cfg   aibconfig.AWSBedrock
+	Creds aws.CredentialsProvider
+}
 
-	cfg        aibconfig.Anthropic
-	bedrockCfg *aibconfig.AWSBedrock
+type interceptionBase struct {
+	id         uuid.UUID
+	reqPayload RequestPayload
+
+	cfg  intercept.Config
+	cred intercept.Credential
+	// bedrock is nil for non-Bedrock providers.
+	bedrock *BedrockRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
-	clientHeaders  http.Header
-	authHeaderName string
+	clientHeaders http.Header
 
-	tracer trace.Tracer
 	logger slog.Logger
+	tracer trace.Tracer
 
-	recorder   recorder.Recorder
-	mcpProxy   mcp.ServerProxier
-	credential intercept.CredentialInfo
+	recorder recorder.Recorder
+	mcpProxy mcp.ServerProxier
 }
 
 func (i *interceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *interceptionBase) Credential() intercept.CredentialInfo {
-	return i.credential
+// Credential returns the credential resolved for this interception.
+func (i *interceptionBase) Credential() intercept.Credential {
+	return i.cred
 }
 
 func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
@@ -108,10 +114,10 @@ func (i *interceptionBase) Model() string {
 		return "coder-aibridge-unknown"
 	}
 
-	if i.bedrockCfg != nil {
-		model := i.bedrockCfg.Model
+	if i.bedrock != nil {
+		model := i.bedrock.Cfg.Model
 		if i.isSmallFastModel() {
-			model = i.bedrockCfg.SmallFastModel
+			model = i.bedrock.Cfg.SmallFastModel
 		}
 		return model
 	}
@@ -124,10 +130,10 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.RequestPath, r.URL.Path),
 		attribute.String(tracing.InterceptionID, i.id.String()),
 		attribute.String(tracing.InitiatorID, aibcontext.ActorIDFromContext(r.Context())),
-		attribute.String(tracing.Provider, i.providerName),
+		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
-		attribute.Bool(tracing.IsBedrock, i.bedrockCfg != nil),
+		attribute.Bool(tracing.IsBedrock, i.bedrock != nil),
 	}
 }
 
@@ -205,57 +211,44 @@ func (i *interceptionBase) isSmallFastModel() bool {
 	return strings.Contains(i.reqPayload.model(), "haiku")
 }
 
-// newMessagesService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
+// newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
-	// TODO(ssncferreira): validate auth is configured per
-	// https://github.com/coder/aibridge/issues/266.
-
-	// BYOK auth.
-	if i.cfg.KeyPool == nil {
-		if i.cfg.BYOKBearerToken != "" {
-			// BYOK Bearer: Authorization header.
-			i.logger.Debug(ctx, "using byok access token auth",
-				slog.F("bearer_hint", utils.MaskSecret(i.cfg.BYOKBearerToken)),
-			)
-			opts = append(opts, option.WithAuthToken(i.cfg.BYOKBearerToken))
-		} else {
-			// BYOK X-Api-Key.
-			i.logger.Debug(ctx, "using api key auth",
-				slog.F("api_key_hint", utils.MaskSecret(i.cfg.Key)),
-			)
-			opts = append(opts, option.WithAPIKey(i.cfg.Key))
+	// Only BYOK sets its credential here. Centralized keys are injected
+	// per-attempt in the failover loop.
+	if byok, ok := intercept.AsBYOK(i.cred); ok {
+		i.logger.Debug(ctx, "using byok auth",
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+		)
+		switch byok.Header {
+		case intercept.AuthHeaderAuthorization:
+			opts = append(opts, option.WithAuthToken(byok.Secret))
+		case intercept.AuthHeaderXAPIKey:
+			opts = append(opts, option.WithAPIKey(byok.Secret))
+		default:
+			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)
 		}
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
-
-	// Add extra headers if configured.
-	// Some providers require additional headers that are not added by the SDK.
-	// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-	for key, value := range i.cfg.ExtraHeaders {
-		opts = append(opts, option.WithHeader(key, value))
-	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.authHeaderName)
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
 			return next(req)
 		}))
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.providerName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	if i.bedrockCfg != nil {
+	if i.bedrock != nil {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
-		bedrockOpts, err := i.withAWSBedrockOptions(ctx, i.bedrockCfg)
+		bedrockOpts, err := i.withAWSBedrockOptions(ctx)
 		if err != nil {
 			return anthropic.MessageService{}, err
 		}
@@ -276,14 +269,13 @@ func (i *interceptionBase) withBody() option.RequestOption {
 
 // withAWSBedrockOptions returns request options for authenticating with AWS Bedrock.
 //
-// When both AccessKey and AccessKeySecret are set in the aibridge config, they are
-// used directly as static credentials. Otherwise, the AWS SDK default credential chain
-// resolves credentials (environment variables, shared config/credentials files, IAM
-// roles, IRSA, SSO, IMDS, etc.).
-func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconfig.AWSBedrock) ([]option.RequestOption, error) {
-	if cfg == nil {
-		return nil, xerrors.New("nil config given")
+// Credentials come from i.bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
+// below is served from that cache and does not re-resolve or re-assume on every request.
+func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.RequestOption, error) {
+	if i.bedrock == nil {
+		return nil, xerrors.New("nil bedrock runtime")
 	}
+	cfg := i.bedrock.Cfg
 	if cfg.Region == "" && cfg.BaseURL == "" {
 		return nil, xerrors.New("region or base url required")
 	}
@@ -294,38 +286,16 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 		return nil, xerrors.New("small fast model required")
 	}
 
-	loadOpts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
+	// Fail fast: ensure credentials can be resolved before signing. Served from
+	// the shared cache on most requests (no network); on the cold or refresh
+	// path this performs the actual STS/IMDS call.
+	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
+		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
 	}
 
-	// Use static credentials when explicitly provided, otherwise fall back to the SDK default credential chain.
-	switch {
-	// Both set: use static credentials directly.
-	case cfg.AccessKey != "" && cfg.AccessKeySecret != "":
-		loadOpts = append(loadOpts, config.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				cfg.AccessKey,
-				cfg.AccessKeySecret,
-				"",
-			),
-		))
-	// Only one set: misconfiguration.
-	case cfg.AccessKey != "" || cfg.AccessKeySecret != "":
-		return nil, xerrors.New("both access key and access key secret must be provided together")
-	// Neither set: SDK default credential chain resolves credentials.
-	default:
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load AWS Bedrock config: %w", err)
-	}
-
-	// Fail fast: ensure credentials can be resolved before making any requests.
-	// awsCfg already carries the credentials provider, and the Bedrock middleware
-	// will call Retrieve on it when signing each request.
-	if _, err := awsCfg.Credentials.Retrieve(ctx); err != nil {
-		return nil, xerrors.Errorf("no AWS credentials found: %w", err)
+	awsCfg := aws.Config{
+		Region:      cfg.Region,
+		Credentials: i.bedrock.Creds,
 	}
 
 	var out []option.RequestOption
@@ -350,7 +320,7 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive (Opus 4.7+).
 func (i *interceptionBase) augmentRequestForBedrock() {
-	if i.bedrockCfg == nil {
+	if i.bedrock == nil {
 		return
 	}
 
@@ -369,7 +339,7 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		// since Bedrock returns 400 for these models when the legacy shape is
 		// used. Claude Code falls back to the legacy shape when it cannot
 		// read the upstream model's capability metadata (which is the case
-		// when AI Bridge is in the path).
+		// when AI Gateway is in the path).
 		updated, err = i.reqPayload.convertEnabledThinkingForBedrock()
 		if err != nil {
 			i.logger.Warn(context.Background(), "failed to convert enabled thinking for Bedrock", slog.Error(err))
@@ -436,7 +406,8 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
-	return strings.Contains(model, "anthropic.claude-opus-4-7")
+	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
+		strings.Contains(model, "anthropic.claude-opus-4-8")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta
@@ -576,14 +547,15 @@ func accumulateUsage(dest, src any) {
 // its status code. Returns true if the status was a key-specific
 // failover trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	if i.cfg.KeyPool == nil {
+	cp, ok := intercept.AsCentralizedPool(i.cred)
+	if !ok {
 		return false
 	}
 	var apiErr *anthropic.Error
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return i.cfg.KeyPool.MarkKeyOnStatus(
+	return cp.Pool.MarkKeyOnStatus(
 		ctx, key, apiErr.Response, i.logger,
 	)
 }
@@ -591,6 +563,9 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 // ResponseErrorFromKeyPool translates a *keypool.Error into
 // a developer-facing ResponseError shaped for the Anthropic API.
 func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
+	if keyPoolErr == nil {
+		return nil
+	}
 	switch keyPoolErr.Kind {
 	case keypool.ErrorKindPermanent:
 		return newResponseError(

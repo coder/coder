@@ -668,8 +668,14 @@ func TestWorker_AutoArchiveLoopRunsImmediatelyAndOnTick(t *testing.T) {
 	opts.ArchiveInterval = time.Minute
 	worker := f.newArchiveWorkerWithOptions(t, opts)
 
-	trap := mClock.Trap().NewTicker("chatworker", "auto-archive")
-	defer trap.Close()
+	nowTrap := mClock.Trap().Now("chatworker", "auto-archive")
+	defer nowTrap.Close()
+	tickerTrap := mClock.Trap().NewTicker("chatworker", "auto-archive")
+	defer tickerTrap.Close()
+	tickerStopTrap := mClock.Trap().TickerStop("chatworker", "auto-archive")
+	defer tickerStopTrap.Close()
+	tickerResetTrap := mClock.Trap().TickerReset("chatworker", "auto-archive")
+	defer tickerResetTrap.Close()
 
 	loopCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -678,20 +684,26 @@ func TestWorker_AutoArchiveLoopRunsImmediatelyAndOnTick(t *testing.T) {
 		worker.archiveLoop(loopCtx)
 	}()
 
-	// archiveLoop creates the ticker before the immediate startup tick.
-	trap.MustWait(ctx).MustRelease(ctx)
+	nowTrap.MustWait(ctx).MustRelease(ctx)
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		return f.archived(t, first.ID)
 	}, testutil.IntervalFast, "immediate startup tick should archive the first candidate")
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
 
 	// A second candidate is only archived once the interval ticker fires.
 	second := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
-	mClock.Advance(time.Minute).MustWait(ctx)
+	advanced := mClock.Advance(time.Minute)
+	tickerStopTrap.MustWait(ctx).MustRelease(ctx)
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		return f.archived(t, second.ID)
 	}, testutil.IntervalFast, "interval tick should archive the second candidate")
+	resetCall := tickerResetTrap.MustWait(ctx)
+	require.Equal(t, time.Minute, resetCall.Duration)
+	resetCall.MustRelease(ctx)
+	advanced.MustWait(ctx)
 
 	cancel()
+	tickerStopTrap.MustWait(ctx).MustRelease(ctx)
 	select {
 	case <-done:
 	case <-ctx.Done():

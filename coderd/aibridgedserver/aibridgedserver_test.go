@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,18 +26,22 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1172,7 +1178,7 @@ func TestRecordTokenUsage(t *testing.T) {
 		},
 		[]testRecordMethodCase[*proto.RecordTokenUsageRequest]{
 			{
-				name: "valid token usage",
+				name: "valid token usage with null cost",
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId:        uuid.NewString(),
 					MsgId:                 "msg_123",
@@ -1187,6 +1193,11 @@ func TestRecordTokenUsage(t *testing.T) {
 					interceptionID, err := uuid.Parse(req.GetInterceptionId())
 					assert.NoError(t, err, "parse interception UUID")
 
+					// No budget configured and no price row: tokens recorded
+					// with NULL cost, prices, and group attribution.
+					intc := newTestInterception(interceptionID)
+					expectTokenUsageCostLookups(db, intc, nil, nil, nil)
+
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
 						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
@@ -1196,7 +1207,13 @@ func TestRecordTokenUsage(t *testing.T) {
 							!assert.Equal(t, req.GetCacheReadInputTokens(), p.CacheReadInputTokens, "cache read input tokens") ||
 							!assert.Equal(t, req.GetCacheWriteInputTokens(), p.CacheWriteInputTokens, "cache write input tokens") ||
 							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") ||
-							!assert.WithinDuration(t, req.GetCreatedAt().AsTime(), p.CreatedAt, time.Second, "created at") {
+							!assert.WithinDuration(t, req.GetCreatedAt().AsTime(), p.CreatedAt, time.Second, "created at") ||
+							!assert.False(t, p.EffectiveGroupID.Valid, "effective group ID null") ||
+							!assert.False(t, p.InputPriceMicros.Valid, "input price null") ||
+							!assert.False(t, p.OutputPriceMicros.Valid, "output price null") ||
+							!assert.False(t, p.CacheReadPriceMicros.Valid, "cache read price null") ||
+							!assert.False(t, p.CacheWritePriceMicros.Valid, "cache write price null") ||
+							!assert.False(t, p.CostMicros.Valid, "cost null") {
 							return false
 						}
 						return true
@@ -1217,6 +1234,256 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			{
+				name: "valid token usage with cost",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					groupID := uuid.New()
+					group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000_000_000}
+					price := &database.AIModelPrice{
+						Provider:        intc.Provider,
+						Model:           intc.Model,
+						InputPrice:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+						OutputPrice:     sql.NullInt64{Int64: 6_000_000, Valid: true},
+						CacheReadPrice:  sql.NullInt64{Int64: 300_000, Valid: true},
+						CacheWritePrice: sql.NullInt64{Int64: 4_000_000, Valid: true},
+					}
+					// No override
+					expectTokenUsageCostLookups(db, intc, nil, group, price)
+
+					// input 300 + output 1200 + cache read 15 + cache write 40.
+					const wantCost int64 = 1555
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
+							!assert.Equal(t, price.InputPrice, p.InputPriceMicros, "input price") ||
+							!assert.Equal(t, price.OutputPrice, p.OutputPriceMicros, "output price") ||
+							!assert.Equal(t, price.CacheReadPrice, p.CacheReadPriceMicros, "cache read price") ||
+							!assert.Equal(t, price.CacheWritePrice, p.CacheWritePriceMicros, "cache write price") ||
+							!assert.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, p.CostMicros, "cost") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "valid token usage with user override",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    100,
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					overrideGroupID := uuid.New()
+					override := &database.UserAIBudgetOverride{
+						UserID:           intc.InitiatorID,
+						GroupID:          overrideGroupID,
+						SpendLimitMicros: 1_500_000_000,
+					}
+					price := &database.AIModelPrice{
+						Provider:   intc.Provider,
+						Model:      intc.Model,
+						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
+					}
+					// No group
+					expectTokenUsageCostLookups(db, intc, override, nil, price)
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						// Override group wins.
+						if !assert.Equal(t, uuid.NullUUID{UUID: overrideGroupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
+							!assert.Equal(t, sql.NullInt64{Int64: 300, Valid: true}, p.CostMicros, "cost") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "valid token usage with budget but no price",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					groupID := uuid.New()
+					group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000_000_000}
+					// Budget resolves to a group, but the model has no price row.
+					// The resolved group must survive the price lookup's early
+					// return on sql.ErrNoRows, while prices and cost stay NULL.
+					expectTokenUsageCostLookups(db, intc, nil, group, nil)
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
+							!assert.False(t, p.InputPriceMicros.Valid, "input price null") ||
+							!assert.False(t, p.OutputPriceMicros.Valid, "output price null") ||
+							!assert.False(t, p.CacheReadPriceMicros.Valid, "cache read price null") ||
+							!assert.False(t, p.CacheWritePriceMicros.Valid, "cache write price null") ||
+							!assert.False(t, p.CostMicros.Valid, "cost null") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "valid token usage with price but no budget",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					price := &database.AIModelPrice{
+						Provider:        intc.Provider,
+						Model:           intc.Model,
+						InputPrice:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+						OutputPrice:     sql.NullInt64{Int64: 6_000_000, Valid: true},
+						CacheReadPrice:  sql.NullInt64{Int64: 300_000, Valid: true},
+						CacheWritePrice: sql.NullInt64{Int64: 4_000_000, Valid: true},
+					}
+					// No budget configured, but the model is priced: cost is
+					// computed independently of budget resolution, and the group
+					// attribution stays NULL.
+					expectTokenUsageCostLookups(db, intc, nil, nil, price)
+
+					// input 300 + output 1200 + cache read 15 + cache write 40.
+					const wantCost int64 = 1555
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.False(t, p.EffectiveGroupID.Valid, "effective group ID null") ||
+							!assert.Equal(t, price.InputPrice, p.InputPriceMicros, "input price") ||
+							!assert.Equal(t, price.OutputPrice, p.OutputPriceMicros, "output price") ||
+							!assert.Equal(t, price.CacheReadPrice, p.CacheReadPriceMicros, "cache read price") ||
+							!assert.Equal(t, price.CacheWritePrice, p.CacheWritePriceMicros, "cache write price") ||
+							!assert.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, p.CostMicros, "cost") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "valid token usage with zero prices",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					// A model priced at zero is distinct from an unpriced model:
+					// the price columns and cost are recorded as 0, not NULL.
+					price := &database.AIModelPrice{
+						Provider:        intc.Provider,
+						Model:           intc.Model,
+						InputPrice:      sql.NullInt64{Int64: 0, Valid: true},
+						OutputPrice:     sql.NullInt64{Int64: 0, Valid: true},
+						CacheReadPrice:  sql.NullInt64{Int64: 0, Valid: true},
+						CacheWritePrice: sql.NullInt64{Int64: 0, Valid: true},
+					}
+					expectTokenUsageCostLookups(db, intc, nil, nil, price)
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						zero := sql.NullInt64{Int64: 0, Valid: true}
+						if !assert.Equal(t, zero, p.InputPriceMicros, "input price zero") ||
+							!assert.Equal(t, zero, p.OutputPriceMicros, "output price zero") ||
+							!assert.Equal(t, zero, p.CacheReadPriceMicros, "cache read price zero") ||
+							!assert.Equal(t, zero, p.CacheWritePriceMicros, "cache write price zero") ||
+							// Cost is 0 but recorded (Valid), not NULL.
+							!assert.Equal(t, zero, p.CostMicros, "cost zero") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "valid token usage with all null prices",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					// The price row exists but every price column is NULL. Each
+					// category is treated as zero for cost, so the columns are
+					// recorded as NULL while cost is recorded as 0 (not NULL):
+					// cost's NULL-ness tracks price row presence, not the price
+					// values.
+					price := &database.AIModelPrice{
+						Provider:        intc.Provider,
+						Model:           intc.Model,
+						InputPrice:      sql.NullInt64{Valid: false},
+						OutputPrice:     sql.NullInt64{Valid: false},
+						CacheReadPrice:  sql.NullInt64{Valid: false},
+						CacheWritePrice: sql.NullInt64{Valid: false},
+					}
+					expectTokenUsageCostLookups(db, intc, nil, nil, price)
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.False(t, p.InputPriceMicros.Valid, "input price null") ||
+							!assert.False(t, p.OutputPriceMicros.Valid, "output price null") ||
+							!assert.False(t, p.CacheReadPriceMicros.Valid, "cache read price null") ||
+							!assert.False(t, p.CacheWritePriceMicros.Valid, "cache write price null") ||
+							// Cost is recorded as 0 (Valid), not NULL, because the
+							// price row exists.
+							!assert.Equal(t, sql.NullInt64{Int64: 0, Valid: true}, p.CostMicros, "cost zero") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
 				name: "invalid interception ID",
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId: "not-a-uuid",
@@ -1228,7 +1495,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				expectedErr: "failed to parse interception_id",
 			},
 			{
-				name: "database error",
+				name: "interception lookup error",
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId: uuid.NewString(),
 					MsgId:          "msg_123",
@@ -1237,12 +1504,184 @@ func TestRecordTokenUsage(t *testing.T) {
 					CreatedAt:      timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					// An unexpected interception lookup error fails the record;
+					// no token usage is inserted.
+					db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), interceptionID).
+						Return(database.AIBridgeInterception{}, sql.ErrConnDone)
+				},
+				expectedErr: "get interception",
+			},
+			{
+				name: "price lookup error",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    100,
+					OutputTokens:   200,
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					// An unexpected price lookup error (not sql.ErrNoRows) fails
+					// the record.
+					intc := newTestInterception(interceptionID)
+					db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), interceptionID).Return(intc, nil)
+					db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
+						Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
+					db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).
+						Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
+					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
+						Return(database.AIModelPrice{}, sql.ErrConnDone)
+				},
+				expectedErr: "resolve token usage cost",
+			},
+			{
+				name: "insert error",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId: uuid.NewString(),
+					MsgId:          "msg_123",
+					InputTokens:    100,
+					OutputTokens:   200,
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					expectTokenUsageCostLookups(db, newTestInterception(interceptionID), nil, nil, nil)
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeTokenUsage{}, sql.ErrConnDone)
 				},
 				expectedErr: "insert token usage",
 			},
 		},
 	)
+}
+
+// TestRecordTokenUsageAuthorized exercises RecordTokenUsage end-to-end against a
+// real database through the dbauthz layer as subjectAibridged. This catches missing
+// RBAC grants on the aibridged subject and verifies the cost columns round-trip to storage.
+func TestRecordTokenUsageAuthorized(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	rawDB, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+	// Seed prerequisites via the raw (unauthorized) store. The user belongs to a
+	// group with a budget, so the effective group resolves to that group.
+	org := dbgen.Organization(t, rawDB, database.Organization{})
+	user := dbgen.User(t, rawDB, database.User{})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+	group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+
+	_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: 1_000_000_000,
+	})
+	require.NoError(t, err, "upsert group AI budget")
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+	priceSeed, err := json.Marshal([]map[string]any{{
+		"provider":          provider,
+		"model":             model,
+		"input_price":       3_000_000,
+		"output_price":      6_000_000,
+		"cache_read_price":  300_000,
+		"cache_write_price": 4_000_000,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, priceSeed), "seed model prices")
+
+	intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: user.ID,
+		Provider:    provider,
+		Model:       model,
+	}, nil)
+
+	// The server runs every store call as subjectAibridged via the authzDB.
+	srv, err := aibridgedserver.NewServer(ctx, authzDB, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId:        intc.ID.String(),
+		MsgId:                 "msg_e2e",
+		InputTokens:           100,
+		OutputTokens:          200,
+		CacheReadInputTokens:  50,
+		CacheWriteInputTokens: 10,
+		CreatedAt:             timestamppb.Now(),
+	})
+	require.NoError(t, err, "record token usage")
+
+	// Read the persisted row back via the raw store and verify the snapshot.
+	usages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+	require.NoError(t, err)
+	require.Len(t, usages, 1)
+	got := usages[0]
+
+	require.Equal(t, uuid.NullUUID{UUID: group.ID, Valid: true}, got.EffectiveGroupID, "effective group")
+	require.Equal(t, sql.NullInt64{Int64: 3_000_000, Valid: true}, got.InputPriceMicros, "input price")
+	require.Equal(t, sql.NullInt64{Int64: 6_000_000, Valid: true}, got.OutputPriceMicros, "output price")
+	require.Equal(t, sql.NullInt64{Int64: 300_000, Valid: true}, got.CacheReadPriceMicros, "cache read price")
+	require.Equal(t, sql.NullInt64{Int64: 4_000_000, Valid: true}, got.CacheWritePriceMicros, "cache write price")
+	// input 300 + output 1200 + cache read 15 + cache write 40.
+	require.Equal(t, sql.NullInt64{Int64: 1555, Valid: true}, got.CostMicros, "cost")
+}
+
+// newTestInterception returns an interception with a fixed initiator, provider,
+// and model for cost-attribution test setup.
+func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
+	return database.AIBridgeInterception{
+		ID:          id,
+		InitiatorID: uuid.New(),
+		Provider:    "anthropic",
+		Model:       "claude-sonnet-4-6",
+	}
+}
+
+// expectTokenUsageCostLookups mocks the store lookups made by resolveTokenUsageCost
+// (budget resolution and the price lookup). A nil override, group, or price makes that
+// lookup return sql.ErrNoRows. Budget resolution mirrors production code: a non-nil override
+// wins and skips the group lookup, so group is consulted only when override is nil.
+func expectTokenUsageCostLookups(
+	db *dbmock.MockStore,
+	intc database.AIBridgeInterception,
+	override *database.UserAIBudgetOverride,
+	group *database.GetHighestGroupAIBudgetByUserRow,
+	price *database.AIModelPrice,
+) {
+	db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intc.ID).Return(intc, nil)
+
+	if override != nil {
+		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).Return(*override, nil)
+	} else {
+		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
+			Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
+		if group != nil {
+			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).Return(*group, nil)
+		} else {
+			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).
+				Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
+		}
+	}
+
+	if price != nil {
+		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), database.GetAIModelPriceByProviderModelParams{
+			Provider: intc.Provider,
+			Model:    intc.Model,
+		}).Return(*price, nil)
+	} else {
+		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
+			Return(database.AIModelPrice{}, sql.ErrNoRows)
+	}
 }
 
 func TestRecordPromptUsage(t *testing.T) {
@@ -1722,6 +2161,7 @@ func TestStructuredLogging(t *testing.T) {
 			name:              "RecordTokenUsage_logs_when_enabled",
 			structuredLogging: true,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				expectTokenUsageCostLookups(db, newTestInterception(intcID), nil, nil, nil)
 				db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeTokenUsage{
 					ID:             uuid.New(),
 					InterceptionID: intcID,
@@ -1966,4 +2406,208 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: bID, Valid: true}, intcC.ThreadParentID)
 	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcC.ThreadRootID)
+}
+
+// TestGetAIProviders exercises the row-to-proto mapping over a real database:
+// enabled providers carry their keys (and typed Bedrock settings), disabled
+// providers are included but withhold keys and settings, Copilot (a keyless
+// BYOK provider) round-trips with no keys, and an enabled provider whose
+// settings blob cannot be decoded is skipped rather than failing the fetch.
+func TestGetAIProviders(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// The skipped misconfigured provider is logged at Error level by design,
+	// so error logs are expected here.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// Enabled OpenAI with two keys.
+	openai := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AIProviderTypeOpenai,
+		Name:    "openai",
+		Enabled: true,
+		BaseUrl: "https://api.openai.com/",
+	})
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: openai.ID, APIKey: "sk-openai-1"})
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: openai.ID, APIKey: "sk-openai-2"})
+
+	// Enabled Bedrock with typed settings.
+	bedrockSettings, err := json.Marshal(codersdk.AIProviderSettings{
+		Bedrock: &codersdk.AIProviderBedrockSettings{
+			Region:          "us-east-1",
+			Model:           "anthropic.claude-3",
+			SmallFastModel:  "anthropic.claude-haiku",
+			AccessKey:       ptr.Ref("AKID"),
+			AccessKeySecret: ptr.Ref("secret"),
+			RoleARN:         "arn:aws:iam::123456789012:role/bedrock",
+		},
+	})
+	require.NoError(t, err)
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Type:     database.AIProviderTypeBedrock,
+		Name:     "bedrock",
+		Enabled:  true,
+		BaseUrl:  "https://bedrock-runtime.us-east-1.amazonaws.com/",
+		Settings: sql.NullString{String: string(bedrockSettings), Valid: true},
+	})
+
+	// Enabled Copilot, which is keyless (BYOK per request).
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AIProviderTypeCopilot,
+		Name:    "copilot",
+		Enabled: true,
+		BaseUrl: "https://api.githubcopilot.com/",
+	})
+
+	// Disabled Anthropic with a key; the key must be withheld.
+	disabled := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:    database.AIProviderTypeAnthropic,
+		Name:    "anthropic-off",
+		BaseUrl: "https://api.anthropic.com/",
+	}, func(p *database.InsertAIProviderParams) {
+		p.Enabled = false
+	})
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: disabled.ID, APIKey: "sk-secret"})
+
+	// Enabled provider with an undecodable settings blob; it must be skipped
+	// so one corrupt row does not break provider config for every gateway.
+	dbgen.AIProvider(t, db, database.AIProvider{
+		Type:     database.AIProviderTypeBedrock,
+		Name:     "broken-settings",
+		Enabled:  true,
+		BaseUrl:  "https://bedrock-runtime.us-east-1.amazonaws.com/",
+		Settings: sql.NullString{String: "{not valid json", Valid: true},
+	})
+
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, nil, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	resp, err := srv.GetAIProviders(ctx, &proto.GetAIProvidersRequest{})
+	require.NoError(t, err)
+
+	byName := make(map[string]*proto.AIProvider, len(resp.GetProviders()))
+	for _, p := range resp.GetProviders() {
+		byName[p.GetName()] = p
+	}
+	require.Len(t, byName, 4)
+	assert.NotContains(t, byName, "broken-settings", "provider with undecodable settings must be skipped")
+
+	gotOpenAI := byName["openai"]
+	require.NotNil(t, gotOpenAI)
+	assert.True(t, gotOpenAI.GetEnabled())
+	assert.Equal(t, string(database.AIProviderTypeOpenai), gotOpenAI.GetType())
+	assert.Equal(t, "https://api.openai.com/", gotOpenAI.GetBaseUrl())
+	assert.ElementsMatch(t, []string{"sk-openai-1", "sk-openai-2"}, gotOpenAI.GetKeys())
+	assert.Nil(t, gotOpenAI.GetBedrock())
+
+	gotBedrock := byName["bedrock"]
+	require.NotNil(t, gotBedrock)
+	assert.True(t, gotBedrock.GetEnabled())
+	require.NotNil(t, gotBedrock.GetBedrock())
+	assert.Equal(t, "us-east-1", gotBedrock.GetBedrock().GetRegion())
+	assert.Equal(t, "anthropic.claude-3", gotBedrock.GetBedrock().GetModel())
+	assert.Equal(t, "anthropic.claude-haiku", gotBedrock.GetBedrock().GetSmallFastModel())
+	assert.Equal(t, "AKID", gotBedrock.GetBedrock().GetAccessKey())
+	assert.Equal(t, "secret", gotBedrock.GetBedrock().GetAccessKeySecret())
+	assert.Equal(t, "arn:aws:iam::123456789012:role/bedrock", gotBedrock.GetBedrock().GetRoleArn())
+
+	gotCopilot := byName["copilot"]
+	require.NotNil(t, gotCopilot)
+	assert.True(t, gotCopilot.GetEnabled())
+	assert.Empty(t, gotCopilot.GetKeys())
+
+	gotDisabled := byName["anthropic-off"]
+	require.NotNil(t, gotDisabled)
+	assert.False(t, gotDisabled.GetEnabled())
+	assert.Empty(t, gotDisabled.GetKeys(), "keys must be withheld for disabled providers")
+	assert.Nil(t, gotDisabled.GetBedrock())
+}
+
+// TestGetAIProvidersBlocksOnSeedLock asserts that GetAIProviders serializes on
+// LockIDAIProvidersEnvSeed: while an in-flight seed transaction holds the lock,
+// the fetch blocks, and once the seed commits the fetch returns the seeded
+// set. Postgres advisory locks are required, so this cannot run against the
+// mock store.
+func TestGetAIProvidersBlocksOnSeedLock(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil)
+
+	dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type:    database.AIProviderTypeOpenai,
+		Name:    "openai",
+		Enabled: true,
+		BaseUrl: "https://api.openai.com/",
+	}, "sk-openai")
+
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, nil, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	// Simulate an in-flight env seed holding the advisory lock until released.
+	holderReady := make(chan struct{})
+	releaseHolder := make(chan struct{})
+	holderDone := make(chan struct{})
+	go func() {
+		defer close(holderDone)
+		txErr := db.InTx(func(tx database.Store) error {
+			if err := tx.AcquireLock(ctx, database.LockIDAIProvidersEnvSeed); err != nil {
+				return err
+			}
+			close(holderReady)
+			<-releaseHolder
+			return nil
+		}, nil)
+		assert.NoError(t, txErr)
+	}()
+
+	testutil.TryReceive(ctx, t, holderReady)
+
+	fetchDone := make(chan *proto.GetAIProvidersResponse, 1)
+	fetchErr := make(chan error, 1)
+	go func() {
+		resp, err := srv.GetAIProviders(ctx, &proto.GetAIProvidersRequest{})
+		fetchErr <- err
+		fetchDone <- resp
+	}()
+
+	// Wait until the fetch goroutine is observably blocked waiting on the seed
+	// advisory lock, rather than inferring it from a fixed delay. AcquireLock
+	// uses the single-bigint advisory lock form, so the waiter appears in
+	// pg_locks as an ungranted "advisory" row whose objid is the low 32 bits of
+	// the lock ID. Asserting the wait directly stops this from passing vacuously
+	// if the goroutine has not yet reached the lock.
+	require.Eventually(t, func() bool {
+		locks, err := db.PGLocks(ctx)
+		if err != nil {
+			return false
+		}
+		for _, l := range locks {
+			if l.LockType != nil && *l.LockType == "advisory" && !l.Granted &&
+				l.ObjID != nil && *l.ObjID == strconv.Itoa(database.LockIDAIProvidersEnvSeed) {
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitShort, testutil.IntervalFast, "fetch must block waiting on the seed advisory lock")
+
+	// With the fetch proven to be blocked on the lock, it must not have
+	// completed while the lock is still held.
+	select {
+	case <-fetchDone:
+		t.Fatal("GetAIProviders returned before the seed lock was released")
+	default:
+	}
+
+	// Release the lock; the fetch should now complete and return the seeded set.
+	close(releaseHolder)
+	testutil.TryReceive(ctx, t, holderDone)
+
+	require.NoError(t, testutil.TryReceive(ctx, t, fetchErr))
+	resp := testutil.TryReceive(ctx, t, fetchDone)
+	require.Len(t, resp.GetProviders(), 1)
+	assert.Equal(t, "openai", resp.GetProviders()[0].GetName())
+	assert.Equal(t, []string{"sk-openai"}, resp.GetProviders()[0].GetKeys())
 }

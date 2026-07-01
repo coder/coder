@@ -11,14 +11,49 @@ import (
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// DefaultMaxPending is the per-client outbound pending byte budget.
-const DefaultMaxPending int64 = 128 << 20
+// DefaultServerMaxPendingBytes caps how many bytes the embedded NATS server will
+// hold in memory for a single client connection while waiting to write
+// them out to that connection. Each message the server needs to deliver
+// to a connection is queued in that connection's outbound buffer until
+// the socket can accept it; if the consumer reads slower than messages
+// arrive, the buffer grows. When it exceeds this cap, NATS declares the
+// connection a slow consumer and drops messages rather than buffer
+// without bound.
+//
+// The connection that fills this buffer in practice is the subscribe
+// connection: the server writes every message bound for a replica's
+// local subscribers out over its subscribe connection pool, which
+// defaults to a single connection. In a cluster, cross-node fan-out
+// therefore concentrates all of a replica's inbound deliveries on that
+// one connection's outbound buffer. Benchmarking high-fanout cluster
+// workloads (10 subjects, 10 publishers, 50 subscribers) showed the 128
+// MiB default overflowing and dropping 10-15% of deliveries, while 256
+// MiB and above dropped none; 512 MiB is chosen for headroom.
+//
+// This is a ceiling, not a reservation: the buffer grows only with
+// actual backlog, so a connection that keeps up holds nearly nothing and
+// raising the cap costs memory only during the overload bursts it
+// absorbs.
+const DefaultServerMaxPendingBytes int64 = 512 << 20
+
+// DefaultClientMaxPendingBytes is the pending byte limit applied via
+// SetPendingLimits to each coalesced *natsgo.Subscription when
+// PendingLimits.Bytes is zero. Unlike DefaultServerMaxPendingBytes,
+// which bounds the server-side outbound buffer for a whole connection,
+// this bounds the nats.go client's per-subscription pending buffer:
+// messages the client has received from the server but the
+// subscription's async message handler has not yet dispatched. When
+// that handler falls behind and the buffer overflows, NATS marks the
+// subscription a slow consumer and drops messages, which the package
+// surfaces as pubsub.ErrDroppedMessages.
+const DefaultClientMaxPendingBytes = 512 * 1024 * 1024
 
 const (
 	defaultClusterName   = "coder"
@@ -31,9 +66,9 @@ var errClosed = xerrors.New("nats pubsub closed")
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
 type PendingLimits struct {
-	// Msgs is the per-subscription pending message limit. Positive
-	// values also set each local listener queue capacity.
-	// Zero uses the package default. Negative disables this limit.
+	// Msgs is the per-subscription pending message limit. Zero or
+	// negative disables the message limit, leaving the byte limit
+	// (PendingLimits.Bytes) as the only per-subscription bound.
 	Msgs int
 
 	// Bytes is the per-subscription pending byte limit.
@@ -78,7 +113,8 @@ type Options struct {
 	ClusterHost string
 
 	// ClusterPort is the embedded NATS route listener port. Zero means
-	// 6222 when cluster mode is enabled.
+	// 6222 when cluster mode is enabled. NATS `server.RANDOM_PORT` can be
+	// used to select a random port.
 	ClusterPort int
 
 	// ClusterAuthToken is the shared route authentication token for
@@ -149,6 +185,8 @@ type Pubsub struct {
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
+
+	metrics *metrics
 }
 
 // groupSub maps to one underlying *natsgo.Subscription. The first
@@ -156,7 +194,10 @@ type Pubsub struct {
 // When the last local subscriber detaches, the NATS subscription is
 // unsubscribed.
 type groupSub struct {
-	event string
+	// metrics records received-message metrics from handleMessage. It is
+	// the only part of the owning Pubsub that a groupSub needs.
+	metrics *metrics
+	event   string
 	// mu guards localSubs.
 	mu sync.Mutex
 	// localSubs are the local subscribers attached to this NATS subscription.
@@ -180,6 +221,21 @@ type localSub struct {
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
 var _ pubsub.Pubsub = (*Pubsub)(nil)
 
+// Compile-time assertion that *Pubsub is a prometheus.Collector.
+var _ prometheus.Collector = (*Pubsub)(nil)
+
+// Describe implements prometheus.Collector.
+func (p *Pubsub) Describe(descs chan<- *prometheus.Desc) {
+	p.metrics.describe(descs)
+}
+
+// Collect implements prometheus.Collector. The subscriber and event
+// gauges are maintained as atomic counters by metrics, so Collect does
+// not lock the Pubsub.
+func (p *Pubsub) Collect(ch chan<- prometheus.Metric) {
+	p.metrics.collect(ch, p)
+}
+
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx.
 func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 	ctx, cancel := context.WithCancel(ctx)
@@ -191,6 +247,7 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		cancel:        cancel,
 		peerFetcher:   opts.PeerFetcher,
 		peerRefresh:   make(chan struct{}, 1),
+		metrics:       newMetrics(logger),
 	}
 }
 
@@ -202,7 +259,7 @@ func defaultPendingLimits(in PendingLimits) PendingLimits {
 		out.Msgs = -1
 	}
 	if out.Bytes == 0 {
-		out.Bytes = 512 * 1024 * 1024
+		out.Bytes = DefaultClientMaxPendingBytes
 	}
 	return out
 }
@@ -216,10 +273,12 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 			if err != nil {
 				p.logger.Warn(p.ctx, "nats client disconnected", slog.Error(err))
 			}
+			p.metrics.onDisconnect()
 			p.signalSubscribersDroppedForConn(conn)
 		},
 		reconnect: func(_ *natsgo.Conn) {
 			p.logger.Info(p.ctx, "nats client reconnected")
+			p.metrics.onReconnect()
 		},
 		closed: func(_ *natsgo.Conn) {
 			p.logger.Debug(p.ctx, "nats client closed")
@@ -239,7 +298,7 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // New creates an embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
-func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
+func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub, retErr error) {
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
@@ -249,6 +308,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			ns.Shutdown()
+			ns.WaitForShutdown()
+		}
+	}()
 
 	logger.Info(context.Background(), "embedded nats server started",
 		slog.F("client_url", ns.ClientURL()),
@@ -259,6 +324,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	}
 
 	p := newPubsub(ctx, logger, opts)
+	defer func() {
+		if retErr != nil {
+			p.cancel()
+		}
+	}()
 	p.Server = ns
 	p.clustered = !opts.disableCluster
 	p.serverOpts = sopts.Clone()
@@ -267,27 +337,43 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")
 	if err != nil {
-		p.cancel()
-		ns.Shutdown()
-		ns.WaitForShutdown()
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			for _, c := range publishPool {
+				c.Close()
+			}
+		}
+	}()
+	p.publishPool = publishPool
 
 	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
-		p.cancel()
-		for _, c := range publishPool {
-			c.Close()
-		}
-		ns.Shutdown()
-		ns.WaitForShutdown()
 		return nil, err
 	}
-
-	p.publishPool = publishPool
+	defer func() {
+		if retErr != nil {
+			for _, c := range subscribePool {
+				c.Close()
+			}
+		}
+	}()
 	p.subscribePool = subscribePool
+	// All owned connections dialed successfully above.
+	p.metrics.markConnected(len(publishPool) + len(subscribePool))
 
 	if p.clustered {
+		ca := ns.ClusterAddr()
+		if ca == nil {
+			return nil, xerrors.New("no cluster address")
+		}
+		// sec checks, just to be sure
+		if ca.Port < 0 || ca.Port > 65535 {
+			return nil, xerrors.Errorf("invalid cluster port: %d", ca.Port)
+		}
+		//nolint:gosec // range checked above so conversion is safe.
+		opts.PeerFetcher.SetSelfNATSPort(int32(ca.Port))
 		go p.runPeerRefresh()
 	}
 	go func() {
@@ -327,12 +413,15 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 // same-subject publishes preserve per-subject ordering.
 func (p *Pubsub) Publish(event string, message []byte) error {
 	if p.ctx.Err() != nil {
+		p.metrics.recordPublishFailure()
 		return errClosed
 	}
 
 	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
+		p.metrics.recordPublishFailure()
 		return xerrors.Errorf("publish: %w", err)
 	}
+	p.metrics.recordPublishSuccess(len(message))
 	return nil
 }
 
@@ -384,7 +473,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		defer p.mu.Unlock()
 
 		if p.ctx.Err() != nil {
-			return nil, erroredGroupSub(errClosed)
+			return nil, erroredGroupSub(p.metrics, errClosed)
 		}
 
 		var (
@@ -394,6 +483,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		gSub, ok = p.subscriptions[event]
 		if !ok {
 			gSub = &groupSub{
+				metrics:   p.metrics,
 				event:     event,
 				localSubs: make(map[*localSub]struct{}),
 				sub: &subGetter{
@@ -402,6 +492,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 			}
 			go p.subscribeGroup(gSub)
 			p.subscriptions[event] = gSub
+			p.metrics.addEvent()
 		}
 		lSub := &localSub{
 			event: event,
@@ -414,8 +505,17 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 	}()
 
 	if _, err := g.sub.get(); err != nil {
+		p.metrics.recordSubscribeFailure()
+		// A failed subscribe was never counted (we increment only on
+		// success below), so there is nothing to undo here.
 		return nil, err
 	}
+	p.metrics.recordSubscribeSuccess()
+	// Count the subscriber once the NATS subscription is established. The
+	// matching decrement is in closeLocalSubFunc when the localSub is
+	// removed. A mid-subscribe Close may decrement without a matching
+	// increment, but the gauge is irrelevant once we are shutting down.
+	p.metrics.addSubscriber()
 	return p.closeLocalSubFunc(l, g), nil
 }
 
@@ -512,6 +612,10 @@ func (p *Pubsub) handleSlowSubscriber(nsub *groupSub) {
 // Close does not drain queued listener messages.
 func (p *Pubsub) Close() error {
 	p.closeOnce.Do(func() {
+		// Report disconnected immediately. The owned connections are
+		// closed below without firing the disconnect handler, so nothing
+		// else resets the gauge during shutdown.
+		p.metrics.markClosed()
 		p.mu.Lock()
 		p.logger.Debug(p.ctx, "closing pubsub")
 		// Cancel while holding p.mu so subscriber state cleanup below
@@ -581,6 +685,7 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 		l.queue.Close()
 
 		delete(g.localSubs, l)
+		p.metrics.removeSubscriber()
 		logger.Debug(context.Background(), "removed local sub from group", slog.F("group_size", len(g.localSubs)))
 		if len(g.localSubs) > 0 {
 			return // Not last one out
@@ -594,6 +699,7 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 		}()
 		if pSub, ok := p.subscriptions[l.event]; ok && g == pSub {
 			delete(p.subscriptions, l.event)
+			p.metrics.removeEvent()
 		}
 	}
 }
@@ -608,6 +714,7 @@ func (p *Pubsub) subscribeGroup(g *groupSub) {
 			defer p.mu.Unlock()
 			if psub := p.subscriptions[g.event]; psub == g {
 				delete(p.subscriptions, g.event)
+				p.metrics.removeEvent()
 			}
 		}
 		close(g.sub.subscribeDone)
@@ -676,10 +783,11 @@ func pickConn(pool []conn, subject string) conn {
 }
 
 // erroredGroupSub returns a groupSub that shows an error rather than an active subscription.
-func erroredGroupSub(err error) *groupSub {
+func erroredGroupSub(m *metrics, err error) *groupSub {
 	c := make(chan struct{})
 	close(c)
 	return &groupSub{
+		metrics: m,
 		sub: &subGetter{
 			subscribeDone: c,
 			err:           err,
@@ -695,6 +803,7 @@ func erroredGroupSub(err error) *groupSub {
 // local listener without cloning. Listeners on a coalesced subject MUST
 // treat the delivered bytes as immutable.
 func (g *groupSub) handleMessage(msg *natsgo.Msg) {
+	g.metrics.recordReceived(msg.Data)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for l := range g.localSubs {

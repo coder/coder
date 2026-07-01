@@ -30,7 +30,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -65,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -116,6 +116,58 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
+
+// oidcAuthLinks validates and can repair any broken OIDC auth links from changes in
+// OIDC providers. This function should avoid returning a fatal error as much as possible.
+// If this function fails, it should just log the error and exit.
+func oidcAuthLinks(ctx context.Context, logger slog.Logger, cli *http.Client, vals *codersdk.DeploymentValues, db database.Store) error {
+	// nolint:gocritic // Requires system privileges
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	expectedIssuer, err := authlink.ResolveIssuer(ctx, cli, vals.OIDC.IssuerURL.String())
+	if err != nil {
+		// Always log if there is a failure here
+		logger.Error(ctx, "unable to resolve OIDC 'issuer'",
+			slog.F("error", err.Error()),
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+		)
+		return nil
+	}
+
+	analysis, err := authlink.AnalyzeOIDCLinks(ctx, db, expectedIssuer)
+	if err != nil {
+		// Do not make this error fatal
+		logger.Error(ctx, "unable to analyze OIDC links, OIDC user links cannot be verified as linked to this issuer",
+			slog.F("error", err.Error()),
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+			slog.F("issuer", expectedIssuer),
+		)
+		return nil
+	}
+
+	if !vals.OIDC.AutoRepairLinks.Value() {
+		return nil
+	}
+
+	// Repair any broken OIDC links
+	if analysis.MismatchedTotal() > 0 {
+		count, err := authlink.ResetMismatchedOIDCLinks(ctx, db, expectedIssuer)
+		if err != nil {
+			logger.Error(ctx, "unable to reset mismatched OIDC links",
+				slog.F("error", err.Error()),
+				slog.F("url", vals.OIDC.IssuerURL.String()),
+				slog.F("issuer", expectedIssuer),
+			)
+			return nil
+		}
+
+		logger.Info(ctx, "oidc users OIDC links reset",
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+			slog.F("issuer", expectedIssuer),
+			slog.F("count", count),
+		)
+	}
+	return nil
+}
 
 func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
@@ -228,6 +280,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		IconURL:             vals.OIDC.IconURL.String(),
 		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
 		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:       vals.OIDC.EmailFallback.Value(),
 	}, nil
 }
 
@@ -720,29 +773,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			// As OIDC clients can be confidential or public,
-			// we should only check for a client id being set.
-			// The underlying library handles the case of no
-			// client secrets correctly. For more details on
-			// client types: https://oauth.net/2/client-types/
-			if vals.OIDC.ClientID != "" {
-				if vals.OIDC.IgnoreEmailVerified {
-					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
-				}
-
-				// This OIDC config is **not** being instrumented with the
-				// oauth2 instrument wrapper. If we implement the missing
-				// oidc methods, then we can instrument it.
-				// Missing:
-				//	- Userinfo
-				//	- Verify
-				oc, err := createOIDCConfig(ctx, options.Logger, vals)
-				if err != nil {
-					return xerrors.Errorf("create oidc config: %w", err)
-				}
-				options.OIDCConfig = oc
-			}
-
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
@@ -792,7 +822,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Use NATS for pubsub if the experiment is enabled.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
-				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
 				})
 				if err != nil {
@@ -800,6 +830,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
+
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(natsps)
+				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
@@ -836,6 +870,35 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}, nil)
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
+			}
+
+			// As OIDC clients can be confidential or public,
+			// we should only check for a client id being set.
+			// The underlying library handles the case of no
+			// client secrets correctly. For more details on
+			// client types: https://oauth.net/2/client-types/
+			if vals.OIDC.ClientID != "" {
+				if vals.OIDC.IgnoreEmailVerified {
+					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
+				}
+
+				// This OIDC config is **not** being instrumented with the
+				// oauth2 instrument wrapper. If we implement the missing
+				// oidc methods, then we can instrument it.
+				// Missing:
+				//	- Userinfo
+				//	- Verify
+				oc, err := createOIDCConfig(ctx, options.Logger, vals)
+				if err != nil {
+					return xerrors.Errorf("create oidc config: %w", err)
+				}
+				options.OIDCConfig = oc
+
+				// Repair any existing broken OIDC
+				err = oidcAuthLinks(ctx, logger, httpClient, vals, options.Database)
+				if err != nil {
+					return xerrors.Errorf("oidc auth links: %w", err)
+				}
 			}
 
 			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
@@ -926,6 +989,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,
 				DeploymentConfig: deploymentConfigWithoutSecrets,
+				// SCIMAPIKey is a secret and is scrubbed by WithoutSecrets above,
+				// so we derive SCIMEnabled from vals (pre-scrub) instead.
+				SCIMEnabled:   vals.SCIMAPIKey != "",
+				SCIMUseLegacy: vals.UseLegacySCIM.Value(),
 				ParseLicenseJWT: func(lic *telemetry.License) error {
 					// This will be nil when running in AGPL-only mode.
 					if options.ParseLicenseClaims == nil {
@@ -1056,20 +1123,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
-			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
 			// in AGPL builds it does not exist at all. The daemon starts here
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				aibridgeReg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
+				// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
+				// See AIGOV-447:
+				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
+				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
-				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
-				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
-				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1427,6 +1493,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 	regenerateVapidKeypairCmd := r.newRegenerateVapidKeypairCommand()
+	fixOIDCLinksCmd := r.newFixOIDCLinksCommand()
 
 	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
@@ -1440,7 +1507,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	serverCmd.Children = append(
 		serverCmd.Children,
-		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd, fixOIDCLinksCmd,
 	)
 
 	return serverCmd
@@ -2337,10 +2404,10 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// in CI and cause flaky tests.
 	maxAttempts := 1
 	_, err = cfg.PostgresPort().Read()
-	// Important: if retryPortDiscovery is changed to not include testing.Testing(),
+	// Important: if retryPortDiscovery is changed to not include flag.Lookup("test.v") != nil,
 	// the retry logic below also needs to be updated to ensure we don't delete an
 	// existing database
-	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
+	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && flag.Lookup("test.v") != nil
 	if retryPortDiscovery {
 		maxAttempts = 10
 	}

@@ -4,7 +4,7 @@
 
 <div class="tabs">
 
-To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix).
+To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](../../../flake.nix).
 Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Nix
@@ -56,7 +56,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Without Nix
 
-If you're not using the Nix environment, you can launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer) to get a fully configured development environment.
+If you're not using the Nix environment, you can launch a local [DevContainer](../../../.devcontainer) to get a fully configured development environment.
 
 DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, `mise`, and `make`.
 
@@ -114,7 +114,7 @@ the Makefile trigger the full targets as before.
    ./scripts/coder-dev.sh list
       ```
 
-   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
+   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](../../../scripts/develop.sh) script for issues.
 
    > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
@@ -212,7 +212,7 @@ be applied selectively or to discourage anyone from contributing.
 ## Releases
 
 Coder releases are managed entirely through the
-[`release.yaml`](https://github.com/coder/coder/blob/main/.github/workflows/release.yaml)
+[`release.yaml`](../../../.github/workflows/release.yaml)
 GitHub Actions workflow, triggered manually via "Run workflow" in the Actions
 tab. Release notes are automatically generated from commit titles and PR
 metadata.
@@ -293,7 +293,7 @@ changes are within that directory. If changes span multiple top-level
 directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
-[If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
+[If applied, this commit will ...](https://cbea.ms/git-commit/).
 
 **Note:** We lint PR titles to ensure they follow the Conventional Commits
 specification, however, it's still possible to merge PRs on GitHub with a badly
@@ -304,7 +304,7 @@ to use the original commit title instead of the PR title.
 
 When a merged PR on `main` should also ship in older releases, add the
 `backport` label to the PR. The
-[backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
+[backport workflow](../../../.github/workflows/backport.yaml)
 will automatically detect the latest three `release/*` branches,
 cherry-pick the merge commit onto each one, and open PRs for
 review.

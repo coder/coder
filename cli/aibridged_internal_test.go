@@ -3,17 +3,22 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
+	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -24,10 +29,12 @@ import (
 
 // buildFromEnv exercises the same env-config-in/providers-out path that
 // production uses on boot: SeedAIProvidersFromEnv writes the env-derived
-// rows to the database, and BuildProviders reads them back as runtime
-// [aibridge.Provider] instances. This keeps the existing TestBuildProviders
-// table intact while reflecting the post-refactor flow where the database
-// is the single source of truth.
+// rows to the database, the server's GetAIProviders handler reads them back
+// over the (post-refactor) DB-read path and maps them to proto, and
+// BuildProvidersFromProto constructs the runtime [aibridge.Provider]
+// instances. This keeps the existing TestBuildProviders table intact while
+// reflecting the post-refactor flow where the database is the single source
+// of truth and the gateway fetches providers over DRPC.
 func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	t.Helper()
 	db, _ := dbtestutil.NewDB(t)
@@ -36,8 +43,26 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 	if err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, logger); err != nil {
 		return nil, err
 	}
-	providers, _, err := BuildProviders(ctx, db, cfg, logger, nil)
+	providers, _, err := buildFromDB(ctx, t, db, cfg, logger)
 	return providers, err
+}
+
+// buildFromDB runs the production fetch path against a database: it calls the
+// server's GetAIProviders handler (DB read + proto mapping) and then
+// BuildProvidersFromProto (proto -> runtime providers), returning the same
+// (providers, outcomes) the embedded reloader would observe.
+func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
+	t.Helper()
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", cfg, nil, nil, agplaiseats.Noop{})
+	if err != nil {
+		return nil, nil, err
+	}
+	resp, err := srv.GetAIProviders(ctx, &proto.GetAIProvidersRequest{})
+	if err != nil {
+		return nil, nil, err
+	}
+	providers, outcomes := BuildProvidersFromProto(ctx, resp.GetProviders(), cfg, logger, nil)
+	return providers, outcomes, nil
 }
 
 func TestBuildProviders(t *testing.T) {
@@ -160,7 +185,7 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("LegacyBedrockWithoutAnthropicKey", func(t *testing.T) {
 		t.Parallel()
 		// Bedrock credentials alone should be enough to create an
-		// Anthropic provider — no CODER_AIBRIDGE_ANTHROPIC_KEY needed.
+		// Anthropic provider. No CODER_AIBRIDGE_ANTHROPIC_KEY needed.
 		cfg := codersdk.AIBridgeConfig{}
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
@@ -243,7 +268,7 @@ func TestBuildProviders(t *testing.T) {
 			Name:    aibridge.ProviderAnthropic,
 			BaseUrl: "https://api.anthropic.com/",
 		}
-		assert.Nil(t, bedrockConfigFromRow(row, codersdk.AIProviderSettings{}))
+		assert.Nil(t, bedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
 	})
 
 	t.Run("NativeAnthropicCustomBaseURL", func(t *testing.T) {
@@ -253,7 +278,7 @@ func TestBuildProviders(t *testing.T) {
 			Name:    "anthropic-proxy",
 			BaseUrl: "https://internal-proxy.example.com/anthropic/",
 		}
-		assert.Nil(t, bedrockConfigFromRow(row, codersdk.AIProviderSettings{}))
+		assert.Nil(t, bedrockConfig(row.BaseUrl, codersdk.AIProviderSettings{}.Bedrock))
 	})
 
 	t.Run("BedrockSettingsPresent", func(t *testing.T) {
@@ -267,6 +292,7 @@ func TestBuildProviders(t *testing.T) {
 			Name:    "anthropic-bedrock",
 			BaseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com/",
 		}
+		roleARN := "arn:aws:iam::123456789012:role/BedrockRole"
 		settings := codersdk.AIProviderSettings{
 			Bedrock: &codersdk.AIProviderBedrockSettings{
 				Region:          "us-west-2",
@@ -274,9 +300,10 @@ func TestBuildProviders(t *testing.T) {
 				AccessKeySecret: &secret,
 				Model:           model,
 				SmallFastModel:  smallModel,
+				RoleARN:         roleARN,
 			},
 		}
-		got := bedrockConfigFromRow(row, settings)
+		got := bedrockConfig(row.BaseUrl, settings.Bedrock)
 		require.NotNil(t, got)
 		assert.Equal(t, row.BaseUrl, got.BaseURL)
 		assert.Equal(t, "us-west-2", got.Region)
@@ -284,6 +311,7 @@ func TestBuildProviders(t *testing.T) {
 		assert.Equal(t, secret, got.AccessKeySecret)
 		assert.Equal(t, model, got.Model)
 		assert.Equal(t, smallModel, got.SmallFastModel)
+		assert.Equal(t, roleARN, got.RoleARN)
 	})
 
 	t.Run("BedrockSettingsEmpty", func(t *testing.T) {
@@ -299,7 +327,7 @@ func TestBuildProviders(t *testing.T) {
 		settings := codersdk.AIProviderSettings{
 			Bedrock: &codersdk.AIProviderBedrockSettings{},
 		}
-		assert.Nil(t, bedrockConfigFromRow(row, settings))
+		assert.Nil(t, bedrockConfig(row.BaseUrl, settings.Bedrock))
 	})
 }
 
@@ -325,13 +353,14 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			Settings: sql.NullString{String: "not-json", Valid: true},
 		})
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
+		// A row whose settings blob cannot be decoded is dropped server-side
+		// in GetAIProviders, so it never reaches the client: no provider and
+		// no outcome. This keeps one corrupt row from breaking the fetch (and
+		// thus provider configuration) for every gateway.
+		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
-		require.Len(t, outcomes, 1)
-		assert.Equal(t, "anthropic-broken", outcomes[0].Name)
-		assert.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
-		assert.Error(t, outcomes[0].Err)
+		assert.Empty(t, outcomes)
 	})
 
 	t.Run("EnabledButNoKeys", func(t *testing.T) {
@@ -349,7 +378,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			BaseUrl: "https://example.openai.azure.com/",
 		})
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
+		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 		require.Len(t, outcomes, 1)
@@ -362,11 +391,13 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
+		// An enabled provider with no keys (and BYOK disabled) fails to build
+		// on the client side, yielding a ProviderStatusError outcome. It must
+		// not prevent the good provider from being built.
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:     database.AIProviderTypeAnthropic,
-			Name:     "anthropic-broken",
-			BaseUrl:  "https://api.anthropic.com/",
-			Settings: sql.NullString{String: "{not valid json", Valid: true},
+			Type:    database.AIProviderTypeAzure,
+			Name:    "azure-broken",
+			BaseUrl: "https://example.openai.azure.com/",
 		})
 		good := dbgen.AIProvider(t, db, database.AIProvider{
 			Type:    database.AIProviderTypeOpenai,
@@ -378,7 +409,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			APIKey:     "sk-good",
 		})
 
-		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
+		providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		assert.Equal(t, "openai-good", providers[0].Name())
@@ -387,7 +418,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		for _, o := range outcomes {
 			byName[o.Name] = o
 		}
-		assert.Equal(t, aibridged.ProviderStatusError, byName["anthropic-broken"].Status)
+		assert.Equal(t, aibridged.ProviderStatusError, byName["azure-broken"].Status)
 		assert.Equal(t, aibridged.ProviderStatusEnabled, byName["openai-good"].Status)
 	})
 
@@ -436,7 +467,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 					p.Enabled = false
 				})
 
-				providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
+				providers, outcomes, err := buildFromDB(ctx, t, db, codersdk.AIBridgeConfig{}, logger)
 				require.NoError(t, err)
 				require.Len(t, providers, 1, "disabled providers stay in the snapshot so the bridge can serve a 503 sentinel")
 				assert.Equal(t, tc.row.Name, providers[0].Name())

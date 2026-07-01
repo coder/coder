@@ -2,12 +2,12 @@
 package db2sdk
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -576,8 +576,8 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	if node != nil {
 		workspaceAgent.DERPLatency = map[string]codersdk.DERPRegion{}
 		for rawRegion, latency := range node.DERPLatency {
-			regionParts := strings.SplitN(rawRegion, "-", 2)
-			regionID, err := strconv.Atoi(regionParts[0])
+			regionIDStr, _, _ := strings.Cut(rawRegion, "-")
+			regionID, err := strconv.Atoi(regionIDStr)
 			if err != nil {
 				return codersdk.WorkspaceAgent{}, xerrors.Errorf("convert derp region id %q: %w", rawRegion, err)
 			}
@@ -667,14 +667,12 @@ func AppSubdomain(dbApp database.WorkspaceApp, agentName, workspaceName, ownerNa
 }
 
 func Apps(dbApps []database.WorkspaceApp, statuses []database.WorkspaceAppStatus, agent database.WorkspaceAgent, ownerName string, workspace database.WorkspaceTable) []codersdk.WorkspaceApp {
-	sort.Slice(dbApps, func(i, j int) bool {
-		if dbApps[i].DisplayOrder != dbApps[j].DisplayOrder {
-			return dbApps[i].DisplayOrder < dbApps[j].DisplayOrder
-		}
-		if dbApps[i].DisplayName != dbApps[j].DisplayName {
-			return dbApps[i].DisplayName < dbApps[j].DisplayName
-		}
-		return dbApps[i].Slug < dbApps[j].Slug
+	slices.SortFunc(dbApps, func(a, b database.WorkspaceApp) int {
+		return cmp.Or(
+			cmp.Compare(a.DisplayOrder, b.DisplayOrder),
+			cmp.Compare(a.DisplayName, b.DisplayName),
+			cmp.Compare(a.Slug, b.Slug),
+		)
 	})
 
 	statusesByAppID := map[uuid.UUID][]database.WorkspaceAppStatus{}
@@ -806,8 +804,8 @@ func RecentProvisionerDaemons(now time.Time, staleInterval time.Duration, daemon
 	}
 
 	// Ensure stable order for display and for tests
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Name < results[j].Name
+	slices.SortFunc(results, func(a, b codersdk.ProvisionerDaemon) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return results
@@ -1273,6 +1271,14 @@ func buildAIBridgeThread(
 		// only store the last prompt observed in an interception.
 		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
 			thread.Prompt = &prompts[0].Prompt
+		}
+		if rootIntc.AgentFirewallSessionID.Valid {
+			id := rootIntc.AgentFirewallSessionID.UUID
+			thread.AgentFirewallSessionID = &id
+		}
+		if rootIntc.AgentFirewallSequenceNumber.Valid {
+			n := rootIntc.AgentFirewallSequenceNumber.Int32
+			thread.AgentFirewallSequenceNumber = &n
 		}
 	}
 
@@ -1744,16 +1750,18 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 			})
 		}
 	}
-	if c.LastInjectedContext.Valid {
-		var parts []codersdk.ChatMessagePart
-		// Internal fields are stripped at write time in
-		// chatd.updateLastInjectedContext, so no
-		// StripInternal call is needed here. Unmarshal
-		// errors are suppressed — the column is written by
-		// us with a known schema.
-		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
-			chat.LastInjectedContext = parts
+	// Report pinned-context state when the chat is context-tracked
+	// (has a pinned hash), dirty, or carries a snapshot error.
+	if len(c.ContextAggregateHash) > 0 || c.ContextDirtySince.Valid || c.ContextError != "" {
+		chatContext := &codersdk.ChatContext{
+			Dirty: c.ContextDirtySince.Valid,
+			Error: c.ContextError,
 		}
+		if c.ContextDirtySince.Valid {
+			dirtySince := c.ContextDirtySince.Time
+			chatContext.DirtySince = &dirtySince
+		}
+		chat.Context = chatContext
 	}
 	return chat
 }

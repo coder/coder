@@ -1501,4 +1501,56 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
 		require.Equal(t, "secret-new", *persisted.Bedrock.AccessKeySecret)
 	})
+
+	t.Run("MigrateStaticToRole", func(t *testing.T) {
+		t.Parallel()
+		// An admin migrating from static AWS credentials to IAM role assumption
+		// clears the keys and sets a role ARN in a single PATCH.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-role",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-old"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref(""),
+					AccessKeySecret: ptr.Ref(""),
+					RoleARN:         "arn:aws:iam::123456789012:role/target",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		require.NotNil(t, updated.Settings.Bedrock)
+		require.Equal(t, "arn:aws:iam::123456789012:role/target", updated.Settings.Bedrock.RoleARN)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.Equal(t, "arn:aws:iam::123456789012:role/target", persisted.Bedrock.RoleARN)
+		require.NotNil(t, persisted.Bedrock.AccessKey)
+		require.Equal(t, "", *persisted.Bedrock.AccessKey)
+		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+		require.Equal(t, "", *persisted.Bedrock.AccessKeySecret)
+	})
 }

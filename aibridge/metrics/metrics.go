@@ -68,7 +68,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "duration_seconds",
 			Help: "The total duration of intercepted requests, in seconds. " +
 				"The majority of this time will be the upstream processing of the request. " +
-				"aibridge has no control over upstream processing time, so it's just an illustrative metric.",
+				"AI Gateway has no control over upstream processing time, so it's just an illustrative metric.",
 			// TODO: add docs around determining aibridge's *own* latency with distributed traces
 			//       once https://github.com/coder/aibridge/issues/26 lands.
 			Buckets: []float64{0.5, 2, 5, 15, 30, 60, 120},
@@ -106,7 +106,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		InjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "injected_tool_invocations",
 			Name:      "total",
-			Help:      "The number of times an injected MCP tool was invoked by aibridge.",
+			Help:      "The number of times an injected MCP tool was invoked by AI Gateway.",
 		}, append(baseLabels, "server", "name")),
 		// Pessimistic cardinality: 3 providers, 5 models, 30 tools = up to 450.
 		NonInjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{

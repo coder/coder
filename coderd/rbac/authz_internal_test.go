@@ -312,18 +312,34 @@ func TestAuthorizeDomain(t *testing.T) {
 
 	testAuthorize(t, "UserACLList", user, []authTestCase{
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: ResourceWorkspace.AvailableActions(),
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
 		},
 		{
-			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(defOrg).WithACLUserList(map[string][]policy.Action{
 				user.ID: {policy.WildcardSymbol},
 			}),
 			actions: ResourceWorkspace.AvailableActions(),
 			allow:   true,
+		},
+		{
+			// User ACLs only grant permissions in organizations where the
+			// subject is currently a member.
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: ResourceWorkspace.AvailableActions(),
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
+		},
+		{
+			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
+				user.ID: {policy.WildcardSymbol},
+			}),
+			actions: ResourceWorkspace.AvailableActions(),
+			allow:   false,
 		},
 		{
 			resource: ResourceWorkspace.WithOwner(unusedID.String()).InOrg(unusedID).WithACLUserList(map[string][]policy.Action{
@@ -712,6 +728,93 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}))
+}
+
+// TestAuthorizeUserACLOrgMembership verifies that user ACL grants require org
+// membership, while site-wide roles still authorize independent of ACLs.
+func TestAuthorizeUserACLOrgMembership(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+
+	// Site template-admin, not a member of orgID.
+	siteTemplateAdmin := Subject{
+		ID:    "site-template-admin",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleTemplateAdmin())),
+		},
+	}
+	testAuthorize(t, "SiteTemplateAdminNotInOrg", siteTemplateAdmin, []authTestCase{
+		{
+			// Authorized by the site role, no ACL needed.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    true,
+		},
+		{
+			// Redundant ACL entry; still authorized by the site role.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteTemplateAdmin.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   true,
+		},
+	})
+
+	// Site user-admin (no template perms), not a member of orgID.
+	siteUserAdmin := Subject{
+		ID:    "site-user-admin",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleUserAdmin())),
+		},
+	}
+	testAuthorize(t, "SiteUserAdminNotInOrg", siteUserAdmin, []authTestCase{
+		{
+			// No template role and no ACL entry: denied.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    false,
+		},
+		{
+			// An ACL grant must not authorize a non-member.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteUserAdmin.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   false,
+		},
+	})
+
+	// Same site user-admin, now also a member of orgID.
+	siteUserAdminOrgMember := Subject{
+		ID:    "site-user-admin-org-member",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			must(RoleByName(RoleMember())),
+			must(RoleByName(RoleUserAdmin())),
+			orgMemberRole(orgID),
+		},
+	}
+	testAuthorize(t, "SiteUserAdminOrgMember", siteUserAdminOrgMember, []authTestCase{
+		{
+			// Org membership alone does not grant template update.
+			resource: ResourceTemplate.InOrg(orgID),
+			actions:  []policy.Action{policy.ActionUpdate},
+			allow:    false,
+		},
+		{
+			// As an org member, the ACL grant takes effect.
+			resource: ResourceTemplate.InOrg(orgID).WithACLUserList(map[string][]policy.Action{
+				siteUserAdminOrgMember.ID: {policy.ActionUpdate},
+			}),
+			actions: []policy.Action{policy.ActionUpdate},
+			allow:   true,
+		},
+	})
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately

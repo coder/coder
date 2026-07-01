@@ -10,11 +10,10 @@ import (
 // database state only after asynchronous chat processing has completed.
 // Close waits for the same tracked work, but also stops the server.
 func WaitUntilIdleForTest(server *Server) {
-	server.drainInflight()
-	if server.chatWorker == nil {
-		return
+	if server.chatWorker != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = server.chatWorker.WaitIdle(ctx)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_ = server.chatWorker.WaitIdle(ctx)
+	server.drainInflight()
 }

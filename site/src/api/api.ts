@@ -200,6 +200,38 @@ type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
 
+// TODO(AIGOV-290): drop once `ai_cost_control` is generated onto Group.
+export type GroupAICostControl = Readonly<{
+	current_spend_micros: number;
+	spend_limit_micros: number | null;
+}>;
+export type GroupWithAICostControl = TypesGen.Group &
+	Readonly<{ ai_cost_control?: GroupAICostControl }>;
+
+// TODO(AIGOV-291): drop once `ai_cost_control` is generated onto ReducedUser.
+export type GroupMemberAICostControl = Readonly<{
+	current_spend_micros: number;
+	spend_limit_micros: number | null;
+	effective_group_id: string | null;
+	limit_source: "group" | "override" | null;
+}>;
+export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
+	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
+export type GroupMembersResponseWithAICostControl = Omit<
+	TypesGen.GroupMembersResponse,
+	"users"
+> &
+	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
+
+// TODO(AIGOV-473): drop once generated from codersdk.
+export type UserAISpend = Readonly<{
+	user_id: string;
+	spend_limit_micros: number | null;
+	effective_group_id: string | null;
+	limit_source: "group" | "override" | null;
+	current_spend_micros: number;
+}>;
+
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
 ): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
@@ -408,6 +440,7 @@ export type DeploymentConfig = Readonly<{
 }>;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
+const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
@@ -548,6 +581,13 @@ class ApiMethods {
 
 	getAuthenticatedUser = async () => {
 		const response = await this.axios.get<TypesGen.User>("/api/v2/users/me");
+		return response.data;
+	};
+
+	getUserAISpend = async (): Promise<UserAISpend> => {
+		const response = await this.axios.get<UserAISpend>(
+			"/api/v2/users/me/ai/spend",
+		);
 		return response.data;
 	};
 
@@ -1673,6 +1713,36 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+	): Promise<TypesGen.UserAIBudgetOverride> => {
+		const response = await this.axios.get<TypesGen.UserAIBudgetOverride>(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+		);
+
+		return response.data;
+	};
+
+	upsertUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+		data: TypesGen.UpsertUserAIBudgetOverrideRequest,
+	): Promise<TypesGen.UserAIBudgetOverride> => {
+		const response = await this.axios.put<TypesGen.UserAIBudgetOverride>(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			data,
+		);
+
+		return response.data;
+	};
+
+	deleteUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+		);
+	};
+
 	activateUser = async (
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.User> => {
@@ -2152,11 +2222,14 @@ class ApiMethods {
 	};
 
 	getGroups = async (
-		options: { userId?: string } = {},
+		options: { userId?: string; organization?: string } = {},
 	): Promise<TypesGen.Group[]> => {
 		const params: Record<string, string> = {};
 		if (options.userId !== undefined) {
 			params.has_member = options.userId;
+		}
+		if (options.organization !== undefined) {
+			params.organization = options.organization;
 		}
 
 		const response = await this.axios.get("/api/v2/groups", { params });
@@ -2168,7 +2241,7 @@ class ApiMethods {
 	 */
 	getGroupsByOrganization = async (
 		organization: string,
-	): Promise<TypesGen.Group[]> => {
+	): Promise<GroupWithAICostControl[]> => {
 		const response = await this.axios.get(
 			`/api/v2/organizations/${organization}/groups`,
 		);
@@ -2186,6 +2259,16 @@ class ApiMethods {
 			`/api/v2/organizations/${organization}/groups`,
 			data,
 		);
+		return response.data;
+	};
+
+	getGroupById = async (
+		groupId: string,
+		req: TypesGen.GroupRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.Group> => {
+		const url = getURLWithSearchParams(`/api/v2/groups/${groupId}`, req);
+		const response = await this.axios.get(url, { signal });
 		return response.data;
 	};
 
@@ -2211,7 +2294,7 @@ class ApiMethods {
 		groupName: string,
 		filter?: UsersRequest,
 		signal?: AbortSignal,
-	): Promise<TypesGen.GroupMembersResponse> => {
+	): Promise<GroupMembersResponseWithAICostControl> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
 			filter,
@@ -2263,6 +2346,30 @@ class ApiMethods {
 
 	deleteGroup = async (groupId: string): Promise<void> => {
 		await this.axios.delete(`/api/v2/groups/${groupId}`);
+	};
+
+	getGroupAIBudget = async (
+		groupId: string,
+	): Promise<TypesGen.GroupAIBudget> => {
+		const response = await this.axios.get(
+			`/api/v2/groups/${groupId}/ai/budget`,
+		);
+		return response.data;
+	};
+
+	upsertGroupAIBudget = async (
+		groupId: string,
+		data: TypesGen.UpsertGroupAIBudgetRequest,
+	): Promise<TypesGen.GroupAIBudget> => {
+		const response = await this.axios.put(
+			`/api/v2/groups/${groupId}/ai/budget`,
+			data,
+		);
+		return response.data;
+	};
+
+	deleteGroupAIBudget = async (groupId: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/groups/${groupId}/ai/budget`);
 	};
 
 	getWorkspaceQuota = async (
@@ -2419,6 +2526,32 @@ class ApiMethods {
 	getTemplateExamples = async (): Promise<TypesGen.TemplateExample[]> => {
 		const response = await this.axios.get("/api/v2/templates/examples");
 
+		return response.data;
+	};
+
+	getTemplateBuilderBases =
+		async (): Promise<TypesGen.TemplateBuilderBasesResponse> => {
+			const response = await this.axios.get("/api/v2/templatebuilder/bases");
+			return response.data;
+		};
+
+	getTemplateBuilderModules = async (
+		base?: string,
+	): Promise<TypesGen.TemplateBuilderModulesResponse> => {
+		const params = base ? `?base=${encodeURIComponent(base)}` : "";
+		const response = await this.axios.get(
+			`/api/v2/templatebuilder/modules${params}`,
+		);
+		return response.data;
+	};
+
+	createTemplateFromBuilder = async (
+		req: TypesGen.TemplateBuilderCreateTemplateRequest,
+	): Promise<TypesGen.TemplateBuilderCreateTemplateResponse> => {
+		const response = await this.axios.post(
+			"/api/v2/templatebuilder/compose/template",
+			req,
+		);
 		return response.data;
 	};
 
@@ -3054,21 +3187,21 @@ class ApiMethods {
 	};
 
 	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
 	getAIBridgeClients = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+		const url = getURLWithSearchParams(`${aiGatewayPath}/clients`, options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
 	getAIBridgeSessionList = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/sessions", options);
+		const url = getURLWithSearchParams(`${aiGatewayPath}/sessions`, options);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeListSessionsResponse>(url);
 		return response.data;
@@ -3079,7 +3212,7 @@ class ApiMethods {
 		options?: { after_id?: string; before_id?: string; limit?: number },
 	) => {
 		const url = getURLWithSearchParams(
-			`/api/v2/aibridge/sessions/${sessionId}`,
+			`${aiGatewayPath}/sessions/${sessionId}`,
 			options,
 		);
 		const response =
@@ -3130,7 +3263,7 @@ class ApiMethods {
 
 	getAIGatewayKeys = async (): Promise<TypesGen.AIGatewayKey[]> => {
 		const response = await this.axios.get<TypesGen.AIGatewayKey[]>(
-			"/api/v2/aibridge/keys",
+			`${aiGatewayPath}/keys`,
 		);
 		return response.data;
 	};
@@ -3139,14 +3272,14 @@ class ApiMethods {
 		req: TypesGen.CreateAIGatewayKeyRequest,
 	): Promise<TypesGen.CreateAIGatewayKeyResponse> => {
 		const response = await this.axios.post<TypesGen.CreateAIGatewayKeyResponse>(
-			"/api/v2/aibridge/keys",
+			`${aiGatewayPath}/keys`,
 			req,
 		);
 		return response.data;
 	};
 
 	deleteAIGatewayKey = async (id: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/aibridge/keys/${encodeURIComponent(id)}`);
+		await this.axios.delete(`${aiGatewayPath}/keys/${encodeURIComponent(id)}`);
 	};
 }
 
@@ -3343,6 +3476,17 @@ class ExperimentalApiMethods {
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}/interrupt`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * Re-pins the chat to its agent's latest context snapshot and clears
+	 * the dirty marker. Returns the updated chat.
+	 */
+	refreshChatContext = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.put<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/context`,
 		);
 		return response.data;
 	};
@@ -3579,20 +3723,6 @@ class ExperimentalApiMethods {
 			`/api/experimental/chats/${chatId}/debug/runs/${runId}`,
 		);
 		return response.data;
-	};
-	getChatDesktopEnabled =
-		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatDesktopEnabledResponse>(
-					"/api/experimental/chats/config/desktop-enabled",
-				);
-			return response.data;
-		};
-
-	updateChatDesktopEnabled = async (
-		req: TypesGen.UpdateChatDesktopEnabledRequest,
-	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
 	};
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
@@ -3882,18 +4012,6 @@ class ExperimentalApiMethods {
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
-		return response.data;
-	};
-
-	getPRInsights = async (params?: {
-		start_date?: string;
-		end_date?: string;
-	}): Promise<TypesGen.PRInsightsResponse> => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/chats/insights/pull-requests",
-			params,
-		);
-		const response = await this.axios.get<TypesGen.PRInsightsResponse>(url);
 		return response.data;
 	};
 

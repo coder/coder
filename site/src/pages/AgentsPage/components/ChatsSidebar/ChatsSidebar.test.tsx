@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -9,6 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -16,6 +17,7 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
@@ -55,25 +57,11 @@ vi.mock("#/hooks/useAuthenticated", async () => {
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
 	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: MockUserOwner.id,
-	owner_username: MockUserOwner.username,
-	owner_name: MockUserOwner.name,
-	title: "Agent",
-	status: "completed",
 	last_model_config_id: "model-1",
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	shared: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	mcp_server_ids: [],
-	labels: {},
-	children: [],
 	...overrides,
 });
 
@@ -88,11 +76,7 @@ const dashboardValue = {
 };
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, refetchOnWindowFocus: false },
-		},
-	});
+	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>

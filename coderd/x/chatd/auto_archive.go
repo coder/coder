@@ -33,13 +33,19 @@ type autoArchivedChat struct {
 }
 
 func (w *chatWorker) archiveLoop(ctx context.Context) {
+	run := func(start time.Time) {
+		w.archiveOnce(ctx, dbtime.Time(start).UTC())
+	}
+	run(w.opts.Clock.Now("chatworker", "auto-archive"))
+
 	ticker := w.opts.Clock.NewTicker(w.opts.ArchiveInterval, "chatworker", "auto-archive")
-	defer ticker.Stop()
-	w.archiveOnce(ctx, dbtime.Time(w.opts.Clock.Now("chatworker", "auto-archive")).UTC())
+	defer ticker.Stop("chatworker", "auto-archive")
 	for {
 		select {
 		case tick := <-ticker.C:
-			w.archiveOnce(ctx, dbtime.Time(tick).UTC())
+			ticker.Stop("chatworker", "auto-archive")
+			run(tick)
+			ticker.Reset(w.opts.ArchiveInterval, "chatworker", "auto-archive")
 		case <-ctx.Done():
 			return
 		}
@@ -65,7 +71,11 @@ func (w *chatWorker) archiveOnce(ctx context.Context, start time.Time) {
 		return
 	}
 
-	archiveCutoff := dbtime.StartOfDay(start).Add(-time.Duration(autoArchiveDays) * 24 * time.Hour)
+	// Anchor the cutoff at 00:00 UTC so every chat with activity on the
+	// same UTC calendar date stays eligible or ineligible for the whole
+	// day. This avoids trickling chats into auto-archive as wall-clock
+	// time advances.
+	archiveCutoff := dbtime.StartOfDay(start.UTC()).Add(-time.Duration(autoArchiveDays) * 24 * time.Hour)
 	rows, err := w.opts.Store.GetAutoArchiveInactiveChatCandidates(ctx, database.GetAutoArchiveInactiveChatCandidatesParams{
 		ArchiveCutoff: archiveCutoff,
 		LimitCount:    w.opts.ArchiveBatchSize,

@@ -3,13 +3,16 @@ package chatd_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -26,6 +29,7 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	sink := testutil.NewFakeSink(t)
 	var calls atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
@@ -39,6 +43,7 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.Clock = clock
+		cfg.Logger = sink.Logger()
 	})
 
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
@@ -65,6 +70,12 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	latest, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.False(t, latest.RetryState.Valid)
+	entries := retryEntriesWithMessage(sink, "chat generation retrying")
+	require.Len(t, entries, 1)
+	require.Equal(t, "generate_assistant", retrySinkFieldValue(t, entries[0].Fields, "action"))
+	require.Equal(t, "openai", retrySinkFieldValue(t, entries[0].Fields, "provider"))
+	require.Equal(t, "429", retrySinkFieldValue(t, entries[0].Fields, "status_code"))
+	require.Equal(t, "false", retrySinkFieldValue(t, entries[0].Fields, "chain_broken"))
 	require.Greater(t, latest.RetryStateVersion, withRetry.RetryStateVersion)
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
@@ -116,13 +127,18 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		})
 	})
 
-	t.Run("stream silence timeout retry recovers", func(t *testing.T) {
+	t.Run("silent stream generation retry recovers", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
-		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 		reg := prometheus.NewRegistry()
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		streamGuardTrap := clock.Trap().AfterFunc("streamSilenceGuard")
+		defer streamGuardTrap.Close()
+		retryTrap := clock.Trap().NewTimer("chatworker", "generation-retry")
+		defer retryTrap.Close()
+		sink := testutil.NewFakeSink(t)
 		var calls atomic.Int32
 		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 			if !req.Stream {
@@ -137,25 +153,52 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.Clock = clock
+			cfg.Logger = sink.Logger()
 			cfg.PrometheusRegistry = reg
+			cfg.PendingChatAcquireInterval = 30 * time.Minute
+			cfg.ChatHeartbeatInterval = 30 * time.Minute
 		})
 
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
-		advanceUntilProviderCall(ctx, clock, &calls, 1)
-		advanceToNextTimer(ctx, clock)
-		advanceUntilProviderCall(ctx, clock, &calls, 2)
+		firstGuard := streamGuardTrap.MustWait(ctx)
+		firstGuard.MustRelease(ctx)
+		waitUntilProviderCall(ctx, t, &calls, 1)
+		advanceMockClockBy(ctx, t, clock, firstGuard.Duration)
+		retryTimer := retryTrap.MustWait(ctx)
+		retryTimer.MustRelease(ctx)
+		advanceMockClockBy(ctx, t, clock, retryTimer.Duration)
+		secondGuard := streamGuardTrap.MustWait(ctx)
+		secondGuard.MustRelease(ctx)
+		waitUntilProviderCall(ctx, t, &calls, 2)
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		require.Equal(t, int32(2), calls.Load())
 		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 		require.NoError(t, err)
 		requireTextPart(t, messages[len(messages)-1], "recovered")
+		require.Empty(t, retryEntriesWithMessage(sink, "chatworker task retrying"))
+		entries := retryEntriesWithMessage(sink, "chat generation retrying")
+		require.NotEmpty(t, entries)
+		require.Equal(t, "generate_assistant", retrySinkFieldValue(t, entries[0].Fields, "action"))
+		require.Equal(t, string(codersdk.ChatErrorKindStreamSilenceTimeout), retrySinkFieldValue(t, entries[0].Fields, "error_kind"))
+		require.Equal(t, "openai", retrySinkFieldValue(t, entries[0].Fields, "provider"))
 		requireRetryCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
 			"provider":     "openai",
-			"model":        "gpt-4o-mini",
+			"model":        model.Model,
 			"kind":         string(codersdk.ChatErrorKindStreamSilenceTimeout),
 			"chain_broken": "false",
 		})
 	})
+}
+
+func retryEntriesWithMessage(sink *testutil.FakeSink, message string) []slog.SinkEntry {
+	return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == message })
+}
+
+func retrySinkFieldValue(t *testing.T, fields slog.Map, name string) string {
+	t.Helper()
+	value, ok := sinkFieldValue(fields, name)
+	require.True(t, ok, "missing log field %q", name)
+	return fmt.Sprint(value)
 }
 
 func requireRetryCounter(t *testing.T, reg *prometheus.Registry, name string, wantValue float64, wantLabels map[string]string) {
@@ -208,6 +251,28 @@ func waitForChatRetryState(ctx context.Context, t *testing.T, db database.Store,
 		return latest.RetryState.Valid
 	}, testutil.IntervalFast)
 	return chat
+}
+
+func waitUntilProviderCall(ctx context.Context, t *testing.T, calls *atomic.Int32, want int32) {
+	t.Helper()
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return calls.Load() >= want
+	}, testutil.IntervalFast)
+}
+
+func advanceMockClockBy(ctx context.Context, t *testing.T, clock *quartz.Mock, d time.Duration) {
+	t.Helper()
+	for remaining := d; remaining > 0; {
+		next, ok := clock.Peek()
+		require.True(t, ok, "no pending clock event while advancing %s", remaining)
+		if next > remaining {
+			clock.Advance(remaining).MustWait(ctx)
+			return
+		}
+		_, waiter := clock.AdvanceNext()
+		waiter.MustWait(ctx)
+		remaining -= next
+	}
 }
 
 func advanceUntilProviderCall(ctx context.Context, clock *quartz.Mock, calls *atomic.Int32, want int32) {

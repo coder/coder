@@ -286,9 +286,7 @@ func TestConcurrencyLimit(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for i := 0; i < maxConcurrency; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/", nil)
 				if err != nil {
 					results <- result{err: err}
@@ -301,7 +299,7 @@ func TestConcurrencyLimit(t *testing.T) {
 				}
 				defer resp.Body.Close()
 				results <- result{statusCode: resp.StatusCode}
-			}()
+			})
 		}
 
 		// Wait for all requests to enter the handler with a timeout.

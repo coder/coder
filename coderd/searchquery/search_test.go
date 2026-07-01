@@ -27,6 +27,7 @@ func TestSearchWorkspace(t *testing.T) {
 		Expected              database.GetWorkspacesParams
 		ExpectedErrorContains string
 		Setup                 func(t *testing.T, db database.Store)
+		ActorID               uuid.UUID
 	}{
 		{
 			Name:     "Empty",
@@ -341,6 +342,19 @@ func TestSearchWorkspace(t *testing.T) {
 			},
 		},
 		{
+			Name:  "SharedWithMe",
+			Query: `shared_with_user:me`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+			ActorID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+		},
+		{
 			Name:  "SharedWithUser",
 			Query: `shared_with_user:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
 			Setup: func(t *testing.T, db database.Store) {
@@ -485,7 +499,7 @@ func TestSearchWorkspace(t *testing.T) {
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
-			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0)
+			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0, c.ActorID)
 			if c.ExpectedErrorContains != "" {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -517,7 +531,7 @@ func TestSearchWorkspace(t *testing.T) {
 		query := ``
 		timeout := 1337 * time.Second
 		db, _ := dbtestutil.NewDB(t)
-		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout, uuid.Nil)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})

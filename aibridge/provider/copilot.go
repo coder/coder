@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -28,20 +29,11 @@ const (
 	// Copilot exposes an OpenAI-compatible API, including for Anthropic models.
 	routeCopilotChatCompletions = "/chat/completions"
 	routeCopilotResponses       = "/responses"
+	routeCopilotMessages        = "/v1/messages"
 )
 
 var copilotOpenErrorResponse = func() []byte {
 	return []byte(`{"error":{"message":"circuit breaker is open","type":"server_error","code":"service_unavailable"}}`)
-}
-
-// Headers that need to be forwarded to Copilot API.
-// These were determined through manual testing as there is no reference
-// of the headers in the official documentation.
-// LiteLLM uses the same headers:
-// https://docs.litellm.ai/docs/providers/github_copilot
-var copilotForwardHeaders = []string{
-	"Editor-Version",
-	"Copilot-Integration-Id",
 }
 
 // Copilot implements the Provider interface for GitHub Copilot.
@@ -92,6 +84,7 @@ func (*Copilot) BridgedRoutes() []string {
 	return []string{
 		routeCopilotChatCompletions,
 		routeCopilotResponses,
+		routeCopilotMessages,
 	}
 }
 
@@ -133,7 +126,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get("Authorization"))
+	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
 	if key == "" {
 		span.SetStatus(codes.Error, "missing authorization")
 		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
@@ -141,18 +134,14 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	id := uuid.New()
 
-	// Build config for the interceptor using the per-request key.
-	// Copilot's API is OpenAI-compatible, so it uses the OpenAI interceptors
-	// that require a config.OpenAI.
-	cfg := config.OpenAI{
-		BaseURL:        p.cfg.BaseURL,
-		Key:            key,
-		APIDumpDir:     p.cfg.APIDumpDir,
-		CircuitBreaker: p.cfg.CircuitBreaker,
-		ExtraHeaders:   extractCopilotHeaders(r),
+	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
+	// It is always BYOK: the per-user key arrives in the Authorization header.
+	cfg := intercept.Config{
+		ProviderName: p.Name(),
+		BaseURL:      p.cfg.BaseURL,
+		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-
-	cred := intercept.NewCredentialInfo(intercept.CredentialKindBYOK, key)
+	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
 
 	var interceptor intercept.Interceptor
 
@@ -165,9 +154,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if req.Stream {
-			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		}
 
 	case routeCopilotResponses:
@@ -181,9 +170,25 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if reqPayload.Stream() {
-			interceptor = responses.NewStreamingInterceptor(id, reqPayload, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = responses.NewBlockingInterceptor(id, reqPayload, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
+		}
+
+	case routeCopilotMessages:
+		payload, err := io.ReadAll(r.Body)
+		if err != nil {
+			return nil, xerrors.Errorf("read body: %w", err)
+		}
+		reqPayload, err := messages.NewRequestPayload(payload)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal request body: %w", err)
+		}
+
+		if reqPayload.Stream() {
+			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+		} else {
+			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 		}
 
 	default:
@@ -193,16 +198,4 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
-}
-
-// extractCopilotHeaders extracts headers required by the Copilot API from the
-// incoming request. Copilot requires certain client headers to be forwarded.
-func extractCopilotHeaders(r *http.Request) map[string]string {
-	headers := make(map[string]string, len(copilotForwardHeaders))
-	for _, h := range copilotForwardHeaders {
-		if v := r.Header.Get(h); v != "" {
-			headers[h] = v
-		}
-	}
-	return headers
 }

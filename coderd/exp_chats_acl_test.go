@@ -465,7 +465,7 @@ func TestChatSharingDisabled(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	values := chatDeploymentValues(t)
+	values := coderdtest.DeploymentValues(t)
 	values.DisableChatSharing = true
 	store, pubsub := dbtestutil.NewDB(t)
 	client := newChatClient(t, func(opts *coderdtest.Options) {

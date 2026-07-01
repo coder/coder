@@ -60,7 +60,7 @@ var preferredTitleModels = []struct {
 	{fantasyopenai.Name, "gpt-4o-mini"},
 	{fantasygoogle.Name, "gemini-2.5-flash"},
 	{fantasyazure.Name, "gpt-4o-mini"},
-	{fantasybedrock.Name, "anthropic.claude-haiku-4-5-20251001-v1:0"},
+	{fantasybedrock.Name, "global.anthropic.claude-haiku-4-5-20251001-v1:0"},
 	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
@@ -141,9 +141,11 @@ type generatedTurnStatusLabel struct {
 // chat-creation endpoint right after the chat and its initial user
 // message are persisted.
 //
-// The work runs in a tracked goroutine with a detached context so it
-// neither blocks the HTTP response nor is canceled when the request
-// completes. It resolves the chat's model and provider keys, then
+// The work runs in a tracked goroutine with a context detached from the
+// request but bound to the server: it neither blocks the HTTP response
+// nor is canceled when the request completes, and Close cancels it
+// instead of blocking on the title timeout while a provider is
+// unreachable. It resolves the chat's model and provider keys, then
 // delegates to maybeGenerateChatTitle, which only acts on the first user
 // turn (see titleInput) and is otherwise a no-op. Errors are logged and
 // swallowed.
@@ -166,21 +168,21 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	if _, ok := titleInput(chat, messages); !ok {
 		return
 	}
-	// Detach from the request lifetime so title generation can finish
-	// even after the create response is written.
-	titleCtx := context.WithoutCancel(ctx)
-	p.inflight.Go(func() {
+	// Detach from request; bind to server so Close cancels it.
+	titleCtx, stopTitleCtx := p.inflightContext(ctx)
+	if err := p.goInflight(func() {
+		defer stopTitleCtx()
 		modelOpts := modelBuildOptionsFromMessages(messages)
-		titleCtx = withActiveTurnAPIKeyID(titleCtx, modelOpts)
-		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(titleCtx, chat, modelOpts)
+		turnCtx := withActiveTurnAPIKeyID(titleCtx, modelOpts)
+		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
 		if err != nil {
-			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
+			logger.Debug(turnCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
 			)
 			return
 		}
 		p.maybeGenerateChatTitle(
-			titleCtx,
+			turnCtx,
 			chat,
 			messages,
 			modelConfig.Provider,
@@ -193,7 +195,14 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			logger,
 			p.existingDebugService(),
 		)
-	})
+	}); err != nil {
+		stopTitleCtx()
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule automatic chat title generation",
+			slog.F("chat_id", chat.ID),
+			slog.F("owner_id", chat.OwnerID),
+			slog.Error(err),
+		)
+	}
 }
 
 // maybeGenerateChatTitle generates an AI title for the chat when

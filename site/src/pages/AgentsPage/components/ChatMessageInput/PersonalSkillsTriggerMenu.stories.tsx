@@ -1,55 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type * as TypesGen from "#/api/typesGenerated";
+import { expect, fn, userEvent } from "storybook/test";
 import { filterPersonalSkills } from "../../utils/personalSkills";
 import { PersonalSkillsTriggerMenu } from "./PersonalSkillsTriggerMenu";
-
-const now = "2026-05-08T00:00:00Z";
-
-const mockSkills: TypesGen.UserSkillMetadata[] = [
-	{
-		id: "skill-reviewer",
-		name: "reviewer",
-		description: "Review changed files and suggest fixes.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-docs",
-		name: "docs",
-		description: "Draft docs for user-facing behavior.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-plan",
-		name: "plan",
-		description: "",
-		created_at: now,
-		updated_at: now,
-	},
-];
-
-const findVisibleText = async (text: string) => {
-	let visibleElement: HTMLElement | undefined;
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		visibleElement = matches.find(
-			(element) => element.getClientRects().length > 0,
-		);
-		expect(visibleElement).toBeDefined();
-	});
-	return visibleElement as HTMLElement;
-};
-
-const expectNoVisibleText = async (text: string) => {
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		expect(
-			matches.every((element) => element.getClientRects().length === 0),
-		).toBe(true);
-	});
-};
+import {
+	expectNoVisibleText,
+	findVisibleText,
+	MockSkills,
+} from "./storyHelpers";
 
 const meta: Meta<typeof PersonalSkillsTriggerMenu> = {
 	title: "components/ChatMessageInput/PersonalSkillsTriggerMenu",
@@ -58,7 +15,7 @@ const meta: Meta<typeof PersonalSkillsTriggerMenu> = {
 		open: true,
 		anchorRect: { top: 120, left: 80, height: 20 },
 		query: "",
-		skills: mockSkills,
+		skills: MockSkills,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
 		onSelect: fn(),
@@ -136,7 +93,7 @@ export const FilteredEmpty: Story = {
 export const Filtered: Story = {
 	args: {
 		query: "rev",
-		skills: filterPersonalSkills(mockSkills, "rev"),
+		skills: filterPersonalSkills(MockSkills, "rev"),
 	},
 	play: async () => {
 		expect(await findVisibleText("/reviewer")).toBeDefined();
@@ -151,6 +108,6 @@ export const SelectsByClick: Story = {
 	play: async ({ args }) => {
 		await userEvent.click(await findVisibleText("/reviewer"));
 		expect(args.onSelect).toHaveBeenCalledTimes(1);
-		expect(args.onSelect).toHaveBeenCalledWith(mockSkills[0]);
+		expect(args.onSelect).toHaveBeenCalledWith(MockSkills[0]);
 	},
 };

@@ -340,7 +340,7 @@ func (RequestPayload) resultToRawMessage(items []gjson.Result) []json.RawMessage
 }
 
 // The two Bedrock thinking-type conversions below are a temporary shim.
-// AI Bridge relays the Anthropic Messages API shape to Bedrock, whose Claude
+// AI Gateway relays the Anthropic Messages API shape to Bedrock, whose Claude
 // models accept a disjoint subset on each generation (older models reject
 // "adaptive"; Opus 4.7+ rejects "enabled"). A planned native Bedrock provider
 // removes the impedance mismatch and lets us delete this whole block. Hopefully.

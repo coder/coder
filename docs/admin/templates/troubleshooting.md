@@ -8,7 +8,7 @@ has failed or timed out.
 ## Agent connection issues
 
 If the agent is not connected, it means the agent or
-[init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
+[init script](../../../provisionersdk/scripts)
 has failed on the resource.
 
 ```console

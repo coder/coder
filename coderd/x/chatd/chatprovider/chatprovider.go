@@ -2,9 +2,10 @@ package chatprovider
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	neturl "net/url"
-	"sort"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -45,15 +46,60 @@ var providerDisplayNameByName = map[string]string{
 	fantasyopenaicompat.Name: "OpenAI Compatible",
 	fantasyopenrouter.Name:   "OpenRouter",
 	fantasyvercel.Name:       "Vercel AI Gateway",
+	// Copilot is unsupported but still needs a display name for the
+	// unsupported list and AI Settings.
+	string(codersdk.AIProviderTypeCopilot): "GitHub Copilot",
 }
 
 // ProviderDisplayName returns a default display name for a provider.
 func ProviderDisplayName(provider string) string {
 	normalized := NormalizeProvider(provider)
+	if normalized == "" {
+		// Fall back for providers the harness cannot normalize, like copilot.
+		normalized = strings.ToLower(strings.TrimSpace(provider))
+	}
 	if displayName, ok := providerDisplayNameByName[normalized]; ok {
 		return displayName
 	}
 	return normalized
+}
+
+// AgentsSupportsProvider reports whether the Agents harness can use the
+// provider type.
+func AgentsSupportsProvider(provider string) bool {
+	providerType := codersdk.AIProviderType(strings.ToLower(strings.TrimSpace(provider)))
+	if codersdk.IsAgentsUnsupportedProviderType(providerType) {
+		return false
+	}
+	return NormalizeProvider(provider) != ""
+}
+
+// UnsupportedProviders returns the configured providers the Agents harness
+// cannot use, deduplicated by provider type.
+func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupportedProvider {
+	seen := make(map[string]struct{}, len(configured))
+	unsupported := make([]codersdk.ChatUnsupportedProvider, 0)
+	for _, provider := range configured {
+		if AgentsSupportsProvider(provider.Provider) {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(provider.Provider))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unsupported = append(unsupported, codersdk.ChatUnsupportedProvider{
+			Provider:    key,
+			DisplayName: ProviderDisplayName(provider.Provider),
+		})
+	}
+	slices.SortFunc(unsupported, func(a, b codersdk.ChatUnsupportedProvider) int {
+		return strings.Compare(a.Provider, b.Provider)
+	})
+	return unsupported
 }
 
 // ProviderAllowsAmbientCredentials reports whether provider can use
@@ -76,12 +122,57 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
+// AcceptsFilePartMediaType reports whether provider accepts mediaType
+// as a file content part rather than silently dropping it. modelID
+// distinguishes API paths within a provider (e.g. OpenAI Responses vs
+// Chat Completions). Unknown providers return false so callers convert
+// text-family content to text and guarantee the model still sees it.
+func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
+	baseType := mediaType
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		baseType = parsed
+	}
+	isImage := strings.HasPrefix(baseType, "image/")
+	isText := strings.HasPrefix(baseType, "text/")
+	// Audio types are included for matrix completeness but are not
+	// currently reachable: no audio type is in the storable attachment
+	// allowlist (codersdk.AllChatAttachmentMediaTypes).
+	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
+	isPDF := baseType == "application/pdf"
+
+	switch NormalizeProvider(provider) {
+	case fantasygoogle.Name:
+		// Google passes any file part through unfiltered.
+		return true
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		// Bedrock wraps the anthropic client, so it shares the same
+		// file-part acceptance, including text/* as native documents.
+		return isImage || isText || isPDF
+	case fantasyopenai.Name, fantasyazure.Name:
+		// chatd configures both with WithUseResponsesAPI, but only
+		// Responses-capable models actually use it. Non-Responses models
+		// fall through to the Chat Completions path, which accepts
+		// text/* and audio as native file parts (same as openaicompat).
+		if fantasyopenai.IsResponsesModel(modelID) {
+			return isImage || isPDF
+		}
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenaicompat.Name:
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		return isImage || isAudio || isPDF
+	default:
+		return false
+	}
+}
+
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
 	OpenAI            string
 	Anthropic         string
 	ByProvider        map[string]string
 	BaseURLByProvider map[string]string
+	RegionByProvider  map[string]string
 }
 
 // Empty reports whether no provider keys or base URL overrides are set.
@@ -89,7 +180,8 @@ func (k ProviderAPIKeys) Empty() bool {
 	return k.OpenAI == "" &&
 		k.Anthropic == "" &&
 		len(k.ByProvider) == 0 &&
-		len(k.BaseURLByProvider) == 0
+		len(k.BaseURLByProvider) == 0 &&
+		len(k.RegionByProvider) == 0
 }
 
 // UserProviderKey is a user-supplied API key for a specific provider.
@@ -111,6 +203,7 @@ type ConfiguredProvider struct {
 	Provider                   string
 	APIKey                     string
 	BaseURL                    string
+	Region                     string
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
@@ -166,6 +259,15 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
+// Region returns the configured region for a provider.
+func (k ProviderAPIKeys) Region(provider string) string {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.RegionByProvider == nil {
+		return ""
+	}
+	return strings.TrimSpace(k.RegionByProvider[normalized])
+}
+
 // ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
 func ProviderBaseURLHostname(baseURL string) string {
 	parsed, ok := parseProviderBaseURL(baseURL)
@@ -190,8 +292,28 @@ func parseProviderBaseURL(baseURL string) (*neturl.URL, bool) {
 	return parsed, true
 }
 
-// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
-func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
+// setRegion records a normalized, non-empty region for a provider. The
+// RegionByProvider map is allocated lazily so an unused set stays nil, which
+// keeps Empty() and value comparisons stable.
+func (k *ProviderAPIKeys) setRegion(provider, region string) {
+	if provider == "" {
+		return
+	}
+	if region = strings.TrimSpace(region); region == "" {
+		return
+	}
+	if k.RegionByProvider == nil {
+		k.RegionByProvider = map[string]string{}
+	}
+	k.RegionByProvider[provider] = region
+}
+
+// mergedFromFallback seeds a ProviderAPIKeys from a fallback set, normalizing
+// provider names and dropping blank values. ByProvider and BaseURLByProvider
+// are always non-nil; RegionByProvider stays nil until a region is set. The
+// legacy OpenAI/Anthropic keys are mirrored into ByProvider so callers can
+// look them up by provider name.
+func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
 		OpenAI:            strings.TrimSpace(fallback.OpenAI),
 		Anthropic:         strings.TrimSpace(fallback.Anthropic),
@@ -199,30 +321,34 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		BaseURLByProvider: map[string]string{},
 	}
 	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
+		if normalized := NormalizeProvider(provider); normalized != "" {
+			if key := strings.TrimSpace(apiKey); key != "" {
+				merged.ByProvider[normalized] = key
+			}
 		}
 	}
 	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
+		if normalized := NormalizeProvider(provider); normalized != "" {
+			if url := strings.TrimSpace(baseURL); url != "" {
+				merged.BaseURLByProvider[normalized] = url
+			}
 		}
 	}
-
+	for provider, region := range fallback.RegionByProvider {
+		merged.setRegion(NormalizeProvider(provider), region)
+	}
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
 	}
 	if merged.Anthropic != "" {
 		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
 	}
+	return merged
+}
+
+// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
+func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
+	merged := mergedFromFallback(fallback)
 
 	for _, provider := range providers {
 		normalizedProvider := NormalizeProvider(provider.Provider)
@@ -236,6 +362,7 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+		merged.setRegion(normalizedProvider, provider.Region)
 
 		switch normalizedProvider {
 		case fantasyopenai.Name:
@@ -261,36 +388,7 @@ func ResolveUserProviderKeys(
 	providers []ConfiguredProvider,
 	userKeys []UserProviderKey,
 ) (ProviderAPIKeys, map[string]ProviderAvailability) {
-	merged := ProviderAPIKeys{
-		OpenAI:            strings.TrimSpace(fallback.OpenAI),
-		Anthropic:         strings.TrimSpace(fallback.Anthropic),
-		ByProvider:        map[string]string{},
-		BaseURLByProvider: map[string]string{},
-	}
-	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-	}
-	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-	}
-	if merged.OpenAI != "" {
-		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
-	}
-	if merged.Anthropic != "" {
-		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
-	}
+	merged := mergedFromFallback(fallback)
 
 	userKeyByProviderID := make(map[uuid.UUID]string, len(userKeys))
 	for _, userKey := range userKeys {
@@ -312,6 +410,7 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+		merged.setRegion(normalizedProvider, provider.Region)
 
 		var userKey string
 		if provider.ProviderID != uuid.Nil {
@@ -515,17 +614,28 @@ func (*ModelCatalog) ListConfiguredProviderAvailability(
 }
 
 // PruneDisabledProviderKeys removes entries from keys that do not
-// belong to an enabled provider. It clears ByProvider and
-// BaseURLByProvider entries for disabled providers and zeroes the
-// legacy OpenAI and Anthropic fields when those providers are not
-// enabled.
+// belong to an enabled provider. It clears ByProvider,
+// BaseURLByProvider, and RegionByProvider entries for disabled
+// providers and zeroes the legacy OpenAI and Anthropic fields when
+// those providers are not enabled.
 func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
 	for provider := range keys.ByProvider {
 		if _, ok := enabledProviders[provider]; ok {
 			continue
 		}
 		delete(keys.ByProvider, provider)
+	}
+	for provider := range keys.BaseURLByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
 		delete(keys.BaseURLByProvider, provider)
+	}
+	for provider := range keys.RegionByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.RegionByProvider, provider)
 	}
 	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
 		keys.OpenAI = ""
@@ -550,8 +660,8 @@ func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 }
 
 func sortChatModels(models []codersdk.ChatModel) {
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].Model < models[j].Model
+	slices.SortFunc(models, func(a, b codersdk.ChatModel) int {
+		return strings.Compare(a.Model, b.Model)
 	})
 }
 
@@ -669,13 +779,13 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 	}
 
 	for _, separator := range []string{":", "/"} {
-		parts := strings.SplitN(modelRef, separator, 2)
-		if len(parts) != 2 {
+		before, after, found := strings.Cut(modelRef, separator)
+		if !found {
 			continue
 		}
 
-		provider := NormalizeProvider(parts[0])
-		modelID := strings.TrimSpace(parts[1])
+		provider := NormalizeProvider(before)
+		modelID := strings.TrimSpace(after)
 		if provider != "" && modelID != "" {
 			return provider, modelID, true
 		}
@@ -878,6 +988,9 @@ func ModelFromConfig(
 	case fantasybedrock.Name:
 		bedrockOpts := []fantasybedrock.Option{
 			fantasybedrock.WithUserAgent(userAgent),
+		}
+		if region := providerKeys.Region(provider); region != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithRegion(region))
 		}
 		if apiKey != "" {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))

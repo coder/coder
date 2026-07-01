@@ -58,7 +58,9 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
 		<Filter
-			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
+			learnMoreLink={docs(
+				"/admin/security/audit-logs#how-to-filter-audit-logs",
+			)}
 			presets={PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}

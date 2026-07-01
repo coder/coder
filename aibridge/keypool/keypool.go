@@ -151,6 +151,11 @@ func (k *Key) Hint() string {
 	return utils.MaskSecret(k.value)
 }
 
+// Length returns the length of the key value, for logs.
+func (k *Key) Length() int {
+	return len(k.value)
+}
+
 // State returns the current state of the key, derived from its
 // permanent flag and cooldown deadline.
 func (k *Key) State() KeyState {

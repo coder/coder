@@ -303,12 +303,16 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		failureTTL                     time.Duration
 		dormantTTL                     time.Duration
 		dormantAutoDeletionTTL         time.Duration
+		timeTilAutostopNotify          time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
 	}
 	if createTemplate.ActivityBumpMillis != nil {
 		activityBump = time.Duration(*createTemplate.ActivityBumpMillis) * time.Millisecond
+	}
+	if createTemplate.TimeTilAutostopNotifyMillis != nil {
+		timeTilAutostopNotify = time.Duration(*createTemplate.TimeTilAutostopNotifyMillis) * time.Millisecond
 	}
 	if createTemplate.AutostopRequirement != nil {
 		autostopRequirementDaysOfWeek = createTemplate.AutostopRequirement.DaysOfWeek
@@ -342,6 +346,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	if activityBump < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
+	}
+	if timeTilAutostopNotify < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_autostop_notify_ms", Detail: "Must be a positive integer."})
+	} else if timeTilAutostopNotify != 0 && timeTilAutostopNotify < time.Minute {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_autostop_notify_ms", Detail: "Must be 0 (disabled) or at least one minute."})
 	}
 
 	if len(autostopRequirementDaysOfWeek) > 0 {
@@ -458,10 +467,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
-			UserAutostartEnabled: allowUserAutostart,
-			UserAutostopEnabled:  allowUserAutostop,
-			DefaultTTL:           defaultTTL,
-			ActivityBump:         activityBump,
+			UserAutostartEnabled:  allowUserAutostart,
+			UserAutostopEnabled:   allowUserAutostop,
+			DefaultTTL:            defaultTTL,
+			ActivityBump:          activityBump,
+			TimeTilAutostopNotify: timeTilAutostopNotify,
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
 			// unlicensed.
@@ -693,6 +703,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if resolved.activityBumpMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
+	if resolved.timeTilAutostopNotifyMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_autostop_notify_ms", Detail: "Must be a positive integer."})
+	} else if resolved.timeTilAutostopNotifyMillis != 0 && time.Duration(resolved.timeTilAutostopNotifyMillis)*time.Millisecond < time.Minute {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_autostop_notify_ms", Detail: "Must be 0 (disabled) or at least one minute."})
+	}
 	if resolved.autostopRequirementWeeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
@@ -793,6 +808,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 
 		defaultTTL := time.Duration(resolved.defaultTTLMillis) * time.Millisecond
 		activityBump := time.Duration(resolved.activityBumpMillis) * time.Millisecond
+		timeTilAutostopNotify := time.Duration(resolved.timeTilAutostopNotifyMillis) * time.Millisecond
 		failureTTL := time.Duration(resolved.failureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(resolved.timeTilDormantMillis) * time.Millisecond
 		timeTilDormantAutoDelete := time.Duration(resolved.timeTilDormantAutoDeleteMillis) * time.Millisecond
@@ -808,10 +824,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
 			// unlicensed.
-			UserAutostartEnabled: resolved.allowUserAutostart,
-			UserAutostopEnabled:  resolved.allowUserAutostop,
-			DefaultTTL:           defaultTTL,
-			ActivityBump:         activityBump,
+			UserAutostartEnabled:  resolved.allowUserAutostart,
+			UserAutostopEnabled:   resolved.allowUserAutostop,
+			DefaultTTL:            defaultTTL,
+			ActivityBump:          activityBump,
+			TimeTilAutostopNotify: timeTilAutostopNotify,
 			AutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: resolved.autostopRequirementDaysOfWeekParsed,
 				Weeks:      resolved.autostopRequirementWeeks,
@@ -1020,6 +1037,7 @@ func (api *API) convertTemplate(
 		Icon:                           template.Icon,
 		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
 		ActivityBumpMillis:             time.Duration(template.ActivityBump).Milliseconds(),
+		TimeTilAutostopNotifyMillis:    time.Duration(template.TimeTilAutostopNotify).Milliseconds(),
 		CreatedByID:                    template.CreatedBy,
 		CreatedByName:                  template.CreatedByUsername,
 		AllowUserAutostart:             template.AllowUserAutostart,

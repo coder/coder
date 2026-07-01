@@ -899,6 +899,7 @@ export const MockTemplate: TypesGen.Template = {
 	description: "This is a test description.",
 	default_ttl_ms: 24 * 60 * 60 * 1000,
 	activity_bump_ms: 1 * 60 * 60 * 1000,
+	time_til_autostop_notify_ms: 0,
 	autostop_requirement: {
 		days_of_week: ["sunday"],
 		weeks: 1,
@@ -1777,12 +1778,22 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
-	...MockWorkspace,
-	id: "test-outdated-workspace-require-active-version",
-	outdated: true,
-	template_require_active_version: true,
-};
+export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockWorkspace,
+		id: "test-outdated-workspace-require-active-version",
+		outdated: true,
+		template_require_active_version: true,
+	};
+
+export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
+	{
+		...MockOutdatedRunningWorkspaceRequireActiveVersion,
+		latest_build: {
+			...MockWorkspaceBuild,
+			status: "stopped",
+		},
+	};
 
 const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockWorkspace,
@@ -1795,16 +1806,7 @@ const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	},
 };
 
-export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockOutdatedRunningWorkspaceRequireActiveVersion,
-		latest_build: {
-			...MockWorkspaceBuild,
-			status: "stopped",
-		},
-	};
-
-const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1945,6 +1947,25 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 		options: [],
 		required: true,
 		ephemeral: true,
+	};
+
+// Not required and the default is a blank string.
+export const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter =
+	{
+		name: "seventh_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is seventh parameter",
+		description_plaintext: "Markdown: This is seventh parameter",
+		default_value: "",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		validation_min: 1,
+		validation_max: 10,
+		validation_monotonic: "decreasing",
+		required: false,
+		ephemeral: false,
 	};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
@@ -3424,6 +3445,12 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 	value: "5",
 };
 
+// Has a blank value.
+export const MockWorkspaceBuildParameter7: TypesGen.WorkspaceBuildParameter = {
+	name: MockTemplateVersionParameter7.name,
+	value: "",
+};
+
 export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	name: "parameter1",
 	display_name: "Parameter 1",
@@ -3481,6 +3508,22 @@ export const MockPreviewParameter4: TypesGen.PreviewParameter = {
 	},
 	value: { valid: true, value: MockTemplateVersionParameter4.default_value },
 	mutable: false,
+};
+
+// A text parameter that is mutable, not required, and has a blank value.  Maps
+// to MockTemplateVersionParameter7.
+export const MockPreviewParameter7: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter7.name,
+	display_name: MockTemplateVersionParameter7.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter7.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter7.default_value },
+	required: MockTemplateVersionParameter7.required,
+	mutable: MockTemplateVersionParameter7.mutable,
+	ephemeral: MockTemplateVersionParameter7.ephemeral,
 };
 
 export const MockDropdownParameter: TypesGen.PreviewParameter = {
@@ -3678,6 +3721,16 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
 		authenticated: true,
 		display_icon: "/icon/github.svg",
 		display_name: "GitHub",
+	};
+
+export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExternalAuth =
+	{
+		id: "azure",
+		type: "azure",
+		authenticate_url: "https://example.com/external-auth/azure",
+		authenticated: false,
+		display_icon: "/icon/azure.svg",
+		display_name: "Azure",
 	};
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
@@ -4914,7 +4967,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked as Dormant",
 			title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -4940,7 +4993,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked for Deletion",
 			title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -5521,13 +5574,14 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 };
 
 /**
- * Bedrock providers come over the wire with `type: "anthropic"` and a
- * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
- * backend (see `coderd/ai_providers.go`) enforce this convention.
+ * Bedrock providers come over the wire with `type: "bedrock"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` checks
+ * both the type and the settings discriminator, and also accepts legacy
+ * providers stored as `type: "anthropic"` with Bedrock settings.
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
-	type: "anthropic",
+	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
@@ -5570,7 +5624,7 @@ export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
 		name: "primary-gateway",
 		key_prefix: "a1B2c3D4e5F",
 		created_at: "2024-05-01T14:00:00Z",
-		last_used_at: "2024-05-20T09:30:00Z",
+		last_heartbeat_at: "2024-05-20T09:30:00Z",
 	},
 	{
 		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",

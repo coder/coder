@@ -162,6 +162,11 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
+	// Re-pins the chat to the workspace's latest context snapshot,
+	// surfaced by the context indicator when the pinned context has
+	// drifted.
+	onRefreshContext?: () => void;
+	isRefreshingContext?: boolean;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -187,6 +192,7 @@ interface AgentChatInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 }
 
 export interface AttachedWorkspaceInfo {
@@ -367,6 +373,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelHistoryEdit,
 	userPromptHistory = [],
 	contextUsage,
+	onRefreshContext,
+	isRefreshingContext,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -387,6 +395,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames = [],
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice = canConfigureAgentSetup
@@ -1063,12 +1072,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount}
 							modelCount={modelCount}
+							unsupportedProviderNames={unsupportedProviderNames}
 						/>
 					) : (
 						<AgentSetupNotice
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							unsupportedProviderNames={unsupportedProviderNames}
 						/>
 					)}
 				</div>
@@ -1537,7 +1548,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator usage={contextUsage} />
+							<ContextUsageIndicator
+								usage={contextUsage}
+								onRefreshContext={onRefreshContext}
+								isRefreshingContext={isRefreshingContext}
+							/>
 						)}
 						{isStreaming && onInterrupt && (
 							<Button

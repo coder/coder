@@ -17,14 +17,25 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// singleKeyPool builds a centralized key pool containing a single key.
+func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
+	t.Helper()
+	pool, err := keypool.New(name, []string{key}, quartz.NewReal(), nil)
+	require.NoError(t, err)
+	return pool
+}
 
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
@@ -646,10 +657,12 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 					BaseURL:          upstreamSrv.URL,
+					KeyPool:          singleKeyPool(t, "openai", "test-key"),
 					SendActorHeaders: true,
 				}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 					BaseURL:          upstreamSrv.URL,
+					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
 					SendActorHeaders: true,
 				}, nil),
 			}
@@ -753,8 +766,8 @@ func TestRouting(t *testing.T) {
 			client := mock.NewMockDRPCClient(ctrl)
 
 			providers := []aibridge.Provider{
-				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
+				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL, KeyPool: singleKeyPool(t, "openai", "test-key")}),
+				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
 			}
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)

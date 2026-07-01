@@ -16,6 +16,7 @@ coder server [flags]
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
+| [<code>fix-oidc-links</code>](./server_fix-oidc-links.md)                 | Reset OIDC linked IDs that do not match the expected issuer, allowing users to re-authenticate.        |
 | [<code>dbcrypt</code>](./server_dbcrypt.md)                               | Manage database encryption.                                                                            |
 
 ## Options
@@ -1121,6 +1122,16 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 Whether Coder only allows connections to workspaces via the browser.
 
+### --cluster-host
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_CLUSTER_HOST</code>            |
+| YAML        | <code>networking.cluster.clusterHost</code> |
+
+Hostname or (more commonly) IP to reach this replica for clustering.
+
 ### --scim-auth-header
 
 |             |                                      |
@@ -1129,6 +1140,17 @@ Whether Coder only allows connections to workspaces via the browser.
 | Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
+
+### --scim-use-legacy
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_SCIM_USE_LEGACY</code> |
+| YAML        | <code>scimUseLegacy</code>          |
+| Default     | <code>true</code>                   |
+
+Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.
 
 ### --external-token-encryption-keys
 
@@ -1897,7 +1919,7 @@ Once enabled, extra headers will be added to upstream requests to identify the u
 | Environment | <code>$CODER_AI_GATEWAY_DUMP_DIR</code> |
 | YAML        | <code>ai_gateway.api_dump_dir</code>    |
 
-Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
+Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.
 
 ### --ai-gateway-allow-byok
 
@@ -2117,6 +2139,6 @@ Disable the template builder feature for guided template creation. When disabled
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
 | YAML        | <code>templateBuilder.registryURL</code>          |
-| Default     | <code>https://registry.coder.com</code>           |
+| Default     | <code>registry.coder.com</code>                   |
 
 The base URL of the module registry used by the template builder for module source paths.

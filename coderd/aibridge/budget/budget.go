@@ -26,6 +26,13 @@ const (
 	SourceGroup LimitSource = "group"
 )
 
+// Store is the subset of database.Store needed to resolve a user's effective
+// AI budget.
+type Store interface {
+	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
+	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
+}
+
 // EffectiveBudget is the AI budget that applies to a user after override and
 // policy resolution.
 type EffectiveBudget struct {
@@ -41,7 +48,7 @@ type EffectiveBudget struct {
 // return value is false when no budget is configured for the user. A per-user
 // override wins unconditionally; otherwise the budget is selected from the
 // user's groups according to policy.
-func ResolveUserAIBudget(ctx context.Context, db database.Store, userID uuid.UUID, policy codersdk.AIBudgetPolicy) (EffectiveBudget, bool, error) {
+func ResolveUserAIBudget(ctx context.Context, db Store, userID uuid.UUID, policy codersdk.AIBudgetPolicy) (EffectiveBudget, bool, error) {
 	// A per-user override always wins.
 	override, err := db.GetUserAIBudgetOverride(ctx, userID)
 	if err == nil {

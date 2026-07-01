@@ -1753,6 +1753,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			// Create old boundary log.
 			oldLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
 				SessionID:      session.ID,
+				OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
 				SequenceNumber: 0,
 				CapturedAt:     tc.oldLogTime,
 				CreatedAt:      tc.oldLogTime,
@@ -1764,6 +1765,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			if tc.recentLogTime != nil {
 				recentLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
 					SessionID:      session.ID,
+					OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
 					SequenceNumber: 1,
 					CapturedAt:     *tc.recentLogTime,
 					CreatedAt:      *tc.recentLogTime,
@@ -1905,6 +1907,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 			if tc.logTime != nil {
 				dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
 					SessionID:      session.ID,
+					OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
 					SequenceNumber: 0,
 					CapturedAt:     *tc.logTime,
 					CreatedAt:      *tc.logTime,

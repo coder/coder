@@ -9,14 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/enterprise/coderd"
 )
@@ -45,7 +44,10 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 
 	logger := coderAPI.Logger.Named("aibridgeproxyd")
 
-	reg := prometheus.WrapRegistererWithPrefix("coder_aibridgeproxyd_", coderAPI.PrometheusRegistry)
+	// TODO(deprecation): Remove "coder_aibridgeproxyd_" in v2.37.
+	// See AIGOV-447:
+	// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
+	reg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_proxy_", "coder_aibridgeproxyd_")
 	metrics := aibridgeproxyd.NewMetrics(reg)
 
 	var newDumper func(provider, requestID string) aibridgeproxyd.RoundTripDumper
@@ -75,8 +77,10 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, srv, logger.Named("provider-reload"))
 	if err != nil {
-		logger.Warn(ctx, "subscribe aibridgeproxyd to ai providers change channel", slog.Error(err))
-		unsubscribe = func() {}
+		// Without the subscription the proxy can never track provider changes,
+		// so fail startup rather than serve a permanently stale snapshot.
+		_ = srv.Close()
+		return nil, xerrors.Errorf("subscribe aibridgeproxyd to ai providers change channel: %w", err)
 	}
 
 	// Register the handler so coderd can serve the proxy endpoints.

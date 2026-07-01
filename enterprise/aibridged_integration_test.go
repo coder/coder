@@ -20,7 +20,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -33,7 +35,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// singleKeyPool builds a centralized key pool containing a single key.
+func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
+	t.Helper()
+	pool, err := keypool.New(name, []string{key}, quartz.NewReal(), nil)
+	require.NoError(t, err)
+	return pool
+}
 
 var testTracer = otel.Tracer("aibridged_inttest")
 
@@ -183,7 +194,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
-	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, Key: "test-centralized-key"})}
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-centralized-key")})}
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, tracer)
 	require.NoError(t, err)
 
@@ -383,7 +394,7 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
-	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL})}
+	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: mockOpenAI.URL, KeyPool: singleKeyPool(t, config.ProviderOpenAI, "test-centralized-key")})}
 
 	// Create pool with metrics.
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, metrics, testTracer)
@@ -491,11 +502,12 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			BaseURL:        mockOpenAI.URL,
+			KeyPool:        singleKeyPool(t, config.ProviderOpenAI, "test-key"),
 			CircuitBreaker: cbConfig,
 		}),
-		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 			BaseURL:        mockAnthropic.URL,
-			Key:            "test-key",
+			KeyPool:        singleKeyPool(t, config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
 		}, nil),
 	}

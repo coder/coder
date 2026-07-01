@@ -7,7 +7,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/internal/googleopenai"
 )
 
@@ -46,7 +46,7 @@ func TestGoogleOpenAICompatThoughtSignaturePatchSurvivesParamRoundTrip(t *testin
 
 	body, err := (&interceptionBase{
 		req: &req,
-		cfg: config.OpenAI{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
+		cfg: intercept.Config{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
 	}).chatCompletionRequestBody()
 	require.NoError(t, err)
 	require.Equal(t, googleopenai.DummyThoughtSignature, googleThoughtSignatureFromBody(t, body, 1, 0))
@@ -70,7 +70,7 @@ func TestGoogleOpenAICompatChatCompletionRequestOptions(t *testing.T) {
 	opts := make([]option.RequestOption, 1)
 	updated, overrideBody, err := (&interceptionBase{
 		req: &req,
-		cfg: config.OpenAI{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
+		cfg: intercept.Config{BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
 	}).chatCompletionRequestOptions(opts)
 	require.NoError(t, err)
 	require.True(t, overrideBody)

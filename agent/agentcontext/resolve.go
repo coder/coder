@@ -1,9 +1,10 @@
 package agentcontext
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,6 +15,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -32,55 +35,72 @@ const (
 	// DefaultMaxResources is the resource count cap. Resources
 	// past this cap are emitted with Status == StatusExcluded.
 	DefaultMaxResources = 500
-	// DefaultMaxScanDepth bounds how deep the recursive walk
-	// descends from each scan root. The default avoids runaway
-	// scans in node_modules / vendor / .git trees while still
-	// covering realistic monorepo layouts.
-	DefaultMaxScanDepth = 8
 )
 
 // File-name conventions recognized by the v1 resolver.
 var (
-	// instructionFileNames are picked up from any scan root.
-	// Matching is case-insensitive on the basename.
+	// instructionFileNames are picked up from the top level of a
+	// scan root. Matching is case-sensitive on the basename,
+	// mirroring codex: it keys on the exact name "AGENTS.md" and
+	// never case-folds, so a lower-case agents.md (for example a
+	// generated API reference doc) is not mistaken for an
+	// instruction file.
 	instructionFileNames = []string{
 		"AGENTS.md",
 		"CLAUDE.md",
 		".cursorrules",
 	}
-	// mcpConfigFileName is recognized at any depth under a
-	// scan root.
+	// mcpConfigFileName is recognized at the top level of a scan
+	// root only, not at arbitrary depth.
 	mcpConfigFileName = ".mcp.json"
 	// skillMetaFileName is the file inside a skill directory
 	// that carries the skill front-matter.
 	skillMetaFileName = "SKILL.md"
 )
 
-// skipDirNames are directory basenames that the recursive walk
-// never descends into. The list mirrors what most language
-// tool-chains treat as opaque.
-var skipDirNames = map[string]struct{}{
-	".git":         {},
-	".hg":          {},
-	".svn":         {},
-	"node_modules": {},
-	"vendor":       {},
-	"target":       {},
-	"dist":         {},
-	"build":        {},
-	".venv":        {},
-	"__pycache__":  {},
+// skillContainerRelPaths are the directories, relative to a scan
+// root, under which skills are discovered. A skill is an immediate
+// subdirectory of a container that holds a SKILL.md. The list
+// covers the cross-tool conventions Coder supports; codex itself
+// uses .agents/skills and .codex/skills.
+var skillContainerRelPaths = []string{
+	"skills",
+	filepath.Join(".agents", "skills"),
+	filepath.Join(".claude", "skills"),
+	filepath.Join(".codex", "skills"),
 }
 
 // recognizedInstructionFile reports whether name is one of the
-// instruction-file conventions, case-insensitively.
+// instruction-file conventions. Matching is case-sensitive:
+// codex keys on the exact basename "AGENTS.md", so a lower-case
+// agents.md is intentionally not recognized.
 func recognizedInstructionFile(name string) bool {
 	for _, candidate := range instructionFileNames {
-		if strings.EqualFold(name, candidate) {
+		if name == candidate {
 			return true
 		}
 	}
 	return false
+}
+
+// skillContainersFor returns the existing skill-container
+// directories reachable from rootPath without recursing the tree:
+// rootPath itself when it is already a "skills" directory, plus
+// each skillContainerRelPaths entry that exists. Skills live in
+// the immediate children of a container, so the resolver and the
+// watcher both stop here.
+func skillContainersFor(rootPath string) []string {
+	var out []string
+	if filepath.Base(rootPath) == "skills" {
+		out = append(out, rootPath)
+	}
+	for _, rel := range skillContainerRelPaths {
+		container := filepath.Join(rootPath, rel)
+		if info, err := os.Stat(container); err == nil && info.IsDir() {
+			out = append(out, container)
+		}
+	}
+	return out
 }
 
 // Resolver walks one or more scan roots and produces a snapshot
@@ -97,13 +117,13 @@ type Resolver struct {
 	// MaxResources caps the resource count. Use
 	// DefaultMaxResources if zero.
 	MaxResources int
-	// MaxDepth caps the directory walk depth. Use
-	// DefaultMaxScanDepth if zero.
-	MaxDepth int
-	// MCP, when non-nil, is consulted after the filesystem
-	// pass and contributes any KindMCPServer resources for
-	// live MCP servers.
-	MCP MCPProvider
+	// MCPResources, when non-nil, is consulted after the
+	// filesystem pass and returns the KindMCPServer resources
+	// for live MCP servers. It must not block: the resolver
+	// calls it on every re-resolve. In production the manager
+	// wires this to its MCP runner's snapshot; tests inject a
+	// closure directly.
+	MCPResources func() []Resource
 }
 
 // ScanRoot describes a single directory or file the resolver
@@ -144,8 +164,8 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	// Append MCP server resources after the filesystem caps
 	// are applied so a runaway MCP server cannot crowd out
 	// instruction files.
-	if r.MCP != nil {
-		mcp := r.MCP.MCPResources()
+	if r.MCPResources != nil {
+		mcp := r.MCPResources()
 		startIdx := len(resources)
 		resources = append(resources, mcp...)
 		// MCP resources may push the aggregate over the
@@ -164,7 +184,10 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 		payloadBytes += uint64(len(r.Payload))
 	}
 
-	hash := ComputeAggregateHash(resources)
+	// The drift hash covers only pinned prompt content; MCP resources are
+	// excluded (see driftResources). Snapshot.Resources still carries the
+	// full set so MCP servers stay visible in the chat-context snapshot.
+	hash := ComputeAggregateHash(driftResources(resources))
 
 	snap := Snapshot{
 		Resources:     resources,
@@ -192,15 +215,19 @@ func (r *Resolver) normalize() *Resolver {
 	if out.MaxResources == 0 {
 		out.MaxResources = DefaultMaxResources
 	}
-	if out.MaxDepth == 0 {
-		out.MaxDepth = DefaultMaxScanDepth
-	}
 	return &out
 }
 
-// walk traverses every scan root and produces an unordered
-// resource list. Aggregate caps are applied separately. The ctx
-// is checked between roots so callers can bail out promptly.
+// walk visits every scan root and produces an unordered resource
+// list. Aggregate caps are applied separately. The ctx is checked
+// between roots so callers can bail out promptly.
+//
+// Discovery is deliberately shallow. For each scan root the
+// resolver inspects only that directory's top level (instruction
+// files and .mcp.json) plus a fixed set of skill-container
+// locations under it. It never descends into subdirectories and
+// never climbs to a parent directory; additional directories must
+// be added explicitly as scan roots.
 func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Resource, snapErrs []string) {
 	// Dedup roots by canonical path. The first occurrence
 	// wins so user-added roots that overlap with a built-in
@@ -218,131 +245,89 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		dedup = append(dedup, root)
 	}
 
-	// Deduplicate resources across roots by ID. Without this,
-	// a built-in root and a user root that both cover the
-	// same project tree would double-count AGENTS.md.
+	// Deduplicate resources across roots by ID so two roots that
+	// resolve to the same file (e.g. overlapping ancestors, or a
+	// built-in root nested under a project root) do not
+	// double-count it.
 	seenID := make(map[string]struct{})
 
 	for _, root := range dedup {
 		if err := ctx.Err(); err != nil {
 			return nil, []string{err.Error()}
 		}
-		info, err := os.Stat(root.Path)
-		if err != nil {
-			// Missing roots silently fall through. The user
-			// either added a path that does not exist yet or
-			// removed it later. The watcher will surface
-			// re-creation as a change event.
-			continue
-		}
-		if !info.IsDir() {
-			// Single-file roots are classified directly.
-			if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
-				if _, dup := seenID[res.ID]; !dup {
-					seenID[res.ID] = struct{}{}
-					resources = append(resources, res)
-				}
-			}
-			continue
-		}
-		walkErr := r.walkDir(ctx, root, &resources, seenID)
-		if walkErr != nil {
-			snapErrs = append(snapErrs, fmt.Sprintf("walk %q: %s", root.Path, walkErr))
-		}
+		r.discoverIn(root, &resources, seenID)
 	}
 	return resources, snapErrs
 }
 
-// walkDir performs the recursive descent for a single scan
-// directory. It honors r.MaxDepth and skipDirNames. The ctx is
-// checked inside the WalkDir callback so cancellation
-// terminates the walk even mid-root.
-func (r *Resolver) walkDir(ctx context.Context, root ScanRoot, out *[]Resource, seenID map[string]struct{}) error {
-	rootDepth := strings.Count(filepath.Clean(root.Path), string(os.PathSeparator))
-	maxDepth := rootDepth + r.MaxDepth
-
-	return filepath.WalkDir(root.Path, func(path string, d fs.DirEntry, err error) error {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
+// discoverIn inspects a single scan root. A root that points at a
+// file is classified directly. A directory root contributes its
+// top-level instruction files and .mcp.json plus skills from the
+// fixed container locations under it. The walk goes no deeper.
+func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
+	info, err := os.Stat(root.Path)
+	if err != nil {
+		// Missing roots silently fall through. The user either
+		// added a path that does not exist yet or removed it
+		// later; the watcher surfaces re-creation as a change.
+		return
+	}
+	if !info.IsDir() {
+		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
+			appendResource(out, seenID, res)
 		}
-		if err != nil {
-			// Surface the error as Unreadable when we can
-			// associate it with a single recognized file;
-			// otherwise let the walk continue.
-			if d != nil && !d.IsDir() {
-				kind, recognized := kindFromFilename(d.Name())
-				if recognized {
-					res := Resource{
-						ID:         resourceID(kind, path),
-						Kind:       kind,
-						Source:     path,
-						SizeBytes:  0,
-						Status:     StatusUnreadable,
-						Error:      err.Error(),
-						SourcePath: root.UserSource,
-					}
-					if _, dup := seenID[res.ID]; !dup {
-						seenID[res.ID] = struct{}{}
-						*out = append(*out, res)
-					}
-				}
-			}
-			if errors.Is(err, fs.ErrPermission) {
-				// Permission errors on a directory: skip the
-				// subtree but continue walking siblings.
-				if d != nil && d.IsDir() {
-					return fs.SkipDir
-				}
-			}
-			return nil
-		}
-
-		if d.IsDir() {
-			if strings.Count(path, string(os.PathSeparator)) > maxDepth {
-				return fs.SkipDir
-			}
-			if _, skip := skipDirNames[d.Name()]; skip && path != root.Path {
-				return fs.SkipDir
-			}
-			// If we are entering a "skills container"
-			// directory (".agents/skills", "~/.coder/skills",
-			// "plugins/<plugin>/skills"), eagerly emit skill
-			// resources for its immediate subdirectories.
-			if isSkillsContainer(path) {
-				r.emitSkillsFromContainer(path, root, out, seenID)
-			}
-			return nil
-		}
-
-		// Regular file.
-		info, statErr := d.Info()
-		if statErr != nil {
-			return nil
-		}
-		if res, ok := r.classifyFile(root.Path, path, info, root.UserSource); ok {
-			if _, dup := seenID[res.ID]; dup {
-				return nil
-			}
-			seenID[res.ID] = struct{}{}
-			*out = append(*out, res)
-		}
-		return nil
-	})
+		return
+	}
+	r.discoverTopLevelFiles(root, out, seenID)
+	for _, container := range skillContainersFor(root.Path) {
+		r.emitSkillsFromContainer(container, root, out, seenID)
+	}
 }
 
-// kindFromFilename maps a file basename to its ResourceKind.
-// recognized=false when the name matches no convention.
-func kindFromFilename(name string) (kind ResourceKind, recognized bool) {
-	switch {
-	case recognizedInstructionFile(name):
-		return KindInstructionFile, true
-	case name == mcpConfigFileName:
-		return KindMCPConfig, true
-	case name == skillMetaFileName:
-		return KindSkill, true
-	default:
-		return 0, false
+// discoverTopLevelFiles classifies the instruction files and
+// .mcp.json that sit directly in root.Path. Nested files are
+// ignored: instruction files and MCP configs are recognized only
+// at a scan root's top level.
+func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
+	entries, err := os.ReadDir(root.Path)
+	if err != nil {
+		return
 	}
+	for _, e := range entries {
+		name := e.Name()
+		isInstruction := recognizedInstructionFile(name)
+		if !isInstruction && name != mcpConfigFileName {
+			continue
+		}
+		// A directory that happens to share a recognized basename
+		// is not a resource. resolveReadTarget separately rejects
+		// symlinks whose targets are not regular files.
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		path := filepath.Join(root.Path, name)
+		var res Resource
+		if isInstruction {
+			res = r.readInstructionFile(root.Path, path, info, root.UserSource)
+		} else {
+			res = r.readMCPConfig(root.Path, path, info, root.UserSource)
+		}
+		appendResource(out, seenID, res)
+	}
+}
+
+// appendResource adds res to out unless an earlier resource
+// already claimed its ID.
+func appendResource(out *[]Resource, seenID map[string]struct{}, res Resource) {
+	if _, dup := seenID[res.ID]; dup {
+		return
+	}
+	seenID[res.ID] = struct{}{}
+	*out = append(*out, res)
 }
 
 // resolveReadTarget produces the path and FileInfo that should
@@ -391,8 +376,10 @@ func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath
 	return target, tgtInfo, true, StatusOK, ""
 }
 
-// classifyFile inspects a single file path and produces a
+// classifyFile inspects a single-file scan root and produces a
 // Resource when the basename matches a recognized convention.
+// Directory roots are handled by discoverIn; this is reached only
+// for sources that point directly at a file.
 func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
 	name := info.Name()
 	switch {
@@ -401,13 +388,10 @@ func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSou
 	case name == mcpConfigFileName:
 		return r.readMCPConfig(scanRoot, path, info, userSource), true
 	case name == skillMetaFileName:
-		// SKILL.md outside a skills container is still a
-		// valid skill if its parent directory name matches
-		// the front-matter name. emitSkillsFromContainer
-		// already handles the common case; here we cover
-		// "user adds a single SKILL.md file as a source".
-		res, ok := r.readSkillMeta(scanRoot, path, info, userSource)
-		return res, ok
+		// SKILL.md as an explicit single-file source is still a
+		// valid skill when its parent directory name matches the
+		// front-matter name.
+		return r.readSkillMeta(scanRoot, path, info, userSource)
 	default:
 		return Resource{}, false
 	}
@@ -439,8 +423,8 @@ func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, 
 // .mcp.json fragments frequently embed secret-bearing fields
 // (Env tokens, Authorization headers). The resolver hashes the
 // file for change detection but intentionally does not ship
-// the bytes; the live MCP server's tool list arrives via the
-// MCPProvider as a KindMCPServer resource, which is what
+// the bytes; the live MCP server's tool list arrives
+// separately as a KindMCPServer resource, which is what
 // downstream consumers actually need.
 func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
 	res := Resource{
@@ -472,7 +456,44 @@ func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSo
 		return res
 	}
 	res.ContentHash = sha256.Sum256(data)
+	// A .mcp.json with broken JSON yields no MCP servers at all; the
+	// MCP manager logs and skips it, so the failure is otherwise
+	// invisible. Flag structural problems here as StatusInvalid so the
+	// chat context surfaces them as an issue rather than silently
+	// dropping every server in the file.
+	if err := validateMCPConfig(data); err != nil {
+		res.Status = StatusInvalid
+		res.Error = err.Error()
+	}
 	return res
+}
+
+// validateMCPConfig performs lightweight structural validation of a
+// .mcp.json document so syntactically broken files surface as
+// StatusInvalid instead of silently producing no MCP servers. It is
+// deliberately self-contained and does not import the MCP package: it
+// only checks that the document is valid JSON shaped like
+// {"mcpServers": {<name>: {...}}}. Individual server fields
+// (command/url/env/...) are not validated here; the MCP manager owns
+// that when it connects. An absent or empty mcpServers map is valid.
+func validateMCPConfig(data []byte) error {
+	var shape struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &shape); err != nil {
+		return err
+	}
+	// Each server entry must be a JSON object; a scalar or array
+	// entry is a structural error the MCP manager would reject.
+	// The top-level Unmarshal above already rejects malformed JSON,
+	// so a well-formed value starting with '{' is a complete object.
+	for name, raw := range shape.MCPServers {
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) == 0 || trimmed[0] != '{' {
+			return xerrors.Errorf("server %q must be a JSON object", name)
+		}
+	}
+	return nil
 }
 
 // readFileResource is the shared plumbing for kinds whose only
@@ -482,14 +503,26 @@ func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSo
 // post-processing (e.g. firstLine for instruction files) by
 // inspecting Status==StatusOK.
 func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, info fs.FileInfo, userSource string) Resource {
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	// Attribute the resource to the resolved target rather than
+	// the path we walked. When several names point at the same
+	// file (e.g. CLAUDE.md and .cursorrules symlinked to
+	// AGENTS.md), they share an ID and collapse to a single
+	// resource via the walk's ID-based dedup, instead of shipping
+	// identical content multiple times. On resolve failure the
+	// original path is kept so the error points at the offending
+	// link.
+	idPath := path
+	if ok {
+		idPath = readPath
+	}
 	res := Resource{
-		ID:         resourceID(kind, path),
+		ID:         resourceID(kind, idPath),
 		Kind:       kind,
-		Source:     path,
+		Source:     idPath,
 		SizeBytes:  safeUint64(info.Size()),
 		SourcePath: userSource,
 	}
-	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
 	if !ok {
 		res.Status = status
 		res.Error = errMsg
@@ -602,11 +635,7 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 		if !ok {
 			continue
 		}
-		if _, dup := seenID[res.ID]; dup {
-			continue
-		}
-		seenID[res.ID] = struct{}{}
-		*out = append(*out, res)
+		appendResource(out, seenID, res)
 	}
 }
 
@@ -698,15 +727,6 @@ func excluded(r Resource, reason string) Resource {
 	return r
 }
 
-// isSkillsContainer reports whether dir is a recognized skills
-// container directory whose immediate children carry SKILL.md
-// files. Both bare "skills" and nested "<parent>/skills"
-// directories qualify (e.g. ".agents/skills",
-// "plugins/foo/skills").
-func isSkillsContainer(dir string) bool {
-	return filepath.Base(dir) == "skills"
-}
-
 // resourceID builds a stable resource ID. Kind plus canonical
 // source path is enough; sources never collide across kinds for
 // v1 because each kind owns a distinct file-name pattern.
@@ -785,8 +805,8 @@ const (
 	// more MCP servers.
 	KindMCPConfig
 	// KindMCPServer is a live MCP server's resolved tool list,
-	// populated by an MCPProvider after the server has been
-	// connected.
+	// populated from the MCP runner's snapshot after the server
+	// has been connected.
 	KindMCPServer
 	// KindPlugin is reserved for Claude Code plugin manifests.
 	// Not emitted by v1.
@@ -933,13 +953,19 @@ type MCPTool struct {
 // Snapshot is the immutable bundle of resources produced by a
 // single resolver pass.
 type Snapshot struct {
-	// Version is monotonically increasing per Manager
-	// instance; resets when the agent process restarts.
+	// Version is monotonically increasing per Manager instance; resets
+	// when the agent process restarts. Version 0 is the gated pre-ready
+	// placeholder (the first real resolve is version 1), which the push
+	// loop withholds.
 	Version uint64
 	// AggregateHash is sha256 over a canonical encoding of
 	// (ID, Kind, Source, ContentHash, Status) for every
-	// resource. Identical inputs always produce identical
-	// hashes; see ComputeAggregateHash.
+	// drift-relevant resource. MCP resources (KindMCPConfig and
+	// KindMCPServer) are excluded because they describe live,
+	// agent-global runtime capabilities discovered at turn time,
+	// not pinned prompt content; see driftResources. Identical
+	// inputs always produce identical hashes; see
+	// ComputeAggregateHash.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
 	Resources []Resource
@@ -950,6 +976,28 @@ type Snapshot struct {
 	// string when present (count cap exceeded, watcher
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
+}
+
+// driftResources returns the subset of resources that participate in
+// chat-context drift detection. MCP resources (the .mcp.json config and
+// connected MCP servers) are deliberately excluded: an agent connects to
+// its MCP servers asynchronously after startup, and the chat model
+// discovers their tools live at turn time, not from pinned prompt
+// content. Hashing them would dirty an already-hydrated chat the moment
+// a server finished connecting, even though nothing the user pinned
+// changed. Instruction files and skills, whose content is pinned into
+// the chat, stay drift-relevant.
+func driftResources(resources []Resource) []Resource {
+	out := make([]Resource, 0, len(resources))
+	for _, r := range resources {
+		switch r.Kind {
+		case KindMCPConfig, KindMCPServer:
+			continue
+		default:
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // ComputeAggregateHash produces the deterministic snapshot

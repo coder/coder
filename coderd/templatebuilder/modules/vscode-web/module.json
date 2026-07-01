@@ -46,7 +46,7 @@
     {
       "name": "commit_id",
       "type": "string",
-      "description": "Specify the commit ID of the VS Code Web binary to pin to a specific version. If left empty, the latest stable version is used.",
+      "description": "Commit ID to pin VS Code Web to a specific version.",
       "default": "",
       "required": false,
       "sensitive": false,

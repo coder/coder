@@ -36,7 +36,7 @@ func (*RootCmd) syncStatus(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "status <unit>",
 		Short: "Show unit status and dependency state",
-		Long:  "Show the current status of a unit, whether it is ready to start, and lists its dependencies. Shows which dependencies are satisfied and which are still pending. Supports multiple output formats.",
+		Long:  "Show the current status of a unit, whether it is ready to start, and lists its dependencies. Shows which dependencies are satisfied and which are still pending.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 

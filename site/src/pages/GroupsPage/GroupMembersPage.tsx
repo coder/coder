@@ -1,15 +1,19 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { type FC, type ReactNode, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
+import type {
+	GroupMemberAICostControl,
+	GroupMemberWithAICostControl,
+} from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, removeMember } from "#/api/queries/groups";
+import { addMembers, groupById, removeMember } from "#/api/queries/groups";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
-	ReducedUser,
 } from "#/api/typesGenerated";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -39,9 +43,14 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
+import { formatBudgetUSD } from "#/utils/currency";
 import type { GroupPageOutletContext } from "./GroupPage";
+import { InfoIconTooltip } from "./InfoIconTooltip";
+import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -58,6 +67,15 @@ const GroupMembersPage: FC = () => {
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+	const [budgetUser, setBudgetUser] =
+		useState<GroupMemberWithAICostControl | null>(null);
+
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
+	// the cost-control feature is stable.
+	const aibridgeVisible =
+		Boolean(useFeatureVisibility().aibridge) &&
+		experiments.includes("ai-gateway-cost-control");
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -78,11 +96,31 @@ const GroupMembersPage: FC = () => {
 			</div>
 
 			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
-				<Table>
+				<Table aria-label="Group members">
 					<TableHeader>
 						<TableRow>
-							<TableHead className="w-2/5">User</TableHead>
-							<TableHead className="w-3/5">Status</TableHead>
+							<TableHead className={aibridgeVisible ? undefined : "w-2/5"}>
+								User
+							</TableHead>
+							<TableHead className={aibridgeVisible ? undefined : "w-3/5"}>
+								Status
+							</TableHead>
+							{aibridgeVisible && (
+								<>
+									<TableHead>
+										<div className="flex items-center gap-1">
+											AI budget
+											<InfoIconTooltip message="A member's AI spend against their budget for the current period." />
+										</div>
+									</TableHead>
+									<TableHead>
+										<div className="flex items-center gap-1">
+											Budget type
+											<InfoIconTooltip message="Whether a member's budget comes from their group or an individual override." />
+										</div>
+									</TableHead>
+								</>
+							)}
 							<TableHead className="w-auto" />
 						</TableRow>
 					</TableHeader>
@@ -101,6 +139,8 @@ const GroupMembersPage: FC = () => {
 									group={groupData}
 									key={member.id}
 									canUpdate={canUpdateGroup}
+									showAIBudget={aibridgeVisible}
+									onManageAIBudget={() => setBudgetUser(member)}
 									onRemove={async () => {
 										const mutation = removeMemberMutation.mutateAsync({
 											groupId: groupData.id,
@@ -121,6 +161,20 @@ const GroupMembersPage: FC = () => {
 					</TableBody>
 				</Table>
 			</PaginationContainer>
+
+			{aibridgeVisible && budgetUser && (
+				<UserAIBudgetOverrideDialog
+					open
+					onOpenChange={(open) => {
+						if (!open) {
+							setBudgetUser(null);
+						}
+					}}
+					user={budgetUser}
+					currentGroup={groupData}
+					effectiveGroupId={budgetUser.ai_cost_control?.effective_group_id}
+				/>
+			)}
 		</div>
 	);
 };
@@ -218,9 +272,11 @@ const AddUsersDialog: FC<AddUsersDialogProps> = ({
 };
 
 interface GroupMemberRowProps {
-	member: ReducedUser;
+	member: GroupMemberWithAICostControl;
 	group: Group;
 	canUpdate: boolean;
+	showAIBudget: boolean;
+	onManageAIBudget: () => void;
 	onRemove: () => void;
 }
 
@@ -228,11 +284,13 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,
+	showAIBudget,
+	onManageAIBudget,
 	onRemove,
 }) => {
 	return (
 		<TableRow key={member.id}>
-			<TableCell width="59%">
+			<TableCell width={showAIBudget ? undefined : "59%"}>
 				<AvatarData
 					avatar={
 						<Avatar
@@ -248,7 +306,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				/>
 			</TableCell>
 			<TableCell
-				width="40%"
+				width={showAIBudget ? undefined : "40%"}
 				className={cn(
 					"capitalize",
 					member.status === "suspended" ? "text-content-secondary" : "",
@@ -257,7 +315,14 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<div>{member.status}</div>
 				<LastSeen at={member.last_seen_at} className="text-xs" />
 			</TableCell>
-			<TableCell width="1%">
+			{showAIBudget && (
+				<GroupMemberAIBudgetCells
+					group={group}
+					userID={member.id}
+					costControl={member.ai_cost_control}
+				/>
+			)}
+			<TableCell className="w-1 whitespace-nowrap">
 				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
@@ -267,6 +332,11 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
+							{showAIBudget && (
+								<DropdownMenuItem onClick={onManageAIBudget}>
+									AI Budget
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"
 								onClick={onRemove}
@@ -280,6 +350,76 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 			</TableCell>
 		</TableRow>
 	);
+};
+
+const GroupMemberAIBudgetCells: FC<{
+	group: Group;
+	userID: string;
+	costControl: GroupMemberAICostControl | undefined;
+}> = ({ group, userID, costControl }) => {
+	// Limit and type apply only when this group is the member's effective source.
+	const onEffectiveGroup = costControl?.effective_group_id === group.id;
+
+	let budget: ReactNode = "-";
+	let type: ReactNode = "-";
+	if (costControl) {
+		// Another group sets this member's budget; surface their spend only.
+		budget = onEffectiveGroup ? (
+			<AIBudgetUsage
+				currentSpend={costControl.current_spend_micros}
+				spendLimit={costControl.spend_limit_micros}
+			/>
+		) : (
+			<span className="inline-flex items-center gap-1 text-content-disabled">
+				{formatBudgetUSD(costControl.current_spend_micros)}
+				<MemberBudgetSourceTooltip groupId={costControl.effective_group_id} />
+			</span>
+		);
+		if (onEffectiveGroup && costControl.limit_source) {
+			type = budgetTypeLabels[costControl.limit_source];
+		}
+	}
+
+	return (
+		<>
+			<TableCell
+				data-testid={`member-ai-budget-${userID}`}
+				className="whitespace-nowrap tabular-nums"
+			>
+				{budget}
+			</TableCell>
+			<TableCell>{type}</TableCell>
+		</>
+	);
+};
+
+// Names the group whose budget governs a member, resolving the id to a name.
+const MemberBudgetSourceTooltip: FC<{ groupId: string | null }> = ({
+	groupId,
+}) => {
+	const { data: group } = useQuery({
+		...groupById(groupId ?? "", { exclude_members: true }),
+		enabled: Boolean(groupId),
+	});
+	const name = group?.display_name || group?.name;
+	return (
+		<InfoIconTooltip
+			className="text-content-disabled"
+			message={
+				name
+					? `This member's AI budget is set by the "${name}" group.`
+					: "This member's AI budget is set by another group."
+			}
+		/>
+	);
+};
+
+const budgetTypeLabels: Record<
+	NonNullable<GroupMemberAICostControl["limit_source"]>,
+	string
+> = {
+	group: "Group",
+	override: "Individual",
 };
 
 export default GroupMembersPage;

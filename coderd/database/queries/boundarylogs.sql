@@ -16,12 +16,28 @@ INSERT INTO boundary_sessions (
 ) RETURNING *;
 
 -- name: GetBoundarySessionByID :one
-SELECT * FROM boundary_sessions WHERE id = @id;
+SELECT
+    bs.*,
+    w.id AS workspace_id,
+    w.owner_id AS workspace_owner_id
+FROM
+    boundary_sessions bs
+JOIN
+    workspace_agents wa ON wa.id = bs.workspace_agent_id
+JOIN
+    workspace_resources wr ON wr.id = wa.resource_id
+JOIN
+    workspace_builds wb ON wb.job_id = wr.job_id
+JOIN
+    workspaces w ON w.id = wb.workspace_id
+WHERE
+    bs.id = @id;
 
 -- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,
     session_id,
+    owner_id,
     sequence_number,
     captured_at,
     created_at,
@@ -33,6 +49,7 @@ INSERT INTO boundary_logs (
 SELECT
     unnest(@id :: uuid[]),
     @session_id :: uuid,
+    @owner_id :: uuid,
     unnest(@sequence_number :: int[]),
     unnest(@captured_at :: timestamptz[]),
     unnest(@created_at :: timestamptz[]),
@@ -47,14 +64,14 @@ SELECT * FROM boundary_logs WHERE id = @id;
 
 -- name: ListBoundaryLogsBySessionID :many
 -- Lists boundary logs for a session, sorted by sequence number ascending.
--- Supports optional exclusive sequence number bounds (seq_after, seq_before)
--- for fetching events between two known interceptions.
+-- Supports an inclusive lower bound (seq_after) and an exclusive upper bound
+-- (seq_before) for fetching events between two known interceptions.
 SELECT *
 FROM boundary_logs
 WHERE
     session_id = @session_id
     AND CASE
-        WHEN sqlc.narg('seq_after')::int IS NOT NULL THEN sequence_number > sqlc.narg('seq_after')
+        WHEN sqlc.narg('seq_after')::int IS NOT NULL THEN sequence_number >= sqlc.narg('seq_after')
         ELSE true
     END
     AND CASE

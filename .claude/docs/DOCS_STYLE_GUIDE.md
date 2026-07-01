@@ -1,13 +1,16 @@
 # Documentation Style Guide
 
-This guide documents prose, structure, and formatting patterns for documentation files in the `docs/` directory. It complements, and does not replace, the canonical content rules.
+This guide documents structure, research, and content patterns for documentation files in the `docs/` directory. It complements, and does not replace, the canonical content rules or the prose style guide.
 
 > [!IMPORTANT]
 > **What belongs in the docs (and what doesn't)** is governed by
 > [`docs/.style/content-guidelines.md`](../../docs/.style/content-guidelines.md).
 > Read that first. When this style guide conflicts with the content
-> guidelines, the content guidelines govern. This file covers prose,
-> formatting, and structural conventions only.
+> guidelines, the content guidelines govern.
+>
+> **For prose rules**, refer to the canonical Coder documentation style guide at [`docs/.style/style-guide/`](../../docs/.style/style-guide/README.md).
+> Vale rules under `docs/.style/styles/Coder/` enforce those rules incrementally as each rule lands.
+> This file remains authoritative for structure, research, and content patterns.
 
 See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
 

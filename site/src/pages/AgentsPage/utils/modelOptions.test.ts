@@ -5,11 +5,16 @@ import type {
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import {
+	MockChatModelConfig,
+	MockChatProviderConfig,
+} from "#/testHelpers/chatModels";
+import {
 	countConfiguredProviderConfigs,
 	formatProviderLabel,
 	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	getNormalizedModelRef,
+	getUnsupportedProviderNames,
 	hasConfiguredProviderConfigs,
 	hasUserFixableProviders,
 	resolveModelOptionId,
@@ -18,60 +23,36 @@ import {
 const createConfig = (
 	overrides: Partial<ChatModelConfig> &
 		Pick<ChatModelConfig, "id" | "provider" | "model">,
-): ChatModelConfig => {
-	const {
-		id,
-		provider,
-		model,
-		display_name,
-		enabled = true,
-		is_default = false,
-		context_limit = 0,
-		compression_threshold = 0,
-		model_config,
-		created_at = "",
-		updated_at = "",
-	} = overrides;
-
-	return {
-		id,
-		provider,
-		model,
-		display_name: display_name ?? model,
-		enabled,
-		is_default,
-		context_limit,
-		compression_threshold,
-		model_config,
-		created_at,
-		updated_at,
-	};
-};
+): ChatModelConfig => ({
+	...MockChatModelConfig,
+	context_limit: 0,
+	compression_threshold: 0,
+	created_at: "",
+	updated_at: "",
+	...overrides,
+});
 
 const createCatalog = (
 	providers: ChatModelsResponse["providers"],
+	unsupportedProviders: ChatModelsResponse["unsupported_providers"] = [],
 ): ChatModelsResponse => ({
 	providers,
+	unsupported_providers: unsupportedProviders,
 });
 
 const createProviderConfig = (
 	overrides: Pick<ChatProviderConfig, "provider" | "source"> &
 		Partial<ChatProviderConfig>,
-): ChatProviderConfig => {
-	const { provider, source, ...rest } = overrides;
-	return {
-		id: "provider-config-1",
-		provider,
-		display_name: provider,
-		enabled: true,
-		has_api_key: false,
-		central_api_key_enabled: true,
-		allow_user_api_key: false,
-		allow_central_api_key_fallback: false,
-		source,
-		...rest,
-	};
-};
+): ChatProviderConfig => ({
+	...MockChatProviderConfig,
+	id: "provider-config-1",
+	display_name: overrides.provider,
+	has_api_key: false,
+	central_api_key_enabled: true,
+	allow_user_api_key: false,
+	allow_central_api_key_fallback: false,
+	...overrides,
+});
 
 describe("getNormalizedModelRef", () => {
 	it("returns empty strings for malformed values", () => {
@@ -536,5 +517,49 @@ describe("getModelOptionsFromConfigs", () => {
 				contextLimit: 128_000,
 			},
 		]);
+	});
+});
+
+describe("getUnsupportedProviderNames", () => {
+	const unsupportedCopilot: ChatModelsResponse["unsupported_providers"] = [
+		{
+			provider: "copilot",
+			display_name: "GitHub Copilot",
+		},
+	];
+
+	it("returns names when no supported provider is configured", () => {
+		const catalog = createCatalog([], unsupportedCopilot);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
+	});
+
+	it("returns empty when a supported provider is also configured", () => {
+		const catalog = createCatalog(
+			[{ provider: "anthropic", available: false, models: [] }],
+			unsupportedCopilot,
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual([]);
+	});
+
+	it("returns empty when there are no unsupported providers", () => {
+		expect(getUnsupportedProviderNames(createCatalog([]))).toEqual([]);
+	});
+
+	it("falls back to the provider type when display_name is empty", () => {
+		const catalog = createCatalog(
+			[],
+			[
+				{
+					provider: "copilot",
+					display_name: "",
+				},
+			],
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["copilot"]);
+	});
+
+	it("tolerates a missing catalog", () => {
+		expect(getUnsupportedProviderNames(undefined)).toEqual([]);
+		expect(getUnsupportedProviderNames(null)).toEqual([]);
 	});
 });

@@ -589,6 +589,15 @@ var AIBudgetPolicies = []string{
 	string(AIBudgetPolicyHighest),
 }
 
+// NewAIBudgetPolicyFromString converts s to an AIBudgetPolicy, falling back to
+// AIBudgetPolicyHighest when s is empty or not a recognized policy.
+func NewAIBudgetPolicyFromString(s string) AIBudgetPolicy {
+	if slices.Contains(AIBudgetPolicies, s) {
+		return AIBudgetPolicy(s)
+	}
+	return AIBudgetPolicyHighest
+}
+
 // AIBudgetPeriod determines when accumulated AI spend resets to zero,
 // aligned to UTC calendar boundaries.
 type AIBudgetPeriod string
@@ -614,6 +623,7 @@ type DeploymentValues struct {
 	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
+	Cluster                                 ClusterConfig                        `json:"cluster,omitempty" typescript:",notnull"`
 	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                                   PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
@@ -873,6 +883,10 @@ type DERPConfig struct {
 	Path            serpent.String `json:"path" typescript:",notnull"`
 }
 
+type ClusterConfig struct {
+	Host serpent.String `json:"host" typescript:",notnull"`
+}
+
 type UsageStatsConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
@@ -956,6 +970,15 @@ type OIDCConfig struct {
 	// situations where the OIDC callback domain is different from the ACCESS_URL
 	// domain.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
+
+	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
+
+	// EmailFallback allows OIDC logins to fall back to email-based matching
+	// when the `linked_id` (issuer+subject) does not match an existing user
+	// link. INSECURE: weakens the linked_id check. It exists for IdP
+	// brokers that do not issue a stable `sub` for the same user across
+	// connections.
+	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1438,6 +1461,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
  a peer to peer connection, Coder uses a distributed relay network backed by
  Tailscale and WireGuard.`,
 			YAML: "derp",
+		}
+		deploymentGroupNetworkingCluster = serpent.Group{
+			Parent: &deploymentGroupNetworking,
+			Name:   "Cluster",
+			Description: `Configure network clustering. Coder Servers in the primary region form a cluster by
+communicating directly.`,
+			YAML: "cluster",
 		}
 		deploymentGroupIntrospection = serpent.Group{
 			Name:        "Introspection",
@@ -1969,7 +1999,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
-		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Description: "Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
 		Flag:        "ai-gateway-dump-dir",
 		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
 		Value:       &c.AI.BridgeConfig.APIDumpDir,
@@ -2994,6 +3024,37 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			// So hide it, and only surface it to the small number of users that need it.
 			Hidden: true,
 		},
+		{
+			Name: "OIDC Auto Repair Links",
+			Description: "OIDC based users require the IdP issuer and subject in the claims to be static. " +
+				"If a new provider is configured, this option is required to be 'true'. It will reset any existing users to the " +
+				"previous provider, and match by email on their next login.",
+			Required:   false,
+			Default:    "true",
+			Flag:       "oidc-repair-links",
+			Env:        "CODER_OIDC_REPAIR_LINKS",
+			YAML:       "oidc-repair-links",
+			Value:      &c.OIDC.AutoRepairLinks,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// This flag should be removed after validation in real deployments. Leaving it
+			// as a flag as an escape hatch for now.
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Insecure Email Fallback (DANGEROUS)",
+			Description: "INSECURE: Allow OIDC logins to fall back to email-based matching when " +
+				"the linked_id (issuer+subject) does not match an existing user link. " +
+				"Required for IdP brokers that do not issue a stable 'sub' for the same user across connections. " +
+				"The existing user_link's linked_id is preserved on fallback. " +
+				"Only enable if you understand and accept the risk.",
+			Flag:   "dangerous-oidc-email-fallback",
+			Env:    "CODER_DANGEROUS_OIDC_EMAIL_FALLBACK",
+			YAML:   "dangerousOidcEmailFallback",
+			Value:  &c.OIDC.EmailFallback,
+			Group:  &deploymentGroupOIDC,
+			Hidden: true,
+		},
 		// Telemetry settings
 		telemetryEnable,
 		{
@@ -3544,6 +3605,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			YAML:        "browserOnly",
 		},
 		{
+			Name:        "Cluster Host",
+			Description: "Hostname or (more commonly) IP to reach this replica for clustering.",
+			Flag:        "cluster-host",
+			Env:         "CODER_CLUSTER_HOST",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.Cluster.Host,
+			Group:       &deploymentGroupNetworkingCluster,
+			YAML:        "clusterHost",
+		},
+		{
 			Name:        "SCIM API Key",
 			Description: "Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.",
 			Flag:        "scim-auth-header",
@@ -3557,7 +3628,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
 			Flag:        "scim-use-legacy",
 			Env:         "CODER_SCIM_USE_LEGACY",
-			Hidden:      true,
+			YAML:        "scimUseLegacy",
 			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
 			Default:     "true",
 			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
@@ -4748,7 +4819,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
-			Default:     "https://registry.coder.com",
+			Default:     "registry.coder.com",
 			Group:       &deploymentGroupTemplateBuilder,
 			YAML:        "registryURL",
 		},
@@ -5126,6 +5197,8 @@ const (
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
+	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5150,6 +5223,10 @@ func (e Experiment) DisplayName() string {
 		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
+	case ExperimentChatAdvisor:
+		return "Chat Advisor"
+	case ExperimentChatVirtualDesktop:
+		return "Chat Virtual Desktop"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5170,13 +5247,17 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
+	ExperimentChatAdvisor,
+	ExperimentChatVirtualDesktop,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentMinimumImplicitMember,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

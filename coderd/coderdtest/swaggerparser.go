@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/aibridge"
 )
 
 type SwaggerComment struct {
@@ -168,6 +170,14 @@ func isExperimentalEndpoint(route string) bool {
 	return strings.HasPrefix(route, "/api/v2/workspaceagents/me/experimental/")
 }
 
+// isLegacyAIBridgeAlias returns true for /api/v2/aibridge routes that are
+// backward-compatibility aliases of /api/v2/ai-gateway. The swagger
+// annotations live on the canonical /ai-gateway paths, so the legacy
+// routes have no matching annotation and must be skipped.
+func isLegacyAIBridgeAlias(route string) bool {
+	return strings.HasPrefix(route, aibridge.AIBridgeRootPath+"/")
+}
+
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment, opts ...SwaggerOption) {
 	cfg := swaggerOptions{}
 	for _, opt := range opts {
@@ -204,6 +214,9 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 				return
 			}
 			if isExperimentalEndpoint(route) {
+				return
+			}
+			if isLegacyAIBridgeAlias(route) {
 				return
 			}
 
@@ -345,6 +358,7 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	authorizedSecurityTags := []string{
 		"CoderSessionToken",
 		"CoderProvisionerKey",
+		"AIGatewayKey",
 	}
 
 	if comment.router == "/api/v2/updatecheck" ||
@@ -357,6 +371,11 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		comment.router == "/api/v2/init-script/{os}/{arch}" {
 		return // endpoints do not require authorization
 	}
+	if comment.router == "/api/v2/ai-gateway/serve" {
+		assert.Equal(t, "AIGatewayKey", comment.security, "@Security must be AIGatewayKey")
+		return
+	}
+
 	assert.Containsf(t, authorizedSecurityTags, comment.security, "@Security must be either of these options: %v", authorizedSecurityTags)
 }
 

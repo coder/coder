@@ -1,10 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
+import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
 const mockModelOptions: readonly ModelSelectorOption[] = [
 	{
+		...MockModelSelectorOption,
 		id: "gpt-4o-mini",
-		provider: "openai",
 		model: "gpt-4o-mini",
 		displayName: "GPT-4o mini",
 	},

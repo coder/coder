@@ -27,11 +27,12 @@ variable "{{ .Name }}" {
   description = "{{ .Description }}"
   type        = {{ .Type }}
   sensitive   = true
+  default     = ""
 }
 {{ end -}}
 module "{{ .ID }}" {
   count    = data.coder_workspace.me.start_count
-  source   = "{{"{{"}} .RegistryBase {{"}}"}}/coder/{{ .ID }}/coder"
+  source   = "{{"{{"}} .RegistryBase {{"}}"}}/{{ .Namespace }}/{{ .ID }}/coder"
   version  = "{{"{{"}} .PinnedVersion {{"}}"}}"
   agent_id = coder_agent.{{"{{"}} .AgentResourceName {{"}}"}}.id
 {{- range .NonComputedVars }}
@@ -46,6 +47,7 @@ module "{{ .ID }}" {
 
 type tfTmplData struct {
 	ID              string
+	Namespace       string
 	SensitiveVars   []ModuleVariable
 	NonComputedVars []ModuleVariable
 }
@@ -65,6 +67,7 @@ func writeTFTmpl(path string, m ModuleManifest) error {
 
 	data := tfTmplData{
 		ID:              m.ID,
+		Namespace:       m.Namespace,
 		SensitiveVars:   sensitiveVars,
 		NonComputedVars: nonComputedVars,
 	}

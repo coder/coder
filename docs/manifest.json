@@ -13,11 +13,6 @@
 					"path": "./about/screenshots.md"
 				},
 				{
-					"title": "Quickstart",
-					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
-				},
-				{
 					"title": "Support",
 					"description": "How Coder supports your deployment and you",
 					"path": "./support/index.md",
@@ -82,6 +77,36 @@
 							"description": "Guidelines for AI-generated contributions.",
 							"path": "./about/contributing/AI_CONTRIBUTING.md",
 							"icon_path": "./images/icons/ai_intelligence.svg"
+						}
+					]
+				}
+			]
+		},
+		{
+			"title": "Get started",
+			"description": "Install Coder and launch your first workspace",
+			"path": "./get-started/index.md",
+			"icon_path": "./images/icons/rocket.svg",
+			"children": [
+				{
+					"title": "Customize your template",
+					"description": "Add a language, install command-line tools, and authenticate to GitHub",
+					"path": "./get-started/customize-your-template/index.md",
+					"children": [
+						{
+							"title": "Add a programming language",
+							"description": "Expose a new language through a parameter and install it at startup",
+							"path": "./get-started/customize-your-template/add-a-language.md"
+						},
+						{
+							"title": "Install your own command-line tools",
+							"description": "Install personal command-line tools and make them persist",
+							"path": "./get-started/customize-your-template/install-command-line-tools.md"
+						},
+						{
+							"title": "Clone private repositories",
+							"description": "Authenticate to GitHub with an external-auth data source",
+							"path": "./get-started/customize-your-template/authenticate-to-github.md"
 						}
 					]
 				}
@@ -1025,6 +1050,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
 							"path": "./ai-coder/agents/platform-controls/index.md",
@@ -1073,10 +1104,22 @@
 									"state": ["beta"]
 								},
 								{
-									"title": "Experiments",
-									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
-									"path": "./ai-coder/agents/platform-controls/experiments.md",
-									"state": ["beta"]
+									"title": "Advisor",
+									"description": "Strategic guidance for root agent chats",
+									"path": "./ai-coder/agents/platform-controls/advisor.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Virtual desktop",
+									"description": "Allow agents to use a graphical desktop within workspaces",
+									"path": "./ai-coder/agents/platform-controls/virtual-desktop.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Chat debug logging",
+									"description": "Record detailed traces of chat turns for troubleshooting",
+									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md",
+									"state": ["early access"]
 								}
 							]
 						},
@@ -1280,6 +1323,12 @@
 									"description": "Technical reference for AI Gateway",
 									"path": "./ai-coder/ai-gateway/reference.md",
 									"state": ["ai governance add-on"]
+								},
+								{
+									"title": "Rebranding Migration",
+									"description": "Migrate from AI Bridge names to AI Gateway",
+									"path": "./ai-coder/ai-gateway/rebranding-migration.md",
+									"state": ["ai governance add-on"]
 								}
 							]
 						},
@@ -1356,7 +1405,7 @@
 				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
+					"path": "./get-started/index.md"
 				},
 				{
 					"title": "Write a Template from Scratch",
@@ -1515,8 +1564,8 @@
 							"path": "./reference/api/general.md"
 						},
 						{
-							"title": "AI Bridge",
-							"path": "./reference/api/aibridge.md"
+							"title": "AI Gateway",
+							"path": "./reference/api/aigateway.md"
 						},
 						{
 							"title": "AI Providers",
@@ -1524,6 +1573,7 @@
 						},
 						{
 							"title": "Agents",
+							"description": "REST endpoints for the workspace agent daemon (`coder_agent`).",
 							"path": "./reference/api/agents.md"
 						},
 						{
@@ -1548,6 +1598,7 @@
 						},
 						{
 							"title": "Chats",
+							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
 							"path": "./reference/api/chats.md",
 							"state": ["early access"]
 						},

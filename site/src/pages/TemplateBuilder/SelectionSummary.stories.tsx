@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
@@ -94,6 +94,32 @@ export const WithModules: Story = {
 				iconUrl: "/icon/devcontainers.svg",
 			},
 		],
+	},
+};
+
+export const WithLongNameModule: Story = {
+	args: {
+		currentStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{
+				id: "git-commit-signing",
+				name: "A module with a name long enough to cause the text inside the ModuleSelection component to wrap to the next line, showing that the icon on the left remains top-aligned with the first line of the module name",
+				iconUrl: "/icon/git.svg",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const deselectModuleButton = await canvas.findByRole("button", {
+			name: "Deselect module",
+		});
+		deselectModuleButton.focus();
+		await expect(deselectModuleButton).toBeVisible();
 	},
 };
 

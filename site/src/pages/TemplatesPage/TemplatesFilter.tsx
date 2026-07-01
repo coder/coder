@@ -60,7 +60,7 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 				{ query: "deprecated:true", name: "Deprecated templates" },
 			]}
 			// TODO: Add docs for this
-			// learnMoreLink={docs("/templates#template-filtering")}
+			// learnMoreLink={docs("/admin/templates#template-filtering")}
 			isLoading={false}
 			filter={filter}
 			error={error}

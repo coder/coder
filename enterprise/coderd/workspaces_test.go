@@ -3233,8 +3233,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts the three
+	// build awaits below.
+	ctx := testutil.Context(t, 6*testutil.WaitSuperLong)
 
 	// Creating a template as a template admin must succeed
 	templateFiles := map[string]string{"main.tf": mainTfTemplate}
@@ -3250,7 +3251,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		UserVariableValues: []codersdk.VariableValue{},
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
 	// Set to dynamic params
@@ -3281,7 +3284,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	// Then: the build should succeed. The updated value of param_min should be
 	// used to validate param instead of the value defined in the temp
 	require.NoError(t, err, "failed to create workspace")
-	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	// Same timeout reason as above.
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
 	// File should exist
@@ -3293,7 +3297,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
-	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	// Same timeout reason as above.
+	build = coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, build.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 
 	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
@@ -3527,8 +3532,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts both build
+	// awaits below.
+	ctx := testutil.Context(t, 4*testutil.WaitSuperLong)
 
 	emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
 	emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
@@ -3566,7 +3572,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		TemplateID:         tpl.ID,
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 
 	err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
 		ID: tv.ID,
@@ -3583,7 +3591,8 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		require.NoError(t, err, "failed to create workspace")
 		tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
 		t.Logf("Created workspace build [%s] with tags: %s", ws.LatestBuild.Job.Type, tagJSON)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+		// Same timeout reason as above.
+		coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	}
 }
 
@@ -4475,6 +4484,69 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Len(t, workspaceACL.Groups, 1)
 		require.Equal(t, workspaceACL.Groups[0].ID, group.ID)
 		require.Equal(t, workspaceACL.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
+	})
+
+	// A user who has merely been shared a workspace must not be able to
+	// enumerate the full roster and PII of groups on that workspace's ACL.
+	// The endpoint returns the group identity and total member count only.
+	t.Run("GroupMembersNotReturned", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, member := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		group := coderdtest.CreateGroup(t, adminClient, orgID, "bloob", member)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		// The low-privilege shared user can read the ACL, but must not see
+		// the group's member roster (which would expose member emails and
+		// other PII). Only the total member count is returned.
+		workspaceACL, err := sharedClient.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, group.ID, workspaceACL.Groups[0].ID)
+		require.Equal(t, codersdk.WorkspaceRoleUse, workspaceACL.Groups[0].Role)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
+
+		// The workspace owner sees the same count-only shape; the roster is
+		// omitted for all callers.
+		workspaceACL, err = client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
 	})
 
 	t.Run("UnknownIDs", func(t *testing.T) {

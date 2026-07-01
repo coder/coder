@@ -29,6 +29,13 @@ create or update them.
 > that workspace. Do not share a workspace that has injected secrets with users
 > who should not access those values.
 
+### Storage and encryption
+
+Coder stores user secret values in the database. When
+[database encryption](../admin/security/database-encryption.md) is enabled,
+Coder encrypts secret values at rest. Otherwise, values are stored in plaintext
+in the database.
+
 ## How your secrets reach a workspace
 
 Coder applies your secrets when your workspace starts. The same applies any
@@ -103,8 +110,9 @@ the env aggregate could never be injected successfully as an environment
 variable.
 
 These caps measure stored bytes, which is what Coder writes to the database.
-In deployments with secret encryption enabled, stored bytes exceed the raw
-value.
+In deployments with
+[database encryption](../admin/security/database-encryption.md) enabled,
+stored bytes exceed the raw value.
 
 ## Manage secrets from the dashboard
 

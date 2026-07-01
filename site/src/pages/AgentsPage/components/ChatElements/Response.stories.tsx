@@ -39,13 +39,6 @@ func ValidateToken(token string) error {
 const meta: Meta<typeof Response> = {
 	title: "pages/AgentsPage/ChatElements/Response",
 	component: Response,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		children: sampleMarkdown,
 	},

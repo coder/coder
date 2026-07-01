@@ -25,8 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -56,14 +58,6 @@ const (
 	missingCentralKeyMessage    = "API key is required when central API key is enabled."
 )
 
-func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
-	t.Helper()
-
-	values := coderdtest.DeploymentValues(t)
-	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-	return values
-}
-
 // newChatTestOptions builds coderdtest options for chat runtime tests. Unless
 // a test sets ChatProviderAPIKeys explicitly, it installs a fake
 // OpenAI-compatible provider before coderd starts so background chat work stays
@@ -74,6 +68,14 @@ func newChatTestOptions(
 	overrides ...func(*coderdtest.Options),
 ) *coderdtest.Options {
 	t.Helper()
+
+	// Enable experiment-gated chat endpoints in tests.
+	if len(values.Experiments) == 0 {
+		values.Experiments = serpent.StringArray{
+			string(codersdk.ExperimentChatAdvisor),
+			string(codersdk.ExperimentChatVirtualDesktop),
+		}
+	}
 
 	opts := &coderdtest.Options{
 		DeploymentValues: values,
@@ -91,16 +93,18 @@ func newChatTestOptions(
 func newChatClient(t testing.TB, overrides ...func(*coderdtest.Options)) *codersdk.ExperimentalClient {
 	t.Helper()
 
-	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
-	client := coderdtest.New(t, opts)
+	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client)
 }
 
 func newChatClientWithAPI(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, *coderd.API) {
 	t.Helper()
 
-	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
+	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client), api
 }
 
@@ -111,23 +115,26 @@ func newChatClientWithDeploymentValues(
 	t.Helper()
 
 	opts := newChatTestOptions(t, values)
-	client := coderdtest.New(t, opts)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client)
 }
 
 func newChatClientWithDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
 
-	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
-	client, db := coderdtest.NewWithDatabase(t, opts)
-	return codersdk.NewExperimentalClient(client), db
+	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	return codersdk.NewExperimentalClient(client), api.Database
 }
 
 func newChatClientWithAPIAndDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store, *coderd.API) {
 	t.Helper()
 
-	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
+	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client), api.Database, api
 }
 
@@ -1181,7 +1188,7 @@ func TestListChats(t *testing.T) {
 		// shift the cursor position between page requests.
 		const totalChats = 5
 		createdChatIDs := make([]uuid.UUID, 0, totalChats)
-		for i := 0; i < totalChats; i++ {
+		for i := range totalChats {
 			dbChat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    firstUser.OrganizationID,
 				OwnerID:           firstUser.UserID,
@@ -1719,6 +1726,46 @@ func TestListChatModels(t *testing.T) {
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
+	t.Run("CopilotOnlyUnsupported", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		// Copilot is a valid AI Gateway provider but the Agents harness
+		// cannot use it. It must surface as an unsupported provider rather
+		// than vanish, so the empty state can explain why.
+		_ = createAIProviderForTest(t, client, string(codersdk.AIProviderTypeCopilot), "")
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		require.False(t, slices.ContainsFunc(models.Providers, func(p codersdk.ChatModelProvider) bool {
+			return p.Provider == string(codersdk.AIProviderTypeCopilot)
+		}), "copilot must not appear in the supported model picker")
+
+		require.Equal(t, []codersdk.ChatUnsupportedProvider{
+			{
+				Provider:    "copilot",
+				DisplayName: "GitHub Copilot",
+			},
+		}, models.UnsupportedProviders)
+	})
+
+	t.Run("SupportedProviderHasNoUnsupportedEntry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.Empty(t, models.UnsupportedProviders)
+	})
+
 	t.Run("CentralOnlyProviderAvailable", func(t *testing.T) {
 		t.Parallel()
 
@@ -1847,7 +1894,7 @@ func TestListChatModels(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -1974,20 +2021,14 @@ func TestWatchChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			DeploymentValues: chatDeploymentValues(t),
+			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 		chatDaemon := api.ChatDaemonForTest()
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
-
-		lastInjectedContext, err := json.Marshal([]codersdk.ChatMessagePart{{
-			Type:             codersdk.ChatMessagePartTypeSkill,
-			SkillName:        "large-skill",
-			SkillDescription: strings.Repeat("x", 9000),
-		}})
-		require.NoError(t, err)
 
 		// Insert a chat and a diff status row.
 		chat := dbgen.Chat(t, db, database.Chat{
@@ -1996,20 +2037,9 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff status watch test",
 		})
-		chat, err = db.UpdateChatLastInjectedContext(
-			dbauthz.AsChatd(ctx),
-			database.UpdateChatLastInjectedContextParams{
-				ID: chat.ID,
-				LastInjectedContext: pqtype.NullRawMessage{
-					RawMessage: lastInjectedContext,
-					Valid:      true,
-				},
-			},
-		)
-		require.NoError(t, err)
 		refreshedAt := time.Now().UTC().Truncate(time.Second)
 		staleAt := refreshedAt.Add(time.Hour)
-		_, err = db.UpsertChatDiffStatusReference(
+		_, err := db.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:          chat.ID,
@@ -2034,10 +2064,6 @@ func TestWatchChats(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-
-		storedChat, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, storedChat.LastInjectedContext)
 
 		// Open the watch WebSocket.
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
@@ -2069,7 +2095,6 @@ func TestWatchChats(t *testing.T) {
 		require.EqualValues(t, 42, ds.Additions)
 		require.EqualValues(t, 7, ds.Deletions)
 		require.EqualValues(t, 5, ds.ChangedFiles)
-		require.Empty(t, received.Chat.LastInjectedContext)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
@@ -2335,9 +2360,16 @@ func TestUserAIProviderKeys(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.AllowBYOK = serpent.Bool(false)
-		client := newChatClientWithDeploymentValues(t, values)
+		// The aibridged reloader logs at error level when it sees a provider
+		// configured with no API key and BYOK disabled. That state is the
+		// scenario under test, so suppress its error logs here.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := newChatClient(t, func(o *coderdtest.Options) {
+			o.DeploymentValues = values
+			o.Logger = &logger
+		})
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider := createOpenAIProvider(t, client, "test-byok-disabled-"+uuid.NewString(), true)
@@ -2387,7 +2419,7 @@ func TestListChatProviders(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -2636,7 +2668,7 @@ func TestCreateChatProvider(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -2867,7 +2899,7 @@ func TestUpdateChatProvider(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -3030,7 +3062,7 @@ func TestChatProviderAPIKeysFromDeploymentValues(t *testing.T) {
 	t.Run("DoesNotReuseBridgeConfig", func(t *testing.T) {
 		t.Parallel()
 
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		values.AI.BridgeConfig.LegacyAnthropic.Key = serpent.String("deployment-anthropic-key")
 		values.AI.BridgeConfig.LegacyOpenAI.BaseURL = serpent.String("https://custom-openai.example.com")
@@ -3236,7 +3268,7 @@ func TestUserChatProviderConfigs(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
 		client := newChatClientWithDeploymentValues(t, values)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -4282,11 +4314,13 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		store := newFailNextUpdateChatModelConfigStore(rawDB)
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
-			DeploymentValues: chatDeploymentValues(t),
-		}))
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -4305,11 +4339,13 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		store := newFailNextUpdateChatModelConfigStore(rawDB)
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
-			DeploymentValues: chatDeploymentValues(t),
-		}))
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModelConfig(t, client)
 
@@ -4963,7 +4999,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			insertUserMessage(t, ctx, db, chat.ID, modelConfig.ID, user.UserID,
 				[]codersdk.ChatMessagePart{
 					{Type: codersdk.ChatMessagePartTypeText, Text: fmt.Sprintf("prompt %d", i)},
@@ -5572,11 +5608,12 @@ func TestPatchChat(t *testing.T) {
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-				DeploymentValues:    chatDeploymentValues(t),
+				DeploymentValues:    coderdtest.DeploymentValues(t),
 				Database:            db,
 				Pubsub:              ps,
 				ChatProviderAPIKeys: &providerKeys,
 			})
+			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 			client := codersdk.NewExperimentalClient(clientRaw)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
@@ -5609,11 +5646,12 @@ func TestPatchChat(t *testing.T) {
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-				DeploymentValues:    chatDeploymentValues(t),
+				DeploymentValues:    coderdtest.DeploymentValues(t),
 				Database:            db,
 				Pubsub:              ps,
 				ChatProviderAPIKeys: &providerKeys,
 			})
+			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 			client := codersdk.NewExperimentalClient(clientRaw)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
@@ -7461,6 +7499,51 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Contains(t, sdkErr.Detail, "does not exist")
 	})
 
+	t.Run("UnsupportedPromptInputFileType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "initial message"},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Using AsChatd to mimic an agent-created artifact.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "artifact.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip data"),
+		})
+		require.NoError(t, err)
+		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+		require.Zero(t, rejected)
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileRow.ID},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "cannot be used as prompt input")
+		require.Contains(t, sdkErr.Detail, "application/json")
+	})
+
 	t.Run("FilesLinkedOnSend", func(t *testing.T) {
 		t.Parallel()
 
@@ -8360,7 +8443,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		clientRaw, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -8369,8 +8452,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 					return nil
 				},
 			},
-			DeploymentValues: chatDeploymentValues(t),
+			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		db := api.Database
 		client := codersdk.NewExperimentalClient(clientRaw)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
@@ -8629,7 +8714,7 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		clientRaw, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -8638,8 +8723,10 @@ func TestProposeChatTitle(t *testing.T) {
 					return nil
 				},
 			},
-			DeploymentValues: chatDeploymentValues(t),
+			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		db := api.Database
 		client := codersdk.NewExperimentalClient(clientRaw)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
@@ -8715,7 +8802,7 @@ func TestManualTitleEndpointsPassCallerAPIKeyToAIGateway(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			values := chatDeploymentValues(t)
+			values := coderdtest.DeploymentValues(t)
 			require.NoError(t, values.AI.BridgeConfig.Enabled.Set("true"))
 			require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("true"))
 			client, db, api := newChatClientWithAPIAndDatabase(t, func(opts *coderdtest.Options) {
@@ -8829,7 +8916,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			DeploymentValues: chatDeploymentValues(t),
+			DeploymentValues: coderdtest.DeploymentValues(t),
 			ExternalAuthConfigs: []*externalauth.Config{
 				{
 					ID:    "gitlab-test",
@@ -8838,6 +8925,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 
@@ -8950,7 +9038,7 @@ func TestGetChatDiffContents(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			DeploymentValues: chatDeploymentValues(t),
+			DeploymentValues: coderdtest.DeploymentValues(t),
 			ExternalAuthConfigs: []*externalauth.Config{
 				{
 					ID:    "gitlab-test",
@@ -8959,6 +9047,7 @@ func TestGetChatDiffContents(t *testing.T) {
 				},
 			},
 		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 		user := coderdtest.CreateFirstUser(t, client.Client)
@@ -10090,6 +10179,42 @@ func TestGetChatFile(t *testing.T) {
 		require.Equal(t, "report.pdf", params["filename"])
 	})
 
+	t.Run("AgentArtifactZipServedAsAttachment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte("zip data")
+		//nolint:gocritic // Using AsChatd to mimic an agent-created artifact.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		row, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "artifact.zip",
+			Mimetype:       "application/zip",
+			Data:           data,
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", row.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/zip", res.Header.Get("Content-Type"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
+
+		disposition, params, err := mime.ParseMediaType(res.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		require.Equal(t, "attachment", disposition)
+		require.Equal(t, "artifact.zip", params["filename"])
+
+		got, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, data, got)
+	})
+
 	t.Run("LongFilename", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -10715,10 +10840,19 @@ func createAIProviderForTest(
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	baseURL := aiProviderBaseURLForTest(provider)
+	// AI Gateway routing uses the provider's BaseURL from the DB row.
+	// For OpenAI-compatible providers, use a real mock server so the
+	// daemon can route chat requests. Other provider types (anthropic,
+	// bedrock, google) are only used for model config CRUD tests that
+	// never process chats through the daemon.
+	if provider == "openai" || provider == "openai-compat" {
+		baseURL = chattest.OpenAI(t)
+	}
 	req := codersdk.CreateAIProviderRequest{
 		Type:    codersdk.AIProviderType(provider),
 		Name:    "test-" + provider + "-" + uuid.NewString(),
-		BaseURL: aiProviderBaseURLForTest(provider),
+		BaseURL: baseURL,
 		Enabled: true,
 	}
 	if apiKey != "" {
@@ -10844,7 +10978,7 @@ func TestChatSystemPrompt(t *testing.T) {
 	const workspaceAwareness = `No workspace is attached to this chat yet.
 Do not create or start a workspace by default. Many requests can be completed using the conversation, provider tools such as web_search when available, or configured external MCP tools.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
-If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
+If a workspace is needed, use list_templates before create_workspace and follow its next_step. Call read_template only when you need template parameter or preset details.`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()
@@ -10965,11 +11099,13 @@ If a workspace is needed, use list_templates and read_template as needed before 
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		store := &failNextChatSystemPromptStore{Store: rawDB}
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
-			DeploymentValues: chatDeploymentValues(t),
-		}))
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
@@ -11133,11 +11269,13 @@ If a workspace is needed, use list_templates and read_template as needed before 
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		store := &failNextChatSystemPromptStore{Store: rawDB}
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
-			DeploymentValues: chatDeploymentValues(t),
-		}))
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
@@ -11180,11 +11318,13 @@ If a workspace is needed, use list_templates and read_template as needed before 
 
 		rawDB, pubsub := dbtestutil.NewDB(t)
 		store := &failNextChatSystemPromptStore{Store: rawDB}
-		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Database:         store,
 			Pubsub:           pubsub,
-			DeploymentValues: chatDeploymentValues(t),
-		}))
+			DeploymentValues: coderdtest.DeploymentValues(t),
+		})
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+		client := codersdk.NewExperimentalClient(rawClient)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
@@ -12138,110 +12278,6 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	})
 }
 
-func TestChatDesktopEnabled(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ReturnsFalseWhenUnset", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		resp, err := adminClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, resp.EnableDesktop)
-	})
-
-	t.Run("AdminCanSetTrue", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.True(t, resp.EnableDesktop)
-	})
-
-	t.Run("AdminCanSetFalse", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		// Set true first, then set false.
-		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		require.NoError(t, err)
-
-		err = adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: false,
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, resp.EnableDesktop)
-	})
-
-	t.Run("NonAdminCanRead", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		require.NoError(t, err)
-
-		resp, err := memberClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.True(t, resp.EnableDesktop)
-	})
-
-	t.Run("NonAdminWriteFails", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		err := memberClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		requireSDKError(t, err, http.StatusForbidden)
-	})
-
-	t.Run("UnauthenticatedFails", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
-		_, err := anonClient.GetChatDesktopEnabled(ctx)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-	})
-}
-
 func TestChatComputerUseProvider(t *testing.T) {
 	t.Parallel()
 
@@ -12511,7 +12547,7 @@ func TestChatDebugLoggingSettings(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		values := chatDeploymentValues(t)
+		values := coderdtest.DeploymentValues(t)
 		values.AI.Chat.DebugLoggingEnabled = serpent.Bool(true)
 		adminClient := newChatClientWithDeploymentValues(t, values)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
@@ -12868,7 +12904,12 @@ func TestChatAdvisorConfig_GetDefault(t *testing.T) {
 
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, codersdk.AdvisorConfig{}, resp)
+	// Enabled reflects the experiment state, not the DB value. The test
+	// deployment enables chat-advisor, so Enabled is true.
+	require.True(t, resp.Enabled)
+	require.Equal(t, 0, resp.MaxUsesPerRun)
+	require.Equal(t, int64(0), resp.MaxOutputTokens)
+	require.Equal(t, uuid.Nil, resp.ModelConfigID)
 }
 
 func TestChatAdvisorConfig_Update(t *testing.T) {
@@ -13057,11 +13098,11 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	require.Equal(t, sparse, resp)
 }
 
-// TestChatAdvisorConfig_CanBeDisabledAfterEnabled pins the feature
-// gate's "off" path. The downstream runtime gates the advisor tool and
-// prompt guidance on Enabled, so a regression that silently drops or
-// ignores Enabled: false on PUT would leave the feature stuck on.
-func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
+// TestChatAdvisorConfig_EnabledReflectsExperiment pins that the Enabled
+// field in the GET response reflects the experiment state, not the DB-stored
+// value. Setting Enabled: false via PUT stores false in the DB, but the GET
+// handler overrides it with the experiment check.
+func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -13085,7 +13126,8 @@ func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
 
 	disabledResp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.False(t, disabledResp.Enabled)
+	// Enabled reflects the experiment state (on), not the DB-stored false.
+	require.True(t, disabledResp.Enabled)
 }
 
 func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {

@@ -54,7 +54,7 @@ come bundled with your Coder deployment.
 Coder is distributed with a bundle of icons for popular cloud providers and
 programming languages. You can see all of the icons (or suggest new ones) in our
 repository on
-[GitHub](https://github.com/coder/coder/tree/main/site/static/icon).
+[GitHub](../../../../site/static/icon).
 
 You can also view the entire list, with search and previews, by navigating to
 `/icons` on your Coder deployment (for example,

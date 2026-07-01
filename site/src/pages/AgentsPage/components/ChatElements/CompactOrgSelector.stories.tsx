@@ -42,13 +42,6 @@ const mockOrgs: Organization[] = [
 const meta: Meta<typeof CompactOrgSelector> = {
 	title: "pages/AgentsPage/ChatElements/CompactOrgSelector",
 	component: CompactOrgSelector,
-	decorators: [
-		(Story) => (
-			<div className="w-72 rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		options: mockOrgs,
 		value: mockOrgs[0],

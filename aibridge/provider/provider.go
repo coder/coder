@@ -14,33 +14,38 @@ import (
 
 var ErrUnknownRoute = xerrors.New("unknown route")
 
+// ErrNoCredential is returned when a request resolves to centralized
+// authentication but the provider has no centralized keys configured (and the
+// request is not BYOK), so it cannot be authenticated.
+var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
+
 // Provider defines routes (bridged and passed through) for given provider.
 // Bridged routes are processed by dedicated interceptors.
 //
 // All routes have following pattern:
-//   - https://coder.host.com/api/v2 + /aibridge        + /{provider.RoutePrefix()}  + /{bridged or passthrough route}
-//     {host}                          {aibridge root}    {provider prefix}            {provider route}
+//   - https://coder.host.com/api/v2 + /ai-gateway      + /{provider.RoutePrefix()}  + /{bridged or passthrough route}
+//     {host}                          {ai-gateway root}   {provider prefix}            {provider route}
 //
-// {host} + {aibridge root} + {provider prefix} form the base URL used in tools/clients using AI Bridge (eg. Claude/Codex).
+// {host} + {ai-gateway root} + {provider prefix} form the base URL used in tools/clients using AI Gateway (e.g. Claude/Codex).
 //
 // When request is bridged, interceptor created based on route processes the request.
-// When request is passed through the {host} + {aibridge root} + {provider prefix} URL part
+// When request is passed through the {host} + {ai-gateway root} + {provider prefix} URL part
 // is replaced by provider's base URL and request is forwarded.
 // This mirrors behavior in bridged routes and SDKs used by interceptors.
 //
 // Example:
 //
 //   - OpenAI chat completions
-//     AI Bridge base URL (set in Codex): "https://host.coder.com/api/v2/aibridge/openai/v1"
+//     AI Gateway base URL (set in Codex): "https://host.coder.com/api/v2/ai-gateway/openai/v1"
 //     Upstream base URl (set in coder config): http://api.openai.com/v1
-//     Request: Codex -> https://host.coder.com/api/v2/aibridge/openai/v1/chat/completions -> AI Bridge -> http://api.openai.com/v1/chat/completions
-//     url change: 'https://host.coder.com/api/v2/aibridge/openai/v1' -> 'http://api.openai.com/v1' | '/chat/completions' suffix remains the same
+//     Request: Codex -> https://host.coder.com/api/v2/ai-gateway/openai/v1/chat/completions -> AI Gateway -> http://api.openai.com/v1/chat/completions
+//     url change: 'https://host.coder.com/api/v2/ai-gateway/openai/v1' -> 'http://api.openai.com/v1' | '/chat/completions' suffix remains the same
 //
 //   - Anthropic messages
-//     AI Bridge base URL (set in Codex): "https://host.coder.com/api/v2/aibridge/anthropic"
+//     AI Gateway base URL (set in Codex): "https://host.coder.com/api/v2/ai-gateway/anthropic"
 //     Upstream base URl (set in coder config): http://api.anthropic.com
-//     Request: Codex -> https://host.coder.com/api/v2/aibridge/anthropic/v1/messages -> AI Bridge -> http://api.anthropic.com/v1/messages
-//     url change: 'https://host.coder.com/api/v2/aibridge/anthropic' -> 'http://api.anthropic.com' | '/v1/messages' suffix remains the same
+//     Request: Codex -> https://host.coder.com/api/v2/ai-gateway/anthropic/v1/messages -> AI Gateway -> http://api.anthropic.com/v1/messages
+//     url change: 'https://host.coder.com/api/v2/ai-gateway/anthropic' -> 'http://api.anthropic.com' | '/v1/messages' suffix remains the same
 //
 // !Note!
 // OpenAI and Anthropic use different route patterns.

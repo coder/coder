@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,22 +20,15 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
-	"github.com/coder/quartz"
 )
-
-// anthropicForwardHeaders lists headers from incoming requests that should be
-// forwarded to the Anthropic API.
-// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-var anthropicForwardHeaders = []string{
-	"Anthropic-Beta",
-}
 
 var _ Provider = &Anthropic{}
 
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
-	cfg        config.Anthropic
-	bedrockCfg *config.AWSBedrock
+	cfg config.Anthropic
+	// bedrock is nil for non-Bedrock providers.
+	bedrock *messages.BedrockRuntime
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -51,40 +45,41 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.anthropic.com/"
 	}
-	// Resolve centralized key configuration into KeyPool.
-	// Precedence:
-	//   1. cfg.KeyPool (explicit, highest priority).
-	//   2. cfg.Key (legacy single key).
-	// After this block cfg.Key is empty so it can only carry a
-	// BYOK X-Api-Key set per interception in CreateInterceptor.
-	// TODO(ssncferreira): simplify auth field resolution per
-	// https://github.com/coder/aibridge/issues/266.
-	if cfg.KeyPool == nil && cfg.Key != "" {
-		// keypool.New only fails on empty or duplicate keys,
-		// neither possible with a single non-empty key.
-		pool, err := keypool.New(cfg.Name, []string{cfg.Key}, quartz.NewReal(), nil)
-		if err != nil {
-			panic(fmt.Sprintf("anthropic provider: build single-key pool: %s", err))
-		}
-		cfg.KeyPool = pool
-	}
-	cfg.Key = ""
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.IsFailure = anthropicIsFailure
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
 	}
 
-	return &Anthropic{
-		cfg:        cfg,
-		bedrockCfg: bedrockCfg,
+	// Resolve the AWS credentials provider once and bundle it with the config.
+	// This performs no network call (the base identity and any AssumeRole
+	// resolve lazily on first retrieval); it only wires up the provider chain,
+	// so it is cheap to run at construction.
+	var bedrock *messages.BedrockRuntime
+	if bedrockCfg != nil {
+		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
+		if err != nil {
+			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
+		}
+		runtimeCfg := *bedrockCfg
+		// resolvedRegion is bedrockCfg.Region if provided;
+		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
+		if runtimeCfg.Region == "" {
+			runtimeCfg.Region = resolvedRegion
+		}
+		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
 	}
+
+	return &Anthropic{
+		cfg:     cfg,
+		bedrock: bedrock,
+	}, nil
 }
 
 func (*Anthropic) Type() string {
@@ -135,55 +130,54 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		return nil, xerrors.Errorf("unmarshal request body: %w", err)
 	}
 
-	cfg := p.cfg
-	cfg.ExtraHeaders = extractAnthropicHeaders(r)
-
-	// At this point the request contains only LLM provider headers.
-	// Any Coder-specific authentication has already been stripped.
-	//
-	// In centralized mode neither Authorization nor X-Api-Key is
-	// present, so cfg keeps the KeyPool from provider construction
-	// and the failover loop walks it.
-	//
-	// In BYOK mode the user's LLM credentials survive intact and
-	// failover is disabled by clearing cfg.KeyPool. If X-Api-Key is
-	// present the user has a personal API key, populate cfg.Key.
-	// If Authorization is present the user authenticated directly
-	// with the provider, populate cfg.BYOKBearerToken. When both
-	// are present, X-Api-Key takes priority to match claude-code
-	// behavior.
-	//
-	// TODO(ssncferreira): consolidate auth field handling per
-	// https://github.com/coder/aibridge/issues/266.
-	credKind := intercept.CredentialKindCentralized
-	var credSecret string
-	authHeaderName := p.AuthHeader()
-	if apiKey := r.Header.Get("X-Api-Key"); apiKey != "" {
-		cfg.Key = apiKey
-		cfg.KeyPool = nil
-		authHeaderName = "X-Api-Key"
-		credKind = intercept.CredentialKindBYOK
-		credSecret = apiKey
-	} else if token := utils.ExtractBearerToken(r.Header.Get("Authorization")); token != "" {
-		cfg.BYOKBearerToken = token
-		cfg.KeyPool = nil
-		authHeaderName = "Authorization"
-		credKind = intercept.CredentialKindBYOK
-		credSecret = token
+	cfg := intercept.Config{
+		ProviderName:     p.Name(),
+		BaseURL:          p.cfg.BaseURL,
+		APIDumpDir:       p.cfg.APIDumpDir,
+		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	// Centralized leaves credSecret empty: the hint is set by the
-	// failover loop on each key attempt and persisted at
-	// end-of-interception.
-	cred := intercept.NewCredentialInfo(credKind, credSecret)
+	cred, err := p.resolveCredential(r)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, xerrors.Errorf("resolve credential: %w", err)
+	}
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, p.Name(), cfg, p.bedrockCfg, r.Header, authHeaderName, tracer, cred)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, p.Name(), cfg, p.bedrockCfg, r.Header, authHeaderName, tracer, cred)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
+}
+
+// resolveCredential determines the upstream credential for a request. At this
+// point the request contains only LLM provider headers. Any Coder-specific
+// authentication has already been stripped.
+//
+//   - X-Api-Key present: BYOK with a personal API key.
+//   - Authorization present: BYOK with an access token.
+//   - Neither present: centralized, using the provider's key pool with
+//     failover.
+//
+// When both BYOK headers are present, X-Api-Key takes priority to match
+// claude-code behavior. Centralized requests require a key pool, except for
+// Bedrock providers, which authenticate via AWS signing rather than a pool.
+func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
+	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
+		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
+	}
+	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
+		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	}
+	if p.cfg.KeyPool != nil {
+		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+	}
+	if p.bedrock != nil {
+		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+	}
+	return nil, ErrNoCredential
 }
 
 func (p *Anthropic) BaseURL() string {
@@ -191,7 +185,7 @@ func (p *Anthropic) BaseURL() string {
 }
 
 func (*Anthropic) AuthHeader() string {
-	return "X-Api-Key"
+	return intercept.AuthHeaderXAPIKey
 }
 
 func (p *Anthropic) KeyPool() *keypool.Pool {
@@ -203,10 +197,10 @@ func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverCon
 		Pool:   p.cfg.KeyPool,
 		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
-			return r.Header.Get("X-Api-Key") != "" || r.Header.Get("Authorization") != ""
+			return r.Header.Get(intercept.AuthHeaderXAPIKey) != "" || r.Header.Get(intercept.AuthHeaderAuthorization) != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
-			h.Set("X-Api-Key", key)
+			h.Set(intercept.AuthHeaderXAPIKey, key)
 		},
 		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
 			return messages.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
@@ -220,17 +214,4 @@ func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
-}
-
-// extractAnthropicHeaders extracts headers required by the Anthropic API from
-// the incoming request.
-// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-func extractAnthropicHeaders(r *http.Request) map[string]string {
-	headers := make(map[string]string, len(anthropicForwardHeaders))
-	for _, h := range anthropicForwardHeaders {
-		if v := r.Header.Get(h); v != "" {
-			headers[h] = v
-		}
-	}
-	return headers
 }

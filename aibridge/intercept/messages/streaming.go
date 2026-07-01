@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -39,24 +38,20 @@ type StreamingInterception struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.Anthropic,
-	bedrockCfg *config.AWSBedrock,
+	cfg intercept.Config,
+	cred intercept.Credential,
+	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
-		id:             id,
-		providerName:   providerName,
-		reqPayload:     reqPayload,
-		cfg:            cfg,
-		bedrockCfg:     bedrockCfg,
-		clientHeaders:  clientHeaders,
-		authHeaderName: authHeaderName,
-		tracer:         tracer,
-		credential:     cred,
+		id:            id,
+		reqPayload:    reqPayload,
+		cfg:           cfg,
+		cred:          cred,
+		bedrock:       bedrock,
+		clientHeaders: clientHeaders,
+		tracer:        tracer,
 	}}
 }
 
@@ -102,6 +97,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	logger := i.logger.With(slog.F("model", i.Model()))
@@ -156,7 +152,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
 
 	isFirst := true
 newStream:
@@ -170,21 +170,18 @@ newStream:
 		// Per-iteration walker. An iteration is either an agentic
 		// continuation (sending a tool result back in a new
 		// stream) or a failover retry (previous key marked, try
-		// the next one).
-		var walker *keypool.Walker
-		if i.cfg.KeyPool != nil {
-			walker = i.cfg.KeyPool.Walker()
-		}
-
-		var streamOpts []option.RequestOption
-		var currentKey *keypool.Key
-		if walker != nil {
-			key, keyPoolErr := walker.Next()
+		// the next one). A pool-less credential (BYOK, or pool-less
+		// centralized such as Bedrock) has no walker and runs as a
+		// single attempt.
+		streamOpts := []option.RequestOption{i.withBody()}
+		var currentPoolKey *keypool.Key
+		if cp, isPool := intercept.AsCentralizedPool(i.cred); isPool {
+			walker := cp.Pool.Walker()
+			key, keyPoolErr := cp.NextKey(walker)
 			if keyPoolErr != nil {
-				// Pool exhausted in this iteration. Relay the
-				// error to the client: as an SSE event if events
-				// have already been sent, or by direct write
-				// otherwise.
+				// Pool exhausted in this iteration. Relay the error to the
+				// client: as an SSE event if events have already been sent,
+				// or by direct write otherwise.
 				respErr := ResponseErrorFromKeyPool(keyPoolErr)
 				interceptionErr = respErr
 				if events.IsStreaming() {
@@ -199,21 +196,17 @@ newStream:
 				}
 				break
 			}
-			currentKey = key
-			// Record the key in use so the hint reflects the last attempted key.
-			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
-			logger.Debug(ctx, "using centralized api key",
-				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
+			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+			currentPoolKey = key
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
-				// Disable SDK retries because the failover
-				// loop handles retries via key rotation.
+				// Disable SDK retries because the failover loop handles
+				// retries via key rotation.
 				option.WithMaxRetries(0),
 			)
+			totalKeyAttempts += walker.Attempts()
 		}
-
-		totalKeyAttempts += walker.Attempts()
 
 		stream := i.newStream(streamCtx, svc, streamOpts...)
 
@@ -568,7 +561,7 @@ newStream:
 			// Pre-stream failure of this iteration. For
 			// centralized requests, mark the key and retry with
 			// the next one.
-			if currentKey != nil && i.markKeyOnError(ctx, currentKey, stream.Err()) {
+			if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, stream.Err()) {
 				continue newStream
 			}
 			// Non-key error: relay it. Use mapStreamError so that
@@ -694,10 +687,9 @@ func (*StreamingInterception) encodeForStream(payload []byte, typ string) []byte
 }
 
 // newStream traces svc.NewStreaming() call.
-func (i *StreamingInterception) newStream(ctx context.Context, svc anthropic.MessageService, extraOpts ...option.RequestOption) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
+func (i *StreamingInterception) newStream(ctx context.Context, svc anthropic.MessageService, opts ...option.RequestOption) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
 	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer span.End()
 
-	opts := append([]option.RequestOption{i.withBody()}, extraOpts...)
 	return svc.NewStreaming(ctx, anthropic.MessageNewParams{}, opts...)
 }
