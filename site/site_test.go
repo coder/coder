@@ -159,6 +159,68 @@ func TestInjection(t *testing.T) {
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
+// TestInjectionOrganizations ensures the embedded organizations metadata
+// matches the GET /api/v2/organizations endpoint: it must include every
+// organization the user is authorized to read, not just the ones they are a
+// member of. The frontend seeds its organizations query from this metadata and
+// then disables refetching, so embedding only member organizations previously
+// hid organizations that admins, auditors, and owners could otherwise see.
+func TestInjectionOrganizations(t *testing.T) {
+	t.Parallel()
+
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Organizations }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	// An owner can read every organization, including ones they are not a
+	// member of.
+	user := dbgen.User(t, db, database.User{
+		RBACRoles: []string{rbac.RoleOwner().String()},
+	})
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	// memberOrg: the user is a member. nonMemberOrg: the user is not a member,
+	// but as an owner is still authorized to read it.
+	memberOrg := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: memberOrg.ID,
+	})
+	nonMemberOrg := dbgen.Organization(t, db, database.Organization{})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	var got []codersdk.Organization
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	require.NoError(t, err)
+
+	gotIDs := make([]uuid.UUID, 0, len(got))
+	for _, o := range got {
+		gotIDs = append(gotIDs, o.ID)
+	}
+	require.Contains(t, gotIDs, memberOrg.ID,
+		"member organizations must be embedded")
+	require.Contains(t, gotIDs, nonMemberOrg.ID,
+		"organizations the user can read but is not a member of must be embedded")
+}
+
 func TestInjectionUserAppearance(t *testing.T) {
 	t.Parallel()
 
