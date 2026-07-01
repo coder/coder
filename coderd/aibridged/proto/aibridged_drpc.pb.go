@@ -429,6 +429,7 @@ type DRPCAuthorizerClient interface {
 	DRPCConn() drpc.Conn
 
 	IsAuthorized(ctx context.Context, in *IsAuthorizedRequest) (*IsAuthorizedResponse, error)
+	GetUserAISpendStatus(ctx context.Context, in *GetUserAISpendStatusRequest) (*GetUserAISpendStatusResponse, error)
 }
 
 type drpcAuthorizerClient struct {
@@ -450,8 +451,18 @@ func (c *drpcAuthorizerClient) IsAuthorized(ctx context.Context, in *IsAuthorize
 	return out, nil
 }
 
+func (c *drpcAuthorizerClient) GetUserAISpendStatus(ctx context.Context, in *GetUserAISpendStatusRequest) (*GetUserAISpendStatusResponse, error) {
+	out := new(GetUserAISpendStatusResponse)
+	err := c.cc.Invoke(ctx, "/proto.Authorizer/GetUserAISpendStatus", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAuthorizerServer interface {
 	IsAuthorized(context.Context, *IsAuthorizedRequest) (*IsAuthorizedResponse, error)
+	GetUserAISpendStatus(context.Context, *GetUserAISpendStatusRequest) (*GetUserAISpendStatusResponse, error)
 }
 
 type DRPCAuthorizerUnimplementedServer struct{}
@@ -460,9 +471,13 @@ func (s *DRPCAuthorizerUnimplementedServer) IsAuthorized(context.Context, *IsAut
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAuthorizerUnimplementedServer) GetUserAISpendStatus(context.Context, *GetUserAISpendStatusRequest) (*GetUserAISpendStatusResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAuthorizerDescription struct{}
 
-func (DRPCAuthorizerDescription) NumMethods() int { return 1 }
+func (DRPCAuthorizerDescription) NumMethods() int { return 2 }
 
 func (DRPCAuthorizerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -475,6 +490,15 @@ func (DRPCAuthorizerDescription) Method(n int) (string, drpc.Encoding, drpc.Rece
 						in1.(*IsAuthorizedRequest),
 					)
 			}, DRPCAuthorizerServer.IsAuthorized, true
+	case 1:
+		return "/proto.Authorizer/GetUserAISpendStatus", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAuthorizerServer).
+					GetUserAISpendStatus(
+						ctx,
+						in1.(*GetUserAISpendStatusRequest),
+					)
+			}, DRPCAuthorizerServer.GetUserAISpendStatus, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -494,6 +518,22 @@ type drpcAuthorizer_IsAuthorizedStream struct {
 }
 
 func (x *drpcAuthorizer_IsAuthorizedStream) SendAndClose(m *IsAuthorizedResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAuthorizer_GetUserAISpendStatusStream interface {
+	drpc.Stream
+	SendAndClose(*GetUserAISpendStatusResponse) error
+}
+
+type drpcAuthorizer_GetUserAISpendStatusStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAuthorizer_GetUserAISpendStatusStream) SendAndClose(m *GetUserAISpendStatusResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

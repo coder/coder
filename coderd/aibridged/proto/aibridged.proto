@@ -34,6 +34,9 @@ service Authorizer {
   // IsAuthorized validates that a given Coder key is valid and the user is authorized to use AI Bridge.
   // TODO: add authorization; currently only key validation takes place.
   rpc IsAuthorized(IsAuthorizedRequest) returns (IsAuthorizedResponse);
+  // GetUserAISpendStatus returns the user's AI spend status aggregated over
+  // [period_start, now].
+  rpc GetUserAISpendStatus(GetUserAISpendStatusRequest) returns (GetUserAISpendStatusResponse);
 }
 
 // ProviderConfigurator serves AI provider configuration to embedded and
@@ -166,6 +169,25 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+}
+
+message GetUserAISpendStatusRequest {
+  string user_id = 1; // UUID
+  // The spend aggregation window is [period_start, now].
+  google.protobuf.Timestamp period_start = 2;
+}
+
+message GetUserAISpendStatusResponse {
+  // exceeded is true when the user's aggregated spend has reached the
+  // effective limit. False when no budget is configured for the user OR
+  // they are within their limit.
+  bool exceeded = 1;
+  string user_id = 2; // UUID
+  // effective_group_id is empty when no budget is configured for the user.
+  // spend_limit_micros and current_spend_micros are 0 in that case.
+  string effective_group_id = 3;
+  int64 spend_limit_micros = 4;
+  int64 current_spend_micros = 5;
 }
 
 message GetAIProvidersRequest {}

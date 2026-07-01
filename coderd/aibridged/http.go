@@ -1,17 +1,20 @@
 package aibridged
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 var _ http.Handler = &Server{}
@@ -21,6 +24,8 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrBudgetExceeded        = xerrors.New("ai budget exceeded")
+	ErrInternalServerError   = xerrors.New("internal server error")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -135,6 +140,35 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, err := uuid.Parse(resp.GetOwnerId())
+	if err != nil {
+		logger.Warn(ctx, "failed to parse user ID", slog.Error(err), slog.F("id", resp.GetOwnerId()))
+		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		return
+	}
+
+	// TODO: make the budget period configurable; monthly for now.
+	periodStart := dbtime.StartOfMonth(dbtime.Now().UTC())
+	spendStatus, err := client.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+		UserId:      id.String(),
+		PeriodStart: timestamppb.New(periodStart),
+	})
+	if err != nil {
+		logger.Warn(ctx, "ai spend status check failed", slog.Error(err))
+		http.Error(rw, ErrInternalServerError.Error(), http.StatusInternalServerError)
+		return
+	}
+	if spendStatus.GetExceeded() {
+		http.Error(rw, fmt.Sprintf(
+			"%s: spent %.2f USD of %.2f USD in group %s",
+			ErrBudgetExceeded.Error(),
+			float64(spendStatus.GetCurrentSpendMicros())/1_000_000,
+			float64(spendStatus.GetSpendLimitMicros())/1_000_000,
+			spendStatus.GetEffectiveGroupId(),
+		), http.StatusPaymentRequired)
+		return
+	}
+
 	// Rewire request context to include actor.
 	//
 	// [NOTE]
@@ -143,13 +177,6 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
 		"Username": resp.GetUsername(),
 	}))
-
-	id, err := uuid.Parse(resp.GetOwnerId())
-	if err != nil {
-		logger.Warn(ctx, "failed to parse user ID", slog.Error(err), slog.F("id", resp.GetOwnerId()))
-		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
-		return
-	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,

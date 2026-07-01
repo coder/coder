@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aiseats"
@@ -75,6 +77,7 @@ type store interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
+	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -725,6 +728,96 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		ApiKeyId: key.ID,
 		Username: user.Username,
 	}, nil
+}
+
+// GetUserAISpendStatus returns the user's AI spend status aggregated over
+// [period_start, now].
+func (s *Server) GetUserAISpendStatus(ctx context.Context, in *proto.GetUserAISpendStatusRequest) (*proto.GetUserAISpendStatusResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	userID, err := uuid.Parse(in.GetUserId())
+	if err != nil {
+		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
+	}
+	// An unset period_start deserializes to time.Unix(0, 0), which would
+	// aggregate the user's lifetime spend against a period budget.
+	if in.PeriodStart == nil {
+		return nil, xerrors.New("period_start is required")
+	}
+	periodStart := in.GetPeriodStart().AsTime()
+
+	status, err := s.resolveUserAISpendStatus(ctx, userID, periodStart)
+	if err != nil {
+		return nil, err
+	}
+	resp := &proto.GetUserAISpendStatusResponse{
+		Exceeded:           status.Exceeded,
+		UserId:             userID.String(),
+		SpendLimitMicros:   status.SpendLimitMicros,
+		CurrentSpendMicros: status.CurrentSpendMicros,
+	}
+	if status.EffectiveGroupID != uuid.Nil {
+		resp.EffectiveGroupId = status.EffectiveGroupID.String()
+	}
+	return resp, nil
+}
+
+// userAISpendStatus is a snapshot of a user's AI spend against their effective
+// budget over [PeriodStart, now]. When no budget is configured for the user,
+// all fields are zero-valued.
+type userAISpendStatus struct {
+	EffectiveGroupID   uuid.UUID
+	PeriodStart        time.Time
+	SpendLimitMicros   int64
+	CurrentSpendMicros int64
+	Exceeded           bool
+}
+
+// resolveUserAISpendStatus computes the user's AI spend status aggregated from
+// periodStart. Returns a zero-valued status (EffectiveGroupID = uuid.Nil) when
+// no budget applies to the user.
+func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAISpendStatus, error) {
+	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
+	if err != nil {
+		return userAISpendStatus{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
+	}
+	if !ok {
+		// No budget configured for the user; return zero-valued status.
+		return userAISpendStatus{}, nil
+	}
+
+	spend, err := s.store.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+		UserID:           userID,
+		EffectiveGroupID: effectiveBudget.GroupID,
+		PeriodStart:      periodStart,
+	})
+	if err != nil {
+		return userAISpendStatus{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveBudget.GroupID, err)
+	}
+
+	status := userAISpendStatus{
+		EffectiveGroupID:   effectiveBudget.GroupID,
+		PeriodStart:        periodStart,
+		SpendLimitMicros:   effectiveBudget.SpendLimitMicros,
+		CurrentSpendMicros: spend.SpendMicros,
+		Exceeded:           spend.SpendMicros >= effectiveBudget.SpendLimitMicros,
+	}
+
+	logger := s.logger.With(
+		slog.F("user_id", userID),
+		slog.F("effective_group_id", status.EffectiveGroupID),
+		slog.F("period_start", status.PeriodStart),
+		slog.F("current_spend_micros", status.CurrentSpendMicros),
+		slog.F("spend_limit_micros", status.SpendLimitMicros),
+		slog.F("exceeded", status.Exceeded),
+	)
+	logger.Debug(ctx, "user AI spend status")
+	if status.Exceeded {
+		logger.Info(ctx, "user AI budget exceeded")
+	}
+
+	return status, nil
 }
 
 // GetAIProviders returns the full AI provider set (enabled and disabled) from
