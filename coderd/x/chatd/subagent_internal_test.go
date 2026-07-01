@@ -227,7 +227,6 @@ func seedInternalChatDeps(
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
 		IsDefault:    true,
 	})
@@ -591,8 +590,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 	user, org, _ := seedInternalChatDeps(t, db)
 	provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider: "openai",
-		Model:    "gpt-4o-mini",
+		Model: "gpt-4o-mini",
 		AIProviderID: uuid.NullUUID{
 			UUID:  provider.ID,
 			Valid: true,
@@ -724,11 +722,30 @@ func insertInternalChatModelConfigWithOptions(
 ) database.ChatModelConfig {
 	t.Helper()
 
+	// Reuse the newest AI provider of this type (creating a bare credential-less
+	// one only when none exists) so the config links the provider already
+	// carrying the test's credentials, or lack thereof, rather than a fresh one.
+	providers, err := db.GetAIProviders(context.Background(), database.GetAIProvidersParams{IncludeDisabled: true})
+	require.NoError(t, err)
+	var aiProvider database.AIProvider
+	for _, candidate := range providers {
+		if candidate.Type != database.AIProviderType(provider) {
+			continue
+		}
+		if aiProvider.ID == uuid.Nil || candidate.CreatedAt.After(aiProvider.CreatedAt) {
+			aiProvider = candidate
+		}
+	}
+	if aiProvider.ID == uuid.Nil {
+		aiProvider = dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AIProviderType(provider),
+		})
+	}
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    provider,
-		Model:       model,
-		DisplayName: model,
-		Options:     options,
+		AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		Model:        model,
+		DisplayName:  model,
+		Options:      options,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = enabled
 	})
@@ -1467,7 +1484,6 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 	ownerID := uuid.New()
 	modelConfig := database.ChatModelConfig{
 		ID:          uuid.New(),
-		Provider:    "bedrock",
 		Model:       "anthropic.claude-haiku-4-5-20251001-v1:0",
 		DisplayName: "Ambient Bedrock Override",
 		Enabled:     true,
@@ -2139,7 +2155,7 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	currentTurnModel := insertInternalChatModelConfig(
 		t, db, "explore-missing-user-key-current-"+uuid.NewString(), true,
 	)
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	overrideProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "openai-compat",
 		DisplayName: "OpenAI Compat",
 	}, func(p *database.InsertChatProviderParams) {
@@ -2150,9 +2166,9 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	})
 
 	overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    "openai-compat",
-		Model:       "gpt-4o-mini",
-		DisplayName: "Explore Override Missing User Key",
+		AIProviderID: uuid.NullUUID{UUID: overrideProvider.ID, Valid: true},
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Explore Override Missing User Key",
 	})
 	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
 	parentChat := createInternalParentChat(
@@ -2790,7 +2806,9 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	insertEnabledAnthropicProvider(t, db, user.ID)
 	workspace, build, agent := seedWorkspaceBinding(t, db, user.ID)
 
-	require.Equal(t, "openai", model.Provider, "seed helper must create an OpenAI model")
+	seedProvider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, "openai", string(seedProvider.Type), "seed helper must create an OpenAI model")
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
@@ -2833,7 +2851,7 @@ func TestSpawnAgent_ComputerUseUsesComputerUseModelNotParent(t *testing.T) {
 	assert.Equal(t, database.ChatModeComputerUse, childChat.Mode.ChatMode)
 	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderAnthropic)
 	require.True(t, ok)
-	assert.NotEqual(t, model.Provider, computerUseModelProvider,
+	assert.NotEqual(t, string(seedProvider.Type), computerUseModelProvider,
 		"computer use model provider must differ from parent model provider")
 	assert.Equal(t, "anthropic", computerUseModelProvider)
 	assert.NotEmpty(t, computerUseModelName)
@@ -3709,7 +3727,6 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 			BaseUrl:     providerServer.URL,
 		})
 		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "openai",
 			Model:        "gpt-4o-mini",
 			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
 		})

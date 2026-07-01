@@ -241,7 +241,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
-					Provider:    "openai",
 					Model:       "gpt-5.2",
 					Enabled:     true,
 					CreatedAt:   time.Unix(0, 0).UTC(),
@@ -275,7 +274,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
-					Provider:    "openai",
 					Model:       "gpt-5.2",
 					Enabled:     true,
 					CreatedAt:   time.Unix(0, 0).UTC(),
@@ -322,7 +320,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:           configID,
-					Provider:     "openai",
 					Model:        "gpt-5.2",
 					Enabled:      true,
 					CreatedAt:    time.Unix(0, 0).UTC(),
@@ -370,7 +367,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:           configID,
-					Provider:     "openai",
 					Model:        "gpt-5.2",
 					Enabled:      true,
 					CreatedAt:    time.Unix(0, 0).UTC(),
@@ -421,7 +417,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{
 				ID:           configID,
-				Provider:     "openai",
 				Model:        "gpt-5.2",
 				Enabled:      true,
 				DisplayName:  "gpt-5.2",

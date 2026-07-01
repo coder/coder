@@ -113,7 +113,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:    "openai",
 			Model:       "gpt-4o-mini",
 			DisplayName: "gpt-4o-mini",
 			Options:     json.RawMessage(`{}`),
@@ -235,7 +234,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		// degraded path that still returns the re-derived text and IDs.
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "openai",
 			Model:        "gpt-4o-mini",
 			DisplayName:  "gpt-4o-mini",
 			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},

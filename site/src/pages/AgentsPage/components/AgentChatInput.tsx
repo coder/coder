@@ -66,7 +66,6 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
-import { formatProviderLabel } from "../utils/modelOptions";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -1416,7 +1415,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
 								className="md:shrink"
 								dropdownSide="top"
 								dropdownAlign="center"

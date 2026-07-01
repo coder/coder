@@ -2489,8 +2489,7 @@ export interface ChatModelCallConfig {
  */
 export interface ChatModelConfig {
 	readonly id: string;
-	readonly provider: string;
-	readonly ai_provider_id?: string;
+	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -3521,7 +3520,6 @@ export interface CreateChatMessageResponse {
  * CreateChatModelConfigRequest creates a chat model config.
  */
 export interface CreateChatModelConfigRequest {
-	readonly provider?: string;
 	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
@@ -8904,7 +8902,6 @@ export interface UpdateChatDebugRetentionDaysRequest {
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
-	readonly provider?: string;
 	readonly ai_provider_id?: string;
 	readonly model?: string;
 	readonly display_name?: string;

@@ -790,7 +790,7 @@ func (api *API) chatPersonalModelOverrideDeploymentDefaults(
 type userChatModelAvailability struct {
 	configuredProviders  []chatprovider.ConfiguredProvider
 	configuredModels     []chatprovider.ConfiguredModel
-	enabledModels        []database.ChatModelConfig
+	enabledModels        []database.GetEnabledChatModelConfigsRow
 	providerStatus       map[string]chatprovider.ProviderAvailability
 	providerStatusByID   map[uuid.UUID]chatprovider.ProviderAvailability
 	enabledProviderNames map[string]struct{}
@@ -902,8 +902,8 @@ func (api *API) getUserChatProviderAvailability(
 		if normalizedProvider == "" {
 			continue
 		}
-		if model.AIProviderID.Valid {
-			status, ok := availability.providerStatusByID[model.AIProviderID.UUID]
+		if model.ChatModelConfig.AIProviderID.Valid {
+			status, ok := availability.providerStatusByID[model.ChatModelConfig.AIProviderID.UUID]
 			if ok {
 				mergeProviderStatus(modelStatusByType, normalizedProvider, status)
 			}
@@ -920,8 +920,8 @@ func (api *API) getUserChatProviderAvailability(
 
 	for _, model := range enabledModels {
 		normalizedProvider := chatprovider.NormalizeProvider(model.Provider)
-		if model.AIProviderID.Valid {
-			status, ok := availability.providerStatusByID[model.AIProviderID.UUID]
+		if model.ChatModelConfig.AIProviderID.Valid {
+			status, ok := availability.providerStatusByID[model.ChatModelConfig.AIProviderID.UUID]
 			if !ok {
 				continue
 			}
@@ -931,8 +931,8 @@ func (api *API) getUserChatProviderAvailability(
 		}
 		availability.configuredModels = append(availability.configuredModels, chatprovider.ConfiguredModel{
 			Provider:    model.Provider,
-			Model:       model.Model,
-			DisplayName: model.DisplayName,
+			Model:       model.ChatModelConfig.Model,
+			DisplayName: model.ChatModelConfig.DisplayName,
 		})
 	}
 	return availability, nil
@@ -982,21 +982,10 @@ func (api *API) userCanUseChatModelConfig(
 		}
 		return chatModelConfigAvailable, nil
 	}
-	provider, _, err := chatprovider.ResolveModelWithProviderHint(model.Model, model.Provider)
-	if err != nil {
-		return chatModelConfigUnavailableProviderDisabled, nil
-	}
-	if _, ok := availability.enabledProviderNames[provider]; !ok {
-		return chatModelConfigUnavailableProviderDisabled, nil
-	}
-	providerStatus, ok := availability.providerStatus[provider]
-	if !ok {
-		return chatModelConfigUnavailableProviderDisabled, nil
-	}
-	if !providerStatus.Available {
-		return chatModelConfigUnavailableCredentialsMissing, nil
-	}
-	return chatModelConfigAvailable, nil
+	// Active configs always carry a provider FK (CHECK
+	// chat_model_configs_ai_provider_required_when_active), so an unset FK
+	// means the config is not usable.
+	return chatModelConfigUnavailableModelNotFoundOrDisabled, nil
 }
 
 func (api *API) validateUserChatModelConfigAvailable(
@@ -6892,7 +6881,12 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		configs, err = api.Database.GetChatModelConfigs(ctx)
 	} else {
 		//nolint:gocritic // All authenticated users need to read enabled model configs to use the chat feature.
-		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsChatd(ctx))
+		rows, rowsErr := api.Database.GetEnabledChatModelConfigs(dbauthz.AsChatd(ctx))
+		err = rowsErr
+		configs = make([]database.ChatModelConfig, 0, len(rows))
+		for _, row := range rows {
+			configs = append(configs, row.ChatModelConfig)
+		}
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6964,7 +6958,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
 		return
 	}
-	provider := string(aiProvider.Type)
 	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
 
 	model := strings.TrimSpace(req.Model)
@@ -7020,7 +7013,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	insertParams := database.InsertChatModelConfigParams{
-		Provider:             provider,
 		Model:                model,
 		DisplayName:          strings.TrimSpace(req.DisplayName),
 		Enabled:              enabled,
@@ -7046,7 +7038,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if !lockedAIProvider.Enabled {
 			return errChatProviderNotConfigured
 		}
-		insertParams.Provider = string(lockedAIProvider.Type)
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
 			return err
 		}
@@ -7151,19 +7142,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.Provider) != "" && req.AIProviderID == nil {
-		requestedProvider := chatprovider.NormalizeProvider(req.Provider)
-		if requestedProvider == "" {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid provider."})
-			return
-		}
-		if requestedProvider != existing.Provider {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider ID is required when updating provider."})
-			return
-		}
-	}
-
-	provider := existing.Provider
 	aiProviderID := existing.AIProviderID
 	if req.AIProviderID != nil {
 		//nolint:gocritic // The route already authorized chat model config updates.
@@ -7183,7 +7161,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
 			return
 		}
-		provider = string(aiProvider.Type)
 		aiProviderID = uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
 	}
 
@@ -7243,7 +7220,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	updateParams := database.UpdateChatModelConfigParams{
-		Provider:             provider,
 		Model:                model,
 		DisplayName:          displayName,
 		Enabled:              enabled,
@@ -7272,7 +7248,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			if !aiProvider.Enabled {
 				return errChatProviderNotConfigured
 			}
-			updateParams.Provider = string(aiProvider.Type)
 			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model); err != nil {
 				return err
 			}
@@ -7452,7 +7427,6 @@ func chatModelConfigToUpdateParams(
 	config database.ChatModelConfig,
 ) database.UpdateChatModelConfigParams {
 	return database.UpdateChatModelConfigParams{
-		Provider:             config.Provider,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
 		Enabled:              config.Enabled,
@@ -7522,14 +7496,11 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 }
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
-	var aiProviderID *uuid.UUID
-	if config.AIProviderID.Valid {
-		aiProviderID = &config.AIProviderID.UUID
-	}
+	// Active configs always carry a non-null ai_provider_id (CHECK
+	// chat_model_configs_ai_provider_required_when_active).
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
-		Provider:             config.Provider,
-		AIProviderID:         aiProviderID,
+		AIProviderID:         config.AIProviderID.UUID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
 		Enabled:              config.Enabled,

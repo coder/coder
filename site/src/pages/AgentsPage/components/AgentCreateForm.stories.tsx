@@ -61,7 +61,7 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,

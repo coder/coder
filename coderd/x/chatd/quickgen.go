@@ -73,17 +73,17 @@ type shortTextCandidate struct {
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
-	configs []database.ChatModelConfig,
+	configs []database.GetEnabledChatModelConfigsRow,
 ) (database.ChatModelConfig, bool) {
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.Model), preferred.model) {
+			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
 				continue
 			}
-			return config, true
+			return config.ChatModelConfig, true
 		}
 	}
 	return database.ChatModelConfig{}, false
@@ -156,7 +156,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			turnCtx,
 			chat,
 			messages,
-			modelConfig.Provider,
+			string(route.Provider.Type),
 			modelConfig.Model,
 			model,
 			route,
@@ -228,7 +228,7 @@ func (p *Server) maybeGenerateChatTitle(
 	var candidate shortTextCandidate
 	if overrideSet {
 		candidate = shortTextCandidate{
-			provider: overrideConfig.Provider,
+			provider: string(overrideRoute.Provider.Type),
 			model:    overrideConfig.Model,
 			route:    overrideRoute,
 			lm:       overrideModel,

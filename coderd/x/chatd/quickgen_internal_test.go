@@ -381,8 +381,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider: "openai",
-		Model:    "test-model",
+		Model: "test-model",
 	})
 
 	userPrompt := "summarize failed workspace build logs"
@@ -575,24 +574,23 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []database.ChatModelConfig{
-			{Provider: preferredTitleModels[2].provider, Model: preferredTitleModels[2].model},
-			{Provider: preferredTitleModels[1].provider, Model: preferredTitleModels[1].model},
-			{Provider: "openai", Model: "gpt-4.1"},
+		configs := []database.GetEnabledChatModelConfigsRow{
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
 		}
 
 		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 		require.True(t, ok)
-		require.Equal(t, preferredTitleModels[1].provider, got.Provider)
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
 	})
 
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.ChatModelConfig{{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
+			Provider:        "openai",
 		}})
 		require.False(t, ok)
 		require.Equal(t, database.ChatModelConfig{}, got)

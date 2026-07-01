@@ -107,31 +107,20 @@ export const deriveProviderStates = (
 		catalogProvidersByProvider.set(provider, cp);
 	}
 
-	const providerConfigKeysByProvider = new Map<string, string[]>();
 	const providerTypesWithConfigs = new Set<string>();
+	const providerConfigsByKey = new Map<string, TypesGen.ChatProviderConfig>();
 	for (const pc of providerConfigs ?? []) {
 		const provider = normalizeProvider(pc.provider);
 		if (!provider) continue;
 		const key = providerConfigStateKey(pc);
 		providerTypesWithConfigs.add(provider);
-		providerConfigKeysByProvider.set(provider, [
-			...(providerConfigKeysByProvider.get(provider) ?? []),
-			key,
-		]);
+		if (key) {
+			providerConfigsByKey.set(key, pc);
+		}
 		includeEntry(key, provider);
 	}
-	const modelStateKey = (modelConfig: TypesGen.ChatModelConfig): string => {
-		const aiProviderID = readOptionalString(modelConfig.ai_provider_id);
-		if (aiProviderID) {
-			return aiProviderID;
-		}
-		const provider = normalizeProvider(modelConfig.provider);
-		const providerConfigKeys = providerConfigKeysByProvider.get(provider) ?? [];
-		if (providerConfigKeys.length === 1) {
-			return providerConfigKeys[0];
-		}
-		return providerConfigKeys.length === 0 ? provider : "";
-	};
+	const modelStateKey = (modelConfig: TypesGen.ChatModelConfig): string =>
+		readOptionalString(modelConfig.ai_provider_id) ?? "";
 
 	for (const cp of catalogProviders) {
 		const provider = normalizeProvider(cp.provider);
@@ -139,14 +128,8 @@ export const deriveProviderStates = (
 		includeEntry(provider, provider);
 	}
 	for (const mc of modelConfigs) {
-		includeEntry(modelStateKey(mc), mc.provider);
-	}
-
-	const providerConfigsByKey = new Map<string, TypesGen.ChatProviderConfig>();
-	for (const pc of providerConfigs ?? []) {
-		const key = providerConfigStateKey(pc);
-		if (!key) continue;
-		providerConfigsByKey.set(key, pc);
+		const key = modelStateKey(mc);
+		includeEntry(key, providerConfigsByKey.get(key)?.provider ?? "");
 	}
 
 	const modelConfigsByKey = new Map<string, TypesGen.ChatModelConfig[]>();
@@ -215,23 +198,4 @@ export const canManageProviderModels = (
 			(providerState.hasEffectiveAPIKey ||
 				providerState.providerConfig.allow_user_api_key),
 	);
-};
-
-export const resolveModelProviderKey = (
-	modelConfig: TypesGen.ChatModelConfig,
-	providerStates: readonly ProviderState[],
-): string => {
-	const providerID = readOptionalString(modelConfig.ai_provider_id);
-	if (providerID) {
-		return providerID;
-	}
-	const provider = normalizeProvider(modelConfig.provider);
-	const matches = providerStates.filter((s) => s.provider === provider);
-	if (matches.length === 1) {
-		return matches[0].key;
-	}
-	if (matches.length > 1) {
-		return "";
-	}
-	return provider;
 };
