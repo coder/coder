@@ -253,6 +253,12 @@ function renderStepContent(
 								value,
 							})
 						}
+						onProvisionerStatusChange={(value) =>
+							dispatch({
+								type: "SET_HAS_PROVISIONERS",
+								value,
+							})
+						}
 					/>
 				</>
 			);
@@ -284,7 +290,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "";
+			return state.name.trim() !== "" && state.hasProvisioners !== false;
 		default:
 			return true;
 	}
