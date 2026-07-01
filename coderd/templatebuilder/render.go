@@ -102,18 +102,31 @@ func renderTemplate(fsys fs.FS, templatePath string, data any) ([]byte, error) {
 // agentResourcePattern matches `resource "coder_agent" "<name>"` in HCL.
 var agentResourcePattern = regexp.MustCompile(`resource\s+"coder_agent"\s+"(\w+)"`)
 
+// agentCountPattern detects whether a coder_agent block uses count or
+// for_each, which means references to it require an index (e.g. [0]).
+var agentCountPattern = regexp.MustCompile(
+	`resource\s+"coder_agent"\s+"\w+"\s*\{[^}]*\b(?:count|for_each)\s*=`,
+)
+
 // ExtractAgentResourceName finds the coder_agent resource declaration in
-// rendered HCL and returns its name. Returns an error unless exactly
-// one coder_agent resource is found; the builder only supports
-// single-agent templates. The input is expected to be rendered output
-// from our own curated base templates, not arbitrary user HCL.
+// rendered HCL and returns the reference form to use in module templates.
+// When the agent uses count or for_each, the returned name includes an
+// index suffix (e.g. "dev[0]") so that module templates can reference it
+// as coder_agent.<name>.id. Returns an error unless exactly one
+// coder_agent resource is found; the builder only supports single-agent
+// templates. The input is expected to be rendered output from our own
+// curated base templates, not arbitrary user HCL.
 func ExtractAgentResourceName(hcl []byte) (string, error) {
 	matches := agentResourcePattern.FindAllSubmatch(hcl, -1)
 	switch len(matches) {
 	case 0:
 		return "", xerrors.New("no coder_agent resource found in rendered template")
 	case 1:
-		return string(matches[0][1]), nil
+		name := string(matches[0][1])
+		if agentCountPattern.Match(hcl) {
+			name += "[0]"
+		}
+		return name, nil
 	default:
 		names := make([]string, 0, len(matches))
 		for _, m := range matches {
