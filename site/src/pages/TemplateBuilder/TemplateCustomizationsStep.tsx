@@ -1,16 +1,22 @@
 import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
-import { permittedOrganizations } from "#/api/queries/organizations";
+import {
+	permittedOrganizations,
+	provisionerDaemons,
+} from "#/api/queries/organizations";
 import type { Organization } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { docs } from "#/utils/docs";
 import type {
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
@@ -37,6 +43,12 @@ export const TemplateCustomizationsStep: FC<
 
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
 
+	const { data: provisioners } = useQuery({
+		...provisionerDaemons(selectedOrg?.id ?? ""),
+		enabled: Boolean(selectedOrg),
+	});
+	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
+
 	// Auto-select when exactly one org is available.
 	useEffect(() => {
 		if (orgOptions.length === 1 && !selectedOrg) {
@@ -56,6 +68,8 @@ export const TemplateCustomizationsStep: FC<
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
 			</TemplateBuilderSubtitle>
+
+			{showProvisionerWarning && <ProvisionerWarning />}
 
 			<div className="flex gap-8">
 				{/* Base template card */}
@@ -139,6 +153,18 @@ export const TemplateCustomizationsStep: FC<
 				</div>
 			</div>
 		</>
+	);
+};
+
+const ProvisionerWarning: FC = () => {
+	return (
+		<Alert severity="warning" prominent className="my-4">
+			This organization does not have any provisioners. Before you create a
+			template, you&apos;ll need to configure a provisioner.{" "}
+			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+				See our documentation
+			</Link>
+		</Alert>
 	);
 };
 
