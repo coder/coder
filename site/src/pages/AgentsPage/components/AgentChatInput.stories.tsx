@@ -345,7 +345,20 @@ export const AIGatewayDisabledShowsSetupNotice: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText(/AI Gateway is disabled/),
+			canvas.getByText(/Enable it in your deployment config/),
+		).toBeInTheDocument();
+	},
+};
+
+export const AIGatewayDisabledNonAdminShowsSetupNotice: Story = {
+	args: {
+		canConfigureAgentSetup: false,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Contact your admin to enable it/),
 		).toBeInTheDocument();
 	},
 };

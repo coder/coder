@@ -1071,13 +1071,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 mb-[-2.5rem]">
-					{canConfigureAgentSetup &&
-					providerCount !== undefined &&
-					modelCount !== undefined ? (
+					{(aiGatewayDisabled ||
+						(providerCount !== undefined && modelCount !== undefined)) &&
+					canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
-							providerCount={providerCount}
-							modelCount={modelCount}
+							providerCount={providerCount ?? 0}
+							modelCount={modelCount ?? 0}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>

@@ -47,7 +47,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useAIGatewayDisabled } from "#/hooks/useEmbeddedMetadata";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -1155,10 +1155,7 @@ const AgentChatPage: FC = () => {
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
-	const { metadata } = useEmbeddedMetadata();
-	const aiGatewayDisabled = metadata["ai-gateway-enabled"].available
-		? !metadata["ai-gateway-enabled"].value
-		: false;
+	const aiGatewayDisabled = useAIGatewayDisabled();
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
