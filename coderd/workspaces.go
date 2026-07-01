@@ -548,13 +548,40 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
+	validated, err := api.validateWorkspaceCreate(ctx, owner, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
 
-	// Update audit log's organization
-	auditReq.UpdateOrganizationID(template.OrganizationID)
+	return createValidatedWorkspace(ctx, auditReq, initiatorID, api, owner, req, validated, opts)
+}
+
+// validatedWorkspaceCreate carries the template and derived settings produced by
+// validateWorkspaceCreate so that createValidatedWorkspace can build the
+// workspace without repeating the (side-effectful) validation, in particular
+// the required external auth check.
+type validatedWorkspaceCreate struct {
+	template            database.Template
+	dbAutostartSchedule sql.NullString
+	nextStartAt         sql.NullTime
+	dbTTL               sql.NullInt64
+	dbAU                database.AutomaticUpdates
+}
+
+// validateWorkspaceCreate runs every check that must pass before a workspace is
+// created: the authorization preflight, required external auth for the owner,
+// and validation of the requested schedule, TTL and automatic-updates settings.
+//
+// It is side-effectful: requireWorkspaceOwnerExternalAuth may refresh or clear
+// the owner's external auth tokens and contacts the configured providers. It
+// must therefore run exactly once per request, before createValidatedWorkspace.
+// The authorization preflight runs first so an unauthorized caller never reaches
+// the external auth check.
+func (api *API) validateWorkspaceCreate(ctx context.Context, owner workspaceOwner, req codersdk.CreateWorkspaceRequest) (validatedWorkspaceCreate, error) {
+	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
+	if err != nil {
+		return validatedWorkspaceCreate{}, err
+	}
 
 	// Required external auth is otherwise only enforced by client-side preflight
 	// checks in the CLI and UI, so API-created workspaces must be validated here
@@ -566,20 +593,20 @@ func createWorkspace(
 	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, templateVersionID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			return codersdk.Workspace{}, httperror.ErrResourceNotFound
+			return validatedWorkspaceCreate{}, httperror.ErrResourceNotFound
 		}
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+		return validatedWorkspaceCreate{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template version.",
 			Detail:  err.Error(),
 		})
 	}
 	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
-		return codersdk.Workspace{}, err
+		return validatedWorkspaceCreate{}, err
 	}
 
 	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
 	if err != nil {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+		return validatedWorkspaceCreate{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Autostart Schedule.",
 			Validations: []codersdk.ValidationError{{Field: "schedule", Detail: err.Error()}},
 		})
@@ -587,7 +614,7 @@ func createWorkspace(
 
 	templateSchedule, err := (*api.TemplateScheduleStore.Load()).Get(ctx, api.Database, template.ID)
 	if err != nil {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+		return validatedWorkspaceCreate{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template schedule.",
 			Detail:  err.Error(),
 		})
@@ -603,7 +630,7 @@ func createWorkspace(
 
 	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+		return validatedWorkspaceCreate{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
 			Validations: []codersdk.ValidationError{{Field: "ttl_ms", Detail: err.Error()}},
 		})
@@ -614,12 +641,48 @@ func createWorkspace(
 	if req.AutomaticUpdates != "" {
 		dbAU, err = validWorkspaceAutomaticUpdates(req.AutomaticUpdates)
 		if err != nil {
-			return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			return validatedWorkspaceCreate{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid Workspace Automatic Updates setting.",
 				Validations: []codersdk.ValidationError{{Field: "automatic_updates", Detail: err.Error()}},
 			})
 		}
 	}
+
+	return validatedWorkspaceCreate{
+		template:            template,
+		dbAutostartSchedule: dbAutostartSchedule,
+		nextStartAt:         nextStartAt,
+		dbTTL:               dbTTL,
+		dbAU:                dbAU,
+	}, nil
+}
+
+// createValidatedWorkspace inserts (or claims) the workspace and starts its
+// initial build using the result of a prior validateWorkspaceCreate call. It
+// performs no authorization or external auth validation of its own, so callers
+// MUST run validateWorkspaceCreate for the same owner and request first.
+func createValidatedWorkspace(
+	ctx context.Context,
+	auditReq *audit.Request[database.WorkspaceTable],
+	initiatorID uuid.UUID,
+	api *API,
+	owner workspaceOwner,
+	req codersdk.CreateWorkspaceRequest,
+	validated validatedWorkspaceCreate,
+	opts *createWorkspaceOptions,
+) (codersdk.Workspace, error) {
+	if opts == nil {
+		opts = &createWorkspaceOptions{}
+	}
+
+	template := validated.template
+	dbAutostartSchedule := validated.dbAutostartSchedule
+	nextStartAt := validated.nextStartAt
+	dbTTL := validated.dbTTL
+	dbAU := validated.dbAU
+
+	// Update audit log's organization
+	auditReq.UpdateOrganizationID(template.OrganizationID)
 
 	// TODO: This should be a system call as the actor might not be able to
 	// read other workspaces. Ideally we check the error on create and look for
