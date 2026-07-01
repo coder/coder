@@ -474,6 +474,13 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$RC" -ne 0 ]; then
+            # Surface the raw handler response on the workflow log, which is
+            # restricted to repo collaborators, so a 4xx/5xx reason is
+            # diagnosable. Deliberately not written to $GITHUB_STEP_SUMMARY,
+            # which is public for this repository.
+            echo "Algolia docs sync request failed: curl rc=$RC, HTTP status=${HTTP_STATUS:-n/a}. Raw response body follows:"
+            cat "$RESPONSE" 2>/dev/null || echo "(no response body captured)"
+            echo
             exit "$RC"
           fi
 
@@ -539,5 +546,12 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$RC" -ne 0 ]; then
+            # Surface the raw hook response on the workflow log, which is
+            # restricted to repo collaborators, so a 4xx/5xx reason is
+            # diagnosable. Deliberately not written to $GITHUB_STEP_SUMMARY,
+            # which is public for this repository.
+            echo "Vercel deploy hook request failed: curl rc=$RC, HTTP status=${HTTP_STATUS:-n/a}. Raw response body follows:"
+            cat "$RESPONSE" 2>/dev/null || echo "(no response body captured)"
+            echo
             exit "$RC"
           fi
