@@ -499,6 +499,20 @@ export const MissingProviderAndModelSetup: Story = {
 	},
 };
 
+export const AIGatewayDisabled: Story = {
+	args: {
+		...defaultArgs,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
 export const PreservesAttachmentsOnFailedSend: Story = {
 	args: {
 		...defaultArgs,

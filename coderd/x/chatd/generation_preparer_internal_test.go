@@ -142,7 +142,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server := newInternalTestServer(
+			t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		)
 		return server, created.Chat
 	}
 
@@ -192,7 +195,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.NotNil(t, result.StatusLabelModel)
 		require.Equal(t, "openai", result.FallbackProvider)
 		require.Equal(t, "gpt-4o-mini", result.FallbackModel)
-		require.False(t, result.ProviderKeys.Empty())
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {

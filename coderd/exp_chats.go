@@ -115,6 +115,22 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
+// requireChatDaemon reports whether the chat daemon exists, writing a 503
+// Service Unavailable with a remediation message when it does not. The
+// daemon is nil when the in-memory AI Gateway is disabled by deployment
+// config. Operations that depend on it (creating, mutating, or streaming a
+// chat) must call this; pure reads (e.g. getChat) do not.
+func (api *API) requireChatDaemon(ctx context.Context, rw http.ResponseWriter) bool {
+	if api.chatDaemon != nil {
+		return true
+	}
+	httpapi.Write(ctx, rw, http.StatusServiceUnavailable, codersdk.Response{
+		Message: "AI Gateway must be enabled for Coder Agents functionality. Please contact your deployment administrator.",
+		Detail:  "Set CODER_AI_GATEWAY_ENABLED=true (or ai-gateway-enabled in deployment YAML) to enable.",
+	})
+	return false
+}
+
 func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.ChatConfigEventKind, entityID uuid.UUID) {
 	payload, err := json.Marshal(pubsub.ChatConfigEvent{
 		Kind:     kind,
@@ -1027,6 +1043,10 @@ func (api *API) validateUserChatModelConfigAvailable(
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
 
 	// Cap the raw request body to prevent excessive memory use
 	// from large dynamic tool schemas.
@@ -2648,6 +2668,10 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	updated, err := api.chatDaemon.RefreshChatContext(ctx, chat)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2698,6 +2722,10 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	if !api.requireChatDaemon(ctx, rw) {
 		return
 	}
 
@@ -3023,6 +3051,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	// Sending a message triggers LLM inference, requiring update
 	// permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
@@ -3232,6 +3264,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -3353,6 +3389,10 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -3402,6 +3442,10 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
 
 	// Promoting a queued message triggers LLM inference,
 	// requiring update permission on the org-scoped chat resource.
@@ -3527,6 +3571,10 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 	logger := api.Logger.Named("chat_streamer").With(slog.F("chat_id", chatID))
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
 
 	var afterMessageID int64
 	if v := r.URL.Query().Get("after_id"); v != "" {
@@ -3665,6 +3713,10 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	chatID := chat.ID
 	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -3714,6 +3766,10 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 	chatID := chat.ID
 	logger := api.Logger.Named("chat_reconcile_invalid").With(slog.F("chat_id", chatID))
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -3761,6 +3817,10 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -3806,6 +3866,10 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
@@ -7606,6 +7670,10 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	apiKey := httpmw.APIKey(r)
 
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
 	// Submitting tool results resumes LLM inference,
 	// requiring update permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
@@ -7812,6 +7880,9 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
 	if err := api.chatDaemon.ServeStreamPartsAuthorized(rw, r, chat); err != nil {
 		api.Logger.Named("chat_stream_parts").Debug(ctx, "chat stream parts closed", slog.Error(err))
 	}

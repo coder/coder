@@ -362,16 +362,6 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 	}
 }
 
-func TestPreferredShortTextCandidatesNilUnderAIGateway(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{aiGatewayRoutingEnabled: true}
-	candidates := server.preferredShortTextCandidates(database.Chat{}, chatprovider.ProviderAPIKeys{
-		ByProvider: map[string]string{"openai": "test-key"},
-	})
-	require.Nil(t, candidates)
-}
-
 func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	t.Parallel()
 
@@ -440,8 +430,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		"openai",
 		"test-model",
 		model,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,

@@ -189,7 +189,6 @@ type Server struct {
 	recordingSem      chan struct{}
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
-	aiGatewayRoutingEnabled  bool
 	experiments              codersdk.Experiments
 
 	// Configuration
@@ -270,7 +269,6 @@ func (p *Server) resolveAdvisorModelOverride(
 	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, codersdk.ChatModelCallConfig, error) {
@@ -319,10 +317,9 @@ func (p *Server) resolveAdvisorModelOverride(
 		ctx,
 		chat.OwnerID,
 		overrideConfig,
-		providerKeys,
 	)
 	if err != nil {
-		if p.shouldUseAIGatewayRouting() && overrideConfig.AIProviderID.Valid {
+		if overrideConfig.AIProviderID.Valid {
 			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("resolve advisor override route: %w", err)
 		}
 		logger.Warn(
@@ -340,7 +337,7 @@ func (p *Server) resolveAdvisorModelOverride(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		if p.shouldUseAIGatewayRouting() && overrideConfig.AIProviderID.Valid {
+		if overrideConfig.AIProviderID.Valid {
 			return nil, codersdk.ChatModelCallConfig{}, xerrors.Errorf("create advisor override model: %w", err)
 		}
 		logger.Warn(
@@ -361,7 +358,6 @@ func (p *Server) newAdvisorRuntime(
 	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -371,7 +367,6 @@ func (p *Server) newAdvisorRuntime(
 		advisorCfg,
 		fallbackModel,
 		fallbackCallConfig,
-		providerKeys,
 		modelOpts,
 		logger,
 	)
@@ -2291,10 +2286,6 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID, uuid.Nil)
-	if err != nil {
-		keys = chatprovider.ProviderAPIKeys{}
-	}
 	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
 		return database.Chat{}, err
 	}
@@ -2304,7 +2295,6 @@ func (p *Server) RegenerateChatTitle(
 		chatdCtx,
 		p.db,
 		chat,
-		keys,
 	)
 	if err != nil {
 		return database.Chat{}, p.recordManualTitleGenerationFailure(ctx, chat, err)
@@ -2355,16 +2345,12 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	keys, err := p.resolveUserProviderAPIKeys(chatdCtx, chat.OwnerID, uuid.Nil)
-	if err != nil {
-		keys = chatprovider.ProviderAPIKeys{}
-	}
 	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
 		return "", err
 	}
 	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
 
-	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat, keys)
+	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat)
 	if err != nil {
 		return "", p.recordManualTitleGenerationFailure(ctx, chat, err)
 	}
@@ -2412,7 +2398,6 @@ func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 ) (manualTitleCandidateResult, error) {
 	if limitErr := p.checkUsageLimit(ctx, store, chat.OwnerID, uuid.NullUUID{UUID: chat.OrganizationID, Valid: true}); limitErr != nil {
 		return manualTitleCandidateResult{}, limitErr
@@ -2453,7 +2438,7 @@ func (p *Server) generateManualTitleCandidate(
 		}
 	}
 
-	model, modelConfig, modelKeys, err := p.resolveManualTitleModel(ctx, store, chat, keys, modelOpts)
+	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
 	result := manualTitleCandidateResult{
 		modelConfig:    modelConfig,
 		activeAPIKeyID: modelOpts.ActiveAPIKeyID,
@@ -2472,7 +2457,6 @@ func (p *Server) generateManualTitleCandidate(
 			debugSvc,
 			chat,
 			modelConfig,
-			modelKeys,
 			modelOpts,
 			messages,
 			model,
@@ -2503,9 +2487,8 @@ func (p *Server) proposeChatTitleWithStore(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 ) (string, error) {
-	result, err := p.generateManualTitleCandidate(ctx, store, chat, keys)
+	result, err := p.generateManualTitleCandidate(ctx, store, chat)
 	if err != nil {
 		return "", err
 	}
@@ -2533,9 +2516,8 @@ func (p *Server) regenerateChatTitleWithStore(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 ) (database.Chat, error) {
-	result, err := p.generateManualTitleCandidate(ctx, store, chat, keys)
+	result, err := p.generateManualTitleCandidate(ctx, store, chat)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -2574,7 +2556,6 @@ func (p *Server) prepareManualTitleDebugRun(
 	debugSvc *chatdebug.Service,
 	chat database.Chat,
 	modelConfig database.ChatModelConfig,
-	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
@@ -2583,10 +2564,10 @@ func (p *Server) prepareManualTitleDebugRun(
 	titleModel := fallbackModel
 	finishDebugRun := func(error) {}
 
-	route, routeErr := p.resolveModelRouteForConfig(ctx, chat.OwnerID, modelConfig, keys)
+	route, routeErr := p.resolveModelRouteForConfig(ctx, chat.OwnerID, modelConfig)
 	var routeProvider string
 	if routeErr == nil {
-		routeProvider, _ = route.providerHint()
+		routeProvider = string(route.Provider.Type)
 	} else if modelConfig.AIProviderID.Valid {
 		// Route resolution failed, but the linked provider still identifies the
 		// type for the debug run record. Best-effort: leave empty if disabled.
@@ -2750,18 +2731,16 @@ func (p *Server) resolveManualTitleModel(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	overrideConfig, overrideModel, overrideKeys, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+	overrideConfig, overrideModel, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
-		keys,
 		modelOpts,
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+			return nil, database.ChatModelConfig{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
 			)
@@ -2771,7 +2750,7 @@ func (p *Server) resolveManualTitleModel(
 			slog.Error(overrideErr),
 		)
 	} else if overrideSet {
-		return overrideModel, overrideConfig, overrideKeys, nil
+		return overrideModel, overrideConfig, nil
 	}
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
@@ -2780,22 +2759,22 @@ func (p *Server) resolveManualTitleModel(
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
 
 	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
 
-	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config, keys)
+	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
@@ -2809,28 +2788,27 @@ func (p *Server) resolveManualTitleModel(
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys, modelOpts)
+		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
 	}
 
-	return model, config, route.directProviderKeys(), nil
+	return model, config, nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(
 	ctx context.Context,
 	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
-) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
 	config, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
 			"resolve fallback manual title model config: %w",
 			err,
 		)
 	}
-	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config, keys)
+	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
+		return nil, database.ChatModelConfig{}, err
 	}
 	model, err := p.newModel(ctx, modelClientRequest{
 		Chat:         chat,
@@ -2839,12 +2817,12 @@ func (p *Server) resolveFallbackManualTitleModel(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
 			"create fallback manual title model: %w",
 			err,
 		)
 	}
-	return model, config, route.directProviderKeys(), nil
+	return model, config, nil
 }
 
 func mergeManualTitleMessages(
@@ -3167,7 +3145,6 @@ type Config struct {
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
-	AIGatewayRoutingEnabled        bool
 	Experiments                    codersdk.Experiments
 
 	PrometheusRegistry prometheus.Registerer
@@ -3264,7 +3241,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 			return debugSvc
 		},
 		aibridgeTransportFactory:   cfg.AIBridgeTransportFactory,
-		aiGatewayRoutingEnabled:    cfg.AIGatewayRoutingEnabled,
 		experiments:                cfg.Experiments,
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
@@ -3549,9 +3525,8 @@ func (p *Server) trackWorkspaceUsage(
 type runChatResult struct {
 	FinalAssistantText  string
 	StatusLabelModel    fantasy.LanguageModel
-	ProviderKeys        chatprovider.ProviderAPIKeys
 	FallbackProvider    string
-	FallbackRoute       resolvedModelRoute
+	FallbackRoute       aiGatewayModelRoute
 	FallbackModel       string
 	ModelBuildOptions   modelBuildOptions
 	TriggerMessageID    int64
@@ -4157,8 +4132,7 @@ func (p *Server) resolveChatModel(
 ) (
 	model fantasy.LanguageModel,
 	dbConfig database.ChatModelConfig,
-	keys chatprovider.ProviderAPIKeys,
-	route resolvedModelRoute,
+	route aiGatewayModelRoute,
 	debugEnabled bool,
 	resolvedProvider string,
 	resolvedModel string,
@@ -4166,29 +4140,25 @@ func (p *Server) resolveChatModel(
 ) {
 	dbConfig, err = p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
+		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf("resolve model config: %w", err)
 	}
 
 	if !dbConfig.Enabled {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
+		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf("chat model config %s is disabled", dbConfig.ID)
 	}
 
-	route, err = p.resolveModelRouteForConfig(ctx, chat.OwnerID, dbConfig, chatprovider.ProviderAPIKeys{})
+	route, err = p.resolveModelRouteForConfig(ctx, chat.OwnerID, dbConfig)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", err
+		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", err
 	}
-	keys = route.directProviderKeys()
 
-	providerHint, err := route.providerHint()
-	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", err
-	}
+	providerHint := route.ModelProviderHint
 	resolvedProvider, resolvedModel, err = chatprovider.ResolveModelWithProviderHint(
 		dbConfig.Model,
 		providerHint,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(
 			"resolve model metadata: %w", err,
 		)
 	}
@@ -4200,11 +4170,11 @@ func (p *Server) resolveChatModel(
 		ExtraHeaders: chatprovider.CoderHeaders(chat),
 	}, route, modelOpts)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, resolvedModelRoute{}, false, "", "", xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, aiGatewayModelRoute{}, false, "", "", xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, keys, route, debugEnabled, resolvedProvider, resolvedModel, nil
+	return model, dbConfig, route, debugEnabled, resolvedProvider, resolvedModel, nil
 }
 
 func (p *Server) aiProviderConfig(ctx context.Context, provider database.AIProvider) (chatprovider.ConfiguredProvider, error) {
@@ -4765,7 +4735,6 @@ func (p *Server) generateFinalTurnStatusLabel(
 		runResult.FallbackModel,
 		runResult.StatusLabelModel,
 		runResult.FallbackRoute,
-		runResult.ProviderKeys,
 		runResult.ModelBuildOptions,
 		logger,
 		p.existingDebugService(),
