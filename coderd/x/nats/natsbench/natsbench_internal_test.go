@@ -65,8 +65,12 @@ func TestRunSingleNode(t *testing.T) {
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Greater(t, res.Delivered, res.Published, "fan-out must exceed publishes")
 	require.Zero(t, res.Drops)
-	// Windows' monotonic clock advances in coarse (up to 15.6ms) ticks,
-	// so a sub-tick phase measures a 0 duration and yields a 0 rate.
+	// The exact count assertions above are the authoritative correctness
+	// checks; a run that published or delivered nothing fails there. The
+	// rates below are derived (count / duration), and Windows' monotonic
+	// clock advances in coarse (up to 15.6ms) ticks, so a sub-tick phase
+	// measures a 0 duration and must yield a 0 rate rather than a
+	// fabricated one. On fine-grained clocks the strict branch applies.
 	if res.PublishDuration > 0 {
 		require.Greater(t, res.PubsPerSec, 0.0)
 	} else {
@@ -109,7 +113,8 @@ func TestRunCluster(t *testing.T) {
 	require.EqualValues(t, pl.totalExpected, res.Expected)
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Zero(t, res.Drops)
-	// See TestRunSingleNode: coarse clocks can quantize a phase to 0.
+	// See TestRunSingleNode: counts above are the correctness checks;
+	// coarse clocks can quantize a phase duration, and thus its rate, to 0.
 	if res.PublishDuration > 0 {
 		require.Greater(t, res.PubsPerSec, 0.0)
 	} else {
