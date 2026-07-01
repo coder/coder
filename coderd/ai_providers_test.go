@@ -1554,3 +1554,226 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		require.Equal(t, "", *persisted.Bedrock.AccessKeySecret)
 	})
 }
+
+// TestAIProvidersBedrockExternalID covers the server-owned STS external ID:
+// it is generated when (and only when) the provider assumes a role, is
+// rejected when a client tries to set or change it, and is stable across
+// PATCHes that echo the stored value.
+func TestAIProvidersBedrockExternalID(t *testing.T) {
+	t.Parallel()
+
+	const (
+		roleARN               = "arn:aws:iam::123456789012:role/BedrockRole"
+		externalIDReadOnlyMsg = "The Bedrock external ID is server-generated and cannot be changed."
+	)
+
+	createBedrock := func(t *testing.T, client *codersdk.Client, name string, b codersdk.AIProviderBedrockSettings) (codersdk.AIProvider, error) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		return client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeBedrock,
+			Name:     name,
+			Enabled:  true,
+			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{Bedrock: &b},
+		})
+	}
+
+	t.Run("GeneratedWhenRoleSet", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		created, err := createBedrock(t, client, "bedrock-role", codersdk.AIProviderBedrockSettings{
+			Region:  "us-east-1",
+			RoleARN: roleARN,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, created.Settings.Bedrock)
+		require.NotEmpty(t, created.Settings.Bedrock.ExternalID, "external ID must be generated when a role is set")
+
+		// GET returns the same external ID.
+		got, err := client.AIProvider(ctx, created.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, created.Settings.Bedrock.ExternalID, got.Settings.Bedrock.ExternalID)
+	})
+
+	t.Run("AbsentWithoutRole", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := createBedrock(t, client, "bedrock-no-role", codersdk.AIProviderBedrockSettings{Region: "us-east-1"})
+		require.NoError(t, err)
+		require.NotNil(t, created.Settings.Bedrock)
+		require.Empty(t, created.Settings.Bedrock.ExternalID, "no external ID without a role to assume")
+	})
+
+	t.Run("RejectsClientValueOnCreate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := createBedrock(t, client, "bedrock-client-id", codersdk.AIProviderBedrockSettings{
+			Region:     "us-east-1",
+			RoleARN:    roleARN,
+			ExternalID: "client-supplied-value",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{
+			Field:  "settings.external_id",
+			Detail: "external_id is server-generated and cannot be set",
+		})
+	})
+
+	t.Run("StableWhenPatchOmitsValue", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		created, err := createBedrock(t, client, "bedrock-stable", codersdk.AIProviderBedrockSettings{
+			Region:  "us-east-1",
+			RoleARN: roleARN,
+		})
+		require.NoError(t, err)
+		original := created.Settings.Bedrock.ExternalID
+		require.NotEmpty(t, original)
+
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
+		require.Equal(t, original, updated.Settings.Bedrock.ExternalID, "external ID must be stable across PATCH")
+	})
+
+	t.Run("StableAcrossRoleRemovalAndReassignment", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const roleB = "arn:aws:iam::123456789012:role/BedrockRoleB"
+
+		created, err := createBedrock(t, client, "bedrock-toggle", codersdk.AIProviderBedrockSettings{
+			Region:  "us-east-1",
+			RoleARN: roleARN,
+		})
+		require.NoError(t, err)
+		original := created.Settings.Bedrock.ExternalID
+		require.NotEmpty(t, original)
+
+		// Removing the role retains the external ID.
+		cleared, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, cleared.Settings.Bedrock.RoleARN)
+		require.Equal(t, original, cleared.Settings.Bedrock.ExternalID)
+
+		// Adding a different role reuses the retained ID rather than
+		// regenerating it, so a trust policy referencing it keeps working.
+		readded, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleB},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, roleB, readded.Settings.Bedrock.RoleARN)
+		require.Equal(t, original, readded.Settings.Bedrock.ExternalID, "external ID must survive role removal and re-add")
+	})
+
+	t.Run("AllowsEchoedValueOnPatch", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		created, err := createBedrock(t, client, "bedrock-echo", codersdk.AIProviderBedrockSettings{
+			Region:  "us-east-1",
+			RoleARN: roleARN,
+		})
+		require.NoError(t, err)
+		original := created.Settings.Bedrock.ExternalID
+		require.NotEmpty(t, original)
+
+		// Read-modify-write resends the whole settings, including the stored
+		// external ID. Echoing the same value is allowed.
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-west-2", RoleARN: roleARN, ExternalID: original},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
+		require.Equal(t, original, updated.Settings.Bedrock.ExternalID)
+	})
+
+	t.Run("RejectsChangedValueOnPatch", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		created, err := createBedrock(t, client, "bedrock-change", codersdk.AIProviderBedrockSettings{
+			Region:  "us-east-1",
+			RoleARN: roleARN,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, created.Settings.Bedrock.ExternalID)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-tries-to-change-it"},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, externalIDReadOnlyMsg, sdkErr.Message)
+	})
+
+	t.Run("GeneratedWhenRoleAddedByPatch", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		created, err := createBedrock(t, client, "bedrock-add-role", codersdk.AIProviderBedrockSettings{Region: "us-east-1"})
+		require.NoError(t, err)
+		require.Empty(t, created.Settings.Bedrock.ExternalID)
+
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN},
+			},
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, updated.Settings.Bedrock.ExternalID, "external ID must be generated when a role is added by PATCH")
+	})
+
+	t.Run("RejectsClientValueWhenRoleAddedByPatch", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		created, err := createBedrock(t, client, "bedrock-add-role-id", codersdk.AIProviderBedrockSettings{Region: "us-east-1"})
+		require.NoError(t, err)
+		require.Empty(t, created.Settings.Bedrock.ExternalID)
+
+		// No value is stored yet, so any client value is a change and is rejected.
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleARN, ExternalID: "client-supplied-value"},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, externalIDReadOnlyMsg, sdkErr.Message)
+	})
+}

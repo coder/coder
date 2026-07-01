@@ -38,6 +38,10 @@ type AWSBedrock struct {
 	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
 	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string
+	// ExternalID is sent as the STS external ID on the AssumeRole call.
+	// It is meaningful only alongside RoleARN and must match the
+	// sts:ExternalId condition on the target role's trust policy.
+	ExternalID string
 }
 
 // OpenAI carries configuration for an OpenAI provider.

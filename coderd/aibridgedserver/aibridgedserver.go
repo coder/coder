@@ -883,6 +883,7 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			Model:           settings.Bedrock.Model,
 			SmallFastModel:  settings.Bedrock.SmallFastModel,
 			RoleArn:         settings.Bedrock.RoleARN,
+			ExternalId:      settings.Bedrock.ExternalID,
 		}
 	}
 
