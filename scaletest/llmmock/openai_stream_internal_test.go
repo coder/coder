@@ -130,7 +130,12 @@ func TestRandomStreamDuration(t *testing.T) {
 func TestSendOpenAIStreamTextContent(t *testing.T) {
 	t.Parallel()
 
-	srv := &Server{}
+	// Nanosecond pacing keeps the test instant while forcing the multi-chunk
+	// path so only the first delta should carry the assistant role.
+	srv := &Server{
+		minStreamDuration: time.Nanosecond,
+		maxStreamDuration: time.Nanosecond,
+	}
 	writer := httptest.NewRecorder()
 	resp := openAIResponse{
 		ID:      "chatcmpl-text",
@@ -138,7 +143,7 @@ func TestSendOpenAIStreamTextContent(t *testing.T) {
 		Created: 7,
 		Model:   "scaletest-model",
 		Choices: []openAIResponseChoice{{
-			Message:      openAIMessage{Role: "assistant", Content: "hello there"},
+			Message:      openAIMessage{Role: "assistant", Content: "hello world test"},
 			FinishReason: openAIStopFinishReason,
 		}},
 	}
@@ -146,21 +151,28 @@ func TestSendOpenAIStreamTextContent(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	srv.sendOpenAIStream(ctx, writer, resp)
 	events := sseDataEvents(t, writer.Body.String())
-	require.Len(t, events, 3)
+	require.Len(t, events, 5) // 3 word chunks + finish + [DONE]
 
 	first := decodeStreamChunk(t, events[0])
 	require.Len(t, first.Choices, 1)
 	require.Nil(t, first.Choices[0].FinishReason)
 	require.Equal(t, "assistant", first.Choices[0].Delta.Role)
 	require.NotNil(t, first.Choices[0].Delta.Content)
-	require.Equal(t, "hello there", *first.Choices[0].Delta.Content)
+	require.Equal(t, "hello ", *first.Choices[0].Delta.Content)
 
 	second := decodeStreamChunk(t, events[1])
 	require.Len(t, second.Choices, 1)
-	require.NotNil(t, second.Choices[0].FinishReason)
-	require.Equal(t, openAIStopFinishReason, *second.Choices[0].FinishReason)
+	require.Nil(t, second.Choices[0].FinishReason)
 	require.Empty(t, second.Choices[0].Delta.Role)
-	require.Nil(t, second.Choices[0].Delta.Content)
+	require.NotNil(t, second.Choices[0].Delta.Content)
+	require.Equal(t, "world ", *second.Choices[0].Delta.Content)
 
-	require.Equal(t, "[DONE]", events[2])
+	finish := decodeStreamChunk(t, events[3])
+	require.Len(t, finish.Choices, 1)
+	require.NotNil(t, finish.Choices[0].FinishReason)
+	require.Equal(t, openAIStopFinishReason, *finish.Choices[0].FinishReason)
+	require.Empty(t, finish.Choices[0].Delta.Role)
+	require.Nil(t, finish.Choices[0].Delta.Content)
+
+	require.Equal(t, "[DONE]", events[4])
 }
