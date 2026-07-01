@@ -14,6 +14,8 @@ function mockAISpend(overrides: Partial<UserAISpend> = {}): UserAISpend {
 		effective_group_id: "grp-789",
 		limit_source: "group",
 		current_spend_micros: 819_000_000,
+		period_start: "2026-06-01T00:00:00Z",
+		period_end: "2026-07-01T00:00:00Z",
 		...overrides,
 	};
 }
