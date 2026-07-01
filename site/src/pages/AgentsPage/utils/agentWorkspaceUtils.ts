@@ -89,13 +89,6 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 	return status === 404 || status === 410;
 }
 
-/**
- * Thrown by `archiveChatAndDeleteWorkspace` to identify which step
- * failed. Callers branch on `step` to produce the right user-facing
- * message. `deleteEnqueued` distinguishes an archive-after-delete
- * failure (workspace is being deleted) from an archive failure that
- * followed a swallowed 404/410 (workspace was already gone).
- */
 export class ArchiveAndDeleteError extends Error {
 	readonly step: "delete" | "archive";
 	readonly deleteEnqueued: boolean;
@@ -115,12 +108,7 @@ export class ArchiveAndDeleteError extends Error {
 	}
 }
 
-/**
- * Delete-first, archive-second. The 404/410 swallow keeps the archive
- * step running when the workspace is already gone. Errors are wrapped
- * in `ArchiveAndDeleteError` so callers can distinguish delete vs
- * archive failures.
- */
+// Delete-first, archive-second. 404/410 on delete falls through to archive.
 export async function archiveChatAndDeleteWorkspace(
 	chatId: string,
 	workspaceId: string,
@@ -229,13 +217,6 @@ export async function resolveArchiveAndDeleteAction(
 	return "confirm";
 }
 
-/**
- * Warns when the enqueued delete build has no matching provisioners.
- *
- * `POST /workspacebuilds` does not populate `job.queue_position` /
- * `job.queue_size` (those are only computed on GET), so this reads
- * `matched_provisioners.count`, which is populated on POST.
- */
 export function notifyDeleteQueueState(
 	workspace: Workspace | undefined,
 	deleteBuild: WorkspaceBuild | null,
@@ -251,19 +232,6 @@ export function notifyDeleteQueueState(
 	}
 }
 
-/**
- * Toasts the outcome of a failed archive-and-delete. Message and
- * layout branch on `ArchiveAndDeleteError.step`:
- *
- * - `delete`: the workspace is still around; offer an "Open workspace"
- *   action for manual deletion.
- * - `archive`: the delete already ran; only the chat archive step
- *   failed, so no manual delete is needed.
- *
- * Non-tagged errors fall through to the delete branch, since that is
- * the safer default: the user is nudged toward the workspace instead
- * of being told nothing failed.
- */
 export function notifyArchiveAndDeleteFailed(
 	workspace: Workspace | undefined,
 	error: unknown,

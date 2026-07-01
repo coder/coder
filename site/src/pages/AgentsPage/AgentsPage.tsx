@@ -1,6 +1,5 @@
 import { type FC, useEffect, useRef, useState } from "react";
 import {
-	type QueryClient,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -89,12 +88,6 @@ export const shouldInvalidateFilteredChatList = (
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
-
-const getCachedWorkspace = (
-	queryClient: QueryClient,
-	workspaceId: string,
-): TypesGen.Workspace | undefined =>
-	queryClient.getQueryData<TypesGen.Workspace>(workspaceByIdKey(workspaceId));
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -262,19 +255,22 @@ const AgentsPage: FC = () => {
 				username: user.username,
 			});
 			notifyDeleteQueueState(
-				getCachedWorkspace(queryClient, workspaceId),
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
 				deleteBuild,
 			);
 		},
 		onError: (error, { workspaceId }) => {
 			notifyArchiveAndDeleteFailed(
-				getCachedWorkspace(queryClient, workspaceId),
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
 				error,
 				(path) => navigate(path),
 			);
-			// When the archive step is the one that failed, the delete
-			// already ran server-side. Invalidate workspace-related
-			// caches so any stale workspace state elsewhere refreshes.
+			// Archive failed after the delete already ran; refresh
+			// workspace state so consumers see the deletion.
 			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
 				void invalidateWorkspaceMutationQueries(queryClient, {
 					organizationName,
@@ -438,9 +434,6 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						// Navigate only on success. On error the chat is
-						// still visible (delete-first order), so redirecting
-						// away would strand the user's retry surface.
 						onSuccess: () => {
 							navigateAfterArchive(chatId);
 						},
@@ -452,8 +445,6 @@ const AgentsPage: FC = () => {
 				// about interrupting a live workspace, which is moot
 				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
-					// No delete step here, so a failed archive should not
-					// redirect the user.
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
 					},
@@ -471,8 +462,6 @@ const AgentsPage: FC = () => {
 		if (pendingArchiveAndDelete && !isArchiving) {
 			const { chatId: archivedChatId } = pendingArchiveAndDelete;
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
-				// Close the dialog regardless; navigate only on success so
-				// a delete failure keeps the chat's retry surface reachable.
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
 				},
