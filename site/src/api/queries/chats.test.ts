@@ -15,6 +15,8 @@ import {
 	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
+	chatCost,
+	chatCostKey,
 	chatCostSummary,
 	chatCostSummaryKey,
 	chatDebugRunsKey,
@@ -60,6 +62,7 @@ vi.mock("#/api/api", () => ({
 			createChat: vi.fn(),
 			deleteChatQueuedMessage: vi.fn(),
 			getChats: vi.fn(),
+			getChatCost: vi.fn(),
 			getChatCostSummary: vi.fn(),
 			getChatCostUsers: vi.fn(),
 			createChatMessage: vi.fn(),
@@ -915,6 +918,20 @@ describe("chat cost query factories", () => {
 			user,
 			params,
 		);
+	});
+
+	it("builds the per-chat cost query key and forwards the chat id", async () => {
+		const chatId = "chat-1";
+		vi.mocked(API.experimental.getChatCost).mockResolvedValue(
+			{} as TypesGen.ChatCost,
+		);
+
+		const query = chatCost(chatId);
+
+		expect(chatCostKey(chatId)).toEqual(["chats", chatId, "cost"]);
+		expect(query.queryKey).toEqual(["chats", chatId, "cost"]);
+		await query.queryFn();
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
 	});
 
 	it("builds paginated cost users query with correct key and coerces empty username", async () => {

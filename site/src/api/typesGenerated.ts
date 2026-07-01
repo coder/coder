@@ -1830,6 +1830,18 @@ export interface ChatContextTool {
 
 // From codersdk/chats.go
 /**
+ * ChatCost is the cumulative cost for a single chat, rolled up across its root
+ * and child (subagent) chats.
+ */
+export interface ChatCost {
+	readonly root_chat_id: string;
+	readonly total_cost_micros: number;
+	readonly priced_message_count: number;
+	readonly unpriced_message_count: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatCostChatBreakdown contains per-root-chat cost aggregation.
  */
 export interface ChatCostChatBreakdown {

@@ -1953,6 +1953,17 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 	staleTime: 60_000,
 });
 
+export const chatCostKey = (chatId: string) =>
+	[...chatsKey, chatId, "cost"] as const;
+
+const ASSISTANT_MESSAGE_PRICING_STALE_MS = 30_000;
+
+export const chatCost = (chatId: string) => ({
+	queryKey: chatCostKey(chatId),
+	queryFn: () => API.experimental.getChatCost(chatId),
+	staleTime: ASSISTANT_MESSAGE_PRICING_STALE_MS,
+});
+
 interface PaginatedChatCostUsersPayload {
 	username: string;
 	start_date: string;

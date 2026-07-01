@@ -40,6 +40,7 @@ import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
+import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
@@ -505,6 +506,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// new tab can never be added to one without the other going out of
 	// sync. Desktop is ordered before terminals so terminals are rightmost.
 	const builtInSidebarTabConfigs = [
+		// Left-most tab; the default when no tab is persisted (see getEffectiveTabId).
+		{ id: "summary", label: "Summary" },
 		{ id: "git", label: "Git" },
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
 		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
@@ -673,6 +676,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const renderTabContent = (tabId: string): ReactNode => {
 		switch (tabId) {
+			case "summary":
+				return (
+					<ChatSummaryPanel
+						chatId={agentId}
+						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+					/>
+				);
 			case "git":
 				return (
 					<GitPanel

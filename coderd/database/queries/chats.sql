@@ -2338,6 +2338,44 @@ FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
 
+-- name: GetChatModelUsageCostByChatID :one
+WITH target AS (
+    SELECT COALESCE(root_chat_id, id) AS root_chat_id
+    FROM chats
+    WHERE id = @chat_id::uuid
+), costs AS (
+    SELECT
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NOT NULL
+        )::bigint AS priced_message_count,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NULL
+                AND (
+                    cm.input_tokens IS NOT NULL
+                    OR cm.output_tokens IS NOT NULL
+                    OR cm.reasoning_tokens IS NOT NULL
+                    OR cm.cache_creation_tokens IS NOT NULL
+                    OR cm.cache_read_tokens IS NOT NULL
+                )
+        )::bigint AS unpriced_message_count
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    -- Match by indexed columns, not COALESCE(root_chat_id, id), to avoid a full scan.
+    WHERE (
+        c.id = (SELECT root_chat_id FROM target)
+        OR c.root_chat_id = (SELECT root_chat_id FROM target)
+    )
+        AND cm.role = 'assistant'
+)
+SELECT
+    t.root_chat_id,
+    costs.total_cost_micros,
+    costs.priced_message_count,
+    costs.unpriced_message_count
+FROM target t
+CROSS JOIN costs;
+
 -- name: GetChatCostPerUser :many
 -- Deployment-wide per-user cost rollup within a date range.
 -- Only counts assistant-role messages.

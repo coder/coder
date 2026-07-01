@@ -3364,6 +3364,13 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
 }
 
+func (q *querier) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatModelUsageCostByChatIDRow, error) {
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return database.GetChatModelUsageCostByChatIDRow{}, err
+	}
+	return q.db.GetChatModelUsageCostByChatID(ctx, chatID)
+}
+
 func (q *querier) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	// The personal model overrides flag is a deployment-wide setting read by
 	// authenticated chat users. We only require that an explicit actor is
