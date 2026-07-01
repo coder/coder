@@ -63,7 +63,7 @@ export const TemplateCustomizationsStep: FC<
 	};
 
 	return (
-		<>
+		<div className="min-w-[654px]">
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
@@ -152,7 +152,7 @@ export const TemplateCustomizationsStep: FC<
 					</div>
 				</div>
 			</div>
-		</>
+		</div>
 	);
 };
 
