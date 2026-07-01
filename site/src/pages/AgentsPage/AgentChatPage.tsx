@@ -47,6 +47,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -1154,8 +1155,16 @@ const AgentChatPage: FC = () => {
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+	const { metadata } = useEmbeddedMetadata();
+	const aiGatewayDisabled = metadata["ai-gateway-enabled"].available
+		? !metadata["ai-gateway-enabled"].value
+		: false;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+		!hasModelOptions ||
+		isArchived ||
+		isChatSettingsPending ||
+		isViewerNotOwner ||
+		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
@@ -1647,6 +1656,7 @@ const AgentChatPage: FC = () => {
 			providerCount={providerCount}
 			modelCount={modelCount}
 			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

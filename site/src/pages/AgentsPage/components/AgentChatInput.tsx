@@ -193,6 +193,9 @@ interface AgentChatInputProps {
 	providerCount?: number;
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
+	// AI Gateway is disabled deployment-wide, independent of provider/model
+	// configuration. Forces the setup notice regardless of the counts above.
+	aiGatewayDisabled?: boolean;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -396,13 +399,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	providerCount,
 	modelCount,
 	unsupportedProviderNames = [],
+	aiGatewayDisabled,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const showAgentSetupNotice = canConfigureAgentSetup
-		? providerCount !== undefined &&
-			modelCount !== undefined &&
-			(providerCount === 0 || modelCount === 0)
-		: modelCount !== undefined && modelCount === 0;
+	const showAgentSetupNotice =
+		aiGatewayDisabled ||
+		(canConfigureAgentSetup
+			? providerCount !== undefined &&
+				modelCount !== undefined &&
+				(providerCount === 0 || modelCount === 0)
+			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -1073,6 +1079,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							providerCount={providerCount}
 							modelCount={modelCount}
 							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
 						/>
 					) : (
 						<AgentSetupNotice
@@ -1080,6 +1087,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							providerCount={0}
 							modelCount={0}
 							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
 						/>
 					)}
 				</div>

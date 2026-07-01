@@ -9,6 +9,10 @@ interface AgentSetupNoticeProps {
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
 	unsupportedProviderNames?: readonly string[];
+	// AI Gateway is disabled deployment-wide. This can be true even when
+	// providers/models exist in the DB catalog, since the gateway toggle is
+	// independent of what's configured.
+	aiGatewayDisabled?: boolean;
 }
 
 const formatProviderList = (names: readonly string[]): string => {
@@ -26,10 +30,29 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 	providerCount,
 	modelCount,
 	unsupportedProviderNames = [],
+	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;
 	const hasModel = modelCount > 0;
 	const hasUnsupportedProviderNames = unsupportedProviderNames.length > 0;
+
+	// AI Gateway can be disabled even when providers/models exist in the DB
+	// catalog, so check it before the provider/model counts below.
+	if (aiGatewayDisabled) {
+		if (!isAdmin) {
+			return (
+				<NoticeContainer>
+					AI Gateway is disabled. Contact your admin to enable it.
+				</NoticeContainer>
+			);
+		}
+		return (
+			<NoticeContainer>
+				AI Gateway is disabled. Enable it in your deployment config to chat with
+				Coder Agents.
+			</NoticeContainer>
+		);
+	}
 
 	if (hasProvider && hasModel) {
 		return null;

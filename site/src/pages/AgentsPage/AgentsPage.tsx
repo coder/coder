@@ -48,7 +48,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -94,10 +93,6 @@ const AgentsPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
-	const { metadata } = useEmbeddedMetadata();
-	const aiGatewayDisabled = metadata["ai-gateway-enabled"].available
-		? !metadata["ai-gateway-enabled"].value
-		: false;
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
@@ -737,7 +732,6 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				sidebarFilters={sidebarFilters}
 				onSidebarFiltersChange={setSidebarFilters}
-				aiGatewayDisabled={aiGatewayDisabled}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

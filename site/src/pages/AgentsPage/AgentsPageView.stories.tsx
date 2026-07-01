@@ -1209,17 +1209,3 @@ export const SettingsViewCoderAgentsLink: Story = {
 		});
 	},
 };
-
-export const AIGatewayDisabled: Story = {
-	args: {
-		aiGatewayDisabled: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = await canvas.findByTestId("ai-gateway-disabled-banner");
-		await expect(banner).toHaveTextContent(/AI Gateway must be enabled/i);
-		await expect(banner).toHaveTextContent(
-			/contact your deployment administrator/i,
-		);
-	},
-};

@@ -1,7 +1,6 @@
 import { type FC, type RefObject, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
@@ -83,8 +82,6 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	sidebarFilters: AgentSidebarFilters;
 	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
-	/** Backend reports AI Gateway is disabled at the deployment level. */
-	aiGatewayDisabled?: boolean;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -126,7 +123,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	sidebarFilters,
 	onSidebarFiltersChange,
-	aiGatewayDisabled = false,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -182,14 +178,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary"
 		>
 			<title>{pageTitle("Agents")}</title>
-			{aiGatewayDisabled && (
-				<div data-testid="ai-gateway-disabled-banner" className="px-4 pt-4">
-					<Alert severity="warning">
-						AI Gateway must be enabled for Coder Agents functionality. Please
-						contact your deployment administrator.
-					</Alert>
-				</div>
-			)}
 			<div className="flex min-h-0 flex-1 flex-col sm:flex-row">
 				<ResizableChatsSidebarFrame
 					className={cn(

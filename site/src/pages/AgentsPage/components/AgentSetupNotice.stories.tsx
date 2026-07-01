@@ -88,6 +88,42 @@ export const MemberOnlyUnsupportedProvider: Story = {
 	},
 };
 
+// AI Gateway is disabled deployment-wide; admins get a pointer to the
+// deployment config even though providers/models are configured.
+export const AdminAIGatewayDisabled: Story = {
+	args: {
+		isAdmin: true,
+		providerCount: 1,
+		modelCount: 1,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/AI Gateway is disabled/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/Enable it in your deployment config/),
+		).toBeInTheDocument();
+	},
+};
+
+// Non-admin members are told to contact their admin instead.
+export const MemberAIGatewayDisabled: Story = {
+	args: {
+		isAdmin: false,
+		providerCount: 1,
+		modelCount: 1,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Contact your admin to enable it/),
+		).toBeInTheDocument();
+	},
+};
+
 // Both a provider and a model are configured: the notice renders nothing.
 export const Configured: Story = {
 	args: {

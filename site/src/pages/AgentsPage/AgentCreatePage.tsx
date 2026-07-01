@@ -16,6 +16,7 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -39,6 +40,10 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const { metadata } = useEmbeddedMetadata();
+	const aiGatewayDisabled = metadata["ai-gateway-enabled"].available
+		? !metadata["ai-gateway-enabled"].value
+		: false;
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -165,6 +170,7 @@ const AgentCreatePage: FC = () => {
 				providerCount={providerCount}
 				modelCount={modelCount}
 				unsupportedProviderNames={unsupportedProviderNames}
+				aiGatewayDisabled={aiGatewayDisabled}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}

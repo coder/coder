@@ -141,6 +141,7 @@ interface AgentChatPageViewProps {
 	providerCount?: number;
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
@@ -333,6 +334,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	providerCount,
 	modelCount,
 	unsupportedProviderNames,
+	aiGatewayDisabled,
 	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
@@ -947,6 +949,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								providerCount={providerCount}
 								modelCount={modelCount}
 								unsupportedProviderNames={unsupportedProviderNames}
+								aiGatewayDisabled={aiGatewayDisabled}
 								selectedModel={effectiveSelectedModel}
 								onModelChange={setSelectedModel}
 								modelOptions={modelOptions}

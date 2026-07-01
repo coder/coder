@@ -335,6 +335,21 @@ export const NoModelOptions: Story = {
 	},
 };
 
+export const AIGatewayDisabledShowsSetupNotice: Story = {
+	args: {
+		canConfigureAgentSetup: true,
+		providerCount: 1,
+		modelCount: 1,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/AI Gateway is disabled/),
+		).toBeInTheDocument();
+	},
+};
+
 export const LoadingSpinner: Story = {
 	args: {
 		isDisabled: true,
