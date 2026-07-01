@@ -1,18 +1,20 @@
-import type { FC } from "react";
+import { CheckIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
 
@@ -45,11 +47,22 @@ interface ModelSelectorProps {
 const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
 		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M context window`;
+		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 	}
 	const k = Math.round(tokens / 1_000);
-	return `${k}K context window`;
+	return `${k}K`;
 };
+
+const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
+	[
+		providerLabel,
+		option.provider,
+		option.displayName,
+		option.model,
+		option.contextLimit ? formatContextLimit(option.contextLimit) : "",
+	]
+		.join(" ")
+		.toLowerCase();
 
 export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
@@ -68,11 +81,30 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
 }) => {
+	const [internalOpen, setInternalOpen] = useState(false);
+	const [search, setSearch] = useState("");
+	const isOpen = open ?? internalOpen;
+	const setOpen = (nextOpen: boolean) => {
+		if (!nextOpen) {
+			setSearch("");
+		}
+		onOpenChange?.(nextOpen);
+		if (open === undefined) {
+			setInternalOpen(nextOpen);
+		}
+	};
 	const selectedModel = options.find((option) => option.id === value);
+	const isDisabled = disabled || options.length === 0;
+	const query = search.trim().toLowerCase();
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
 		for (const option of options) {
+			const providerLabel = formatProviderLabel(option.provider);
+			if (query && !getSearchText(option, providerLabel).includes(query)) {
+				continue;
+			}
+
 			const providerOptions = grouped.get(option.provider);
 			if (providerOptions) {
 				providerOptions.push(option);
@@ -83,114 +115,126 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 
 		return Array.from(grouped.entries());
 	})();
-	const isDisabled = disabled || options.length === 0;
 
 	return (
-		<Select
-			value={value}
-			onValueChange={onValueChange}
-			disabled={isDisabled}
-			open={open}
-			onOpenChange={onOpenChange}
-		>
-			<SelectTrigger
-				aria-label={selectedModel ? selectedModel.displayName : placeholder}
-				className={cn(
-					"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
-					className,
-				)}
-				onTouchStart={onTriggerTouchStart}
-			>
-				<SelectValue placeholder={placeholder}>
-					{selectedModel ? selectedModel.displayName : placeholder}
-				</SelectValue>
-			</SelectTrigger>
-			<SelectContent
+		<Popover open={isOpen} onOpenChange={setOpen}>
+			<PopoverTrigger asChild disabled={isDisabled}>
+				<Button
+					aria-label={selectedModel ? selectedModel.displayName : placeholder}
+					aria-expanded={isOpen}
+					aria-haspopup="listbox"
+					disabled={isDisabled}
+					role="combobox"
+					type="button"
+					variant="subtle"
+					className={cn(
+						"h-8 min-w-0 shrink justify-start gap-0.5 border-0 bg-transparent px-1 text-xs font-medium shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link md:w-auto md:shrink-0 md:gap-1.5 [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+						className,
+					)}
+					onTouchStart={onTriggerTouchStart}
+				>
+					<span className="truncate">
+						{selectedModel ? selectedModel.displayName : placeholder}
+					</span>
+					<ChevronDownIcon open={isOpen} className="size-icon-sm" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
 				side={dropdownSide}
 				align={dropdownAlign}
 				className={cn(
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
-					"border-border-default [&_[role=option]]:text-xs",
+					"w-72 overflow-hidden border-border-default p-0",
 					contentClassName,
 				)}
 			>
-				<TooltipProvider delayDuration={300}>
-					{optionsByProvider.map(([provider, providerOptions]) => {
-						const providerLabel = formatProviderLabel(provider);
-						return (
-							<SelectGroup key={provider}>
+				<Command
+					shouldFilter={false}
+					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+				>
+					<CommandInput
+						value={search}
+						onValueChange={setSearch}
+						placeholder="Search..."
+						aria-label="Search models"
+						className="h-auto py-0 text-xs font-normal leading-[18px] text-content-primary placeholder:text-content-disabled"
+					/>
+					<CommandList
+						role="listbox"
+						className={cn(
+							"max-h-80 border-t-0",
+							enableMobileFullWidthDropdown &&
+								"mobile-full-width-dropdown-scroll-area",
+						)}
+					>
+						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
+							{emptyMessage}
+						</CommandEmpty>
+						{optionsByProvider.map(([provider, providerOptions], index) => (
+							<CommandGroup
+								key={provider}
+								heading={formatProviderLabel(provider)}
+								className={cn(
+									"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
+									index > 0 &&
+										"border-0 border-t border-solid border-border-default",
+								)}
+							>
 								{providerOptions.map((option) => (
 									<ModelOptionItem
 										key={option.id}
 										option={option}
-										providerLabel={providerLabel}
 										isSelected={option.id === value}
+										onSelect={() => {
+											onValueChange(option.id);
+											setOpen(false);
+										}}
 									/>
 								))}
-							</SelectGroup>
-						);
-					})}
-					{options.length === 0 && (
-						<SelectItem value="__empty__" disabled>
-							{emptyMessage}
-						</SelectItem>
-					)}
-				</TooltipProvider>
-			</SelectContent>
-		</Select>
+							</CommandGroup>
+						))}
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	);
 };
 
 interface ModelOptionItemProps {
 	option: ModelSelectorOption;
-	providerLabel: string;
 	isSelected: boolean;
+	onSelect: () => void;
 }
 
 const ModelOptionItem: FC<ModelOptionItemProps> = ({
 	option,
-	providerLabel,
 	isSelected,
+	onSelect,
 }) => {
-	const label = option.displayName;
-	const contextInfo =
-		option.contextLimit != null && option.contextLimit > 0
-			? formatContextLimit(option.contextLimit)
-			: null;
-	const subtext = contextInfo
-		? `via ${providerLabel}, ${contextInfo}`
-		: `via ${providerLabel}`;
-
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<SelectItem
-					value={option.id}
-					className={cn(isSelected && "bg-surface-secondary")}
-				>
-					<span className="flex flex-col">
-						<span>{label}</span>
-						<span className="text-content-secondary text-[11px] leading-tight md:hidden">
-							{subtext}
-						</span>
-					</span>
-				</SelectItem>
-			</TooltipTrigger>
-			<TooltipContent
-				side="right"
-				sideOffset={4}
-				className="hidden px-2.5 py-1.5 md:block"
-			>
-				<span className="block font-semibold text-content-primary leading-tight">
-					{label} via {providerLabel}
+		<CommandItem
+			role="option"
+			aria-selected={isSelected}
+			value={option.id}
+			keywords={[option.displayName, option.model]}
+			onSelect={onSelect}
+			className={cn(
+				"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
+				isSelected && "bg-surface-secondary",
+			)}
+		>
+			<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+				{option.displayName}
+			</span>
+			{option.contextLimit != null && option.contextLimit > 0 && (
+				<span className="shrink-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+					({formatContextLimit(option.contextLimit)})
 				</span>
-				{contextInfo && (
-					<span className="block text-content-secondary leading-tight">
-						{contextInfo}
-					</span>
-				)}
-			</TooltipContent>
-		</Tooltip>
+			)}
+			<CheckIcon
+				className={cn("ml-auto size-4 shrink-0", !isSelected && "opacity-0")}
+			/>
+		</CommandItem>
 	);
 };
