@@ -172,39 +172,10 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	// effects and probe another user's auth state. Mirror the ordering in
 	// createWorkspace so the side-effectful preflight only runs once the caller
 	// is authorized.
-	template, err := requestTemplate(ctx, codersdk.CreateWorkspaceRequest{
+	if _, err := api.preflightWorkspaceCreate(ctx, owner.ID, codersdk.CreateWorkspaceRequest{
 		TemplateVersionID: req.TemplateVersionID,
-	}, api.Database)
-	if err != nil {
+	}); err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
-		return
-	}
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		httperror.WriteResponseError(ctx, rw, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: "Unauthorized to create workspace.",
-			Detail: "You are unable to create a workspace in this organization. " +
-				"It is possible to have access to the template, but not be able to create a workspace. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		}))
-		return
-	}
-	// The user also needs permission to use the template. At this point they
-	// have read perms, but not necessarily "use".
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
-		httperror.WriteResponseError(ctx, rw, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
-			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		}))
-		return
-	}
-	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
-	if templateAccessControl.IsDeprecated() {
-		httperror.WriteResponseError(ctx, rw, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
-			Detail:  templateAccessControl.Deprecated,
-		}))
 		return
 	}
 
