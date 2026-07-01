@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -285,7 +286,12 @@ func buildDataForReportFailedWorkspaceBuilds(reports []adminReport) map[string]a
 			"total_builds":  report.stats.TotalBuilds,
 			"versions":      templateVersions,
 			"name":          report.stats.TemplateName,
-			"display_name":  templateDisplayName,
+			// display_name is a free-form template display name that is
+			// interpolated into the markdown body, so escape its link syntax.
+			// The other fields are safe as-is: name/template_version_name and
+			// the workspace owner/name are constrained to alphanumeric charsets
+			// (and the latter two only appear inside a link URL).
+			"display_name": markdown.EscapeMarkdownLinks(templateDisplayName),
 		})
 	}
 

@@ -76,6 +76,13 @@ func TestHTML(t *testing.T) {
 			input:    "This is a simple description, so nothing changes.",
 			expected: "<p>This is a simple description, so nothing changes.</p>",
 		},
+		{
+			// Safelink drops links with unsafe URI schemes so they cannot
+			// render as a clickable anchor.
+			name:     "Unsafe link scheme",
+			input:    `[click](javascript:alert(1))`,
+			expected: `<p><tt>click</tt></p>`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -86,4 +93,72 @@ func TestHTML(t *testing.T) {
 			require.Equal(t, tt.expected, rendered)
 		})
 	}
+}
+
+func TestEscapeMarkdownLinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NeutralizesLinks", func(t *testing.T) {
+		t.Parallel()
+
+		// Each of these would produce a live <a>/<img> if left unescaped,
+		// including the bare-URL autolink which needs no [](): gomarkdown
+		// autolinks any "scheme://" run.
+		for _, payload := range []string{
+			"Eve [Re-auth](https://coder-sso.evil.example)",
+			"![pixel](https://coder-sso.evil.example/x.png)",
+			"https://coder-sso.evil.example",
+			"<https://coder-sso.evil.example>",
+			"mailto:attacker@coder-sso.evil.example",
+			"MAILTO:attacker@coder-sso.evil.example",
+		} {
+			rendered := render.HTMLFromMarkdown(render.EscapeMarkdownLinks(payload))
+			require.NotContains(t, rendered, "<a ", "payload %q produced a link: %q", payload, rendered)
+			require.NotContains(t, rendered, "<img", "payload %q produced an image: %q", payload, rendered)
+			require.NotContains(t, rendered, "evil.example\"", "payload %q leaked a URL attribute: %q", payload, rendered)
+		}
+	})
+
+	t.Run("PreservesBenignPunctuation", func(t *testing.T) {
+		t.Parallel()
+
+		// Values with only benign punctuation are left completely untouched by
+		// the escaper (no numeric entities), so webhook Markdown stays clean.
+		// This includes emphasis/code markers (only links are escaped), ':'
+		// outside of a "scheme://" (e.g. timestamps), and '#'.
+		for _, name := range []string{
+			"Anne-Marie", "Smith, John", "José", "李雷", "v1.2.3", "R&D 100%",
+			"15:04:00 UTC", "Jan 2 15:04 MST", "C# developer",
+			"muddy_russell78", "My *Cool* App", "2*speed", "code: `x`",
+			// Parentheses are not escaped (they cannot complete a link
+			// without the "[...]" label, which is escaped).
+			"Jane Doe (she/her)", "Bob (Jr.)",
+			// A ':' followed by a space or preceded by a digit does not start
+			// a scheme, so it is left untouched.
+			"Note: hello", "TODO: fix bug", "ratio 3:2",
+		} {
+			require.Equal(t, name, render.EscapeMarkdownLinks(name),
+				"benign value %q should not be modified", name)
+		}
+	})
+
+	t.Run("RendersBenignNamesLiterally", func(t *testing.T) {
+		t.Parallel()
+
+		// Names containing link-forming punctuation are escaped but still
+		// render to the literal characters through the Markdown renderers.
+		// (The '&' in a name is rendered as the HTML entity &amp; by the HTML
+		// renderer, which is correct HTML escaping, so those names are only
+		// checked via the plaintext renderer below.)
+		for _, name := range []string{"J. Doe (Jr.)", "Anne-Marie"} {
+			html := render.HTMLFromMarkdown(render.EscapeMarkdownLinks(name))
+			require.Equal(t, "<p>"+name+"</p>", html)
+		}
+
+		for _, name := range []string{"J. Doe (Jr.)", "Café (R&D) 100%", "Anne-Marie"} {
+			plain, err := render.PlaintextFromMarkdown(render.EscapeMarkdownLinks(name))
+			require.NoError(t, err)
+			require.Equal(t, name, plain)
+		}
+	})
 }

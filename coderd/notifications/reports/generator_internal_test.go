@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/quartz"
 )
 
@@ -559,6 +560,41 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.P
 	notifyEnq := &notificationstest.FakeEnqueuer{}
 	clk := quartz.NewMock(t)
 	return ctx, logger, db, ps, notifyEnq, clk
+}
+
+func TestBuildDataForReportFailedWorkspaceBuildsEscapesDisplayName(t *testing.T) {
+	t.Parallel()
+
+	// A template display name is free-form and interpolated into the markdown
+	// body, so its link syntax must be neutralized. The workspace owner/name
+	// are alphanumeric and appear in a link URL, so they are left as-is.
+	reports := []adminReport{
+		{
+			stats: database.GetWorkspaceBuildStatsByTemplatesRow{
+				TemplateName:        "prod-template",
+				TemplateDisplayName: "Prod [click](https://evil.example)",
+			},
+			failedBuilds: []database.GetFailedWorkspaceBuildsByTemplateIDRow{
+				{
+					WorkspaceOwnerUsername: "bob",
+					WorkspaceName:          "dev",
+					TemplateVersionName:    "v1.2.3",
+					WorkspaceBuildNumber:   1,
+				},
+			},
+		},
+	}
+
+	data := buildDataForReportFailedWorkspaceBuilds(reports)
+	templates, ok := data["templates"].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, templates, 1)
+
+	displayName, ok := templates[0]["display_name"].(string)
+	require.True(t, ok)
+	require.NotContains(t, displayName, "[", "display_name link syntax should be escaped: %q", displayName)
+	require.NotContains(t, markdown.HTMLFromMarkdown(displayName), "<a ",
+		"escaped display_name must not render a link")
 }
 
 func authedDB(t *testing.T, db database.Store, logger slog.Logger) database.Store {

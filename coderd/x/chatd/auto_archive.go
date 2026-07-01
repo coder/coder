@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -309,7 +310,9 @@ func buildAutoArchiveDigestData(rows []autoArchivedChat, autoArchiveDays, retent
 	chats := make([]map[string]any, 0, len(rows))
 	for _, r := range rows {
 		chats = append(chats, map[string]any{
-			"title":                   r.Chat.Title,
+			// The chat title is free-form user text interpolated into the
+			// markdown digest body, so escape its link syntax.
+			"title":                   markdown.EscapeMarkdownLinks(r.Chat.Title),
 			"last_activity_humanized": humanize.RelTime(r.LastActivityAt, tickStart, "ago", "from now"),
 		})
 	}

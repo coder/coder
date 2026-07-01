@@ -21,11 +21,36 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestBuildAutoArchiveDigestDataEscapesTitle(t *testing.T) {
+	t.Parallel()
+
+	// A chat title is free-form user text interpolated into the markdown
+	// digest body, so its link syntax must be neutralized.
+	rows := []autoArchivedChat{
+		{
+			Chat:           database.Chat{Title: "Fix [prod](https://evil.example)"},
+			LastActivityAt: time.Now(),
+		},
+	}
+
+	data := buildAutoArchiveDigestData(rows, 30, 30, time.Now())
+	chats, ok := data["archived_chats"].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, chats, 1)
+
+	title, ok := chats[0]["title"].(string)
+	require.True(t, ok)
+	require.NotContains(t, title, "[", "chat title link syntax should be escaped: %q", title)
+	require.NotContains(t, markdown.HTMLFromMarkdown(title), "<a ",
+		"escaped chat title must not render a link")
+}
 
 func TestWorker_AutoArchiveDisabled(t *testing.T) {
 	t.Parallel()

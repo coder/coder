@@ -11,19 +11,24 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/types"
 )
 
-func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
+func TestSMTPHTMLTemplateEscapesUntrustedValues(t *testing.T) {
 	t.Parallel()
 
 	const (
-		appName = `Coder"><script>alert(1)</script>`
-		logoURL = `https://example.com/logo.png"><img src=x onerror=alert(1)>`
+		appName  = `Coder"><script>alert(1)</script>`
+		logoURL  = `https://example.com/logo.png"><img src=x onerror=alert(1)>`
+		userName = `Eve<img src=x onerror=alert(1)>`
+		// _subject is produced by PlaintextFromMarkdown, which decodes HTML
+		// entities, so it can contain literal HTML if a title interpolates an
+		// untrusted value. It must be HTML-escaped where it lands in markup.
+		subject = `Alert<img src=x onerror=alert(1)>`
 	)
 
 	payload := types.MessagePayload{
 		NotificationTemplateID: "00000000-0000-0000-0000-000000000000",
-		UserName:               "Test User",
+		UserName:               userName,
 		Labels: map[string]string{
-			"_subject": "Test notification",
+			"_subject": subject,
 			"_body":    "<p>Test body</p>",
 		},
 	}
@@ -39,8 +44,12 @@ func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
 
 	require.True(t, strings.Contains(got, html.EscapeString(appName)), "application name must be HTML escaped")
 	require.True(t, strings.Contains(got, html.EscapeString(logoURL)), "logo URL must be HTML escaped")
+	require.True(t, strings.Contains(got, html.EscapeString(userName)), "recipient name must be HTML escaped")
+	require.True(t, strings.Contains(got, html.EscapeString(subject)), "subject must be HTML escaped")
 	require.False(t, strings.Contains(got, appName), "raw application name must not be rendered")
 	require.False(t, strings.Contains(got, logoURL), "raw logo URL must not be rendered")
+	require.False(t, strings.Contains(got, userName), "raw recipient name must not be rendered")
+	require.False(t, strings.Contains(got, subject), "raw subject must not be rendered")
 }
 
 func TestValidateFromAddr(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -222,6 +223,49 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 	return msgs, nil
 }
 
+// rawMarkdownLabels lists, per notification template, the label keys whose
+// values are authored as Markdown by a trusted path and must therefore NOT be
+// escaped. Every other label value is treated as untrusted plaintext and has
+// its Markdown link syntax neutralized before rendering.
+//
+// This only covers Labels. Values interpolated from Data are not escaped here;
+// any Data field that is user-controlled and rendered into a Markdown body must
+// be escaped at the site that builds it (see the reports generator and chatd
+// digest for examples).
+//
+// Keep this list minimal. A label belongs here only when a privileged actor
+// intentionally authors Markdown for it (see notifier_internal_test.go for the
+// authz rationale behind each entry).
+var rawMarkdownLabels = map[uuid.UUID]map[string]struct{}{
+	// Template version message, set by a template admin.
+	TemplateWorkspaceAutoUpdated: {"template_version_message": {}},
+	// Template deprecation message, set by a template admin.
+	TemplateTemplateDeprecated: {"message": {}},
+	// Custom notification content. This is safe to leave as raw Markdown only
+	// because custom notifications are self-sent: postCustomNotification
+	// enqueues to the calling user. If custom notifications ever gain
+	// multi-recipient or role-based targeting (see the TODO in
+	// codersdk.CustomNotificationRequest), these must be escaped or gated on
+	// the sender's privilege, or they become a phishing vector.
+	TemplateCustomNotification: {"custom_title": {}, "custom_message": {}},
+}
+
+// escapeMarkdownLabels returns a copy of labels with Markdown link syntax
+// neutralized in every value, except values allowlisted as intentional
+// Markdown for the given notification template. The input map is not mutated.
+func escapeMarkdownLabels(templateID uuid.UUID, labels map[string]string) map[string]string {
+	raw := rawMarkdownLabels[templateID]
+	out := make(map[string]string, len(labels))
+	for k, v := range labels {
+		if _, ok := raw[k]; ok {
+			out[k] = v
+			continue
+		}
+		out[k] = markdown.EscapeMarkdownLinks(v)
+	}
+	return out
+}
+
 // prepare has two roles:
 // 1. render the title & body templates
 // 2. build a dispatcher from the given message, payload, and these templates - to be used for delivering the notification
@@ -250,11 +294,19 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, decorateHelpersError{err}
 	}
 
+	// Render the title & body with Markdown link syntax neutralized in
+	// user-controlled label values. This prevents an attacker-supplied label
+	// (e.g. a display name) from injecting a live link into the notification.
+	// The escaped copy is used only for rendering; the dispatcher still
+	// receives the original payload so structured consumers get raw values.
+	renderPayload := payload
+	renderPayload.Labels = escapeMarkdownLabels(msg.TemplateID, payload.Labels)
+
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, renderPayload, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, renderPayload, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
