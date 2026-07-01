@@ -151,7 +151,13 @@ connectLoop:
 }
 
 func (s *Server) Client() (DRPCClient, error) {
+	return s.ClientContext(context.Background())
+}
+
+func (s *Server) ClientContext(ctx context.Context) (DRPCClient, error) {
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case <-s.lifecycleCtx.Done():
 		if cause := context.Cause(s.lifecycleCtx); cause != nil {
 			return nil, cause
