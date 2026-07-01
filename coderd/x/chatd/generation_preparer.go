@@ -362,7 +362,12 @@ func (server *Server) prepareGeneration(
 			activeGoal = nil
 		}
 	}
-	canCompleteGoal := chatGoalsEnabled && activeGoal != nil && isRootChat && !isPlanModeTurn && !isExploreSubagentMode(chat.Mode)
+	goalBehaviorTurn := chatGoalsEnabled && isRootChat && !isPlanModeTurn && !isExploreSubagent
+	canCompleteGoal := goalBehaviorTurn && activeGoal != nil
+	var goalReminder *generationGoalReminder
+	if canCompleteGoal {
+		goalReminder = &generationGoalReminder{GoalID: activeGoal.ID}
+	}
 
 	prompt = buildSystemPrompt(
 		prompt,
@@ -415,10 +420,19 @@ func (server *Server) prepareGeneration(
 			IsRootChat: isRootChat,
 		}))
 		if canCompleteGoal {
+			var fence *chattool.GoalToolFence
+			if chat.WorkerID.Valid && chat.RunnerID.Valid {
+				fence = &chattool.GoalToolFence{
+					WorkerID:       chat.WorkerID.UUID,
+					RunnerID:       chat.RunnerID.UUID,
+					HistoryVersion: chat.HistoryVersion,
+				}
+			}
 			tools = append(tools, chattool.CompleteGoal(server.db, chattool.GoalToolOptions{
 				ChatID:     chat.ID,
 				RootChatID: rootChatID,
 				IsRootChat: true,
+				Fence:      fence,
 				OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, goal database.ChatGoal) {
 					server.publishChatGoalChange(updatedChat, &goal)
 				},
@@ -667,8 +681,9 @@ func (server *Server) prepareGeneration(
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
 		StopAfterTools: stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID, stopAfterBehaviorToolOptions{
-			completeGoalToolAvailable: canCompleteGoal,
+			stopAfterCompleteGoal: goalBehaviorTurn,
 		}),
+		GoalReminder:       goalReminder,
 		ExclusiveToolNames: exclusiveToolNames,
 		BuiltinToolNames:   builtinToolNames,
 		ToolNameToConfigID: toolNameToConfigID,

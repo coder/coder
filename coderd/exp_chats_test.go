@@ -521,6 +521,48 @@ func TestChatGoalAPI(t *testing.T) {
 
 	sentAsGoal = sentAsGoalMessages(t)
 	require.Len(t, sentAsGoal, 2)
+
+	// A stale goal ID must not clear a historical completed goal after
+	// a newer goal became current.
+	staleGoal := messageResponse.Goal
+	_, err = client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionComplete,
+		GoalID: &staleGoal.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	newerResponse, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "send a replacement goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "ship the replacement goal",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, newerResponse.Goal)
+
+	_, err = client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionClear,
+		GoalID: &staleGoal.ID,
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+	// The stale completed goal keeps its completion metadata.
+	current, err = client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, current.Goal)
+	require.Equal(t, newerResponse.Goal.ID, current.Goal.ID)
 }
 
 func TestPatchChatGoalRequiresOwnerForSharedSiteOwner(t *testing.T) {

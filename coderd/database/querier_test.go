@@ -12131,9 +12131,20 @@ func TestChatGoals(t *testing.T) {
 		first := insertGoal(t, store, ctx, chat, owner, "ship goal persistence")
 		require.Equal(t, database.ChatGoalStatusActive, first.Status)
 
-		goalMessageIDs, err := store.GetChatGoalMessageIDsByMessageIDs(ctx, []int64{first.CreatedFromMessageID.Int64})
+		goalMessageIDs, err := store.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, database.GetChatGoalMessageIDsByChatAndMessageIDsParams{
+			ChatID:     chat.ID,
+			MessageIds: []int64{first.CreatedFromMessageID.Int64},
+		})
 		require.NoError(t, err)
 		require.Equal(t, []int64{first.CreatedFromMessageID.Int64}, goalMessageIDs)
+
+		// The marker lookup is scoped to the chat that created the goal.
+		otherChatGoalMessageIDs, err := store.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, database.GetChatGoalMessageIDsByChatAndMessageIDsParams{
+			ChatID:     uuid.New(),
+			MessageIds: []int64{first.CreatedFromMessageID.Int64},
+		})
+		require.NoError(t, err)
+		require.Empty(t, otherChatGoalMessageIDs)
 
 		_, err = store.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
 			RootChatID:      chat.ID,

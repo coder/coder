@@ -413,13 +413,14 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
--- name: GetChatGoalMessageIDsByMessageIDs :many
+-- name: GetChatGoalMessageIDsByChatAndMessageIDs :many
 SELECT DISTINCT
     created_from_message_id::bigint AS message_id
 FROM
     chat_goals
 WHERE
-    created_from_message_id = ANY(@message_ids::bigint[]);
+    created_from_chat_id = @chat_id::uuid
+    AND created_from_message_id = ANY(@message_ids::bigint[]);
 
 -- name: GetChatUserPromptsByChatID :many
 -- Returns the concatenated text of each user-visible user prompt in a
@@ -509,6 +510,23 @@ WHERE
     )
 ORDER BY
     created_at ASC,
+    id ASC;
+
+-- name: GetChatHiddenUserMessagesByChatID :many
+-- Returns model-only user messages (goal completion reminders and
+-- compaction summaries) regardless of compaction boundaries. Used by
+-- chatd so goal reminder accounting stays stable when a compaction
+-- summary hides earlier rows from the prompt window.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND role = 'user'
+    AND visibility = 'model'
+    AND deleted = false
+ORDER BY
     id ASC;
 
 -- name: GetChats :many

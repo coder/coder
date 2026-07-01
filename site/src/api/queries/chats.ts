@@ -1113,11 +1113,37 @@ export const setCachedChatGoal = (
 export const updateChatGoal = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, mutation }: UpdateChatGoalVariables) =>
 		API.experimental.updateChatGoal(chatId, mutation),
+	onMutate: async ({ chatId }: UpdateChatGoalVariables) => {
+		// Cancel in-flight reads so a stale response that started before
+		// the mutation cannot overwrite the fresh goal state.
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({ queryKey: chatKey(chatId), exact: true });
+		await queryClient.cancelQueries({
+			queryKey: chatGoalKey(chatId),
+			exact: true,
+		});
+	},
 	onSuccess: (
 		response: TypesGen.ChatGoalResponse,
 		{ chatId }: UpdateChatGoalVariables,
 	) => {
 		setCachedChatGoal(queryClient, chatId, response.goal);
+	},
+	onSettled: (
+		_response: TypesGen.ChatGoalResponse | undefined,
+		_error: unknown,
+		{ chatId }: UpdateChatGoalVariables,
+	) => {
+		// Refetch so the caches converge on server state even if a
+		// concurrent update won a race with the optimistic cache writes.
+		queryClient.invalidateQueries({ queryKey: chatKey(chatId), exact: true });
+		queryClient.invalidateQueries({
+			queryKey: chatGoalKey(chatId),
+			exact: true,
+		});
 	},
 });
 

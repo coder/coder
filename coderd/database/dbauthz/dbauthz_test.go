@@ -1107,11 +1107,20 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(msg.ID).Asserts(chat, policy.ActionRead).Returns(msg)
 	}))
-	s.Run("GetChatGoalMessageIDsByMessageIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		messageIDs := []int64{1, 2}
+	s.Run("GetChatGoalMessageIDsByChatAndMessageIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		goalMessageIDs := []int64{2}
-		dbm.EXPECT().GetChatGoalMessageIDsByMessageIDs(gomock.Any(), messageIDs).Return(goalMessageIDs, nil).AnyTimes()
-		check.Args(messageIDs).Asserts().Returns(goalMessageIDs)
+		arg := database.GetChatGoalMessageIDsByChatAndMessageIDsParams{ChatID: chat.ID, MessageIds: []int64{1, 2}}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatGoalMessageIDsByChatAndMessageIDs(gomock.Any(), arg).Return(goalMessageIDs, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(goalMessageIDs)
+	}))
+	s.Run("GetChatHiddenUserMessagesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatHiddenUserMessagesByChatID(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
 	s.Run("GetChatMessagesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

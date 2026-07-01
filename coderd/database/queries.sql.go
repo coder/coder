@@ -7532,17 +7532,23 @@ func (q *sqlQuerier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID)
 	return items, nil
 }
 
-const getChatGoalMessageIDsByMessageIDs = `-- name: GetChatGoalMessageIDsByMessageIDs :many
+const getChatGoalMessageIDsByChatAndMessageIDs = `-- name: GetChatGoalMessageIDsByChatAndMessageIDs :many
 SELECT DISTINCT
     created_from_message_id::bigint AS message_id
 FROM
     chat_goals
 WHERE
-    created_from_message_id = ANY($1::bigint[])
+    created_from_chat_id = $1::uuid
+    AND created_from_message_id = ANY($2::bigint[])
 `
 
-func (q *sqlQuerier) GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIds []int64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, getChatGoalMessageIDsByMessageIDs, pq.Array(messageIds))
+type GetChatGoalMessageIDsByChatAndMessageIDsParams struct {
+	ChatID     uuid.UUID `db:"chat_id" json:"chat_id"`
+	MessageIds []int64   `db:"message_ids" json:"message_ids"`
+}
+
+func (q *sqlQuerier) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, getChatGoalMessageIDsByChatAndMessageIDs, arg.ChatID, pq.Array(arg.MessageIds))
 	if err != nil {
 		return nil, err
 	}
@@ -7579,6 +7585,71 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 	var i ChatHeartbeat
 	err := row.Scan(&i.ChatID, &i.RunnerID, &i.HeartbeatAt)
 	return i, err
+}
+
+const getChatHiddenUserMessagesByChatID = `-- name: GetChatHiddenUserMessagesByChatID :many
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND role = 'user'
+    AND visibility = 'model'
+    AND deleted = false
+ORDER BY
+    id ASC
+`
+
+// Returns model-only user messages (goal completion reminders and
+// compaction summaries) regardless of compaction boundaries. Used by
+// chatd so goal reminder accounting stays stable when a compaction
+// summary hides earlier rows from the prompt window.
+func (q *sqlQuerier) GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatHiddenUserMessagesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.ProviderResponseID,
+			&i.APIKeyID,
+			&i.Revision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one

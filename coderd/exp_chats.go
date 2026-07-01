@@ -2488,7 +2488,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if chatGoalsEnabled {
-			sentAsGoalIDs, err = chatGoalMessageIDs(ctx, api.Database, messages)
+			sentAsGoalIDs, err = chatGoalMessageIDs(ctx, api.Database, chatID, messages)
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to get chat goal message markers.",
@@ -5494,7 +5494,15 @@ func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat goals setting
+// @ID get-chat-goals-setting
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatGoalsEnabledResponse
+// @Router /api/experimental/chats/config/goals [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatGoalsEnabled(rw http.ResponseWriter, r *http.Request) {
@@ -5512,7 +5520,16 @@ func (api *API) getChatGoalsEnabled(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat goals setting
+// @ID update-chat-goals-setting
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatGoalsEnabledRequest true "Request body"
+// @Success 204
+// @Router /api/experimental/chats/config/goals [put]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) putChatGoalsEnabled(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -6914,7 +6931,7 @@ func chatMessageSentAsGoal(message database.ChatMessage, goal *database.ChatGoal
 	return goal != nil && goal.CreatedFromMessageID.Valid && goal.CreatedFromMessageID.Int64 == message.ID
 }
 
-func chatGoalMessageIDs(ctx context.Context, store database.Store, messages []database.ChatMessage) (map[int64]struct{}, error) {
+func chatGoalMessageIDs(ctx context.Context, store database.Store, chatID uuid.UUID, messages []database.ChatMessage) (map[int64]struct{}, error) {
 	messageIDs := make([]int64, 0, len(messages))
 	for _, message := range messages {
 		messageIDs = append(messageIDs, message.ID)
@@ -6922,7 +6939,10 @@ func chatGoalMessageIDs(ctx context.Context, store database.Store, messages []da
 	if len(messageIDs) == 0 {
 		return map[int64]struct{}{}, nil
 	}
-	ids, err := store.GetChatGoalMessageIDsByMessageIDs(ctx, messageIDs)
+	ids, err := store.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, database.GetChatGoalMessageIDsByChatAndMessageIDsParams{
+		ChatID:     chatID,
+		MessageIds: messageIDs,
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("get chat goal message ids: %w", err)
 	}

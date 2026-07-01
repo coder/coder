@@ -2982,19 +2982,19 @@ func (mr *MockStoreMockRecorder) GetChatGeneralModelOverride(ctx any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGeneralModelOverride", reflect.TypeOf((*MockStore)(nil).GetChatGeneralModelOverride), ctx)
 }
 
-// GetChatGoalMessageIDsByMessageIDs mocks base method.
-func (m *MockStore) GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIds []int64) ([]int64, error) {
+// GetChatGoalMessageIDsByChatAndMessageIDs mocks base method.
+func (m *MockStore) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg database.GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatGoalMessageIDsByMessageIDs", ctx, messageIds)
+	ret := m.ctrl.Call(m, "GetChatGoalMessageIDsByChatAndMessageIDs", ctx, arg)
 	ret0, _ := ret[0].([]int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatGoalMessageIDsByMessageIDs indicates an expected call of GetChatGoalMessageIDsByMessageIDs.
-func (mr *MockStoreMockRecorder) GetChatGoalMessageIDsByMessageIDs(ctx, messageIds any) *gomock.Call {
+// GetChatGoalMessageIDsByChatAndMessageIDs indicates an expected call of GetChatGoalMessageIDsByChatAndMessageIDs.
+func (mr *MockStoreMockRecorder) GetChatGoalMessageIDsByChatAndMessageIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGoalMessageIDsByMessageIDs", reflect.TypeOf((*MockStore)(nil).GetChatGoalMessageIDsByMessageIDs), ctx, messageIds)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGoalMessageIDsByChatAndMessageIDs", reflect.TypeOf((*MockStore)(nil).GetChatGoalMessageIDsByChatAndMessageIDs), ctx, arg)
 }
 
 // GetChatGoalsEnabled mocks base method.
@@ -3025,6 +3025,21 @@ func (m *MockStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHe
 func (mr *MockStoreMockRecorder) GetChatHeartbeat(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHeartbeat", reflect.TypeOf((*MockStore)(nil).GetChatHeartbeat), ctx, arg)
+}
+
+// GetChatHiddenUserMessagesByChatID mocks base method.
+func (m *MockStore) GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatHiddenUserMessagesByChatID", ctx, chatID)
+	ret0, _ := ret[0].([]database.ChatMessage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatHiddenUserMessagesByChatID indicates an expected call of GetChatHiddenUserMessagesByChatID.
+func (mr *MockStoreMockRecorder) GetChatHiddenUserMessagesByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHiddenUserMessagesByChatID", reflect.TypeOf((*MockStore)(nil).GetChatHiddenUserMessagesByChatID), ctx, chatID)
 }
 
 // GetChatIncludeDefaultSystemPrompt mocks base method.

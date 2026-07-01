@@ -81,6 +81,56 @@ func TestGoalTools(t *testing.T) {
 	require.Equal(t, database.ChatGoalStatusComplete, completedGoal.Status)
 }
 
+func TestCompleteGoalRejectsFenceMismatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "goal-fence",
+	})
+	goal, err := db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+		RootChatID:      chat.ID,
+		Objective:       "finish the work",
+		CreatedByUserID: user.ID,
+	})
+	require.NoError(t, err)
+
+	// The chat is not owned by the fenced worker/runner, so the tool
+	// must refuse to mutate the goal.
+	completeTool := chattool.CompleteGoal(db, chattool.GoalToolOptions{
+		ChatID:     chat.ID,
+		RootChatID: chat.ID,
+		IsRootChat: true,
+		Fence: &chattool.GoalToolFence{
+			WorkerID:       uuid.New(),
+			RunnerID:       uuid.New(),
+			HistoryVersion: chat.HistoryVersion,
+		},
+		OnGoalUpdated: func(context.Context, database.Chat, database.ChatGoal) {
+			t.Fatal("goal update published despite fence mismatch")
+		},
+	})
+	resp, err := completeTool.Run(dbauthz.AsSystemRestricted(ctx), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  chattool.CompleteGoalToolName,
+		Input: `{"goal_id":"` + goal.ID.String() + `","summary":"done"}`,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "the goal was not modified")
+
+	current, err := db.GetCurrentChatGoalByRootChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatGoalStatusActive, current.Status)
+}
+
 func TestCompleteGoalSchemaUsesStringGoalID(t *testing.T) {
 	t.Parallel()
 

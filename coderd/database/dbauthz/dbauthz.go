@@ -3293,8 +3293,13 @@ func (q *querier) GetChatGeneralModelOverride(ctx context.Context) (string, erro
 	return q.db.GetChatGeneralModelOverride(ctx)
 }
 
-func (q *querier) GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIDs []int64) ([]int64, error) {
-	return q.db.GetChatGoalMessageIDsByMessageIDs(ctx, messageIDs)
+func (q *querier) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg database.GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error) {
+	// Authorize read on the chat whose goal markers are requested.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, arg)
 }
 
 func (q *querier) GetChatGoalsEnabled(ctx context.Context) (bool, error) {
@@ -3314,6 +3319,15 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 		return database.ChatHeartbeat{}, err
 	}
 	return q.db.GetChatHeartbeat(ctx, arg)
+}
+
+func (q *querier) GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatHiddenUserMessagesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {

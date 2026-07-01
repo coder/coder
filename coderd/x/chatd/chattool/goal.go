@@ -27,6 +27,40 @@ type GoalToolOptions struct {
 	RootChatID    uuid.UUID
 	IsRootChat    bool
 	OnGoalUpdated func(context.Context, database.Chat, database.ChatGoal)
+	// Fence, when set, must still describe the chat when complete_goal
+	// commits. It prevents a stale generation (interrupted or taken over
+	// by another worker) from completing the durable goal after its tool
+	// result would be rejected by the generation fence.
+	Fence *GoalToolFence
+}
+
+// GoalToolFence pins the goal mutation to the generation turn that
+// offered the tool.
+type GoalToolFence struct {
+	WorkerID       uuid.UUID
+	RunnerID       uuid.UUID
+	HistoryVersion int64
+}
+
+var errGoalFenceMismatch = xerrors.New("goal tool fence mismatch")
+
+// verifyGoalToolFence locks the chat row and checks that the turn that
+// offered complete_goal still owns the chat.
+func verifyGoalToolFence(ctx context.Context, tx database.Store, chatID uuid.UUID, fence *GoalToolFence) error {
+	if fence == nil {
+		return nil
+	}
+	chat, err := tx.GetChatByIDForUpdate(ctx, chatID)
+	if err != nil {
+		return err
+	}
+	if !chat.WorkerID.Valid || chat.WorkerID.UUID != fence.WorkerID ||
+		!chat.RunnerID.Valid || chat.RunnerID.UUID != fence.RunnerID ||
+		chat.Status != database.ChatStatusRunning ||
+		chat.HistoryVersion != fence.HistoryVersion {
+		return errGoalFenceMismatch
+	}
+	return nil
 }
 
 type getGoalArgs struct{}
@@ -96,6 +130,12 @@ func CompleteGoal(db database.Store, options GoalToolOptions) fantasy.AgentTool 
 			var completed database.ChatGoal
 			var chat database.Chat
 			if err := db.InTx(func(tx database.Store) error {
+				// Lock the chat row first (matching the API mutation
+				// paths) so the fence check and goal update are atomic
+				// with respect to interrupts and worker takeovers.
+				if err := verifyGoalToolFence(ctx, tx, options.ChatID, options.Fence); err != nil {
+					return err
+				}
 				current, err := tx.GetCurrentChatGoalByRootChatID(ctx, options.RootChatID)
 				if err != nil {
 					if errors.Is(err, sql.ErrNoRows) {
@@ -138,6 +178,8 @@ func CompleteGoal(db database.Store, options GoalToolOptions) fantasy.AgentTool 
 					)), nil
 				case errors.Is(err, errGoalNotActive):
 					return fantasy.NewTextErrorResponse("current goal is not active"), nil
+				case errors.Is(err, errGoalFenceMismatch):
+					return fantasy.NewTextErrorResponse("the chat turn changed before the goal could be completed; the goal was not modified"), nil
 				default:
 					return fantasy.NewTextErrorResponse("complete goal: " + err.Error()), nil
 				}

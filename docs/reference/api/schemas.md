@@ -2735,6 +2735,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------------------------------------|
 | `active`, `cleared`, `complete`, `paused`, `replaced` |
 
+## codersdk.ChatGoalsEnabledResponse
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
+
 ## codersdk.ChatGroup
 
 ```json
@@ -13370,6 +13384,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 | `user_roles`       | object                                 | false    |              |             |
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+
+## codersdk.UpdateChatGoalsEnabledRequest
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 

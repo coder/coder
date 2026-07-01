@@ -432,11 +432,16 @@ type sqlcQuerier interface {
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGeneralModelOverride(ctx context.Context) (string, error)
-	GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIds []int64) ([]int64, error)
+	GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error)
 	// GetChatGoalsEnabled returns whether the chat goals experiment is enabled.
 	// It defaults to false when unset.
 	GetChatGoalsEnabled(ctx context.Context) (bool, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
+	// Returns model-only user messages (goal completion reminders and
+	// compaction summaries) regardless of compaction boundaries. Used by
+	// chatd so goal reminder accounting stays stable when a compaction
+	// summary hides earlier rows from the prompt window.
+	GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
 	// When the toggle is unset, a non-empty custom prompt implies false;

@@ -1618,11 +1618,11 @@ func (m queryMetricsStore) GetChatGeneralModelOverride(ctx context.Context) (str
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatGoalMessageIDsByMessageIDs(ctx context.Context, messageIds []int64) ([]int64, error) {
+func (m queryMetricsStore) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg database.GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatGoalMessageIDsByMessageIDs(ctx, messageIds)
-	m.queryLatencies.WithLabelValues("GetChatGoalMessageIDsByMessageIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGoalMessageIDsByMessageIDs").Inc()
+	r0, r1 := m.s.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatGoalMessageIDsByChatAndMessageIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGoalMessageIDsByChatAndMessageIDs").Inc()
 	return r0, r1
 }
 
@@ -1639,6 +1639,14 @@ func (m queryMetricsStore) GetChatHeartbeat(ctx context.Context, arg database.Ge
 	r0, r1 := m.s.GetChatHeartbeat(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatHeartbeat").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatHeartbeat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatHiddenUserMessagesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatHiddenUserMessagesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatHiddenUserMessagesByChatID").Inc()
 	return r0, r1
 }
 
