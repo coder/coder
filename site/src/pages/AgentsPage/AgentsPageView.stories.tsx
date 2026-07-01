@@ -228,12 +228,15 @@ const agentsRouting = {
 				},
 				{
 					path: "admin",
-					element: <Navigate to="/agents/settings/coder-agents" replace />,
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
 				},
-				{ path: "coder-agents", element: <AgentsRouteElement /> },
 				{
 					path: "agents",
-					element: <Navigate to="/agents/settings/coder-agents" replace />,
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "coder-agents",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
 				},
 				{
 					path: "spend",
@@ -252,8 +255,11 @@ const agentsRouting = {
 };
 
 const aiSettingsRouting = {
-	path: "/ai/settings/spend",
-	element: <div>Spend limits and usage</div>,
+	path: "/ai/settings",
+	children: [
+		{ path: "coder-agents", element: <AgentsRouteElement /> },
+		{ path: "spend", element: <div>Spend limits and usage</div> },
+	],
 };
 
 const setInnerWidthForStory = (width: number) => {
@@ -1160,7 +1166,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
-export const OpensCoderAgentsFromManageAgentsOnMobile: Story = {
+export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1172,9 +1178,15 @@ export const OpensCoderAgentsFromManageAgentsOnMobile: Story = {
 		}),
 	},
 	play: async () => {
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
+
+		await userEvent.click(manageAgentsLink);
 
 		await expect(
 			await screen.findByRole("heading", { name: "Coder Agents" }),
@@ -1196,9 +1208,15 @@ export const SettingsViewCoderAgentsLink: Story = {
 			).toBeInTheDocument();
 		});
 
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
+
+		await userEvent.click(manageAgentsLink);
 
 		await waitFor(() => {
 			expect(
