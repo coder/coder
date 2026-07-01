@@ -1413,6 +1413,11 @@
 					"path": "./tutorials/template-from-scratch.md"
 				},
 				{
+					"title": "Replace Template Code with a Registry Module",
+					"description": "Swap hand-written template code for a Coder Registry module, then roll back safely",
+					"path": "./tutorials/replace-template-code-with-modules.md"
+				},
+				{
 					"title": "Using an External Database",
 					"description": "Use Coder with an external database",
 					"path": "./tutorials/external-database.md"
