@@ -824,24 +824,26 @@ func assertQueueBodiesInOrder(ctx context.Context, t *testing.T, f *testFixture,
 // chat:update on success, or zero mutation and zero publishes on
 // failure.
 type snapshotBaseline struct {
-	exists            bool
-	chat              database.Chat
-	snapshot          int64
-	historyVersion    int64
-	queueVersion      int64
-	retryStateVersion int64
-	generationAttempt int64
-	queueCount        int64
-	queueIDs          []int64
-	historyIDs        []int64
-	channels          int
+	exists             bool
+	chat               database.Chat
+	snapshot           int64
+	historyVersion     int64
+	queueVersion       int64
+	retryStateVersion  int64
+	generationAttempt  int64
+	queueCount         int64
+	queueIDs           []int64
+	historyIDs         []int64
+	channels           int
+	ownershipPublishes int
 }
 
 func captureBaseline(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat) snapshotBaseline {
 	t.Helper()
 	base := snapshotBaseline{
-		exists:   seeded.exists,
-		channels: len(f.Pub.channels),
+		exists:             seeded.exists,
+		channels:           len(f.Pub.channels),
+		ownershipPublishes: f.Pub.ownershipPublishCount(),
 	}
 	if !seeded.exists {
 		return base

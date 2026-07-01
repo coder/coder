@@ -65,6 +65,12 @@ export const Closed: Story = {
 export const OpensWithSkills: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("/compact")).toBeDefined();
+		expect(
+			await findVisibleText(
+				"Summarize earlier chat history without sending a message.",
+			),
+		).toBeDefined();
 		expect(await findVisibleText("/reviewer")).toBeDefined();
 		expect(
 			await findVisibleText("Review changed files and suggest fixes."),
@@ -79,10 +85,12 @@ export const EmptySkills: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		expect(await findVisibleText("No personal skills found.")).toBeDefined();
+		expect(await findVisibleText("/compact")).toBeDefined();
 		await userEvent.keyboard("{Enter}");
 		expect(args.onEnter).not.toHaveBeenCalled();
-		expect(editor.textContent).toBe("/");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/compact");
+		});
 	},
 };
 
@@ -109,10 +117,10 @@ export const EnterSelectsSkill: Story = {
 export const ArrowKeysSelectHighlightedSkill: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		await findVisibleText("/docs");
+		await findVisibleText("/compact");
 		await userEvent.keyboard("{ArrowDown}{Enter}");
 		await waitFor(() => {
-			expect(editor.textContent).toBe("/plan");
+			expect(editor.textContent).toBe("/docs");
 		});
 	},
 };

@@ -3215,6 +3215,83 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
+// @Summary Compact chat history
+// @ID compact-chat
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.CompactChatResponse
+// @Router /api/experimental/chats/{chat}/compact [post]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may compact chat history.",
+		})
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Cannot compact an archived chat.",
+		})
+		return
+	}
+
+	result, err := api.chatDaemon.CompactChat(ctx, chatd.CompactChatOptions{
+		ChatID:      chat.ID,
+		RequestedBy: apiKey.UserID,
+		APIKeyID:    apiKey.ID,
+	})
+	if err != nil {
+		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if writeChatInvalidState(ctx, rw, err) {
+			return
+		}
+		if errors.Is(err, chatstate.ErrChatNotFound) || httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if xerrors.Is(err, chatd.ErrChatArchived) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot compact an archived chat.",
+			})
+			return
+		}
+		if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is not in a state that accepts manual compaction.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to compact chat history.",
+			Detail:  chaterror.FormatDiagnosticDetail(err),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.CompactChatResponse{
+		Chat: db2sdk.Chat(result.Chat, nil, nil),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
 // @Summary Edit chat message
 // @ID edit-chat-message
 // @Security CoderSessionToken

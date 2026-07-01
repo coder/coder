@@ -305,6 +305,14 @@ func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ClearChatManualCompactionRequest(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ClearChatManualCompactionRequest(ctx, id)
+	m.queryLatencies.WithLabelValues("ClearChatManualCompactionRequest").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatManualCompactionRequest").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID)
@@ -1598,6 +1606,14 @@ func (m queryMetricsStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context
 	r0, r1 := m.s.GetChatIncludeDefaultSystemPrompt(ctx)
 	m.queryLatencies.WithLabelValues("GetChatIncludeDefaultSystemPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatIncludeDefaultSystemPrompt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatManualCompactionRequest(ctx context.Context, id uuid.UUID) (database.GetChatManualCompactionRequestRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatManualCompactionRequest(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatManualCompactionRequest").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatManualCompactionRequest").Inc()
 	return r0, r1
 }
 
@@ -4879,6 +4895,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) RequestChatManualCompaction(ctx context.Context, arg database.RequestChatManualCompactionParams) error {
+	start := time.Now()
+	r0 := m.s.RequestChatManualCompaction(ctx, arg)
+	m.queryLatencies.WithLabelValues("RequestChatManualCompaction").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RequestChatManualCompaction").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) ResolveUserChatSpendLimit(ctx context.Context, userID database.ResolveUserChatSpendLimitParams) (database.ResolveUserChatSpendLimitRow, error) {

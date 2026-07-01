@@ -4771,49 +4771,52 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                       uuid.UUID             `db:"id" json:"id"`
-	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title                    string                `db:"title" json:"title"`
-	Status                   ChatStatus            `db:"status" json:"status"`
-	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt                sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt              sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived                 bool                  `db:"archived" json:"archived"`
-	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
-	Mode                     NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels                   StringMap             `db:"labels" json:"labels"`
-	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
-	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary          sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
-	SnapshotVersion          int64                 `db:"snapshot_version" json:"snapshot_version"`
-	HistoryVersion           int64                 `db:"history_version" json:"history_version"`
-	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
-	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
-	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
-	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
-	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
-	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
-	UserACL                  ChatACL               `db:"user_acl" json:"user_acl"`
-	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
-	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
-	OwnerName                string                `db:"owner_name" json:"owner_name"`
-	ContextAggregateHash     []byte                `db:"context_aggregate_hash" json:"context_aggregate_hash"`
-	ContextDirtySince        sql.NullTime          `db:"context_dirty_since" json:"context_dirty_since"`
-	ContextDirtyResources    pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
-	ContextError             string                `db:"context_error" json:"context_error"`
+	ID                          uuid.UUID             `db:"id" json:"id"`
+	OwnerID                     uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID                 uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title                       string                `db:"title" json:"title"`
+	Status                      ChatStatus            `db:"status" json:"status"`
+	WorkerID                    uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt                   sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt                 sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                   time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                   time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID                uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID                  uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID           uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived                    bool                  `db:"archived" json:"archived"`
+	LastError                   pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	Mode                        NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs                []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                      StringMap             `db:"labels" json:"labels"`
+	BuildID                     uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID                     uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder                    int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID           sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	DynamicTools                pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID              uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode                    NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType                  ChatClientType        `db:"client_type" json:"client_type"`
+	LastTurnSummary             sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	SnapshotVersion             int64                 `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion              int64                 `db:"history_version" json:"history_version"`
+	QueueVersion                int64                 `db:"queue_version" json:"queue_version"`
+	GenerationAttempt           int64                 `db:"generation_attempt" json:"generation_attempt"`
+	RetryState                  pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
+	RetryStateVersion           int64                 `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                    uuid.NullUUID         `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt    sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                     ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL                    ChatACL               `db:"group_acl" json:"group_acl"`
+	OwnerUsername               string                `db:"owner_username" json:"owner_username"`
+	OwnerName                   string                `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash        []byte                `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince           sql.NullTime          `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources       pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError                string                `db:"context_error" json:"context_error"`
+	ManualCompactionRequestedBy uuid.NullUUID         `db:"manual_compaction_requested_by" json:"manual_compaction_requested_by"`
+	ManualCompactionApiKeyID    sql.NullString        `db:"manual_compaction_api_key_id" json:"manual_compaction_api_key_id"`
+	ManualCompactionRequestedAt sql.NullTime          `db:"manual_compaction_requested_at" json:"manual_compaction_requested_at"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5028,7 +5031,10 @@ type ChatTable struct {
 	// Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.
 	ContextDirtyResources pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
 	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
-	ContextError string `db:"context_error" json:"context_error"`
+	ContextError                string         `db:"context_error" json:"context_error"`
+	ManualCompactionRequestedBy uuid.NullUUID  `db:"manual_compaction_requested_by" json:"manual_compaction_requested_by"`
+	ManualCompactionApiKeyID    sql.NullString `db:"manual_compaction_api_key_id" json:"manual_compaction_api_key_id"`
+	ManualCompactionRequestedAt sql.NullTime   `db:"manual_compaction_requested_at" json:"manual_compaction_requested_at"`
 }
 
 type ChatUsageLimitConfig struct {

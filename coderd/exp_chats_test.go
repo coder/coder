@@ -14873,6 +14873,15 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
+	t.Run("CompactChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+		_, err := sharedClient.CompactChat(ctx, chat.ID)
+
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
 		t.Parallel()
 
@@ -15025,6 +15034,17 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to send this",
 			}},
 		})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Contains(t, sdkErr.Message, "Only the chat owner")
+	})
+
+	t.Run("CompactChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		_, err := adminClient.CompactChat(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Contains(t, sdkErr.Message, "Only the chat owner")
 	})

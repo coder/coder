@@ -141,6 +141,16 @@ func applyEditMessage(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded see
 	return err
 }
 
+func applyRequestManualCompaction(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	var err error
+	result.requestManualCompaction, err = tx.RequestManualCompaction(chatstate.RequestManualCompactionInput{
+		RequestedBy: f.User.ID,
+		APIKeyID:    f.APIKey.ID,
+	})
+	return err
+}
+
 func applyDeleteQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var targetQueueID int64
@@ -244,6 +254,17 @@ func applyFinishTurn(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCha
 	return err
 }
 
+func applyFinishManualCompaction(t *testing.T, f *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+	t.Helper()
+	assistant := userTextMessage("manual-compact-summary", f.User.ID, f.Model.ID)
+	assistant.Role = database.ChatMessageRoleAssistant
+	var err error
+	result.finishManualCompaction, err = tx.FinishManualCompaction(chatstate.FinishManualCompactionInput{
+		Messages: []chatstate.Message{assistant},
+	})
+	return err
+}
+
 func applyFinishError(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
 	var err error
@@ -283,6 +304,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applySendMessageQueue
 	case chatstate.TransitionEditMessage:
 		return applyEditMessage
+	case chatstate.TransitionRequestManualCompaction:
+		return applyRequestManualCompaction
 	case chatstate.TransitionDeleteQueuedMessage:
 		return applyDeleteQueuedMessage
 	case chatstate.TransitionPromoteQueuedMessage:
@@ -301,6 +324,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyEnterRequiresAction
 	case chatstate.TransitionFinishInterruption:
 		return applyFinishInterruption
+	case chatstate.TransitionFinishManualCompaction:
+		return applyFinishManualCompaction
 	case chatstate.TransitionFinishTurn:
 		return applyFinishTurn
 	case chatstate.TransitionFinishError:
@@ -334,6 +359,7 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 type transitionCaseResult struct {
 	sendMessage             chatstate.SendMessageResult
 	editMessage             chatstate.EditMessageResult
+	requestManualCompaction chatstate.RequestManualCompactionResult
 	deleteQueuedMessage     chatstate.DeleteQueuedMessageResult
 	promoteQueuedMessage    chatstate.PromoteQueuedMessageResult
 	interrupt               chatstate.InterruptResult
@@ -343,6 +369,7 @@ type transitionCaseResult struct {
 	commitStep              chatstate.CommitStepResult
 	enterRequiresAction     chatstate.EnterRequiresActionResult
 	finishInterruption      chatstate.FinishInterruptionResult
+	finishManualCompaction  chatstate.FinishManualCompactionResult
 	finishTurn              chatstate.FinishTurnResult
 	finishError             chatstate.FinishErrorResult
 	cancelRequiresAction    chatstate.CancelRequiresActionResult
@@ -779,6 +806,11 @@ func matrixCases() []transitionCaseSpec {
 		editMessageCase(chatstate.StateA0),
 		editMessageCase(chatstate.StateA1),
 
+		// RequestManualCompaction cases: idle chats record a pending
+		// request and become runnable without touching history or queue.
+		requestManualCompactionCase(chatstate.StateW),
+		requestManualCompactionCase(chatstate.StateE0),
+
 		// DeleteQueuedMessage cases. Empty-tail want collapses the
 		// classified state (E1->E0, R1->R0, I1->I0, A1->A0). The
 		// non-empty-tail cases need a multi-queued seed.
@@ -852,6 +884,13 @@ func matrixCases() []transitionCaseSpec {
 		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueShapeMulti),
 
+		// FinishManualCompaction cases: clear the pending manual
+		// request, commit compaction messages, and either wait or
+		// promote the queue head like FinishTurn.
+		finishManualCompactionCase(chatstate.StateR0, chatstate.StateW, queueShapeDefault),
+		finishManualCompactionCase(chatstate.StateR1, chatstate.StateR0, queueShapeDefault),
+		finishManualCompactionCase(chatstate.StateR1, chatstate.StateR1, queueShapeMulti),
+
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),
 		finishErrorCase(chatstate.StateR1, chatstate.StateE1),
@@ -860,6 +899,47 @@ func matrixCases() []transitionCaseSpec {
 		// lands in E0; Invalid with non-empty queue lands in E1.
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
+	}
+}
+
+func requestManualCompactionCase(from chatstate.ExecutionState) transitionCaseSpec {
+	return transitionCaseSpec{
+		transition: chatstate.TransitionRequestManualCompaction,
+		from:       from,
+		want:       chatstate.StateR0,
+		apply:      applyRequestManualCompaction,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusRunning, after.Status,
+				"RequestManualCompaction makes the chat runnable")
+			require.False(t, after.LastError.Valid,
+				"RequestManualCompaction clears last_error when leaving an error state")
+			require.True(t, after.ManualCompactionRequestedBy.Valid,
+				"RequestManualCompaction stores the requester")
+			require.Equal(t, f.User.ID, after.ManualCompactionRequestedBy.UUID)
+			require.True(t, after.ManualCompactionApiKeyID.Valid,
+				"RequestManualCompaction stores the API key ID")
+			require.Equal(t, f.APIKey.ID, after.ManualCompactionApiKeyID.String)
+			require.True(t, after.ManualCompactionRequestedAt.Valid,
+				"RequestManualCompaction records the request timestamp")
+			require.Equal(t, after.ManualCompactionRequestedBy,
+				result.requestManualCompaction.Chat.ManualCompactionRequestedBy,
+				"RequestManualCompaction result mirrors persisted requester")
+			require.Equal(t, after.ManualCompactionApiKeyID,
+				result.requestManualCompaction.Chat.ManualCompactionApiKeyID,
+				"RequestManualCompaction result mirrors persisted API key ID")
+			require.Equal(t, base.historyVersion, after.HistoryVersion,
+				"RequestManualCompaction does not change history_version")
+			require.Equal(t, base.queueVersion, after.QueueVersion,
+				"RequestManualCompaction does not change queue_version")
+			require.Equal(t, base.historyIDs, activeHistoryIDs(ctx, t, f, seeded.chatID),
+				"RequestManualCompaction leaves history unchanged")
+			require.Equal(t, base.queueIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID),
+				"RequestManualCompaction leaves queue unchanged")
+			require.Greater(t, f.Pub.ownershipPublishCount(), base.ownershipPublishes,
+				"RequestManualCompaction publishes an ownership hint")
+		},
 	}
 }
 
@@ -1775,6 +1855,102 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 		spec.scenario = scenarioMulti
 		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
 			return seedStateMultiQueued(t, f, from)
+		}
+	}
+	return spec
+}
+
+func seedWithManualCompactionRequest(t *testing.T, f *testFixture, state chatstate.ExecutionState) seededChat {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedState(t, f, state)
+	require.NoError(t, f.DB.RequestChatManualCompaction(ctx, database.RequestChatManualCompactionParams{
+		RequestedBy: f.User.ID,
+		APIKeyID:    f.APIKey.ID,
+		ID:          seeded.chatID,
+	}))
+	return seeded
+}
+
+func finishManualCompactionCase(from, want chatstate.ExecutionState, shape queueShape) transitionCaseSpec {
+	spec := transitionCaseSpec{
+		transition: chatstate.TransitionFinishManualCompaction,
+		from:       from,
+		want:       want,
+		seed:       seedWithManualCompactionRequest,
+		apply:      applyFinishManualCompaction,
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.False(t, after.ManualCompactionRequestedBy.Valid,
+				"FinishManualCompaction clears the requester")
+			require.False(t, after.ManualCompactionApiKeyID.Valid,
+				"FinishManualCompaction clears the API key ID")
+			require.False(t, after.ManualCompactionRequestedAt.Valid,
+				"FinishManualCompaction clears the request timestamp")
+
+			afterHistory := activeHistoryIDs(ctx, t, f, seeded.chatID)
+			afterQueueIDs := queuedIDsByPosition(ctx, t, f, seeded.chatID)
+			switch from {
+			case chatstate.StateR0:
+				require.Equal(t, database.ChatStatusWaiting, after.Status,
+					"FinishManualCompaction from R0 lands in waiting")
+				require.Nil(t, result.finishManualCompaction.PromotedMessage,
+					"FinishManualCompaction from R0 promotes nothing")
+				require.Len(t, result.finishManualCompaction.InsertedMessages, 1,
+					"FinishManualCompaction from R0 inserts only compaction messages")
+				inserted := requireChatMessageByID(ctx, t, f,
+					result.finishManualCompaction.InsertedMessages[0].ID)
+				require.Equal(t, database.ChatMessageRoleAssistant, inserted.Role,
+					"FinishManualCompaction inserts the compaction message")
+				assertChatMessageText(t, inserted, "manual-compact-summary")
+				require.Equal(t, base.queueIDs, afterQueueIDs,
+					"FinishManualCompaction from R0 leaves queued messages unchanged")
+				require.Equal(t, []int64{inserted.ID}, newActiveMessageIDs(base, afterHistory),
+					"FinishManualCompaction from R0 appends only compaction messages")
+			case chatstate.StateR1:
+				require.Equal(t, database.ChatStatusRunning, after.Status,
+					"FinishManualCompaction from R1 lands in running")
+				require.NotNil(t, result.finishManualCompaction.PromotedMessage,
+					"FinishManualCompaction from R1 promotes the head into history")
+				require.Len(t, result.finishManualCompaction.InsertedMessages, 2,
+					"FinishManualCompaction from R1 inserts compaction and promoted messages")
+				summary := requireChatMessageByID(ctx, t, f,
+					result.finishManualCompaction.InsertedMessages[0].ID)
+				require.Equal(t, database.ChatMessageRoleAssistant, summary.Role,
+					"FinishManualCompaction inserts the compaction message first")
+				assertChatMessageText(t, summary, "manual-compact-summary")
+				promoted := assertFetchedUserMessage(ctx, t, f,
+					*result.finishManualCompaction.PromotedMessage)
+				require.Equal(t, seeded.chatID, promoted.ChatID)
+				require.Contains(t, newActiveMessageIDs(base, afterHistory), summary.ID,
+					"FinishManualCompaction from R1 inserts the compaction message")
+				require.Contains(t, newActiveMessageIDs(base, afterHistory), promoted.ID,
+					"FinishManualCompaction from R1 inserts the promoted user message")
+				require.NotEmpty(t, seeded.queuedMessageBodies,
+					"R1 seed must record queued message bodies")
+				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
+				require.NotEmpty(t, base.queueIDs)
+				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
+				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
+				require.Equal(t, wantRemaining, afterQueueIDs,
+					"FinishManualCompaction from R1 preserves the queue tail order")
+				assertQueueBodiesInOrder(ctx, t, f, seeded.chatID,
+					seeded.queuedMessageBodies[1:])
+			}
+		},
+	}
+	if shape.isMulti() {
+		spec.scenario = scenarioMulti
+		spec.seed = func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+			seeded := seedStateMultiQueued(t, f, from)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			require.NoError(t, f.DB.RequestChatManualCompaction(ctx, database.RequestChatManualCompactionParams{
+				RequestedBy: f.User.ID,
+				APIKeyID:    f.APIKey.ID,
+				ID:          seeded.chatID,
+			}))
+			return seeded
 		}
 	}
 	return spec

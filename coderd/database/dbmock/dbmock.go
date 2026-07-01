@@ -408,6 +408,20 @@ func (mr *MockStoreMockRecorder) CleanupDeletedMCPServerIDsFromChats(ctx any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDeletedMCPServerIDsFromChats", reflect.TypeOf((*MockStore)(nil).CleanupDeletedMCPServerIDsFromChats), ctx)
 }
 
+// ClearChatManualCompactionRequest mocks base method.
+func (m *MockStore) ClearChatManualCompactionRequest(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearChatManualCompactionRequest", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearChatManualCompactionRequest indicates an expected call of ClearChatManualCompactionRequest.
+func (mr *MockStoreMockRecorder) ClearChatManualCompactionRequest(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatManualCompactionRequest", reflect.TypeOf((*MockStore)(nil).ClearChatManualCompactionRequest), ctx, id)
+}
+
 // ClearChatMessageProviderResponseIDsByChatID mocks base method.
 func (m *MockStore) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -2950,6 +2964,21 @@ func (m *MockStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool
 func (mr *MockStoreMockRecorder) GetChatIncludeDefaultSystemPrompt(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIncludeDefaultSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatIncludeDefaultSystemPrompt), ctx)
+}
+
+// GetChatManualCompactionRequest mocks base method.
+func (m *MockStore) GetChatManualCompactionRequest(ctx context.Context, id uuid.UUID) (database.GetChatManualCompactionRequestRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatManualCompactionRequest", ctx, id)
+	ret0, _ := ret[0].(database.GetChatManualCompactionRequestRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatManualCompactionRequest indicates an expected call of GetChatManualCompactionRequest.
+func (mr *MockStoreMockRecorder) GetChatManualCompactionRequest(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatManualCompactionRequest", reflect.TypeOf((*MockStore)(nil).GetChatManualCompactionRequest), ctx, id)
 }
 
 // GetChatMessageByID mocks base method.
@@ -9214,6 +9243,20 @@ func (m *MockStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
+}
+
+// RequestChatManualCompaction mocks base method.
+func (m *MockStore) RequestChatManualCompaction(ctx context.Context, arg database.RequestChatManualCompactionParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequestChatManualCompaction", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RequestChatManualCompaction indicates an expected call of RequestChatManualCompaction.
+func (mr *MockStoreMockRecorder) RequestChatManualCompaction(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestChatManualCompaction", reflect.TypeOf((*MockStore)(nil).RequestChatManualCompaction), ctx, arg)
 }
 
 // ResolveUserChatSpendLimit mocks base method.

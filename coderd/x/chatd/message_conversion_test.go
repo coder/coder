@@ -242,6 +242,35 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000}`, string(resultPart.Result))
 }
 
+func TestBuildCompactionMessages_PersistsManualSource(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID: uuid.New(),
+		toolCallID:    "summary-1",
+		toolName:      "chat_summarized",
+		source:        "manual",
+		compaction: compactionOutcome{
+			SystemSummary:    "system summary",
+			SummaryReport:    "user report",
+			ThresholdPercent: 70,
+			UsagePercent:     10,
+			ContextTokens:    10,
+			ContextLimit:     100,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+
+	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
+	require.JSONEq(t, `{"source":"manual","threshold_percent":70}`, string(callPart.Args))
+
+	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
+	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":10,"context_limit_tokens":100}`, string(resultPart.Result))
+}
+
 func TestCurrentTurnStepCount_ExcludesCompressedCompactionMessages(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +322,59 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, generationActionCompact, decision.kind)
+}
+
+func TestDecisionManualCompactionBypassesCompletedHistory(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("initial request")),
+		withUsage(dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")), 10, 100),
+	}
+
+	decision, err := decideGenerationAction(generationDecisionInput{
+		messages:                  messages,
+		manualCompactionRequested: true,
+		compactionEnabled:         true,
+		compactionNeeded:          true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionManualCompact, decision.kind)
+}
+
+func TestManualCompactionHasWork(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RejectsNoPriorAssistantUsage", func(t *testing.T) {
+		t.Parallel()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hello")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("hello back")),
+		}
+		require.False(t, manualCompactionHasWork(messages))
+	})
+
+	t.Run("RejectsNoUncompressedHistoryAfterBoundary", func(t *testing.T) {
+		t.Parallel()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageText("compressed")), 80, 100),
+		}
+		require.False(t, manualCompactionHasWork(messages))
+	})
+
+	t.Run("AcceptsUncompressedHistoryWithUsage", func(t *testing.T) {
+		t.Parallel()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("continued")), 10, 100),
+		}
+		require.True(t, manualCompactionHasWork(messages))
+	})
 }
 
 func TestCompactionStatusFromHistory(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -232,4 +233,68 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("FinalizeRun never reached UpdateChatDebugRun on panic")
 	}
+}
+
+func TestGenerateCompaction_ForceBelowThresholdPublishesManualSource(t *testing.T) {
+	t.Parallel()
+
+	var generateCalls int
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			generateCalls++
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{
+					fantasy.TextContent{Text: "manual summary"},
+				},
+			}, nil
+		},
+	}
+
+	baseOpts := GenerateCompactionOptions{
+		Model: model,
+		Messages: []fantasy.Message{{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "hello"},
+			},
+		}},
+		ThresholdPercent:     70,
+		ContextLimitFallback: 100,
+		StepUsage:            fantasy.Usage{InputTokens: 10, TotalTokens: 10},
+		ToolCallID:           "summary-1",
+		ToolName:             "chat_summarized",
+		Source:               CompactionSourceManual,
+	}
+
+	noForce, err := GenerateCompaction(context.Background(), baseOpts)
+	require.NoError(t, err)
+	require.Empty(t, noForce)
+	require.Equal(t, 0, generateCalls,
+		"below-threshold compaction must not call the model without Force")
+
+	var published []codersdk.ChatMessagePart
+	forcedOpts := baseOpts
+	forcedOpts.Force = true
+	forcedOpts.PublishMessagePart = func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		published = append(published, part)
+	}
+
+	forced, err := GenerateCompaction(context.Background(), forcedOpts)
+	require.NoError(t, err)
+	require.Equal(t, 1, generateCalls,
+		"Force must call the model even below the automatic threshold")
+	require.Equal(t, "manual summary", forced.SummaryReport)
+	require.Equal(t, float64(10), forced.UsagePercent)
+	require.Len(t, published, 2,
+		"compaction publishes a synthetic tool call and result")
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, published[1].Type)
+	require.JSONEq(t, `{
+		"summary": "manual summary",
+		"source": "manual",
+		"threshold_percent": 70,
+		"usage_percent": 10,
+		"context_tokens": 10,
+		"context_limit_tokens": 100
+	}`, string(published[1].Result))
 }

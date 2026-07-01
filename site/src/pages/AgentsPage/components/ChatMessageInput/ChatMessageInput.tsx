@@ -41,6 +41,10 @@ import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../../utils/agentChatSendShortcut";
+import {
+	type BuiltInSlashCommand,
+	filterBuiltInSlashCommands,
+} from "../../utils/builtInSlashCommands";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	filterPersonalSkills,
@@ -601,13 +605,18 @@ const ChatMessageInput = ({
 		enabled: skillsMenuOpen && personalSkillsOverride === undefined,
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
+	const filteredBuiltInCommands = skillsTrigger
+		? filterBuiltInSlashCommands(skillsTrigger.query)
+		: [];
 	const filteredPersonalSkills = skillsTrigger
 		? filterPersonalSkills(personalSkills, skillsTrigger.query)
 		: [];
+	const skillsMenuItemCount =
+		filteredBuiltInCommands.length + filteredPersonalSkills.length;
 	const selectedSkillIndex =
-		filteredPersonalSkills.length === 0
+		skillsMenuItemCount === 0
 			? -1
-			: Math.min(skillsMenuSelectedIndex, filteredPersonalSkills.length - 1);
+			: Math.min(skillsMenuSelectedIndex, skillsMenuItemCount - 1);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
@@ -627,7 +636,7 @@ const ChatMessageInput = ({
 		setSkillsTrigger(trigger);
 	};
 
-	const replaceActiveSkillsTrigger = (skill: TypesGen.UserSkillMetadata) => {
+	const replaceActiveSkillsTriggerWithText = (text: string) => {
 		const editor = editorRef.current;
 		const trigger = skillsTrigger;
 		if (!editor || !trigger) {
@@ -667,10 +676,31 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(personalSkillTriggerText(skill));
+			selection.insertText(text);
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
+	};
+
+	const replaceActiveSkillsTrigger = (skill: TypesGen.UserSkillMetadata) => {
+		replaceActiveSkillsTriggerWithText(personalSkillTriggerText(skill));
+	};
+
+	const replaceActiveCommandTrigger = (command: BuiltInSlashCommand) => {
+		replaceActiveSkillsTriggerWithText(command.trigger);
+	};
+
+	const replaceActiveMenuItem = (index: number) => {
+		const command = filteredBuiltInCommands[index];
+		if (command) {
+			replaceActiveCommandTrigger(command);
+			return;
+		}
+		const skill =
+			filteredPersonalSkills[index - filteredBuiltInCommands.length];
+		if (skill) {
+			replaceActiveSkillsTrigger(skill);
+		}
 	};
 
 	const handleEditorReady = (editor: LexicalEditor) => {
@@ -877,11 +907,11 @@ const ChatMessageInput = ({
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
-					skills={filteredPersonalSkills}
+					itemCount={skillsMenuItemCount}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
-					onSkillSelect={replaceActiveSkillsTrigger}
+					onItemSelect={replaceActiveMenuItem}
 				/>
 				<EditableStatePlugin disabled={Boolean(disabled)} />
 				{autoFocus && <AutoFocusPlugin />}
@@ -889,11 +919,13 @@ const ChatMessageInput = ({
 					open={skillsMenuOpen}
 					anchorRect={skillsTrigger?.anchorRect ?? null}
 					query={skillsTrigger?.query ?? ""}
+					builtInCommands={filteredBuiltInCommands}
 					skills={filteredPersonalSkills}
 					isLoading={skillsMenuOpen && skillsQuery.isLoading}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					isError={skillsMenuOpen && skillsQuery.isError}
 					selectedIndex={selectedSkillIndex}
+					onCommandSelect={replaceActiveCommandTrigger}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
 				/>

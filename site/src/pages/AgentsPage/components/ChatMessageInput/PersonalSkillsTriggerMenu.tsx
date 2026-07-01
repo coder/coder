@@ -12,6 +12,7 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
+import type { BuiltInSlashCommand } from "../../utils/builtInSlashCommands";
 import { personalSkillTriggerText } from "../../utils/personalSkills";
 
 // Prevent zero-height anchors when the browser returns a degenerate caret rect.
@@ -27,11 +28,13 @@ type PersonalSkillsTriggerMenuProps = {
 	open: boolean;
 	anchorRect: CaretAnchorRect | null;
 	query: string;
+	builtInCommands: readonly BuiltInSlashCommand[];
 	skills: readonly TypesGen.UserSkillMetadata[];
 	isLoading?: boolean;
 	isError?: boolean;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
+	onCommandSelect: (command: BuiltInSlashCommand) => void;
 	onSelect: (skill: TypesGen.UserSkillMetadata) => void;
 	onClose: () => void;
 };
@@ -39,6 +42,7 @@ type PersonalSkillsTriggerMenuProps = {
 type PersonalSkillsMenuState = {
 	anchorRect: CaretAnchorRect;
 	query: string;
+	builtInCommands: readonly BuiltInSlashCommand[];
 	skills: readonly TypesGen.UserSkillMetadata[];
 	isLoading?: boolean;
 	isError?: boolean;
@@ -49,11 +53,13 @@ export const PersonalSkillsTriggerMenu = ({
 	open,
 	anchorRect,
 	query,
+	builtInCommands,
 	skills,
 	isLoading,
 	isError,
 	selectedIndex,
 	onSelectedIndexChange,
+	onCommandSelect,
 	onSelect,
 	onClose,
 }: PersonalSkillsTriggerMenuProps) => {
@@ -64,6 +70,7 @@ export const PersonalSkillsTriggerMenu = ({
 		? {
 				anchorRect,
 				query,
+				builtInCommands,
 				skills,
 				isLoading,
 				isError,
@@ -72,8 +79,16 @@ export const PersonalSkillsTriggerMenu = ({
 		: null;
 	const menuState = activeMenuState ?? lastOpenMenuState;
 	const menuAnchorRect = menuState?.anchorRect ?? null;
+	const menuBuiltInCommands = menuState?.builtInCommands ?? [];
 	const menuSkills = menuState?.skills ?? [];
 	const menuSelectedIndex = menuState?.selectedIndex ?? -1;
+	const menuItemCount = menuBuiltInCommands.length + menuSkills.length;
+	const selectedValue =
+		menuSelectedIndex < 0
+			? ""
+			: menuSelectedIndex < menuBuiltInCommands.length
+				? `command:${menuBuiltInCommands[menuSelectedIndex]?.id}`
+				: `skill:${menuSkills[menuSelectedIndex - menuBuiltInCommands.length]?.id}`;
 
 	useLayoutEffect(() => {
 		if (!isAnchoredOpen) {
@@ -81,6 +96,7 @@ export const PersonalSkillsTriggerMenu = ({
 		}
 		setLastOpenMenuState({
 			anchorRect,
+			builtInCommands,
 			query,
 			skills,
 			isLoading,
@@ -89,6 +105,7 @@ export const PersonalSkillsTriggerMenu = ({
 		});
 	}, [
 		anchorRect,
+		builtInCommands,
 		isAnchoredOpen,
 		isError,
 		isLoading,
@@ -98,7 +115,18 @@ export const PersonalSkillsTriggerMenu = ({
 	]);
 
 	const handleHighlightedValueChange = (value: string) => {
-		const nextIndex = menuSkills.findIndex((skill) => skill.name === value);
+		const commandIndex = menuBuiltInCommands.findIndex(
+			(command) => value === `command:${command.id}`,
+		);
+		let nextIndex = commandIndex;
+		if (nextIndex < 0) {
+			const skillIndex = menuSkills.findIndex(
+				(skill) => value === `skill:${skill.id}`,
+			);
+			if (skillIndex >= 0) {
+				nextIndex = skillIndex + menuBuiltInCommands.length;
+			}
+		}
 		if (nextIndex >= 0) {
 			onSelectedIndexChange(nextIndex);
 		}
@@ -140,45 +168,81 @@ export const PersonalSkillsTriggerMenu = ({
 					shouldFilter={false}
 					loop={false}
 					onValueChange={handleHighlightedValueChange}
-					value={menuSkills[menuSelectedIndex]?.name ?? ""}
+					value={selectedValue}
 				>
 					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
-						{menuState?.isLoading ? (
+						{menuState?.isLoading && menuItemCount === 0 ? (
 							<CommandItem value="loading" disabled>
 								Loading personal skills...
 							</CommandItem>
-						) : menuState?.isError ? (
+						) : menuState?.isError && menuItemCount === 0 ? (
 							<CommandItem value="error" disabled>
 								Could not load personal skills. Close and type / again to retry.
 							</CommandItem>
-						) : menuSkills.length === 0 ? (
+						) : menuItemCount === 0 ? (
 							<CommandEmpty>
 								{menuState?.query
-									? "No personal skills match that query."
-									: "No personal skills found."}
+									? "No slash commands or personal skills match that query."
+									: "No slash commands or personal skills found."}
 							</CommandEmpty>
 						) : (
-							<CommandGroup heading="Personal skills">
-								{menuSkills.map((skill) => (
-									<CommandItem
-										key={skill.id}
-										value={skill.name}
-										className="items-start"
-										onSelect={() => onSelect(skill)}
-									>
-										<div className="min-w-0 space-y-1">
-											<div className="truncate font-mono text-content-primary text-xs">
-												{personalSkillTriggerText(skill)}
-											</div>
-											{skill.description.trim() && (
-												<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
-													{skill.description}
+							<>
+								{menuBuiltInCommands.length > 0 && (
+									<CommandGroup heading="Commands">
+										{menuBuiltInCommands.map((command) => (
+											<CommandItem
+												key={command.id}
+												value={`command:${command.id}`}
+												className="items-start"
+												onSelect={() => onCommandSelect(command)}
+											>
+												<div className="min-w-0 space-y-1">
+													<div className="truncate font-mono text-content-primary text-xs">
+														{command.trigger}
+													</div>
+													<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
+														{command.description}
+													</div>
 												</div>
-											)}
-										</div>
+											</CommandItem>
+										))}
+									</CommandGroup>
+								)}
+								{menuSkills.length > 0 && (
+									<CommandGroup heading="Personal skills">
+										{menuSkills.map((skill) => (
+											<CommandItem
+												key={skill.id}
+												value={`skill:${skill.id}`}
+												className="items-start"
+												onSelect={() => onSelect(skill)}
+											>
+												<div className="min-w-0 space-y-1">
+													<div className="truncate font-mono text-content-primary text-xs">
+														{personalSkillTriggerText(skill)}
+													</div>
+													{skill.description.trim() && (
+														<div className="line-clamp-2 text-content-secondary text-xs leading-snug">
+															{skill.description}
+														</div>
+													)}
+												</div>
+											</CommandItem>
+										))}
+									</CommandGroup>
+								)}
+								{menuState?.isLoading && menuSkills.length === 0 && (
+									<CommandItem value="loading" disabled>
+										Loading personal skills...
 									</CommandItem>
-								))}
-							</CommandGroup>
+								)}
+								{menuState?.isError && menuSkills.length === 0 && (
+									<CommandItem value="error" disabled>
+										Could not load personal skills. Close and type / again to
+										retry.
+									</CommandItem>
+								)}
+							</>
 						)}
 					</CommandList>
 				</Command>
