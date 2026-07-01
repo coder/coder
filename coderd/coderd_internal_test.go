@@ -8,6 +8,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/x/chatd"
 )
 
 func TestStripSlashesMW(t *testing.T) {
@@ -64,4 +67,29 @@ func TestStripSlashesMW(t *testing.T) {
 			assert.Nil(t, chi.RouteContext(req.Context()))
 		})
 	}
+}
+
+// TestChatDaemonPublishDiffStatusChangeFunc regression-tests the guard
+// that fixes a nil-pointer panic: a Go method value on a nil pointer
+// receiver is itself non-nil, so binding
+// chatDaemon.PublishDiffStatusChange unconditionally would defeat
+// gitsync.Worker's own nil check on its callback and panic when the
+// worker later invoked it. This test proves the returned func is a
+// true nil (not a non-nil method value wrapping a nil receiver) when
+// chatDaemon is nil, and a working, callable func when it isn't.
+func TestChatDaemonPublishDiffStatusChangeFunc(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NilChatDaemon", func(t *testing.T) {
+		t.Parallel()
+		fn := chatDaemonPublishDiffStatusChangeFunc(nil)
+		require.Nil(t, fn, "func value must be a true nil, not a bound method on a nil receiver")
+	})
+
+	t.Run("NonNilChatDaemon", func(t *testing.T) {
+		t.Parallel()
+		daemon := &chatd.Server{}
+		fn := chatDaemonPublishDiffStatusChangeFunc(daemon)
+		require.NotNil(t, fn)
+	})
 }

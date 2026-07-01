@@ -866,15 +866,7 @@ func New(options *Options) *API {
 			gitSyncLogger.Named("refresher"),
 			quartz.NewReal(),
 		)
-		// api.chatDaemon.PublishDiffStatusChange is a method value on a
-		// pointer receiver: even when api.chatDaemon is nil, the method
-		// value itself is non-nil, so gitsync.Worker's own nil check on
-		// its callback would not catch it. Only bind the callback when the
-		// chat daemon actually exists.
-		var publishDiffStatusChange gitsync.PublishDiffStatusChangeFunc
-		if api.chatDaemon != nil {
-			publishDiffStatusChange = api.chatDaemon.PublishDiffStatusChange
-		}
+		publishDiffStatusChange := chatDaemonPublishDiffStatusChangeFunc(api.chatDaemon)
 		api.gitSyncWorker = gitsync.NewWorker(options.Database,
 			refresher,
 			publishDiffStatusChange,
@@ -2321,6 +2313,23 @@ type API struct {
 	ProfileCollecting atomic.Bool
 
 	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
+}
+
+// chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
+// PublishDiffStatusChange method bound as a gitsync.PublishDiffStatusChangeFunc,
+// or a true nil func value when chatDaemon is nil (AI Gateway disabled).
+//
+// This must not be inlined as chatDaemon.PublishDiffStatusChange: a method
+// value on a nil pointer receiver is itself non-nil (it captures the
+// receiver, it doesn't call the method), so gitsync.Worker's own "if
+// publishDiffStatusChangeFn != nil" check would not catch a nil chatDaemon,
+// and invoking the returned func would panic dereferencing the nil
+// receiver.
+func chatDaemonPublishDiffStatusChangeFunc(chatDaemon *chatd.Server) gitsync.PublishDiffStatusChangeFunc {
+	if chatDaemon == nil {
+		return nil
+	}
+	return chatDaemon.PublishDiffStatusChange
 }
 
 // Close waits for all WebSocket connections to drain before returning.
