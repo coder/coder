@@ -52,12 +52,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 						onKeyDown={stopPropagation}
 						onKeyUp={stopPropagation}
 					>
-						<CircleAlertIcon
-							css={(theme) => ({
-								color: theme.roles.notice.outline,
-							})}
-							size={14}
-						/>
+						<CircleAlertIcon className="text-content-secondary" size={14} />
 						<span>{children}</span>
 					</span>
 				</HelpPopoverTrigger>
@@ -69,11 +64,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					onKeyDown={stopPropagation}
 					onKeyUp={stopPropagation}
 				>
-					<CircleAlertIcon
-						css={(theme) => ({
-							color: theme.roles.notice.outline,
-						})}
-					/>
+					<CircleAlertIcon className="text-content-secondary" />
 					<span className="sr-only">Outdated info</span>
 				</HelpPopoverIconTrigger>
 			)}
