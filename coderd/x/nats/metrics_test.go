@@ -39,11 +39,15 @@ func TestPubsub_Metrics(t *testing.T) {
 		messageChannel <- message
 	})
 	require.NoError(t, err)
+	publishDone := make(chan error, 1)
 	go func() {
-		err := uut.Publish(event, []byte(data))
-		assert.NoError(t, err)
+		publishDone <- uut.Publish(event, []byte(data))
 	}()
 	_ = testutil.TryReceive(ctx, t, messageChannel)
+	// Wait for Publish to return so its publish-side metrics
+	// (publishes_total, published_bytes_total) are recorded before the
+	// exact-equality assertions below.
+	require.NoError(t, testutil.TryReceive(ctx, t, publishDone))
 
 	require.Eventually(t, func() bool {
 		latencyBytes := gatherCount * pubsub.LatencyMessageLength
@@ -73,13 +77,16 @@ func TestPubsub_Metrics(t *testing.T) {
 		messageChannel <- message
 	})
 	require.NoError(t, err)
+	publishDone = make(chan error, 1)
 	go func() {
-		err := uut.Publish(event, colossalData)
-		assert.NoError(t, err)
+		publishDone <- uut.Publish(event, colossalData)
 	}()
 	// should get 2 messages because we have 2 subs
 	_ = testutil.TryReceive(ctx, t, messageChannel)
 	_ = testutil.TryReceive(ctx, t, messageChannel)
+	// Wait for Publish to return so its publish-side metrics are recorded
+	// before the exact-equality assertions below.
+	require.NoError(t, testutil.TryReceive(ctx, t, publishDone))
 
 	require.Eventually(t, func() bool {
 		latencyBytes := gatherCount * pubsub.LatencyMessageLength
