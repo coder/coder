@@ -25,7 +25,7 @@ var (
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
 	ErrBudgetExceeded        = xerrors.New("ai budget exceeded")
-	ErrInternalServerError   = xerrors.New("internal server error")
+	ErrSpendStatusCheck      = xerrors.New("internal server error checking user ai spend")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -146,6 +146,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}
+	logger = logger.With(slog.F("user_id", id))
 
 	// TODO: make the budget period configurable; monthly for now.
 	periodStart := dbtime.StartOfMonth(dbtime.Now().UTC())
@@ -155,16 +156,15 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.Warn(ctx, "ai spend status check failed", slog.Error(err))
-		http.Error(rw, ErrInternalServerError.Error(), http.StatusInternalServerError)
+		http.Error(rw, ErrSpendStatusCheck.Error(), http.StatusInternalServerError)
 		return
 	}
 	if spendStatus.GetExceeded() {
 		http.Error(rw, fmt.Sprintf(
-			"%s: spent %.2f USD of %.2f USD in group %s",
+			"%s: spent US$%.2f of US$%.2f",
 			ErrBudgetExceeded.Error(),
 			float64(spendStatus.GetCurrentSpendMicros())/1_000_000,
 			float64(spendStatus.GetSpendLimitMicros())/1_000_000,
-			spendStatus.GetEffectiveGroupId(),
 		), http.StatusPaymentRequired)
 		return
 	}

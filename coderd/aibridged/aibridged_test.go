@@ -151,7 +151,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{OwnerId: uuid.NewString()}, nil)
 				client.EXPECT().GetUserAISpendStatus(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, xerrors.New("oops"))
 			},
-			expectedErr:    aibridged.ErrInternalServerError,
+			expectedErr:    aibridged.ErrSpendStatusCheck,
 			expectedStatus: http.StatusInternalServerError,
 		},
 

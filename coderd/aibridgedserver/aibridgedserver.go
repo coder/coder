@@ -731,7 +731,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 }
 
 // GetUserAISpendStatus returns the user's AI spend status aggregated over
-// [period_start, now].
+// [PeriodStart, now].
 func (s *Server) GetUserAISpendStatus(ctx context.Context, in *proto.GetUserAISpendStatusRequest) (*proto.GetUserAISpendStatusResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
@@ -740,8 +740,8 @@ func (s *Server) GetUserAISpendStatus(ctx context.Context, in *proto.GetUserAISp
 	if err != nil {
 		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
 	}
-	// An unset period_start deserializes to time.Unix(0, 0), which would
-	// aggregate the user's lifetime spend against a period budget.
+	// An unset PeriodStart deserializes to time.Unix(0, 0), which would
+	// incorrectly aggregate the user's lifetime spend against a period budget.
 	if in.PeriodStart == nil {
 		return nil, xerrors.New("period_start is required")
 	}
@@ -777,6 +777,14 @@ type userAISpendStatus struct {
 // resolveUserAISpendStatus computes the user's AI spend status aggregated from
 // periodStart. Returns a zero-valued status (EffectiveGroupID = uuid.Nil) when
 // no budget applies to the user.
+//
+// Note: there is a potential race condition where two concurrent requests
+// from the same user can both pass the check if processed in parallel,
+// allowing brief overage. This is acceptable because:
+//   - Cost is only known after the LLM API returns.
+//   - Overage is bounded by request cost × concurrency; once the accumulated
+//     spend crosses the limit, subsequent requests are blocked.
+//   - Fail-open is acceptable for this case.
 func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAISpendStatus, error) {
 	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
 	if err != nil {
@@ -814,7 +822,7 @@ func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID,
 	)
 	logger.Debug(ctx, "user AI spend status")
 	if status.Exceeded {
-		logger.Info(ctx, "user AI budget exceeded")
+		logger.Warn(ctx, "user AI budget exceeded")
 	}
 
 	return status, nil

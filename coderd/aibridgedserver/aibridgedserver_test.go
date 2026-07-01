@@ -399,19 +399,19 @@ func TestGetUserAISpendStatus(t *testing.T) {
 		userIDStr       string
 		omitPeriodStart bool
 		setupMocks      func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse
-		wantErr         bool
+		wantErrContains string
 	}{
 		{
 			// Invalid UUID short-circuits before any store call.
-			name:      "invalid user_id",
-			userIDStr: "not-a-uuid",
-			wantErr:   true,
+			name:            "invalid user_id",
+			userIDStr:       "not-a-uuid",
+			wantErrContains: "invalid user_id",
 		},
 		{
 			// Missing period_start is rejected before any store call.
 			name:            "missing period_start",
 			omitPeriodStart: true,
-			wantErr:         true,
+			wantErrContains: "period_start is required",
 		},
 		{
 			// No override and no group budget resolves: pass-through. All
@@ -472,6 +472,28 @@ func TestGetUserAISpendStatus(t *testing.T) {
 			},
 		},
 		{
+			// A configured limit of 0 is a valid "block-all" setting, distinct
+			// from "no budget configured". The >= comparison means spend of 0
+			// against a limit of 0 is exceeded.
+			name: "zero limit blocks all requests",
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+				groupID := uuid.New()
+				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
+					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
+				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
+					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 0}, nil)
+				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
+					Return(database.GetUserAISpendSinceRow{SpendMicros: 0}, nil)
+				return &proto.GetUserAISpendStatusResponse{
+					Exceeded:           true,
+					UserId:             userID.String(),
+					EffectiveGroupId:   groupID.String(),
+					SpendLimitMicros:   0,
+					CurrentSpendMicros: 0,
+				}
+			},
+		},
+		{
 			// Spend above limit (spend 1500 > limit 1000).
 			name: "over limit returns exceeded",
 			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
@@ -523,7 +545,7 @@ func TestGetUserAISpendStatus(t *testing.T) {
 					Return(database.UserAIBudgetOverride{}, sql.ErrConnDone)
 				return nil
 			},
-			wantErr: true,
+			wantErrContains: "resolve effective AI budget",
 		},
 		{
 			// Error from spend aggregation propagates (fail-closed).
@@ -537,7 +559,7 @@ func TestGetUserAISpendStatus(t *testing.T) {
 					Return(database.GetUserAISpendSinceRow{}, sql.ErrConnDone)
 				return nil
 			},
-			wantErr: true,
+			wantErrContains: "get user AI spend",
 		},
 	}
 
@@ -568,9 +590,10 @@ func TestGetUserAISpendStatus(t *testing.T) {
 				req.PeriodStart = timestamppb.New(dbtime.StartOfMonth(dbtime.Now().UTC()))
 			}
 			resp, err := srv.GetUserAISpendStatus(t.Context(), req)
-			if tc.wantErr {
+			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				require.Nil(t, resp)
+				assert.ErrorContains(t, err, tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
@@ -584,66 +607,122 @@ func TestGetUserAISpendStatus(t *testing.T) {
 	}
 }
 
-// TestGetUserAISpendStatus_PeriodBoundary exercises the aggregation window at
-// a UTC month boundary. A spend row in January pushes the user over their
-// limit; the same row is excluded when the query moves to the next period.
-func TestGetUserAISpendStatus_PeriodBoundary(t *testing.T) {
+// TestGetUserAISpendStatus_Enforcement exercises real-DB scenarios that drive
+// enforcement decisions.
+func TestGetUserAISpendStatus_Enforcement(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := testutil.Logger(t)
+	const groupLimitMicros = 1_000_000
 
-	rawDB, _ := dbtestutil.NewDB(t)
-	authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+	// setup provisions a user in an organization with a single budgeted group.
+	setup := func(t *testing.T) (context.Context, database.Store, *aibridgedserver.Server, database.User, database.Group) {
+		t.Helper()
 
-	org := dbgen.Organization(t, rawDB, database.Organization{})
-	user := dbgen.User(t, rawDB, database.User{})
-	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
-	group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
-	dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
 
-	const limitMicros = 1_000_000
-	_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-		GroupID:          group.ID,
-		SpendLimitMicros: limitMicros,
+		rawDB, _ := dbtestutil.NewDB(t)
+		authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+		org := dbgen.Organization(t, rawDB, database.Organization{})
+		user := dbgen.User(t, rawDB, database.User{})
+		dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+		group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+
+		_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+			GroupID:          group.ID,
+			SpendLimitMicros: groupLimitMicros,
+		})
+		require.NoError(t, err)
+
+		srv, err := aibridgedserver.NewServer(ctx, authzDB, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+		require.NoError(t, err)
+
+		return ctx, rawDB, srv, user, group
+	}
+
+	t.Run("period boundary excludes prior period spend", func(t *testing.T) {
+		t.Parallel()
+		ctx, rawDB, srv, user, group := setup(t)
+
+		prevMonth := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+		newMonth := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+
+		// User spend on 2026-01-15.
+		_, err := rawDB.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           user.ID,
+			EffectiveGroupID: group.ID,
+			Day:              prevMonth.AddDate(0, 0, 14),
+			CostMicros:       1_500_000,
+		})
+		require.NoError(t, err)
+
+		// Query with period_start 2026-01-01: includes the 2026-01-15 spend, user exceeded.
+		prevMonthResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+			UserId:      user.ID.String(),
+			PeriodStart: timestamppb.New(prevMonth),
+		})
+		require.NoError(t, err)
+		require.True(t, prevMonthResp.GetExceeded())
+		require.Equal(t, int64(1_500_000), prevMonthResp.GetCurrentSpendMicros())
+		require.Equal(t, int64(groupLimitMicros), prevMonthResp.GetSpendLimitMicros())
+
+		// Query with period_start 2026-02-01: excludes the 2026-01-15 spend, user not exceeded.
+		newMonthResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+			UserId:      user.ID.String(),
+			PeriodStart: timestamppb.New(newMonth),
+		})
+		require.NoError(t, err)
+		require.False(t, newMonthResp.GetExceeded())
+		require.Equal(t, int64(0), newMonthResp.GetCurrentSpendMicros())
+		require.Equal(t, int64(groupLimitMicros), newMonthResp.GetSpendLimitMicros())
 	})
-	require.NoError(t, err)
 
-	prevMonth := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
-	newMonth := time.Date(2026, time.February, 1, 0, 0, 0, 0, time.UTC)
+	t.Run("new user override unblocks user", func(t *testing.T) {
+		t.Parallel()
+		ctx, rawDB, srv, user, group := setup(t)
 
-	// Insert a spend row in the previous month that pushes the user over the limit.
-	_, err = rawDB.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
-		UserID:           user.ID,
-		EffectiveGroupID: group.ID,
-		Day:              prevMonth.AddDate(0, 0, 14),
-		CostMicros:       1_500_000,
+		periodStart := dbtime.StartOfMonth(dbtime.Now().UTC())
+
+		// User spend today, within the current period.
+		_, err := rawDB.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+			UserID:           user.ID,
+			EffectiveGroupID: group.ID,
+			Day:              dbtime.Now().UTC(),
+			CostMicros:       1_500_000,
+		})
+		require.NoError(t, err)
+
+		// User's spend exceeds the group limit.
+		beforeResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+			UserId:      user.ID.String(),
+			PeriodStart: timestamppb.New(periodStart),
+		})
+		require.NoError(t, err)
+		require.True(t, beforeResp.GetExceeded())
+		require.Equal(t, int64(groupLimitMicros), beforeResp.GetSpendLimitMicros())
+		require.Equal(t, int64(1_500_000), beforeResp.GetCurrentSpendMicros())
+
+		// Add user override with a higher limit on the same group. The override
+		// wins, so the user's spend is now under the effective limit.
+		const overrideLimitMicros = 2_000_000
+		_, err = rawDB.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+			UserID:           user.ID,
+			GroupID:          group.ID,
+			SpendLimitMicros: overrideLimitMicros,
+		})
+		require.NoError(t, err)
+
+		afterResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+			UserId:      user.ID.String(),
+			PeriodStart: timestamppb.New(periodStart),
+		})
+		require.NoError(t, err)
+		require.False(t, afterResp.GetExceeded())
+		require.Equal(t, int64(overrideLimitMicros), afterResp.GetSpendLimitMicros())
+		require.Equal(t, int64(1_500_000), afterResp.GetCurrentSpendMicros())
 	})
-	require.NoError(t, err)
-
-	srv, err := aibridgedserver.NewServer(ctx, authzDB, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
-	require.NoError(t, err)
-
-	// Same UTC month as the spend row: aggregation includes it, user exceeded.
-	prevMonthResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
-		UserId:      user.ID.String(),
-		PeriodStart: timestamppb.New(prevMonth),
-	})
-	require.NoError(t, err)
-	require.True(t, prevMonthResp.GetExceeded())
-	require.Equal(t, int64(1_500_000), prevMonthResp.GetCurrentSpendMicros())
-	require.Equal(t, int64(limitMicros), prevMonthResp.GetSpendLimitMicros())
-
-	// After the boundary: the previous month's row is outside the aggregation
-	// window and the user is no longer exceeded.
-	newMonthResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
-		UserId:      user.ID.String(),
-		PeriodStart: timestamppb.New(newMonth),
-	})
-	require.NoError(t, err)
-	require.False(t, newMonthResp.GetExceeded())
-	require.Equal(t, int64(0), newMonthResp.GetCurrentSpendMicros())
-	require.Equal(t, int64(limitMicros), newMonthResp.GetSpendLimitMicros())
 }
 
 func TestGetMCPServerConfigs(t *testing.T) {
