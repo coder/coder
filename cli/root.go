@@ -625,7 +625,7 @@ func (r *RootCmd) resolveClientURL() (*url.URL, error) {
 
 	rawURL, err := r.createConfig().URL().Read()
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrClientURLNotConfigured
 		}
 		return nil, xerrors.Errorf("read configured URL: %w", err)
