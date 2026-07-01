@@ -3,7 +3,7 @@ package chatutil
 import (
 	"strings"
 
-	stringsutil "github.com/coder/coder/v2/coderd/util/strings"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 // NormalizedStringPointer trims a string pointer and returns nil for nil or
@@ -12,7 +12,7 @@ func NormalizedStringPointer(value *string) *string {
 	if value == nil {
 		return nil
 	}
-	return stringsutil.EmptyToNil(strings.TrimSpace(*value))
+	return stringutil.EmptyToNil(strings.TrimSpace(*value))
 }
 
 // NormalizedEnumValue returns the canonical allowed value matching value after
