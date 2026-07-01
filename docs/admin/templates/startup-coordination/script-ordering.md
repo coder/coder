@@ -56,7 +56,12 @@ Neither script contains any synchronization code. The agent starts
 | `coder_script.<name>`        | A single script (all instances when it uses `count` or `for_each`) |
 | `coder_script.<name>[<idx>]` | One instance of a script that uses `count` or `for_each`           |
 | `module.<name>`              | Every script inside the module, including nested modules           |
-| `coder_agent.<name>`         | The agent's legacy inline `startup_script`, if it sets one         |
+
+> [!NOTE]
+> Only `coder_script` resources can be ordered. An agent's legacy inline
+> `startup_script` (and `shutdown_script`) has no selector and cannot
+> participate in `coder_script_order` rules. Move the script body into a
+> `coder_script` resource with `run_on_start = true` to order it.
 
 List multiple selectors in `run` to apply the same `after` constraint to
 several scripts at once, instead of repeating the rule:
@@ -73,13 +78,6 @@ declared. A `coder_script_order` declared inside a module can only
 reference scripts in that module's subtree, so modules can ship their
 own internal ordering rules without conflicting with the template that
 uses them.
-
-The `coder_agent.<name>` selector lets a rule reference an agent's
-legacy inline `startup_script` directly, without migrating it to a
-`coder_script` resource first. It only matches scripts; an agent with
-no `startup_script` set has nothing for the selector to match. The
-legacy `shutdown_script` attribute cannot be ordered, the same as any
-other stop script.
 
 Module selectors make registry modules orderable without changes:
 
@@ -118,8 +116,9 @@ timeline. See
 Additional semantics:
 
 - Only `run_on_start` scripts can be ordered. Cron and stop scripts are
-  unaffected; this includes the legacy `shutdown_script` attribute on
-  `coder_agent`, which has no selector at all.
+  unaffected. Only `coder_script` resources have a selector; an
+  agent's legacy inline `startup_script` and `shutdown_script`
+  attributes cannot be referenced or ordered.
 - A script's `timeout` applies to its own run, not to the time spent
   waiting for dependencies. Set timeouts on dependencies as a backstop
   so a hung script cannot block its dependents forever.

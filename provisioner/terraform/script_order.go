@@ -27,15 +27,13 @@ const (
 //
 //	coder_script.<name>
 //	coder_script.<name>[<index>]
-//	coder_agent.<name>           (the agent's legacy inline startup_script)
 //	module.<name>(.module.<name>...)
 //	module.<name>(.module.<name>...).coder_script.<name>
-//	module.<name>(.module.<name>...).coder_agent.<name>
 //
 // Index keys may be integers or quoted strings (count / for_each). This
 // mirrors the validation in terraform-provider-coder.
 var scriptOrderSelectorRe = regexp.MustCompile(
-	`^(module\.[\w-]+(\[[^\]]+\])?(\.module\.[\w-]+(\[[^\]]+\])?)*(\.(coder_script|coder_agent)\.[\w-]+(\[[^\]]+\])?)?|coder_script\.[\w-]+(\[[^\]]+\])?|coder_agent\.[\w-]+(\[[^\]]+\])?)$`,
+	`^(module\.[\w-]+(\[[^\]]+\])?(\.module\.[\w-]+(\[[^\]]+\])?)*(\.coder_script\.[\w-]+(\[[^\]]+\])?)?|coder_script\.[\w-]+(\[[^\]]+\])?)$`,
 )
 
 // scriptOrderDataSource is a coder_script_order data source found in
@@ -46,10 +44,9 @@ type scriptOrderDataSource struct {
 	moduleAddress string
 }
 
-// orderableScript is a script that a coder_script_order rule can select:
-// either a coder_script resource, or the synthetic script built from a
-// coder_agent's legacy inline startup_script. It pairs the proto script it
-// produced with the agent or devcontainer the script attached to.
+// orderableScript is a coder_script resource that a coder_script_order
+// rule can select. It pairs the proto script it produced with the agent
+// or devcontainer the script attached to.
 type orderableScript struct {
 	address string
 	script  *proto.Script
@@ -235,10 +232,7 @@ func applyScriptOrder(dataSources map[string]scriptOrderDataSource, scripts []*o
 	// Emit dependencies in address order so output is deterministic.
 	// A coder_script resource's id is computed at apply; during plan it
 	// can be empty, in which case the rules are validated but no
-	// dependency is emitted. The legacy coder_agent startup script's
-	// synthetic id has no such plan/apply distinction, but at most one
-	// exists per agent, so it can never form a same-owner pair with
-	// itself and hit this skip.
+	// dependency is emitted.
 	for _, runAddr := range sortedKeys(edges) {
 		run := byAddress[runAddr]
 		for _, depAddr := range sortedKeys(edges[runAddr]) {
@@ -260,15 +254,14 @@ func applyScriptOrder(dataSources map[string]scriptOrderDataSource, scripts []*o
 // that declared the data source and returns every matching script that is
 // associated with an agent, sorted by address. A selector whose matches
 // are all unattached resolves to nothing; only a selector that matches no
-// orderable script at all (no coder_script, and no coder_agent with a
-// startup_script) is an error.
+// coder_script resource at all is an error.
 func resolveScriptOrderSelector(ds scriptOrderDataSource, selector string, scripts []*orderableScript) ([]*orderableScript, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
 		return nil, xerrors.New("selector must not be empty")
 	}
 	if !scriptOrderSelectorRe.MatchString(selector) {
-		return nil, xerrors.Errorf("invalid selector %q: expected coder_script.<name>, coder_agent.<name>, or module.<name>, optionally nested or indexed", selector)
+		return nil, xerrors.Errorf("invalid selector %q: expected coder_script.<name> or module.<name>, optionally nested or indexed", selector)
 	}
 
 	prefix := selector
@@ -317,7 +310,7 @@ func resolveScriptOrderSelector(ds scriptOrderDataSource, selector string, scrip
 	}
 	sort.Strings(candidates)
 	if len(candidates) == 0 {
-		return nil, xerrors.Errorf("selector %q matches nothing in %s, which contains no coder_script resources and no coder_agent with a startup_script", selector, scope)
+		return nil, xerrors.Errorf("selector %q matches nothing in %s, which contains no coder_script resources", selector, scope)
 	}
 	return nil, xerrors.Errorf("selector %q matches nothing in %s; orderable addresses in scope: %s", selector, scope, strings.Join(candidates, ", "))
 }
