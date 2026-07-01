@@ -1,21 +1,16 @@
 # Rebranding Migration
 
-> [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
-
 AI Bridge has been renamed to **AI Gateway**. This is a cosmetic rebrand to make
 the feature easier to understand. It changes user-visible names, configuration
 options, the canonical HTTP API path, and the Prometheus metric names.
 
 > [!NOTE]
-> This release does not break existing deployments. Old names keep working as
+> This release does not break existing deployments. Previous names keep working as
 > deprecated aliases, there are no database changes, and no configuration
 > changes are required to upgrade.
 
-The old `aibridge` names are retained for backward compatibility. There is no
-planned removal date, but we recommend adopting the new `ai_gateway` names so
+The previous `aibridge` names are retained for backward compatibility. There is no
+planned removal date, but you should adopt the new `ai_gateway` names as soon as possible, so
 your configuration matches the current documentation.
 
 > [!IMPORTANT]
@@ -36,7 +31,7 @@ your configuration matches the current documentation.
 
 ## What did not change
 
-- **No database changes.** Table and column names (for example
+- **No database changes.** Table and column names (for example,
   `aibridge_interceptions`) are unchanged. No migration runs and no data is
   rewritten on upgrade.
 - **No behavioral changes.** This is a naming change only. Values, defaults, and
@@ -47,10 +42,10 @@ your configuration matches the current documentation.
 
 ## Configuration (env vars, flags, YAML)
 
-The new names are the canonical options; the old `aibridge` names still set the
+The new names are the canonical options; the previous `aibridge` names still set the
 same values as hidden, deprecated aliases.
 
-If both an old and a new name are set for the same setting, set only one (prefer
+If both a previous name and a new name are set for the same setting, set only one (prefer
 the new name).
 
 ### Naming rules
@@ -142,7 +137,7 @@ prefix change.
 ### Provider configuration env vars
 
 Providers are configured with indexed environment variables of the form
-`CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` (for example
+`CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>` (for example,
 `CODER_AI_GATEWAY_PROVIDER_0_TYPE`, `CODER_AI_GATEWAY_PROVIDER_0_NAME`,
 `CODER_AI_GATEWAY_PROVIDER_0_KEY`, `CODER_AI_GATEWAY_PROVIDER_0_BASE_URL`). The
 old `CODER_AIBRIDGE_PROVIDER_<N>_<KEY>` prefix is accepted as a deprecated alias.
@@ -156,7 +151,7 @@ cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment
 ```
 
 Move every provider variable onto the new `CODER_AI_GATEWAY_PROVIDER_*` prefix
-together (for example `CODER_AIBRIDGE_PROVIDER_0_TYPE` becomes
+together (for example, `CODER_AIBRIDGE_PROVIDER_0_TYPE` becomes
 `CODER_AI_GATEWAY_PROVIDER_0_TYPE`).
 
 ## HTTP API
@@ -166,7 +161,7 @@ The canonical API path is now `/api/v2/ai-gateway` (and
 `/api/v2/aibridge/proxy` routes are retained for backward compatibility and
 continue to serve the same handlers.
 
-If you have external integrations calling the API directly, update them to the
+If you have external integrations or agents calling the API directly, update them to the
 new path at your convenience. No immediate action is required.
 
 AI clients (such as Claude Code, Codex, and other tools) that are configured

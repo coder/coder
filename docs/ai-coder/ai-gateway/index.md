@@ -22,10 +22,7 @@ AI Gateway solves 3 key problems:
 > As of Coder v2.32, deployments without the add-on will not be able to
 > access AI Gateway.
 >
-> AI Gateway was previously known as "AI Bridge". The old "AI Bridge"
-> configuration options, environment variables, and API paths are still
-> supported as aliases for backward compatibility. See
-> [Rebranding Migration](./rebranding-migration.md) for details.
+> AI Gateway was previously known as "AI Bridge". Visit [Rebranding Migration](./rebranding-migration.md) for details.
 
 ## When to use AI Gateway
 
