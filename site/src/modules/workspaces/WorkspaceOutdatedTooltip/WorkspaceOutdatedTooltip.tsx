@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { InfoIcon, RotateCcwIcon } from "lucide-react";
+import { CircleAlertIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
@@ -52,7 +52,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 						onKeyDown={stopPropagation}
 						onKeyUp={stopPropagation}
 					>
-						<InfoIcon
+						<CircleAlertIcon
 							css={(theme) => ({
 								color: theme.roles.notice.outline,
 							})}
@@ -69,7 +69,7 @@ export const WorkspaceOutdatedTooltip: FC<WorkspaceOutdatedTooltipProps> = ({
 					onKeyDown={stopPropagation}
 					onKeyUp={stopPropagation}
 				>
-					<InfoIcon
+					<CircleAlertIcon
 						css={(theme) => ({
 							color: theme.roles.notice.outline,
 						})}
