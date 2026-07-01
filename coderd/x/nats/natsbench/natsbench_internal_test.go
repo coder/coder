@@ -2,7 +2,6 @@ package main
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -66,9 +65,18 @@ func TestRunSingleNode(t *testing.T) {
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Greater(t, res.Delivered, res.Published, "fan-out must exceed publishes")
 	require.Zero(t, res.Drops)
-	require.Greater(t, res.PubsPerSec, 0.0)
-	require.Greater(t, res.DeliveriesPerSec, 0.0)
-	require.Greater(t, res.DeliverDuration, time.Duration(0))
+	// Windows' monotonic clock advances in coarse (up to 15.6ms) ticks,
+	// so a sub-tick phase measures a 0 duration and yields a 0 rate.
+	if res.PublishDuration > 0 {
+		require.Greater(t, res.PubsPerSec, 0.0)
+	} else {
+		require.Zero(t, res.PubsPerSec)
+	}
+	if res.DeliverDuration > 0 {
+		require.Greater(t, res.DeliveriesPerSec, 0.0)
+	} else {
+		require.Zero(t, res.DeliveriesPerSec)
+	}
 	require.GreaterOrEqual(t, res.DeliverDuration, res.PublishDuration)
 }
 
@@ -101,6 +109,15 @@ func TestRunCluster(t *testing.T) {
 	require.EqualValues(t, pl.totalExpected, res.Expected)
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Zero(t, res.Drops)
-	require.Greater(t, res.PubsPerSec, 0.0)
-	require.Greater(t, res.DeliveriesPerSec, 0.0)
+	// See TestRunSingleNode: coarse clocks can quantize a phase to 0.
+	if res.PublishDuration > 0 {
+		require.Greater(t, res.PubsPerSec, 0.0)
+	} else {
+		require.Zero(t, res.PubsPerSec)
+	}
+	if res.DeliverDuration > 0 {
+		require.Greater(t, res.DeliveriesPerSec, 0.0)
+	} else {
+		require.Zero(t, res.DeliveriesPerSec)
+	}
 }
