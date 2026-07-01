@@ -66,9 +66,18 @@ func TestRunSingleNode(t *testing.T) {
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Greater(t, res.Delivered, res.Published, "fan-out must exceed publishes")
 	require.Zero(t, res.Drops)
-	require.Greater(t, res.PubsPerSec, 0.0)
-	require.Greater(t, res.DeliveriesPerSec, 0.0)
-	require.Greater(t, res.DeliverDuration, time.Duration(0))
+	// Windows' coarse clock can measure a zero publish/deliver duration for
+	// these fast fixed-count runs, which forces the derived rate to 0. Assert
+	// the rate is non-negative always, and positive only when time elapsed.
+	require.GreaterOrEqual(t, res.PubsPerSec, 0.0)
+	if res.PublishDuration > 0 {
+		require.Greater(t, res.PubsPerSec, 0.0)
+	}
+	require.GreaterOrEqual(t, res.DeliveriesPerSec, 0.0)
+	if res.DeliverDuration > 0 {
+		require.Greater(t, res.DeliveriesPerSec, 0.0)
+	}
+	require.GreaterOrEqual(t, res.DeliverDuration, time.Duration(0))
 	require.GreaterOrEqual(t, res.DeliverDuration, res.PublishDuration)
 }
 
@@ -101,6 +110,15 @@ func TestRunCluster(t *testing.T) {
 	require.EqualValues(t, pl.totalExpected, res.Expected)
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Zero(t, res.Drops)
-	require.Greater(t, res.PubsPerSec, 0.0)
-	require.Greater(t, res.DeliveriesPerSec, 0.0)
+	// Windows' coarse clock can measure a zero publish/deliver duration for
+	// these fast fixed-count runs, which forces the derived rate to 0. Assert
+	// the rate is non-negative always, and positive only when time elapsed.
+	require.GreaterOrEqual(t, res.PubsPerSec, 0.0)
+	if res.PublishDuration > 0 {
+		require.Greater(t, res.PubsPerSec, 0.0)
+	}
+	require.GreaterOrEqual(t, res.DeliveriesPerSec, 0.0)
+	if res.DeliverDuration > 0 {
+		require.Greater(t, res.DeliveriesPerSec, 0.0)
+	}
 }
