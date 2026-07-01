@@ -45,7 +45,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: "config-openai-gpt-4o",
-		provider: "openai",
+		ai_provider_id: "prov-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,

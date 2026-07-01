@@ -69,7 +69,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: defaultModelConfigID,
-		provider: "openai",
+		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -180,6 +180,7 @@ const AgentsRouteElement = () => (
 			is_malformed: false,
 		}}
 		modelConfigsData={[]}
+		providerTypeByID={new Map()}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
 		isFetchingModelConfigs={false}
@@ -436,7 +437,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
 				id: defaultModelConfigID,
-				provider: "openai",
+				ai_provider_id: "provider-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
 				enabled: true,
@@ -445,6 +446,21 @@ const meta: Meta<typeof AgentsPageView> = {
 				compression_threshold: 70,
 				created_at: "2026-02-18T00:00:00.000Z",
 				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+		]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-openai",
+					type: "openai",
+					name: "openai",
+					display_name: "OpenAI",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
 			},
 		]);
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);

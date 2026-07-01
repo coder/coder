@@ -34,6 +34,7 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
+	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -87,12 +88,11 @@ import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
-	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
-	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 	resolveModelOptionId,
+	resolveModelSelector,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
@@ -776,6 +776,7 @@ const AgentChatPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
@@ -805,9 +806,15 @@ const AgentChatPage: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(
+		chatModelConfigsQuery,
+		chatModelsQuery,
+		userProviderConfigsQuery,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =
@@ -826,8 +833,6 @@ const AgentChatPage: FC = () => {
 	const unsupportedProviderNames = getUnsupportedProviderNames(
 		chatModelsQuery.data,
 	);
-	const modelCatalog = chatModelsQuery.data;
-	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -1136,7 +1141,6 @@ const AgentChatPage: FC = () => {
 		modelConfigs,
 	);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,

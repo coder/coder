@@ -160,14 +160,15 @@ const (
 
 func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
-	providerName := takeFirst(seed.Provider, "openai")
 	aiProviderID := seed.AIProviderID
 	if !aiProviderID.Valid {
+		// No AIProviderID supplied: reuse or create a default openai provider.
+		// Tests needing a specific provider type should pass seed.AIProviderID.
 		providers, err := db.GetAIProviders(genCtx, database.GetAIProvidersParams{IncludeDisabled: true})
 		require.NoError(t, err, "get ai providers")
 		var provider database.AIProvider
 		for _, candidate := range providers {
-			if candidate.Type != database.AIProviderType(providerName) {
+			if candidate.Type != database.AIProviderTypeOpenai {
 				continue
 			}
 			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
@@ -176,13 +177,12 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		if provider.ID == uuid.Nil {
 			provider = AIProvider(t, db, database.AIProvider{
-				Type: database.AIProviderType(providerName),
+				Type: database.AIProviderTypeOpenai,
 			})
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
 	params := database.InsertChatModelConfigParams{
-		Provider:             providerName,
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
 		CreatedBy:            seed.CreatedBy,

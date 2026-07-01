@@ -13,6 +13,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
 
 export interface ModelSelectorOption {
@@ -40,14 +41,6 @@ interface ModelSelectorProps {
 	onTriggerTouchStart?: () => void;
 	enableMobileFullWidthDropdown?: boolean;
 }
-
-const defaultFormatProviderLabel = (provider: string): string => {
-	const normalized = provider.trim().toLowerCase();
-	if (!normalized) {
-		return "Unknown";
-	}
-	return `${normalized[0].toUpperCase()}${normalized.slice(1)}`;
-};
 
 const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
