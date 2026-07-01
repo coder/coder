@@ -26,7 +26,7 @@ jobs:
       chrome-path: ${{ steps.install-chrome.outputs.path }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -48,7 +48,7 @@ jobs:
           echo "cache-key=puppeteer-${RUNNER_OS}-${RUNNER_ARCH}-browsers-${installer_version}-chrome-${CHROME_BUILD_ID}" >> "$GITHUB_OUTPUT"
 
       - name: Restore Puppeteer browser cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/puppeteer
           key: ${{ steps.browser-versions.outputs.cache-key }}
@@ -68,7 +68,7 @@ jobs:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -102,13 +102,13 @@ jobs:
           mkdir -p "$(pnpm store path --silent)"
 
       - name: Restore Puppeteer browser cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/puppeteer
           key: ${{ needs.prepare-linkspector-browser.outputs.browser-cache-key }}
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@036f295d12b67b0c4b445bc83db0538afb78db69 # v1.5.2
+        uses: umbrelladocs/action-linkspector@6c637d70424624231467a4ca918be54fa3b792d0 # v1.5.4
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         env:
@@ -149,7 +149,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
