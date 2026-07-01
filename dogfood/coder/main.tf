@@ -337,6 +337,14 @@ module "mux" {
   max_restart_attempts = 10
 }
 
+module "vscode-desktop" {
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? data.coder_workspace.me.start_count : 0
+  source   = "dev.registry.coder.com/coder/vscode-desktop/coder"
+  version  = "1.2.1"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
@@ -426,7 +434,6 @@ module "portabledesktop" {
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
-  dir  = local.repo_dir
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
@@ -456,7 +463,7 @@ resource "coder_agent" "dev" {
   startup_script_behavior = "blocking"
 
   display_apps {
-    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode")
+    vscode          = false # served by the vscode-desktop module instead, so `folder` keeps working without the deprecated agent `dir` attribute.
     vscode_insiders = false
   }
 
@@ -608,6 +615,41 @@ resource "coder_agent" "dev" {
 
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
+  EOT
+}
+
+# The `dir` attribute on `coder_agent` is deprecated (it breaks Coder Desktop
+# file sync when set to anything other than `$HOME`). This coder_script
+# replaces it as the mechanism that lands plain `coder ssh`/web terminal
+# sessions in the cloned repo instead of $HOME.
+#
+# It writes to /etc/profile.d/ instead of ~/.bashrc, ~/.zshrc, etc. on
+# purpose: those are managed by the `dotfiles` module (which may symlink in
+# a user's own dotfiles repo) and the `personalize` script, and clobbering
+# either would silently undo someone's own shell customization. /etc/profile.d
+# lives outside $HOME, is sourced by /etc/profile for login shells only
+# (which is what a bare SSH/web terminal session requests), and won't be
+# touched by either of those.
+resource "coder_script" "default_workdir" {
+  agent_id           = coder_agent.dev.id
+  display_name       = "Configure Default Working Directory"
+  run_on_start       = true
+  start_blocks_login = false
+  script             = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    sudo tee /etc/profile.d/00-coder-default-workdir.sh > /dev/null <<-'EOF'
+    # Managed by the coder/coder dogfood template (dogfood/coder/main.tf).
+    # Lands interactive login shells (plain ssh/web terminal) in the
+    # cloned repo instead of $HOME. Never edits the user's own dotfiles.
+    case "$-" in
+      *i*)
+        [ -d "${local.repo_dir}" ] && cd "${local.repo_dir}" || true
+        ;;
+    esac
+    EOF
+    sudo chmod 644 /etc/profile.d/00-coder-default-workdir.sh
   EOT
 }
 
