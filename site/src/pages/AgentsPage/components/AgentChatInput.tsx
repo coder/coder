@@ -1417,7 +1417,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								placeholder={modelSelectorPlaceholder}
 								className="md:shrink"
 								dropdownSide="top"
-								dropdownAlign="center"
+								dropdownAlign="start"
 								enableMobileFullWidthDropdown
 							/>
 						)}
