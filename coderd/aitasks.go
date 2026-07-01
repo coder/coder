@@ -163,26 +163,18 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		taskResourceInfo.WorkspaceOwner = owner.Username
 	}
 
-	// Authorize workspace creation before the external auth preflight below.
-	// createWorkspace re-checks these gates as the authoritative defense, but
-	// requireWorkspaceOwnerExternalAuth validates (and may refresh or clear) the
-	// owner's external auth tokens under a system-restricted context. Running it
-	// before proving the caller may create a workspace for this owner using this
-	// template would let an unauthorized caller trigger token refresh side
-	// effects and probe another user's auth state. Mirror the ordering in
-	// createWorkspace so the side-effectful preflight only runs once the caller
-	// is authorized.
-	if _, err := api.preflightWorkspaceCreate(ctx, owner.ID, codersdk.CreateWorkspaceRequest{
+	// Validate the workspace create request up front, before generating a task
+	// name or inserting any rows. validateWorkspaceCreate runs the authorization
+	// preflight and the required external auth check exactly once;
+	// createValidatedWorkspace below reuses the result instead of re-validating,
+	// so the owner's external auth providers are not contacted twice. The
+	// authorization preflight runs before the side-effectful external auth check,
+	// so an unauthorized caller cannot trigger token refresh side effects or
+	// probe another user's auth state.
+	validated, err := api.validateWorkspaceCreate(ctx, owner, codersdk.CreateWorkspaceRequest{
 		TemplateVersionID: req.TemplateVersionID,
-	}); err != nil {
-		httperror.WriteResponseError(ctx, rw, err)
-		return
-	}
-
-	// Required external auth is otherwise only enforced once createWorkspace
-	// runs. Validate it here so the Tasks API rejects an owner who is missing a
-	// required provider before any task name generation or row insertion.
-	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+	})
+	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
 	}
@@ -219,7 +211,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAuditWS()
 
-	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, &createWorkspaceOptions{
+	workspace, err := createValidatedWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, validated, &createWorkspaceOptions{
 		remoteAddr: r.RemoteAddr,
 		// Before creating the workspace, ensure that this task can be created.
 		preCreateInTX: func(ctx context.Context, tx database.Store) error {
