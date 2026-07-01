@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -60,6 +61,10 @@ type generationPrepared struct {
 	DynamicToolNames   map[string]bool
 	StopAfterTools     map[string]struct{}
 	ExclusiveToolNames map[string]bool
+	// StructuredOutput is non-nil when the active turn requested a
+	// server-validated structured final output. It gates required
+	// tool choice and turn-completion semantics.
+	StructuredOutput   *structuredoutput.Request
 	BuiltinToolNames   map[string]bool
 	ToolNameToConfigID map[string]uuid.UUID
 
@@ -171,12 +176,24 @@ type generationDecisionInput struct {
 	dynamicToolNames           map[string]bool
 	exclusiveToolNames         map[string]bool
 	stopAfterTools             map[string]struct{}
+	structuredOutputRequired   bool
 	maxSteps                   int
 	compactionEnabled          bool
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
 }
+
+// errStructuredOutputNotProduced finishes a structured output turn
+// with a terminal error when the step budget runs out before the
+// model produces a validated finalizer result.
+var errStructuredOutputNotProduced = chaterror.WithClassification(
+	xerrors.New("structured_output_not_produced"),
+	chaterror.ClassifiedError{
+		Message: "The model did not produce the requested structured output before the step limit was reached.",
+		Kind:    codersdk.ChatErrorKindGeneric,
+	},
+)
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
 	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
@@ -211,10 +228,18 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if err != nil {
 		return generationDecision{}, err
 	}
-	if complete {
+	// A structured output turn only finishes via the finalizer's
+	// stop-after result above. Text-only completion regenerates
+	// under required tool choice until the step budget runs out,
+	// then the turn fails terminally instead of succeeding via
+	// max_steps.
+	if complete && !input.structuredOutputRequired {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
 	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+		if input.structuredOutputRequired {
+			return generationDecision{}, terminalGeneration(errStructuredOutputNotProduced)
+		}
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
@@ -329,6 +354,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				dynamicToolNames:           prepared.DynamicToolNames,
 				exclusiveToolNames:         prepared.ExclusiveToolNames,
 				stopAfterTools:             prepared.StopAfterTools,
+				structuredOutputRequired:   prepared.StructuredOutput != nil,
 				maxSteps:                   prepared.MaxSteps,
 				compactionEnabled:          prepared.Compaction != nil,
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
@@ -602,6 +628,15 @@ func (s *taskStarter) generateAssistant(
 	}
 	defer closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
+	// Structured output turns require a tool call on every step so
+	// the turn cannot end on plain text; success needs a validated
+	// finalizer result. Provider rejections of required tool choice
+	// surface as normal generation errors, never a silent downgrade.
+	var toolChoice *fantasy.ToolChoice
+	if prepared.StructuredOutput != nil {
+		required := fantasy.ToolChoiceRequired
+		toolChoice = &required
+	}
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
 		Model:                prepared.Model,
 		ErrorProvider:        prepared.ResolvedProvider,
@@ -612,6 +647,7 @@ func (s *taskStarter) generateAssistant(
 		ContextLimitFallback: prepared.ContextLimitFallback,
 		ModelConfig:          prepared.ModelConfig,
 		ProviderOptions:      prepared.ProviderOptions,
+		ToolChoice:           toolChoice,
 		PublishMessagePart:   publish,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
@@ -621,6 +657,12 @@ func (s *taskStarter) generateAssistant(
 		return xerrors.Errorf("generate assistant: %w", err)
 	}
 	if len(outcome.Step.Content) == 0 {
+		// A structured output turn must not finish without a
+		// validated finalizer result; an empty model response is an
+		// error there rather than a graceful completion.
+		if prepared.StructuredOutput != nil {
+			return s.finishGenerationError(ctx, machine, input, attempt, errStructuredOutputNotProduced, generationAttemptRequired)
+		}
 		return s.finishGenerationTurn(ctx, machine, input, attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)
 	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{

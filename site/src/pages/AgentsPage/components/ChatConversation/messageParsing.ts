@@ -293,6 +293,11 @@ export const parseMessageContent = (
 				// they are not rendered in the conversation timeline.
 				break;
 			}
+			case "response-format": {
+				// Response-format parts are structured output request
+				// metadata; they are not rendered in the timeline.
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;

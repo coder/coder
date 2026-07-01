@@ -211,6 +211,9 @@ export const applyMessagePartToStreamState = (
 		// skill parts are metadata-only; no streaming render
 		// needed.
 		case "skill":
+		// response-format parts only appear on persisted user
+		// messages, never via SSE streaming.
+		case "response-format":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

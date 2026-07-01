@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -14300,6 +14301,328 @@ func TestPostChats_DynamicToolValidation(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Duplicate dynamic tool name.", sdkErr.Message)
+	})
+
+	t.Run("ReservedToolName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// The structured output finalizer name is rejected even when
+		// no response_format is requested, so a later structured
+		// message cannot be shadowed by a pre-registered tool.
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{
+				{Name: structuredoutput.ToolName},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Reserved dynamic tool name.", sdkErr.Message)
+	})
+}
+
+func TestChatResponseFormat(t *testing.T) {
+	t.Parallel()
+
+	validSchema := json.RawMessage(`{
+		"type": "object",
+		"properties": {"answer": {"type": "string"}},
+		"required": ["answer"],
+		"additionalProperties": false
+	}`)
+	validFormat := func() *codersdk.ChatResponseFormat {
+		return &codersdk.ChatResponseFormat{
+			Type: codersdk.ChatResponseFormatTypeJSONSchema,
+			JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+				Name:   "answer_report",
+				Schema: validSchema,
+			},
+		}
+	}
+	findResponseFormatPart := func(parts []codersdk.ChatMessagePart) *codersdk.ChatResponseFormat {
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeResponseFormat {
+				return part.ResponseFormat
+			}
+		}
+		return nil
+	}
+	textInput := func(text string) []codersdk.ChatInputPart {
+		return []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: text,
+		}}
+	}
+
+	t.Run("CreateChatPersistsPart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("respond with structure"),
+			ResponseFormat: validFormat(),
+		})
+		require.NoError(t, err)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var found *codersdk.ChatResponseFormat
+		for _, message := range messagesResult.Messages {
+			if message.Role != codersdk.ChatMessageRoleUser {
+				continue
+			}
+			if format := findResponseFormatPart(message.Content); format != nil {
+				found = format
+			}
+		}
+		require.NotNil(t, found, "user message must carry the response-format part")
+		require.Equal(t, codersdk.ChatResponseFormatTypeJSONSchema, found.Type)
+		require.NotNil(t, found.JSONSchema)
+		require.Equal(t, "answer_report", found.JSONSchema.Name)
+		require.JSONEq(t, string(validSchema), string(found.JSONSchema.Schema))
+	})
+
+	t.Run("CreateMessagePersistsPart", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("first message"),
+		})
+		require.NoError(t, err)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:        textInput("now with structure"),
+			ResponseFormat: validFormat(),
+		})
+		require.NoError(t, err)
+
+		var parts []codersdk.ChatMessagePart
+		if created.Queued {
+			require.NotNil(t, created.QueuedMessage)
+			parts = created.QueuedMessage.Content
+		} else {
+			require.NotNil(t, created.Message)
+			parts = created.Message.Content
+		}
+		format := findResponseFormatPart(parts)
+		require.NotNil(t, format, "message content must carry the response-format part")
+		require.Equal(t, codersdk.ChatResponseFormatTypeJSONSchema, format.Type)
+		require.JSONEq(t, string(validSchema), string(format.JSONSchema.Schema))
+	})
+
+	t.Run("TextTypeIsNoop", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("plain text is fine"),
+			ResponseFormat: &codersdk.ChatResponseFormat{
+				Type: codersdk.ChatResponseFormatTypeText,
+			},
+		})
+		require.NoError(t, err)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		for _, message := range messagesResult.Messages {
+			require.Nil(t, findResponseFormatPart(message.Content),
+				"text response format must not persist a part")
+		}
+	})
+
+	t.Run("InvalidFormats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		strictFalse := false
+		cases := []struct {
+			name      string
+			format    *codersdk.ChatResponseFormat
+			wantField string
+		}{
+			{
+				name:      "MissingType",
+				format:    &codersdk.ChatResponseFormat{},
+				wantField: "response_format.type",
+			},
+			{
+				name: "TextWithSchema",
+				format: &codersdk.ChatResponseFormat{
+					Type:       codersdk.ChatResponseFormatTypeText,
+					JSONSchema: validFormat().JSONSchema,
+				},
+				wantField: "response_format.json_schema",
+			},
+			{
+				name: "BadName",
+				format: &codersdk.ChatResponseFormat{
+					Type: codersdk.ChatResponseFormatTypeJSONSchema,
+					JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+						Name:   "not a valid name!",
+						Schema: validSchema,
+					},
+				},
+				wantField: "response_format.json_schema.name",
+			},
+			{
+				name: "StrictFalse",
+				format: &codersdk.ChatResponseFormat{
+					Type: codersdk.ChatResponseFormatTypeJSONSchema,
+					JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+						Name:   "answer_report",
+						Schema: validSchema,
+						Strict: &strictFalse,
+					},
+				},
+				wantField: "response_format.json_schema.strict",
+			},
+			{
+				name: "RootNotObject",
+				format: &codersdk.ChatResponseFormat{
+					Type: codersdk.ChatResponseFormatTypeJSONSchema,
+					JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+						Name:   "answer_report",
+						Schema: json.RawMessage(`{"type":"array","items":{"type":"string"}}`),
+					},
+				},
+				wantField: "response_format.json_schema.schema",
+			},
+			{
+				name: "RemoteRef",
+				format: &codersdk.ChatResponseFormat{
+					Type: codersdk.ChatResponseFormatTypeJSONSchema,
+					JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+						Name:   "answer_report",
+						Schema: json.RawMessage(`{"type":"object","properties":{"a":{"$ref":"https://example.com/x.json"}}}`),
+					},
+				},
+				wantField: "response_format.json_schema.schema",
+			},
+			{
+				name: "SchemaTooLarge",
+				format: &codersdk.ChatResponseFormat{
+					Type: codersdk.ChatResponseFormatTypeJSONSchema,
+					JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+						Name:   "answer_report",
+						Schema: json.RawMessage(`{"type":"object","description":"` + strings.Repeat("x", structuredoutput.MaxSchemaBytes) + `"}`),
+					},
+				},
+				wantField: "response_format.json_schema.schema",
+			},
+		}
+
+		// One chat is enough for the message-level assertions.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("message-level invalid format target"),
+		})
+		require.NoError(t, err)
+
+		for _, tc := range cases {
+			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: user.OrganizationID,
+				Content:        textInput("should fail"),
+				ResponseFormat: tc.format,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid response_format.", sdkErr.Message, "create case %s", tc.name)
+			require.Len(t, sdkErr.Validations, 1, "create case %s", tc.name)
+			require.Equal(t, tc.wantField, sdkErr.Validations[0].Field, "create case %s", tc.name)
+
+			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:        textInput("should fail"),
+				ResponseFormat: tc.format,
+			})
+			sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid response_format.", sdkErr.Message, "message case %s", tc.name)
+			require.Len(t, sdkErr.Validations, 1, "message case %s", tc.name)
+			require.Equal(t, tc.wantField, sdkErr.Validations[0].Field, "message case %s", tc.name)
+		}
+	})
+
+	t.Run("PlanModeConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Create-level conflict.
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("plan mode plus structure"),
+			PlanMode:       codersdk.ChatPlanModePlan,
+			ResponseFormat: validFormat(),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "plan mode")
+
+		// Message-level conflict with the chat's persistent mode.
+		planChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("persistent plan mode chat"),
+			PlanMode:       codersdk.ChatPlanModePlan,
+		})
+		require.NoError(t, err)
+		_, err = client.CreateChatMessage(ctx, planChat.ID, codersdk.CreateChatMessageRequest{
+			Content:        textInput("structured please"),
+			ResponseFormat: validFormat(),
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "plan mode")
+
+		// Message-level conflict with a message-level plan override.
+		normalChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        textInput("normal chat"),
+		})
+		require.NoError(t, err)
+		planMode := codersdk.ChatPlanModePlan
+		_, err = client.CreateChatMessage(ctx, normalChat.ID, codersdk.CreateChatMessageRequest{
+			Content:        textInput("switch to plan and structure"),
+			PlanMode:       &planMode,
+			ResponseFormat: validFormat(),
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "plan mode")
+
+		// Clearing plan mode in the same message resolves the conflict.
+		clearMode := codersdk.ChatPlanMode("")
+		_, err = client.CreateChatMessage(ctx, planChat.ID, codersdk.CreateChatMessageRequest{
+			Content:        textInput("leave plan mode and structure"),
+			PlanMode:       &clearMode,
+			ResponseFormat: validFormat(),
+		})
+		require.NoError(t, err)
 	})
 }
 

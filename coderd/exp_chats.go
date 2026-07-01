@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -500,6 +501,35 @@ func validateChatPlanMode(mode codersdk.ChatPlanMode) bool {
 	default:
 		return false
 	}
+}
+
+// validateChatResponseFormat validates a request-level response
+// format against the turn's effective plan mode. On success it
+// returns the server-created response-format message part to append
+// to the user content, or nil when no structured output request is
+// active (format omitted or explicitly "text").
+func validateChatResponseFormat(
+	format *codersdk.ChatResponseFormat,
+	effectivePlanMode database.NullChatPlanMode,
+) (*codersdk.ChatMessagePart, *codersdk.Response) {
+	structuredReq, verr := structuredoutput.NewRequest(format)
+	if verr != nil {
+		return nil, &codersdk.Response{
+			Message:     "Invalid response_format.",
+			Validations: []codersdk.ValidationError{{Field: verr.Field, Detail: verr.Detail}},
+		}
+	}
+	if structuredReq == nil {
+		return nil, nil
+	}
+	if effectivePlanMode.Valid && effectivePlanMode.ChatPlanMode == database.ChatPlanModePlan {
+		return nil, &codersdk.Response{
+			Message: "response_format of type json_schema cannot be combined with plan mode.",
+			Detail:  "Plan mode and structured output have conflicting turn-completion semantics.",
+		}
+	}
+	part := codersdk.ChatMessageResponseFormat(*format)
+	return &part, nil
 }
 
 func parseChatModelOverride(raw string) (*uuid.UUID, error) {
@@ -1123,6 +1153,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	responseFormatPart, responseFormatError := validateChatResponseFormat(
+		req.ResponseFormat,
+		planModeToNullChatPlanMode(req.PlanMode),
+	)
+	if responseFormatError != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *responseFormatError)
+		return
+	}
+	if responseFormatPart != nil {
+		contentBlocks = append(contentBlocks, *responseFormatPart)
+	}
+
 	// Validate MCP server IDs exist.
 	if len(req.MCPServerIDs) > 0 {
 		//nolint:gocritic // Need to validate MCP server IDs exist.
@@ -1178,15 +1220,23 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate that dynamic tool names are non-empty and unique
-	// within the list. Name collision with built-in tools is
-	// checked at chatloop time when the full tool set is known.
+	// Validate that dynamic tool names are non-empty, unique within
+	// the list, and do not shadow the reserved structured output
+	// finalizer. Name collision with built-in tools is checked at
+	// chatloop time when the full tool set is known.
 	if len(req.UnsafeDynamicTools) > 0 {
 		seenNames := make(map[string]struct{}, len(req.UnsafeDynamicTools))
 		for _, dt := range req.UnsafeDynamicTools {
 			if dt.Name == "" {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Dynamic tool name must not be empty.",
+				})
+				return
+			}
+			if dt.Name == structuredoutput.ToolName {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Reserved dynamic tool name.",
+					Detail:  fmt.Sprintf("Tool name %q is reserved for structured output.", structuredoutput.ToolName),
 				})
 				return
 			}
@@ -3118,6 +3168,21 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.PlanMode != nil {
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		sendPlanMode = &resolvedPlanMode
+	}
+
+	// The message-level plan mode override, when present, decides
+	// the turn's mode; otherwise the chat's persistent mode applies.
+	effectivePlanMode := chat.PlanMode
+	if sendPlanMode != nil {
+		effectivePlanMode = *sendPlanMode
+	}
+	responseFormatPart, responseFormatError := validateChatResponseFormat(req.ResponseFormat, effectivePlanMode)
+	if responseFormatError != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *responseFormatError)
+		return
+	}
+	if responseFormatPart != nil {
+		contentBlocks = append(contentBlocks, *responseFormatPart)
 	}
 
 	busyBehavior := chatd.SendMessageBusyBehaviorQueue

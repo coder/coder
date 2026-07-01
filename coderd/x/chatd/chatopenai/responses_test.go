@@ -603,6 +603,47 @@ func TestResolveChainMode_BlocksWhenToolResultNeverSentToProvider(t *testing.T) 
 	))
 }
 
+// TestResolveChainMode_BlocksAfterStructuredOutputStopAfterTurn pins
+// the chain-mode safeguard for structured output turns: the
+// coder_structured_output finalizer is a stop-after tool, so its tool
+// result is never sent back to the provider. Reusing
+// previous_response_id on the follow-up turn would replay a chain
+// missing that result, so chain mode must stay disabled.
+func TestResolveChainMode_BlocksAfterStructuredOutputStopAfterTurn(t *testing.T) {
+	t.Parallel()
+
+	modelConfigID := uuid.New()
+	finalizerCall := codersdk.ChatMessageToolCall(
+		"call-finalizer",
+		"coder_structured_output",
+		json.RawMessage(`{"output":{"answer":"42"}}`),
+	)
+	finalizerResult := codersdk.ChatMessageToolResult(
+		"call-finalizer",
+		"coder_structured_output",
+		json.RawMessage(`{"answer":"42"}`),
+		false,
+		false,
+	)
+
+	chainInfo := chatopenai.ResolveChainMode([]database.ChatMessage{
+		chainModeSystemMessage(),
+		chainModeUserMessage("answer with structure"),
+		chainModeAssistantMessage(modelConfigID, []codersdk.ChatMessagePart{finalizerCall}),
+		chainModeToolMessage([]codersdk.ChatMessagePart{finalizerResult}),
+		chainModeUserMessage("follow-up question"),
+	})
+
+	require.False(t, chainInfo.HasUnresolvedLocalToolCalls())
+	require.True(t, chainInfo.ProviderMissingToolResults())
+	require.False(t, chatopenai.ShouldActivateChainMode(
+		chainModeProviderOptions(true),
+		chainInfo,
+		modelConfigID,
+		false,
+	))
+}
+
 func TestResolveChainMode_BlocksProviderMissingWithMultipleToolCalls(t *testing.T) {
 	t.Parallel()
 

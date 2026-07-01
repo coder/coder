@@ -288,6 +288,11 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
 	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
+	// ChatMessagePartTypeResponseFormat carries the structured output
+	// request for the assistant turn triggered by the user message
+	// that contains it. Server-created from the request-level
+	// response_format field; never accepted as direct user input.
+	ChatMessagePartTypeResponseFormat ChatMessagePartType = "response-format"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -302,7 +307,49 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
+		ChatMessagePartTypeResponseFormat,
 	}
+}
+
+// ChatResponseFormatType selects how the assistant turn's final
+// output is constrained.
+type ChatResponseFormatType string
+
+const (
+	// ChatResponseFormatTypeText is the default free-form text
+	// behavior. It exists so callers can be explicit; it must not
+	// be combined with a JSON schema.
+	ChatResponseFormatTypeText ChatResponseFormatType = "text"
+	// ChatResponseFormatTypeJSONSchema requires the turn to finish
+	// with a JSON value validated against the caller's schema.
+	ChatResponseFormatTypeJSONSchema ChatResponseFormatType = "json_schema"
+)
+
+// ChatResponseFormat requests a server-validated final output shape
+// for the assistant turn triggered by the message that carries it.
+// The agent loop (tools, subagents, compaction, retries) runs as
+// usual; the turn only completes once the model produces a final
+// output that validates against the requested schema.
+type ChatResponseFormat struct {
+	Type       ChatResponseFormatType        `json:"type" enums:"text,json_schema"`
+	JSONSchema *ChatResponseFormatJSONSchema `json:"json_schema,omitempty"`
+}
+
+// ChatResponseFormatJSONSchema describes the JSON-schema-constrained
+// final output requested for a turn.
+type ChatResponseFormatJSONSchema struct {
+	// Name identifies the schema for the client. Metadata only; it
+	// does not change the tool the server uses to collect output.
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Schema is a JSON Schema object. The root must have
+	// "type":"object"; wrap arrays or primitives in an object
+	// property. Any $ref values must be fragment-local ("#...").
+	Schema json.RawMessage `json:"schema"`
+	// Strict is accepted for wire compatibility with common
+	// response_format shapes. Only true (or omitted, which
+	// defaults to true) is supported; false is rejected.
+	Strict *bool `json:"strict,omitempty"`
 }
 
 // ChatMessagePart is a structured chunk of a chat message.
@@ -423,6 +470,14 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
+	// ResponseFormat is the structured output request that applies
+	// to the assistant turn triggered by the user message carrying
+	// this part. Server-created from the request-level
+	// response_format field; never accepted as direct user input.
+	// It stays visible in API responses so clients can correlate a
+	// structured output request with the tool result that satisfies
+	// it. It is never sent to the model.
+	ResponseFormat *ChatResponseFormat `json:"response_format" variants:"response-format"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -511,6 +566,14 @@ func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	}
 }
 
+// ChatMessageResponseFormat builds a response-format chat message part.
+func ChatMessageResponseFormat(format ChatResponseFormat) ChatMessagePart {
+	return ChatMessagePart{
+		Type:           ChatMessagePartTypeResponseFormat,
+		ResponseFormat: &format,
+	}
+}
+
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
@@ -561,6 +624,10 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
+	// ResponseFormat requests a server-validated structured final
+	// output for the first assistant turn. Omitting it preserves
+	// the default free-form behavior. Incompatible with plan mode.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -616,6 +683,11 @@ type CreateChatMessageRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// ResponseFormat requests a server-validated structured final
+	// output for the assistant turn triggered by this message.
+	// Omitting it preserves the default free-form behavior.
+	// Incompatible with plan mode.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

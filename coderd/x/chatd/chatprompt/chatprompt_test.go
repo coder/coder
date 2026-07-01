@@ -3323,3 +3323,44 @@ func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
 		})
 	}
 }
+
+// TestConvertMessagesWithFiles_SkipsResponseFormatPart pins that
+// response-format parts (structured output request metadata) never
+// reach the provider prompt: partsToMessageParts has no case for
+// them, so they are silently dropped during conversion.
+func TestConvertMessagesWithFiles_SkipsResponseFormatPart(t *testing.T) {
+	t.Parallel()
+
+	parts := []codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("answer with structure"),
+		codersdk.ChatMessageResponseFormat(codersdk.ChatResponseFormat{
+			Type: codersdk.ChatResponseFormatTypeJSONSchema,
+			JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+				Name:   "answer_report",
+				Schema: json.RawMessage(`{"type":"object"}`),
+			},
+		}),
+	}
+	encoded, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+	msg := database.ChatMessage{
+		Role:           database.ChatMessageRoleUser,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		Content:        encoded,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{msg},
+		nil,
+		slogtest.Make(t, nil),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1, "only the text part should reach the prompt")
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "answer with structure", textPart.Text)
+}

@@ -229,6 +229,11 @@ type GenerateAssistantOptions struct {
 	ModelConfig          codersdk.ChatModelCallConfig
 	ProviderOptions      fantasy.ProviderOptions
 
+	// ToolChoice, when non-nil, constrains the model's tool usage
+	// for this call (e.g. fantasy.ToolChoiceRequired for structured
+	// output turns). Nil preserves provider-default behavior.
+	ToolChoice *fantasy.ToolChoice
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
@@ -389,6 +394,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		PresencePenalty:  opts.ModelConfig.PresencePenalty,
 		FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
 		ProviderOptions:  opts.ProviderOptions,
+		ToolChoice:       opts.ToolChoice,
 	}
 
 	stepStart := opts.Clock.Now()

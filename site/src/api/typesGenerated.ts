@@ -2350,7 +2350,8 @@ export type ChatMessagePart =
 	| ChatFilePart
 	| ChatFileReferencePart
 	| ChatContextFilePart
-	| ChatSkillPart;
+	| ChatSkillPart
+	| ChatResponseFormatPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -2358,6 +2359,7 @@ export type ChatMessagePartType =
 	| "file"
 	| "file-reference"
 	| "reasoning"
+	| "response-format"
 	| "skill"
 	| "source"
 	| "text"
@@ -2369,6 +2371,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file",
 	"file-reference",
 	"reasoning",
+	"response-format",
 	"skill",
 	"source",
 	"text",
@@ -2871,6 +2874,68 @@ export interface ChatReasoningPart {
 	 */
 	readonly completed_at?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatResponseFormat requests a server-validated final output shape
+ * for the assistant turn triggered by the message that carries it.
+ * The agent loop (tools, subagents, compaction, retries) runs as
+ * usual; the turn only completes once the model produces a final
+ * output that validates against the requested schema.
+ */
+export interface ChatResponseFormat {
+	readonly type: ChatResponseFormatType;
+	readonly json_schema?: ChatResponseFormatJSONSchema;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatResponseFormatJSONSchema describes the JSON-schema-constrained
+ * final output requested for a turn.
+ */
+export interface ChatResponseFormatJSONSchema {
+	/**
+	 * Name identifies the schema for the client. Metadata only; it
+	 * does not change the tool the server uses to collect output.
+	 */
+	readonly name: string;
+	readonly description?: string;
+	/**
+	 * Schema is a JSON Schema object. The root must have
+	 * "type":"object"; wrap arrays or primitives in an object
+	 * property. Any $ref values must be fragment-local ("#...").
+	 */
+	readonly schema: Record<string, string>;
+	/**
+	 * Strict is accepted for wire compatibility with common
+	 * response_format shapes. Only true (or omitted, which
+	 * defaults to true) is supported; false is rejected.
+	 */
+	readonly strict?: boolean;
+}
+
+// From codersdk/chats.go
+export interface ChatResponseFormatPart {
+	readonly type: "response-format";
+	/**
+	 * ResponseFormat is the structured output request that applies
+	 * to the assistant turn triggered by the user message carrying
+	 * this part. Server-created from the request-level
+	 * response_format field; never accepted as direct user input.
+	 * It stays visible in API responses so clients can correlate a
+	 * structured output request with the tool result that satisfies
+	 * it. It is never sent to the model.
+	 */
+	readonly response_format: ChatResponseFormat | null;
+}
+
+// From codersdk/chats.go
+export type ChatResponseFormatType = "json_schema" | "text";
+
+export const ChatResponseFormatTypes: ChatResponseFormatType[] = [
+	"json_schema",
+	"text",
+];
 
 // From codersdk/chats.go
 /**
@@ -3499,6 +3564,13 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * ResponseFormat requests a server-validated structured final
+	 * output for the assistant turn triggered by this message.
+	 * Omitting it preserves the default free-form behavior.
+	 * Incompatible with plan mode.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/chats.go
@@ -3563,6 +3635,12 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ResponseFormat requests a server-validated structured final
+	 * output for the first assistant turn. Omitting it preserves
+	 * the default free-form behavior. Incompatible with plan mode.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/users.go

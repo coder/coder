@@ -274,6 +274,17 @@ Experimental: this endpoint is subject to change.
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": [
+        0
+      ],
+      "strict": true
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -1616,6 +1627,17 @@ Experimental: this endpoint is subject to change.
           "provider_metadata": [
             0
           ],
+          "response_format": {
+            "json_schema": {
+              "description": "string",
+              "name": "string",
+              "schema": [
+                0
+              ],
+              "strict": true
+            },
+            "type": "text"
+          },
           "result": [
             0
           ],
@@ -1699,6 +1721,17 @@ Experimental: this endpoint is subject to change.
           "provider_metadata": [
             0
           ],
+          "response_format": {
+            "json_schema": {
+              "description": "string",
+              "name": "string",
+              "schema": [
+                0
+              ],
+              "strict": true
+            },
+            "type": "text"
+          },
           "result": [
             0
           ],
@@ -1770,7 +1803,18 @@ Experimental: this endpoint is subject to change.
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "plan_mode": "plan"
+  "plan_mode": "plan",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": [
+        0
+      ],
+      "strict": true
+    },
+    "type": "text"
+  }
 }
 ```
 
@@ -1834,6 +1878,17 @@ Experimental: this endpoint is subject to change.
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -1916,6 +1971,17 @@ Experimental: this endpoint is subject to change.
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -2049,6 +2115,17 @@ Experimental: this endpoint is subject to change.
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -2469,6 +2546,17 @@ Experimental: this endpoint is subject to change.
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -2550,6 +2638,17 @@ Experimental: this endpoint is subject to change.
       "provider_metadata": [
         0
       ],
+      "response_format": {
+        "json_schema": {
+          "description": "string",
+          "name": "string",
+          "schema": [
+            0
+          ],
+          "strict": true
+        },
+        "type": "text"
+      },
       "result": [
         0
       ],
@@ -2619,6 +2718,17 @@ Experimental: this endpoint is subject to change.
           "provider_metadata": [
             0
           ],
+          "response_format": {
+            "json_schema": {
+              "description": "string",
+              "name": "string",
+              "schema": [
+                0
+              ],
+              "strict": true
+            },
+            "type": "text"
+          },
           "result": [
             0
           ],

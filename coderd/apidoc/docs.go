@@ -17347,6 +17347,14 @@ const docTemplate = `{
                         "type": "integer"
                     }
                 },
+                "response_format": {
+                    "description": "ResponseFormat is the structured output request that applies\nto the assistant turn triggered by the user message carrying\nthis part. Server-created from the request-level\nresponse_format field; never accepted as direct user input.\nIt stays visible in API responses so clients can correlate a\nstructured output request with the tool result that satisfies\nit. It is never sent to the model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
+                },
                 "result": {
                     "type": "array",
                     "items": {
@@ -17411,7 +17419,8 @@ const docTemplate = `{
                 "file",
                 "file-reference",
                 "context-file",
-                "skill"
+                "skill",
+                "response-format"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -17422,7 +17431,8 @@ const docTemplate = `{
                 "ChatMessagePartTypeFile",
                 "ChatMessagePartTypeFileReference",
                 "ChatMessagePartTypeContextFile",
-                "ChatMessagePartTypeSkill"
+                "ChatMessagePartTypeSkill",
+                "ChatMessagePartTypeResponseFormat"
             ]
         },
         "codersdk.ChatMessageRole": {
@@ -17610,6 +17620,59 @@ const docTemplate = `{
                     "format": "uuid"
                 }
             }
+        },
+        "codersdk.ChatResponseFormat": {
+            "type": "object",
+            "properties": {
+                "json_schema": {
+                    "$ref": "#/definitions/codersdk.ChatResponseFormatJSONSchema"
+                },
+                "type": {
+                    "enum": [
+                        "text",
+                        "json_schema"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormatType"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatJSONSchema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name identifies the schema for the client. Metadata only; it\ndoes not change the tool the server uses to collect output.",
+                    "type": "string"
+                },
+                "schema": {
+                    "description": "Schema is a JSON Schema object. The root must have\n\"type\":\"object\"; wrap arrays or primitives in an object\nproperty. Any $ref values must be fragment-local (\"#...\").",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "strict": {
+                    "description": "Strict is accepted for wire compatibility with common\nresponse_format shapes. Only true (or omitted, which\ndefaults to true) is supported; false is rejected.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatResponseFormatType": {
+            "type": "string",
+            "enum": [
+                "text",
+                "json_schema"
+            ],
+            "x-enum-varnames": [
+                "ChatResponseFormatTypeText",
+                "ChatResponseFormatTypeJSONSchema"
+            ]
         },
         "codersdk.ChatRetentionDaysResponse": {
             "type": "object",
@@ -18167,6 +18230,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "response_format": {
+                    "description": "ResponseFormat requests a server-validated structured final\noutput for the assistant turn triggered by this message.\nOmitting it preserves the default free-form behavior.\nIncompatible with plan mode.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 }
             }
         },
@@ -18225,6 +18296,14 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "response_format": {
+                    "description": "ResponseFormat requests a server-validated structured final\noutput for the first assistant turn. Omitting it preserves\nthe default free-form behavior. Incompatible with plan mode.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 },
                 "system_prompt": {
                     "type": "string"

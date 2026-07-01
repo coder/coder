@@ -2726,6 +2726,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "response_format": {
+        "json_schema": {
+          "description": "string",
+          "name": "string",
+          "schema": [
+            0
+          ],
+          "strict": true
+        },
+        "type": "text"
+      },
       "result": [
         0
       ],
@@ -2822,6 +2833,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provider_metadata": [
     0
   ],
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": [
+        0
+      ],
+      "strict": true
+    },
+    "type": "text"
+  },
   "result": [
     0
   ],
@@ -2870,6 +2892,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `response_format`              | [codersdk.ChatResponseFormat](#codersdkchatresponseformat)   | false    |              | Response format is the structured output request that applies to the assistant turn triggered by the user message carrying this part. Server-created from the request-level response_format field; never accepted as direct user input. It stays visible in API responses so clients can correlate a structured output request with the tool result that satisfies it. It is never sent to the model.      |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -2896,9 +2919,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                     |
-|--------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                        |
+|---------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `reasoning`, `response-format`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
 
 ## codersdk.ChatMessageRole
 
@@ -2993,6 +3016,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "response_format": {
+            "json_schema": {
+              "description": "string",
+              "name": "string",
+              "schema": [
+                0
+              ],
+              "strict": true
+            },
+            "type": "text"
+          },
           "result": [
             0
           ],
@@ -3076,6 +3110,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "response_format": {
+            "json_schema": {
+              "description": "string",
+              "name": "string",
+              "schema": [
+                0
+              ],
+              "strict": true
+            },
+            "type": "text"
+          },
           "result": [
             0
           ],
@@ -3306,6 +3351,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "response_format": {
+        "json_schema": {
+          "description": "string",
+          "name": "string",
+          "schema": [
+            0
+          ],
+          "strict": true
+        },
+        "type": "text"
+      },
       "result": [
         0
       ],
@@ -3340,6 +3396,71 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_at`      | string                                                        | false    |              |             |
 | `id`              | integer                                                       | false    |              |             |
 | `model_config_id` | string                                                        | false    |              |             |
+
+## codersdk.ChatResponseFormat
+
+```json
+{
+  "json_schema": {
+    "description": "string",
+    "name": "string",
+    "schema": [
+      0
+    ],
+    "strict": true
+  },
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `json_schema` | [codersdk.ChatResponseFormatJSONSchema](#codersdkchatresponseformatjsonschema) | false    |              |             |
+| `type`        | [codersdk.ChatResponseFormatType](#codersdkchatresponseformattype)             | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `type`   | `json_schema`, `text` |
+
+## codersdk.ChatResponseFormatJSONSchema
+
+```json
+{
+  "description": "string",
+  "name": "string",
+  "schema": [
+    0
+  ],
+  "strict": true
+}
+```
+
+### Properties
+
+| Name          | Type             | Required | Restrictions | Description                                                                                                                                                           |
+|---------------|------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `description` | string           | false    |              |                                                                                                                                                                       |
+| `name`        | string           | false    |              | Name identifies the schema for the client. Metadata only; it does not change the tool the server uses to collect output.                                              |
+| `schema`      | array of integer | false    |              | Schema is a JSON Schema object. The root must have "type":"object"; wrap arrays or primitives in an object property. Any $ref values must be fragment-local ("#..."). |
+| `strict`      | boolean          | false    |              | Strict is accepted for wire compatibility with common response_format shapes. Only true (or omitted, which defaults to true) is supported; false is rejected.         |
+
+## codersdk.ChatResponseFormatType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `json_schema`, `text` |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -3472,6 +3593,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -3553,6 +3685,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "provider_metadata": [
         0
       ],
+      "response_format": {
+        "json_schema": {
+          "description": "string",
+          "name": "string",
+          "schema": [
+            0
+          ],
+          "strict": true
+        },
+        "type": "text"
+      },
       "result": [
         0
       ],
@@ -3622,6 +3765,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "provider_metadata": [
             0
           ],
+          "response_format": {
+            "json_schema": {
+              "description": "string",
+              "name": "string",
+              "schema": [
+                0
+              ],
+              "strict": true
+            },
+            "type": "text"
+          },
           "result": [
             0
           ],
@@ -3740,6 +3894,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provider_metadata": [
       0
     ],
+    "response_format": {
+      "json_schema": {
+        "description": "string",
+        "name": "string",
+        "schema": [
+          0
+        ],
+        "strict": true
+      },
+      "type": "text"
+    },
     "result": [
       0
     ],
@@ -4365,19 +4530,31 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "plan_mode": "plan"
+  "plan_mode": "plan",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": [
+        0
+      ],
+      "strict": true
+    },
+    "type": "text"
+  }
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|-------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`  | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id` | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`       | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| Name              | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                              |
+|-------------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)     | false    |              |                                                                                                                                                                                                          |
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart)  | false    |              |                                                                                                                                                                                                          |
+| `mcp_server_ids`  | array of string                                            | false    |              |                                                                                                                                                                                                          |
+| `model_config_id` | string                                                     | false    |              |                                                                                                                                                                                                          |
+| `plan_mode`       | [codersdk.ChatPlanMode](#codersdkchatplanmode)             | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                             |
+| `response_format` | [codersdk.ChatResponseFormat](#codersdkchatresponseformat) | false    |              | Response format requests a server-validated structured final output for the assistant turn triggered by this message. Omitting it preserves the default free-form behavior. Incompatible with plan mode. |
 
 #### Enumerated Values
 
@@ -4436,6 +4613,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -4518,6 +4706,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],
@@ -4582,6 +4781,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": [
+        0
+      ],
+      "strict": true
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -4598,19 +4808,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                |
-|------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
-| `labels`               | object                                                    | false    |              |                                                                                                                                            |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+| Name                   | Type                                                       | Required | Restrictions | Description                                                                                                                                                                          |
+|------------------------|------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)         | false    |              |                                                                                                                                                                                      |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)  | false    |              |                                                                                                                                                                                      |
+| `labels`               | object                                                     | false    |              |                                                                                                                                                                                      |
+| » `[any property]`     | string                                                     | false    |              |                                                                                                                                                                                      |
+| `mcp_server_ids`       | array of string                                            | false    |              |                                                                                                                                                                                      |
+| `model_config_id`      | string                                                     | false    |              |                                                                                                                                                                                      |
+| `organization_id`      | string                                                     | false    |              |                                                                                                                                                                                      |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)             | false    |              |                                                                                                                                                                                      |
+| `response_format`      | [codersdk.ChatResponseFormat](#codersdkchatresponseformat) | false    |              | Response format requests a server-validated structured final output for the first assistant turn. Omitting it preserves the default free-form behavior. Incompatible with plan mode. |
+| `system_prompt`        | string                                                     | false    |              |                                                                                                                                                                                      |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)      | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                           |
+| `workspace_id`         | string                                                     | false    |              |                                                                                                                                                                                      |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -6962,6 +7173,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "provider_metadata": [
           0
         ],
+        "response_format": {
+          "json_schema": {
+            "description": "string",
+            "name": "string",
+            "schema": [
+              0
+            ],
+            "strict": true
+          },
+          "type": "text"
+        },
         "result": [
           0
         ],

@@ -619,7 +619,7 @@ require (
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/joho/godotenv v1.5.1
 	github.com/kaptinlin/jsonpointer v0.4.26 // indirect
-	github.com/kaptinlin/jsonschema v0.8.0 // indirect
+	github.com/kaptinlin/jsonschema v0.8.0
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c // indirect
 	github.com/lestrrat-go/blackmagic v1.0.4 // indirect

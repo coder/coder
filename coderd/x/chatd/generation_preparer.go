@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/coderd/x/chatd/structuredoutput"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -449,9 +450,45 @@ func (server *Server) prepareGeneration(
 		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
 	}
 
+	// Structured output is disabled on plan-mode and explore
+	// subagent turns: both have their own turn-completion
+	// semantics (propose_plan stop-after, report-only output).
+	var structuredOutputReq *structuredoutput.Request
+	if !isPlanModeTurn && !isExploreSubagent {
+		structuredOutputReq = activeTurnResponseFormat(ctx, logger, input.Messages)
+	}
+	if structuredOutputReq != nil {
+		// Appending before the builtinToolNames capture below makes
+		// appendDynamicTools' builtin precedence protect the
+		// finalizer name against dynamic tool collisions.
+		tools = append(tools, structuredoutput.Tool(structuredOutputReq))
+		if exclusiveToolNames == nil {
+			exclusiveToolNames = map[string]bool{}
+		}
+		exclusiveToolNames[structuredoutput.ToolName] = true
+		prompt = chatprompt.InsertSystem(prompt, structuredOutputOverlayPrompt)
+	}
+
 	builtinToolNames := make(map[string]bool, len(tools))
 	for _, t := range tools {
 		builtinToolNames[t.Info().Name] = true
+	}
+
+	if structuredOutputReq != nil {
+		// Defensively drop MCP tools that shadow the reserved
+		// finalizer name so the server-owned tool always wins.
+		dropShadowing := func(candidates []fantasy.AgentTool) []fantasy.AgentTool {
+			return slices.DeleteFunc(slices.Clone(candidates), func(tool fantasy.AgentTool) bool {
+				if tool.Info().Name != structuredoutput.ToolName {
+					return false
+				}
+				logger.Warn(ctx, "mcp tool shadows the reserved structured output tool name; dropping it",
+					slog.F("tool_name", structuredoutput.ToolName))
+				return true
+			})
+		}
+		mcpTools = dropShadowing(mcpTools)
+		workspaceMCPTools = dropShadowing(workspaceMCPTools)
 	}
 
 	tools = append(tools, mcpTools...)
@@ -552,6 +589,14 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 
+	stopAfterTools := stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID)
+	if structuredOutputReq != nil {
+		if stopAfterTools == nil {
+			stopAfterTools = map[string]struct{}{}
+		}
+		stopAfterTools[structuredoutput.ToolName] = struct{}{}
+	}
+
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range tools {
 		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
@@ -625,8 +670,9 @@ func (server *Server) prepareGeneration(
 		ProviderOptions:      providerOptions,
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
+		StopAfterTools:       stopAfterTools,
 		ExclusiveToolNames:   exclusiveToolNames,
+		StructuredOutput:     structuredOutputReq,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             maxChatSteps,
