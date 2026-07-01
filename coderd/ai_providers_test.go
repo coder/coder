@@ -1652,6 +1652,44 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		require.Equal(t, original, updated.Settings.Bedrock.ExternalID, "external ID must be stable across PATCH")
 	})
 
+	t.Run("StableAcrossRoleRemovalAndReadd", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const roleB = "arn:aws:iam::123456789012:role/BedrockRoleB"
+
+		created, err := createBedrock(t, client, "bedrock-toggle", codersdk.AIProviderBedrockSettings{
+			Region:  "us-east-1",
+			RoleARN: roleARN,
+		})
+		require.NoError(t, err)
+		original := created.Settings.Bedrock.ExternalID
+		require.NotEmpty(t, original)
+
+		// Removing the role retains the external ID.
+		cleared, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.NoError(t, err)
+		require.Empty(t, cleared.Settings.Bedrock.RoleARN)
+		require.Equal(t, original, cleared.Settings.Bedrock.ExternalID)
+
+		// Adding a different role reuses the retained ID rather than
+		// regenerating it, so a trust policy referencing it keeps working.
+		readded, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1", RoleARN: roleB},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, roleB, readded.Settings.Bedrock.RoleARN)
+		require.Equal(t, original, readded.Settings.Bedrock.ExternalID, "external ID must survive role removal and re-add")
+	})
+
 	t.Run("AllowsEchoedValueOnPatch", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
