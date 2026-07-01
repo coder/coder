@@ -1972,13 +1972,12 @@ export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
 export const chatCostKey = (chatId: string) =>
 	[...chatsKey, chatId, "cost"] as const;
 
-// Cost changes only as new assistant messages are priced; a short window avoids refetch churn.
-const COST_STALE_MS = 30_000;
+const ASSISTANT_MESSAGE_PRICING_STALE_MS = 30_000;
 
 export const chatCost = (chatId: string) => ({
 	queryKey: chatCostKey(chatId),
 	queryFn: () => API.experimental.getChatCost(chatId),
-	staleTime: COST_STALE_MS,
+	staleTime: ASSISTANT_MESSAGE_PRICING_STALE_MS,
 });
 
 interface PaginatedChatCostUsersPayload {

@@ -2216,9 +2216,12 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	// ExtractChatParam already authorized read (deny returns 404); only surface query errors.
-	row, err := api.Database.GetChatCostByChatID(ctx, chat.ID)
+	row, err := api.Database.GetChatModelUsageCostByChatID(ctx, chat.ID)
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat cost.",
 			Detail:  err.Error(),

@@ -2340,9 +2340,7 @@ FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
 
--- name: GetChatCostByChatID :one
--- Cumulative cost across a chat's root + child (subagent) chats, counting only
--- assistant messages. Returns one row, with zero totals when nothing is priced.
+-- name: GetChatModelUsageCostByChatID :one
 WITH target AS (
     SELECT COALESCE(root_chat_id, id) AS root_chat_id
     FROM chats

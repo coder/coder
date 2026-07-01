@@ -6897,66 +6897,6 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
-const getChatCostByChatID = `-- name: GetChatCostByChatID :one
-WITH target AS (
-    SELECT COALESCE(root_chat_id, id) AS root_chat_id
-    FROM chats
-    WHERE id = $1::uuid
-), costs AS (
-    SELECT
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.total_cost_micros IS NOT NULL
-        )::bigint AS priced_message_count,
-        COUNT(*) FILTER (
-            WHERE cm.total_cost_micros IS NULL
-                AND (
-                    cm.input_tokens IS NOT NULL
-                    OR cm.output_tokens IS NOT NULL
-                    OR cm.reasoning_tokens IS NOT NULL
-                    OR cm.cache_creation_tokens IS NOT NULL
-                    OR cm.cache_read_tokens IS NOT NULL
-                )
-        )::bigint AS unpriced_message_count
-    FROM chat_messages cm
-    JOIN chats c ON c.id = cm.chat_id
-    -- Match by indexed columns, not COALESCE(root_chat_id, id), to avoid a full scan.
-    WHERE (
-        c.id = (SELECT root_chat_id FROM target)
-        OR c.root_chat_id = (SELECT root_chat_id FROM target)
-    )
-        AND cm.role = 'assistant'
-)
-SELECT
-    t.root_chat_id,
-    costs.total_cost_micros,
-    costs.priced_message_count,
-    costs.unpriced_message_count
-FROM target t
-CROSS JOIN costs
-`
-
-type GetChatCostByChatIDRow struct {
-	RootChatID           uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
-	TotalCostMicros      int64     `db:"total_cost_micros" json:"total_cost_micros"`
-	PricedMessageCount   int64     `db:"priced_message_count" json:"priced_message_count"`
-	UnpricedMessageCount int64     `db:"unpriced_message_count" json:"unpriced_message_count"`
-}
-
-// Cumulative cost across a chat's root + child (subagent) chats, counting only
-// assistant messages. Returns one row, with zero totals when nothing is priced.
-func (q *sqlQuerier) GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatCostByChatIDRow, error) {
-	row := q.db.QueryRowContext(ctx, getChatCostByChatID, chatID)
-	var i GetChatCostByChatIDRow
-	err := row.Scan(
-		&i.RootChatID,
-		&i.TotalCostMicros,
-		&i.PricedMessageCount,
-		&i.UnpricedMessageCount,
-	)
-	return i, err
-}
-
 const getChatCostPerChat = `-- name: GetChatCostPerChat :many
 WITH chat_costs AS (
     SELECT
@@ -8091,6 +8031,64 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 		return nil, err
 	}
 	return items, nil
+}
+
+const getChatModelUsageCostByChatID = `-- name: GetChatModelUsageCostByChatID :one
+WITH target AS (
+    SELECT COALESCE(root_chat_id, id) AS root_chat_id
+    FROM chats
+    WHERE id = $1::uuid
+), costs AS (
+    SELECT
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NOT NULL
+        )::bigint AS priced_message_count,
+        COUNT(*) FILTER (
+            WHERE cm.total_cost_micros IS NULL
+                AND (
+                    cm.input_tokens IS NOT NULL
+                    OR cm.output_tokens IS NOT NULL
+                    OR cm.reasoning_tokens IS NOT NULL
+                    OR cm.cache_creation_tokens IS NOT NULL
+                    OR cm.cache_read_tokens IS NOT NULL
+                )
+        )::bigint AS unpriced_message_count
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    -- Match by indexed columns, not COALESCE(root_chat_id, id), to avoid a full scan.
+    WHERE (
+        c.id = (SELECT root_chat_id FROM target)
+        OR c.root_chat_id = (SELECT root_chat_id FROM target)
+    )
+        AND cm.role = 'assistant'
+)
+SELECT
+    t.root_chat_id,
+    costs.total_cost_micros,
+    costs.priced_message_count,
+    costs.unpriced_message_count
+FROM target t
+CROSS JOIN costs
+`
+
+type GetChatModelUsageCostByChatIDRow struct {
+	RootChatID           uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	TotalCostMicros      int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	PricedMessageCount   int64     `db:"priced_message_count" json:"priced_message_count"`
+	UnpricedMessageCount int64     `db:"unpriced_message_count" json:"unpriced_message_count"`
+}
+
+func (q *sqlQuerier) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (GetChatModelUsageCostByChatIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelUsageCostByChatID, chatID)
+	var i GetChatModelUsageCostByChatIDRow
+	err := row.Scan(
+		&i.RootChatID,
+		&i.TotalCostMicros,
+		&i.PricedMessageCount,
+		&i.UnpricedMessageCount,
+	)
+	return i, err
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one

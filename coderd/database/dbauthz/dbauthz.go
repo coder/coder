@@ -3038,13 +3038,6 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 	return q.db.GetChatComputerUseProvider(ctx)
 }
 
-func (q *querier) GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatCostByChatIDRow, error) {
-	if _, err := q.GetChatByID(ctx, chatID); err != nil {
-		return database.GetChatCostByChatIDRow{}, err
-	}
-	return q.db.GetChatCostByChatID(ctx, chatID)
-}
-
 func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	// The owner's chats, may cross orgs. AnyOrganization() authorizes
 	// the caller if they hold read permission on chats owned by
@@ -3383,6 +3376,13 @@ func (q *querier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]databa
 		return nil, err
 	}
 	return q.db.GetChatModelConfigsForTelemetry(ctx)
+}
+
+func (q *querier) GetChatModelUsageCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatModelUsageCostByChatIDRow, error) {
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return database.GetChatModelUsageCostByChatIDRow{}, err
+	}
+	return q.db.GetChatModelUsageCostByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
