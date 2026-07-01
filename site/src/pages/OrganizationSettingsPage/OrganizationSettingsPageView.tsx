@@ -33,7 +33,6 @@ import {
 	onChangeTrimmed,
 } from "#/utils/formUtils";
 import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
-import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -150,8 +149,8 @@ export const OrganizationSettingsPageView: FC<
 			</HorizontalForm>
 
 			{onChangeShareableOwners && (
-				<HorizontalContainer className="mt-12">
-					<HorizontalSection
+				<HorizontalForm className="mt-12">
+					<FormSection
 						title="Workspace Sharing"
 						description="Control whether workspace owners can share their workspaces."
 					>
@@ -255,13 +254,13 @@ export const OrganizationSettingsPageView: FC<
 								</div>
 							</div>
 						</div>
-					</HorizontalSection>
-				</HorizontalContainer>
+					</FormSection>
+				</HorizontalForm>
 			)}
 
 			{!organization.is_default && (
-				<HorizontalContainer className="mt-12">
-					<HorizontalSection
+				<HorizontalForm className="mt-12">
+					<FormSection
 						title="Delete Organization"
 						description="Delete your organization permanently."
 					>
@@ -277,8 +276,8 @@ export const OrganizationSettingsPageView: FC<
 								</Button>
 							</div>
 						</div>
-					</HorizontalSection>
-				</HorizontalContainer>
+					</FormSection>
+				</HorizontalForm>
 			)}
 
 			<DeleteDialog
