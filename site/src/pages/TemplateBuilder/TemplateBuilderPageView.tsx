@@ -51,6 +51,7 @@ interface TemplateBuilderPageViewProps {
 	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
 	createError: Error | null;
 	isCreating: boolean;
+	onClearCreateError?: () => void;
 }
 
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
@@ -59,6 +60,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	onCreateTemplate,
 	createError,
 	isCreating,
+	onClearCreateError,
 }) => {
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const [stepIndex, setStepIndex] = useState(0);
@@ -85,6 +87,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 
 	const handleBack = () => {
+		if (currentStep.id === "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
 		window.scrollTo(0, 0);
 		setStepIndex(prevIndex);
 	};

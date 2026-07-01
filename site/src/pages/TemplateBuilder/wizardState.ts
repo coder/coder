@@ -75,6 +75,7 @@ export type WizardAction =
 			value: string;
 	  }
 	| { type: "SET_HAS_PROVISIONERS"; value: boolean | undefined }
+	| { type: "RESET_CUSTOMIZATIONS" }
 	| { type: "RESET" };
 
 export function wizardReducer(
@@ -130,6 +131,16 @@ export function wizardReducer(
 			return {
 				...state,
 				hasProvisioners: action.value,
+			};
+		case "RESET_CUSTOMIZATIONS":
+			return {
+				...state,
+				organizationId: undefined,
+				hasProvisioners: undefined,
+				name: "",
+				displayName: "",
+				description: "",
+				icon: "",
 			};
 		case "RESET":
 			return initialWizardState;
