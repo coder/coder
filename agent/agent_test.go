@@ -3673,7 +3673,8 @@ func TestAgent_DebugServer(t *testing.T) {
 	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
 		DERPMap: derpMap,
 		EnvironmentVariables: map[string]string{
-			"AWS_SECRET_ACCESS_KEY": "super-secret-value-12345",
+			"AWS_SECRET_ACCESS_KEY": "env-value-should-be-redacted-67890",
+			"EMPTY_VAR":             "",
 		},
 	}, []agentsdk.WorkspaceSecret{
 		{EnvName: "DEBUG_SECRET", Value: []byte("super-secret-value-12345")},
@@ -3818,17 +3819,17 @@ func TestAgent_DebugServer(t *testing.T) {
 		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 
-		// Environment variable values may carry template-provided
-		// credentials, so the debug endpoint must not expose them.
-		require.NotContains(t, string(body), "super-secret-value-12345")
+		require.NotContains(t, string(body), "env-value-should-be-redacted-67890")
 
 		var v agentsdk.Manifest
 		require.NoError(t, json.Unmarshal(body, &v))
 
-		// The key is preserved so operators can confirm which
-		// variables are configured, but the value is redacted.
 		require.Contains(t, v.EnvironmentVariables, "AWS_SECRET_ACCESS_KEY")
-		require.Equal(t, "*redacted*", v.EnvironmentVariables["AWS_SECRET_ACCESS_KEY"])
+		require.Equal(t, "***REDACTED***", v.EnvironmentVariables["AWS_SECRET_ACCESS_KEY"])
+
+		// Empty values carry no secret and are preserved as empty.
+		require.Contains(t, v.EnvironmentVariables, "EMPTY_VAR")
+		require.Equal(t, "", v.EnvironmentVariables["EMPTY_VAR"])
 	})
 
 	t.Run("Logs", func(t *testing.T) {
