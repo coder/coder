@@ -36,6 +36,14 @@ func TestRealExecutor_RunMutation(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestRealExecutor_RunMutationSurfacesStderr(t *testing.T) {
+	t.Parallel()
+	exec := realExecutor{}
+	err := exec.RunMutation("sh", "-c", "echo 'fatal: boom' 1>&2; exit 1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "fatal: boom")
+}
+
 func TestRealExecutor_RunMutationStdout(t *testing.T) {
 	t.Parallel()
 	exec := realExecutor{}

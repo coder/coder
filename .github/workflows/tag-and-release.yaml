@@ -85,6 +85,14 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
+      # prepare-release creates an annotated tag, which records a tagger
+      # identity. Runners have none configured, so git tag -a fails
+      # without this step.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@coder.com"
+          git config --global user.name "Coder CI"
+
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
