@@ -7713,7 +7713,6 @@ func updateChatModelCompressionThreshold(t *testing.T, db database.Store, model 
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -7730,7 +7729,6 @@ func updateChatModelContextLimit(t *testing.T, db database.Store, model database
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -7749,7 +7747,6 @@ func updateChatModelCallConfig(t *testing.T, db database.Store, model database.C
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -8333,6 +8330,8 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 			if tt.wantTitleGenerationRuns > 0 {
 				require.Equal(t, string(codersdk.ChatDebugRunKindTitleGeneration), runs[0].Kind)
 				require.Equal(t, string(tt.wantDebugStatus), runs[0].Status)
+				require.True(t, runs[0].Provider.Valid)
+				require.Equal(t, "openai", runs[0].Provider.String)
 				require.True(t, runs[0].FinishedAt.Valid)
 				require.True(t, runs[0].HistoryTipMessageID.Valid)
 				require.Equal(t, message.ID, runs[0].HistoryTipMessageID.Int64)
@@ -8378,14 +8377,14 @@ func seedChatDependenciesWithProvider(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    provider,
 		DisplayName: provider,
 		BaseUrl:     baseURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  provider,
-		IsDefault: true,
+		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:    true,
 	})
 	return user, org, model
 }
@@ -8423,8 +8422,8 @@ func seedChatDependenciesWithProviderPolicy(
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  provider,
-		IsDefault: true,
+		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:    true,
 	})
 
 	return user, org, providerConfig, model
@@ -8482,13 +8481,32 @@ func insertChatModelConfigWithCallConfig(
 	options, err := json.Marshal(callConfig)
 	require.NoError(t, err)
 
+	// Reuse the newest AI provider of this type (creating a bare one only when
+	// none exists) so the config links the seeded provider carrying the mock
+	// base URL and API key rather than a fresh credential-less one.
+	providers, err := db.GetAIProviders(context.Background(), database.GetAIProvidersParams{IncludeDisabled: true})
+	require.NoError(t, err)
+	var aiProvider database.AIProvider
+	for _, candidate := range providers {
+		if candidate.Type != database.AIProviderType(provider) {
+			continue
+		}
+		if aiProvider.ID == uuid.Nil || candidate.CreatedAt.After(aiProvider.CreatedAt) {
+			aiProvider = candidate
+		}
+	}
+	if aiProvider.ID == uuid.Nil {
+		aiProvider = dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AIProviderType(provider),
+		})
+	}
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    provider,
-		Model:       model,
-		DisplayName: model,
-		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		Options:     options,
+		AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		Model:        model,
+		DisplayName:  model,
+		CreatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
+		Options:      options,
 	})
 }
 
@@ -9671,7 +9689,6 @@ func seedAIGatewayOpenAITestDependencies(
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     string(database.AIProviderTypeOpenai),
 		Model:        "gpt-4o-mini",
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
@@ -12548,14 +12565,12 @@ func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
 	})
 
 	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		DisplayName:  "Model A",
 		Enabled:      true,
 		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
 	})
 	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		DisplayName:  "Model B",
 		Enabled:      true,

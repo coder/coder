@@ -39,10 +39,12 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
+	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
 	workspaceById,
+	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -59,12 +61,18 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
+	notifyArchiveAndDeleteFailed,
+	notifyDeleteQueueState,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	getModelOptionsFromConfigs,
+	providerTypeByIDFromUserConfigs,
+} from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
@@ -165,6 +173,7 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -233,7 +242,7 @@ const AgentsPage: FC = () => {
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
 			),
-		onSuccess: ({ chatId }) => {
+		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
@@ -250,11 +259,29 @@ const AgentsPage: FC = () => {
 				organizationName,
 				username: user.username,
 			});
-		},
-		onError: (error) => {
-			toast.error(
-				getErrorMessage(error, "Failed to archive and delete workspace."),
+			notifyDeleteQueueState(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+				deleteBuild,
 			);
+		},
+		onError: (error, { workspaceId }) => {
+			notifyArchiveAndDeleteFailed(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+				error,
+				(path) => navigate(path),
+			);
+			// Archive failed after the delete already ran; refresh
+			// workspace state so consumers see the deletion.
+			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
+				void invalidateWorkspaceMutationQueries(queryClient, {
+					organizationName,
+					username: user.username,
+				});
+			}
 		},
 	});
 	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
@@ -318,6 +345,7 @@ const AgentsPage: FC = () => {
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
+		providerTypeByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
@@ -412,7 +440,7 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						onSettled: () => {
+						onSuccess: () => {
 							navigateAfterArchive(chatId);
 						},
 					},
@@ -423,11 +451,6 @@ const AgentsPage: FC = () => {
 				// about interrupting a live workspace, which is moot
 				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
-					// Navigate only on success. The proceed/confirm paths
-					// use onSettled because their pre-existing behavior
-					// navigates regardless of delete outcome. This path
-					// has no delete step, so a failed archive should not
-					// redirect the user.
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
 					},
@@ -447,6 +470,8 @@ const AgentsPage: FC = () => {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
+				},
+				onSuccess: () => {
 					navigateAfterArchive(archivedChatId);
 				},
 			});

@@ -1,6 +1,9 @@
 import { isAxiosError } from "axios";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import {
 	PrebuildsSystemUserID,
+	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
 
@@ -86,26 +89,50 @@ export function isWorkspaceNotFound(error: unknown): boolean {
 	return status === 404 || status === 410;
 }
 
-/**
- * Archives a chat and then deletes its associated workspace.
- * If the workspace is already gone (404 or 410), the delete step is
- * treated as a no-op so the archive still succeeds.
- */
+export class ArchiveAndDeleteError extends Error {
+	readonly step: "delete" | "archive";
+	readonly deleteEnqueued: boolean;
+	declare readonly cause: unknown;
+
+	constructor(
+		step: "delete" | "archive",
+		cause: unknown,
+		deleteEnqueued = false,
+	) {
+		super(
+			step === "delete" ? "workspace delete failed" : "chat archive failed",
+			{ cause },
+		);
+		this.step = step;
+		this.deleteEnqueued = deleteEnqueued;
+	}
+}
+
+// Delete-first, archive-second. 404/410 on delete falls through to archive.
 export async function archiveChatAndDeleteWorkspace(
 	chatId: string,
 	workspaceId: string,
 	doArchive: (chatId: string) => Promise<unknown>,
-	doDelete: (workspaceId: string) => Promise<unknown>,
-): Promise<{ chatId: string; workspaceId: string }> {
-	await doArchive(chatId);
+	doDelete: (workspaceId: string) => Promise<WorkspaceBuild>,
+): Promise<{
+	chatId: string;
+	workspaceId: string;
+	deleteBuild: WorkspaceBuild | null;
+}> {
+	let deleteBuild: WorkspaceBuild | null = null;
 	try {
-		await doDelete(workspaceId);
+		deleteBuild = await doDelete(workspaceId);
 	} catch (error) {
 		if (!isWorkspaceNotFound(error)) {
-			throw error;
+			throw new ArchiveAndDeleteError("delete", error);
 		}
 	}
-	return { chatId, workspaceId };
+	try {
+		await doArchive(chatId);
+	} catch (error) {
+		throw new ArchiveAndDeleteError("archive", error, deleteBuild !== null);
+	}
+	return { chatId, workspaceId, deleteBuild };
 }
 
 /**
@@ -188,4 +215,58 @@ export async function resolveArchiveAndDeleteAction(
 		return "proceed";
 	}
 	return "confirm";
+}
+
+export function notifyDeleteQueueState(
+	workspace: Workspace | undefined,
+	deleteBuild: WorkspaceBuild | null,
+): void {
+	if (!deleteBuild || !workspace) {
+		return;
+	}
+	const matched = deleteBuild.matched_provisioners;
+	if (matched && matched.count === 0) {
+		toast.warning(
+			`Delete enqueued for "${workspace.name}", but no matching provisioners are available. The workspace will be deleted once one comes online.`,
+		);
+	}
+}
+
+export function notifyArchiveAndDeleteFailed(
+	workspace: Workspace | undefined,
+	error: unknown,
+	onOpenWorkspace: (path: string) => void,
+): void {
+	const step = error instanceof ArchiveAndDeleteError ? error.step : undefined;
+	const cause = error instanceof ArchiveAndDeleteError ? error.cause : error;
+
+	if (step === "archive") {
+		const label = workspace ? `"${workspace.name}"` : "the workspace";
+		const deleteEnqueued =
+			error instanceof ArchiveAndDeleteError && error.deleteEnqueued;
+		const prefix = deleteEnqueued
+			? `Deleting ${label}, but failed to archive the chat.`
+			: `Failed to archive the chat for ${label}.`;
+		const detail = getErrorMessage(cause, "");
+		toast.error(detail ? `${prefix} ${detail}` : prefix);
+		return;
+	}
+
+	if (!workspace) {
+		toast.error(getErrorMessage(cause, "Failed to delete workspace."));
+		return;
+	}
+
+	const path = `/@${workspace.owner_name}/${workspace.name}`;
+	toast.error(
+		getErrorMessage(cause, `Failed to delete workspace "${workspace.name}".`),
+		{
+			description:
+				"The chat was not archived. Open the workspace to delete it manually.",
+			action: {
+				label: "Open workspace",
+				onClick: () => onOpenWorkspace(path),
+			},
+		},
+	);
 }

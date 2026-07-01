@@ -102,17 +102,17 @@ func (p *Server) preferredShortTextCandidates(
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
-	configs []database.ChatModelConfig,
+	configs []database.GetEnabledChatModelConfigsRow,
 ) (database.ChatModelConfig, bool) {
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.Model), preferred.model) {
+			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
 				continue
 			}
-			return config, true
+			return config.ChatModelConfig, true
 		}
 	}
 	return database.ChatModelConfig{}, false
@@ -181,11 +181,18 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			)
 			return
 		}
+		providerType, err := route.providerHint()
+		if err != nil {
+			logger.Debug(titleCtx, "failed to resolve provider type for automatic title generation",
+				slog.Error(err),
+			)
+			return
+		}
 		p.maybeGenerateChatTitle(
 			turnCtx,
 			chat,
 			messages,
-			modelConfig.Provider,
+			providerType,
 			modelConfig.Model,
 			model,
 			route,
@@ -259,8 +266,16 @@ func (p *Server) maybeGenerateChatTitle(
 
 	var candidates []shortTextCandidate
 	if overrideSet {
+		overrideProvider, err := overrideRoute.providerHint()
+		if err != nil {
+			logger.Debug(ctx, "failed to resolve provider type for title generation override",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			return
+		}
 		candidates = []shortTextCandidate{{
-			provider: overrideConfig.Provider,
+			provider: overrideProvider,
 			model:    overrideConfig.Model,
 			route:    overrideRoute,
 			lm:       overrideModel,

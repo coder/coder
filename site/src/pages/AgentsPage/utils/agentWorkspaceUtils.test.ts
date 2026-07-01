@@ -1,9 +1,27 @@
-import { describe, expect, it, vi } from "vitest";
-import { PrebuildsSystemUserID } from "#/api/typesGenerated";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("sonner", () => ({
+	toast: {
+		error: vi.fn(),
+		info: vi.fn(),
+		success: vi.fn(),
+		warning: vi.fn(),
+	},
+}));
+
+import { toast } from "sonner";
 import {
+	PrebuildsSystemUserID,
+	type Workspace,
+	type WorkspaceBuild,
+} from "#/api/typesGenerated";
+import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
 	isWorkspaceAutoCreated,
 	isWorkspaceNotFound,
+	notifyArchiveAndDeleteFailed,
+	notifyDeleteQueueState,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 	workspaceAcquiredAt,
@@ -259,13 +277,18 @@ describe("isWorkspaceNotFound", () => {
 });
 
 describe("archiveChatAndDeleteWorkspace", () => {
-	it("archives and deletes when both succeed", async () => {
+	const BUILD_OK = {
+		job: { queue_position: 0, queue_size: 1 },
+	} as unknown as WorkspaceBuild;
+
+	it("archives and deletes when both succeed, deleting first", async () => {
 		const callOrder: string[] = [];
 		const doArchive = vi.fn(async () => {
 			callOrder.push("archive");
 		});
 		const doDelete = vi.fn(async () => {
 			callOrder.push("delete");
+			return BUILD_OK;
 		});
 
 		await expect(
@@ -275,17 +298,25 @@ describe("archiveChatAndDeleteWorkspace", () => {
 				doArchive,
 				doDelete,
 			),
-		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		).resolves.toEqual({
+			chatId: "chat-1",
+			workspaceId: "workspace-1",
+			deleteBuild: BUILD_OK,
+		});
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doArchive).toHaveBeenCalledWith("chat-1");
 		expect(doDelete).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledWith("workspace-1");
-		expect(callOrder).toEqual(["archive", "delete"]);
+		expect(callOrder).toEqual(["delete", "archive"]);
 	});
 
-	it("succeeds when delete returns 404", async () => {
-		const doArchive = vi.fn(async () => undefined);
+	it("archives even when delete returns 404, with null deleteBuild", async () => {
+		const callOrder: string[] = [];
+		const doArchive = vi.fn(async () => {
+			callOrder.push("archive");
+		});
 		const doDelete = vi.fn(async () => {
+			callOrder.push("delete");
 			throw {
 				isAxiosError: true,
 				response: {
@@ -302,12 +333,15 @@ describe("archiveChatAndDeleteWorkspace", () => {
 				doArchive,
 				doDelete,
 			),
-		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
-		expect(doArchive).toHaveBeenCalledTimes(1);
-		expect(doDelete).toHaveBeenCalledTimes(1);
+		).resolves.toEqual({
+			chatId: "chat-1",
+			workspaceId: "workspace-1",
+			deleteBuild: null,
+		});
+		expect(callOrder).toEqual(["delete", "archive"]);
 	});
 
-	it("succeeds when delete returns 410", async () => {
+	it("archives even when delete returns 410, with null deleteBuild", async () => {
 		const doArchive = vi.fn(async () => undefined);
 		const doDelete = vi.fn(async () => {
 			throw {
@@ -326,14 +360,18 @@ describe("archiveChatAndDeleteWorkspace", () => {
 				doArchive,
 				doDelete,
 			),
-		).resolves.toEqual({ chatId: "chat-1", workspaceId: "workspace-1" });
+		).resolves.toEqual({
+			chatId: "chat-1",
+			workspaceId: "workspace-1",
+			deleteBuild: null,
+		});
 		expect(doArchive).toHaveBeenCalledTimes(1);
 		expect(doDelete).toHaveBeenCalledTimes(1);
 	});
 
-	it("throws when delete returns non-404-or-410 error", async () => {
+	it("wraps non-404-or-410 delete failures and skips archive", async () => {
 		const doArchive = vi.fn(async () => undefined);
-		const error = {
+		const cause = {
 			isAxiosError: true,
 			response: {
 				status: 500,
@@ -341,38 +379,83 @@ describe("archiveChatAndDeleteWorkspace", () => {
 			},
 		};
 		const doDelete = vi.fn(async () => {
-			throw error;
+			throw cause;
 		});
 
-		await expect(
-			archiveChatAndDeleteWorkspace(
-				"chat-1",
-				"workspace-1",
-				doArchive,
-				doDelete,
-			),
-		).rejects.toBe(error);
-		expect(doArchive).toHaveBeenCalledTimes(1);
+		const promise = archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+		);
+		await expect(promise).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		const err = await promise.catch((e: unknown) => e);
+		expect((err as ArchiveAndDeleteError).step).toBe("delete");
+		expect((err as ArchiveAndDeleteError).cause).toBe(cause);
 		expect(doDelete).toHaveBeenCalledTimes(1);
+		expect(doArchive).not.toHaveBeenCalled();
 	});
 
-	it("throws when archive fails without attempting delete", async () => {
-		const error = new Error("archive failed");
+	it("wraps archive failures that follow a successful delete", async () => {
+		const cause = new Error("archive failed");
 		const doArchive = vi.fn(async () => {
-			throw error;
+			throw cause;
 		});
-		const doDelete = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => BUILD_OK);
 
-		await expect(
-			archiveChatAndDeleteWorkspace(
-				"chat-1",
-				"workspace-1",
-				doArchive,
-				doDelete,
-			),
-		).rejects.toBe(error);
+		const promise = archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+		);
+		await expect(promise).rejects.toBeInstanceOf(ArchiveAndDeleteError);
+		const err = await promise.catch((e: unknown) => e);
+		expect((err as ArchiveAndDeleteError).step).toBe("archive");
+		expect((err as ArchiveAndDeleteError).cause).toBe(cause);
+		expect((err as ArchiveAndDeleteError).deleteEnqueued).toBe(true);
+		expect(doDelete).toHaveBeenCalledTimes(1);
 		expect(doArchive).toHaveBeenCalledTimes(1);
-		expect(doDelete).not.toHaveBeenCalled();
+	});
+
+	it("marks archive failures with deleteEnqueued=false when delete was skipped", async () => {
+		const doArchive = vi.fn(async () => {
+			throw new Error("archive failed");
+		});
+		const doDelete = vi.fn(async () => {
+			throw {
+				isAxiosError: true,
+				response: { status: 410, data: { message: "gone" } },
+			};
+		});
+
+		const promise = archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+		);
+		const err = (await promise.catch(
+			(e: unknown) => e,
+		)) as ArchiveAndDeleteError;
+		expect(err.step).toBe("archive");
+		expect(err.deleteEnqueued).toBe(false);
+	});
+
+	it("returns the delete build payload on success", async () => {
+		const build = {
+			job: { queue_position: 4, queue_size: 7 },
+		} as unknown as WorkspaceBuild;
+		const doArchive = vi.fn(async () => undefined);
+		const doDelete = vi.fn(async () => build);
+
+		const result = await archiveChatAndDeleteWorkspace(
+			"chat-1",
+			"workspace-1",
+			doArchive,
+			doDelete,
+		);
+		expect(result.deleteBuild).toBe(build);
 	});
 });
 
@@ -631,5 +714,192 @@ describe("shouldNavigateAfterArchive", () => {
 				activeRootChatId,
 			),
 		).toBe(expected);
+	});
+});
+
+const makeWorkspace = (overrides: Partial<Workspace> = {}): Workspace =>
+	({
+		id: "ws-1",
+		name: "my-workspace",
+		owner_name: "alice",
+		...overrides,
+	}) as Workspace;
+
+const makeDeleteBuild = (matched?: {
+	count: number;
+	available?: number;
+}): WorkspaceBuild =>
+	({
+		job: { queue_position: 0, queue_size: 0 },
+		matched_provisioners: matched
+			? { count: matched.count, available: matched.available ?? matched.count }
+			: undefined,
+	}) as unknown as WorkspaceBuild;
+
+describe("notifyDeleteQueueState", () => {
+	const toastWarning = toast.warning as unknown as ReturnType<typeof vi.fn>;
+	const toastInfo = toast.info as unknown as ReturnType<typeof vi.fn>;
+	const toastSuccess = toast.success as unknown as ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		toastWarning.mockClear();
+		toastInfo.mockClear();
+		toastSuccess.mockClear();
+	});
+
+	it("is silent when no build is returned (workspace already gone)", () => {
+		notifyDeleteQueueState(makeWorkspace(), null);
+		expect(toastWarning).not.toHaveBeenCalled();
+		expect(toastInfo).not.toHaveBeenCalled();
+		expect(toastSuccess).not.toHaveBeenCalled();
+	});
+
+	it("is silent when workspace is not in cache", () => {
+		notifyDeleteQueueState(undefined, makeDeleteBuild({ count: 0 }));
+		expect(toastWarning).not.toHaveBeenCalled();
+	});
+
+	it("is silent when matched_provisioners is absent (older servers)", () => {
+		notifyDeleteQueueState(makeWorkspace(), makeDeleteBuild());
+		expect(toastWarning).not.toHaveBeenCalled();
+	});
+
+	it("is silent on the happy path (at least one matching provisioner)", () => {
+		notifyDeleteQueueState(makeWorkspace(), makeDeleteBuild({ count: 2 }));
+		expect(toastWarning).not.toHaveBeenCalled();
+	});
+
+	it("warns when no matching provisioners exist (count = 0)", () => {
+		notifyDeleteQueueState(
+			makeWorkspace({ name: "stuck-ws" }),
+			makeDeleteBuild({ count: 0 }),
+		);
+		expect(toastWarning).toHaveBeenCalledTimes(1);
+		const message = toastWarning.mock.calls[0][0] as string;
+		expect(message).toContain("stuck-ws");
+		expect(message).toContain("no matching provisioners");
+	});
+});
+
+describe("notifyArchiveAndDeleteFailed", () => {
+	const toastError = toast.error as unknown as ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		toastError.mockClear();
+	});
+
+	it("shows a generic delete-failed toast when workspace is not in cache", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			undefined,
+			new ArchiveAndDeleteError("delete", {}),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		expect(toastError.mock.calls[0][0]).toContain(
+			"Failed to delete workspace.",
+		);
+		expect(toastError.mock.calls[0][1]).toBeUndefined();
+	});
+
+	it("includes workspace name and an Open workspace action when delete fails", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace({ name: "left-behind", owner_name: "bob" }),
+			new ArchiveAndDeleteError("delete", {}),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const [message, options] = toastError.mock.calls[0] as [
+			string,
+			{
+				description: string;
+				action: { label: string; onClick: () => void };
+			},
+		];
+		expect(message).toContain("left-behind");
+		expect(options.description).toContain("not archived");
+		expect(options.action.label).toBe("Open workspace");
+		options.action.onClick();
+		expect(onOpen).toHaveBeenCalledWith("/@bob/left-behind");
+	});
+
+	it("announces partial success when only the archive step fails after enqueue", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace({ name: "deleting-ws" }),
+			new ArchiveAndDeleteError("archive", new Error("forbidden"), true),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const [message, options] = toastError.mock.calls[0] as [string, undefined];
+		expect(message).toContain("deleting-ws");
+		expect(message).toContain("Deleting");
+		expect(message).toContain("failed to archive");
+		expect(options).toBeUndefined();
+		expect(onOpen).not.toHaveBeenCalled();
+	});
+
+	it("omits the 'Deleting' claim when the workspace was already gone (delete swallowed)", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace({ name: "already-gone" }),
+			new ArchiveAndDeleteError("archive", new Error("forbidden"), false),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const message = toastError.mock.calls[0][0] as string;
+		expect(message).toContain("already-gone");
+		expect(message).toContain("Failed to archive");
+		expect(message).not.toContain("Deleting");
+	});
+
+	it("handles archive-step failure with no workspace in cache", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			undefined,
+			new ArchiveAndDeleteError("archive", new Error("forbidden"), true),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const [message, options] = toastError.mock.calls[0] as [string, undefined];
+		expect(message).toContain("the workspace");
+		expect(message).toContain("failed to archive");
+		expect(options).toBeUndefined();
+	});
+
+	it("surfaces the original error's message when present", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace(),
+			new ArchiveAndDeleteError(
+				"delete",
+				new Error("template version archived"),
+			),
+			onOpen,
+		);
+		const message = toastError.mock.calls[0][0] as string;
+		expect(message).toContain("template version archived");
+	});
+
+	it("falls back to the delete branch (with action) for non-tagged errors", () => {
+		const onOpen = vi.fn();
+		notifyArchiveAndDeleteFailed(
+			makeWorkspace({ name: "raw-ws", owner_name: "carol" }),
+			new Error("raw"),
+			onOpen,
+		);
+		expect(toastError).toHaveBeenCalledTimes(1);
+		const [message, options] = toastError.mock.calls[0] as [
+			string,
+			{
+				description: string;
+				action: { label: string; onClick: () => void };
+			},
+		];
+		expect(message).toContain("raw");
+		expect(options.action.label).toBe("Open workspace");
+		options.action.onClick();
+		expect(onOpen).toHaveBeenCalledWith("/@carol/raw-ws");
 	});
 });

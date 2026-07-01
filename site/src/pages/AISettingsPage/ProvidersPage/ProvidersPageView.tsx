@@ -88,7 +88,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					Bedrock. Providers configured here power Coder Agents, AI Gateway, and
 					other capabilities such as APIs, CLI or IDEs that use LLMs. By
 					default, users can supply their own keys for any provider.{" "}
-					<Link href={docs("/ai-coder/ai-gateway/auth#enable-or-disable-byok")}>
+					<Link href={docs("/ai-coder/ai-gateway/setup#configure-providers")}>
 						View docs
 					</Link>
 				</SettingsHeaderDescription>

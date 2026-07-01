@@ -69,7 +69,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: defaultModelConfigID,
-		provider: "openai",
+		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -180,6 +180,7 @@ const AgentsRouteElement = () => (
 			is_malformed: false,
 		}}
 		modelConfigsData={[]}
+		providerTypeByID={new Map()}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
 		isFetchingModelConfigs={false}
@@ -228,12 +229,15 @@ const agentsRouting = {
 				},
 				{
 					path: "admin",
-					element: <Navigate to="/agents/settings/coder-agents" replace />,
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
 				},
-				{ path: "coder-agents", element: <AgentsRouteElement /> },
 				{
 					path: "agents",
-					element: <Navigate to="/agents/settings/coder-agents" replace />,
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "coder-agents",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
 				},
 				{
 					path: "spend",
@@ -252,8 +256,11 @@ const agentsRouting = {
 };
 
 const aiSettingsRouting = {
-	path: "/ai/settings/spend",
-	element: <div>Spend limits and usage</div>,
+	path: "/ai/settings",
+	children: [
+		{ path: "coder-agents", element: <AgentsRouteElement /> },
+		{ path: "spend", element: <div>Spend limits and usage</div> },
+	],
 };
 
 const setInnerWidthForStory = (width: number) => {
@@ -430,7 +437,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
 				id: defaultModelConfigID,
-				provider: "openai",
+				ai_provider_id: "provider-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
 				enabled: true,
@@ -439,6 +446,21 @@ const meta: Meta<typeof AgentsPageView> = {
 				compression_threshold: 70,
 				created_at: "2026-02-18T00:00:00.000Z",
 				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+		]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-openai",
+					type: "openai",
+					name: "openai",
+					display_name: "OpenAI",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
 			},
 		]);
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
@@ -1160,7 +1182,7 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
-export const OpensCoderAgentsFromManageAgentsOnMobile: Story = {
+export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1172,9 +1194,15 @@ export const OpensCoderAgentsFromManageAgentsOnMobile: Story = {
 		}),
 	},
 	play: async () => {
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
+
+		await userEvent.click(manageAgentsLink);
 
 		await expect(
 			await screen.findByRole("heading", { name: "Coder Agents" }),
@@ -1196,9 +1224,15 @@ export const SettingsViewCoderAgentsLink: Story = {
 			).toBeInTheDocument();
 		});
 
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
+
+		await userEvent.click(manageAgentsLink);
 
 		await waitFor(() => {
 			expect(
