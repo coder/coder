@@ -28,12 +28,11 @@ interface TemplateCustomizationsStepProps {
 		field: "organizationId" | "name" | "displayName" | "description" | "icon",
 		value: string,
 	) => void;
-	onProvisionerStatusChange: (hasProvisioners: boolean | undefined) => void;
 }
 
 export const TemplateCustomizationsStep: FC<
 	TemplateCustomizationsStepProps
-> = ({ state, onChangeField, onProvisionerStatusChange }) => {
+> = ({ state, onChangeField }) => {
 	const permittedOrgsQuery = useQuery(
 		permittedOrganizations({
 			object: { resource_type: "template" },
@@ -48,14 +47,7 @@ export const TemplateCustomizationsStep: FC<
 		...provisionerDaemons(selectedOrg?.id ?? ""),
 		enabled: Boolean(selectedOrg),
 	});
-	const hasProvisioners = provisioners ? provisioners.length > 0 : undefined;
-	const showProvisionerWarning = hasProvisioners === false;
-
-	// Notify parent when provisioner status changes so the wizard can
-	// disable the create button when no provisioners are available.
-	useEffect(() => {
-		onProvisionerStatusChange(hasProvisioners);
-	}, [hasProvisioners, onProvisionerStatusChange]);
+	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
 
 	// Auto-select when exactly one org is available.
 	useEffect(() => {
