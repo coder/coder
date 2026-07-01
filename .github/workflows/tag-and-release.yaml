@@ -85,10 +85,10 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
         with:
-          use-cache: false
+          install-args: "go"
 
       - name: Prepare release (calculate version, create tag and branch)
         id: prepare
@@ -902,8 +902,13 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
 
       - name: Update release calendar
         run: ./scripts/update-release-calendar.sh
