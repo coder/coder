@@ -1,59 +1,105 @@
-# Clone private repositories
+# Replace template code with a registry module
 
-Now that you've finished [Launch your first workspace](../index.md), you can let your workspaces clone private GitHub repositories without a manual login each time.
+Now that you've built a workspace from the Quickstart template in [Launch your first workspace](../index.md), you can replace hand-written template code with a reusable Coder Registry module.
+The [`coder/jetbrains`](https://registry.coder.com/modules/coder/jetbrains) module configures JetBrains IDEs in a few lines, and any template can reuse it.
 
-The Quickstart template already clones **public** repositories through its **Git Repository (Optional)** parameter with no extra setup.
-A **private** repository needs authentication, which is what you add here.
-In this guide, you add the `coder_external_auth` data source, connect your workspace to GitHub, and clone a private repository with no manual login.
-This guide uses GitHub, and the same external-auth pattern works for other providers.
+In this guide, you replace the template's hand-written JetBrains code with the `coder/jetbrains` module, publish the change as a new template version, and roll back to the previous version.
+Because a template version is a snapshot, you can make a large change like this one and reverse it with a single command.
 
 > [!NOTE]
 > This guide assumes your Quickstart template is open for editing.
-> If it's not, you can edit the template from the web by finding the template, selecting the three dots menu, and selecting **Edit files**.
-> Refer to [Customize workspace startup](./index.md#open-the-template-for-editing) for more information.
+> If it isn't, refer to [Open the template for editing](./index.md#open-the-template-for-editing).
 
 ## What you'll do
 
-- ✅ Add the `coder_external_auth` data source to the template.
-- ✅ Connect your workspace to GitHub with the **Login with GitHub** button.
-- ✅ Clone a private repository without a manual login.
+- ✅ Replace the `jetbrains_ides` parameter and the `jetbrains_selected` local with the `coder/jetbrains` module.
+- ✅ Keep the language-to-IDE mapping, so selecting Rust still gives RustRover.
+- ✅ Publish a new template version, then roll back to the previous one.
 
-## Data sources for their side effect
+## What the module replaces
 
-You already met one [data source](https://developer.hashicorp.com/terraform/language/data-sources) in [Add a programming language](./add-a-language.md): `coder_parameter` reads a choice from the workspace owner.
+Your template sets up JetBrains IDEs in three parts:
 
-`coder_external_auth` is a data source you add for its side effect rather than its value.
-Its presence tells Coder that a workspace requires an authenticated session with a provider before it starts.
-The `id` points at a provider configured on the Coder deployment, and the local Coder server you started in Part 1 already has a `github` provider available.
+- A `data "coder_parameter" "jetbrains_ides"` block with an `option` for each IDE.
+- A `jetbrains_by_language` local that maps each language to a JetBrains IDE, so Rust maps to RustRover and Go maps to GoLand.
+- A `jetbrains_selected` local that reads the parameter.
 
-> [!NOTE]
-> External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
-> A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
-> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OIDC) or replace the built-in GitHub app.
-> To learn more, refer to [External authentication](../../admin/external-auth/index.md).
+The parameter block alone is about 60 lines.
+A [module](https://developer.hashicorp.com/terraform/language/modules) is a reusable bundle of Terraform that you pull in by reference.
+The `coder/jetbrains` module replaces the parameter and the `jetbrains_selected` local, and it reuses the `jetbrains_by_language` mapping, so the language-to-IDE behavior doesn't change.
+Because the module lives in the [Coder Registry](https://registry.coder.com), you get a tested implementation that resolves each IDE's build version for you.
 
-## Step 1: Require GitHub authentication
+## Step 1: Replace the parameter with the module
 
-Add this `coder_external_auth` block to `main.tf`:
+Open `main.tf` and make three changes.
+
+First, delete the `data "coder_parameter" "jetbrains_ides"` block.
+This is the roughly 60-line block that starts with:
 
 ```tf
-data "coder_external_auth" "github" {
-  id = "github"
+data "coder_parameter" "jetbrains_ides" {
+  count = contains(local.ides, "jetbrains") ? 1 : 0
+  # ...
 }
 ```
 
-Then publish a new version of the template:
+Second, delete the `jetbrains_selected` local, which read that parameter:
+
+```tf
+jetbrains_selected = contains(local.ides, "jetbrains") ? jsondecode(data.coder_parameter.jetbrains_ides[0].value) : []
+```
+
+Keep the `jetbrains_by_language` map and the `jetbrains_ides_from_languages` local.
+The module uses them to turn the selected languages into IDE codes.
+
+Third, add the `coder/jetbrains` module to the IDE modules section, next to the other IDE modules:
+
+```tf
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count * (contains(local.ides, "jetbrains") && length(local.jetbrains_ides_from_languages) > 0 ? 1 : 0)
+  source   = "registry.coder.com/coder/jetbrains/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
+  folder   = "/home/coder"
+  default  = toset(local.jetbrains_ides_from_languages)
+}
+```
+
+The `default` argument does the work.
+When you pass IDE codes to `default`, the module creates a button for each of those IDEs instead of showing a separate picker.
+Because `jetbrains_ides_from_languages` maps the selected languages to their IDEs, a workspace that selects Rust and JetBrains gets RustRover.
+
+One reference to the old parameter remains.
+The Backend (Go) preset sets `jetbrains_ides`, so remove that line:
+
+```tf
+data "coder_workspace_preset" "backend_go" {
+  name = "Backend (Go)"
+  icon = "/icon/go.svg"
+  parameters = {
+    languages = jsonencode(["go"])
+    ides      = jsonencode(["code-server", "jetbrains"])
+    git_repo  = ""
+  }
+}
+```
+
+The Go preset still selects JetBrains, and the language mapping gives it GoLand.
+
+## Step 2: Publish a new version
+
+Publish the edited template as a new version.
 
 <div class="tabs">
 
 ### UI
 
-In the web editor, add the `coder_external_auth` block to `main.tf`.
+In the web editor, make the changes to `main.tf`.
 Select **Build**, wait for the build to pass, then select **Publish**.
 
 ### CLI
 
-Add the block to `~/coder-quickstart/main.tf`, then publish a new version:
+Edit `~/coder-quickstart/main.tf`, then publish a new version:
 
 ```sh
 coder templates push -d ~/coder-quickstart -y quickstart
@@ -61,76 +107,44 @@ coder templates push -d ~/coder-quickstart -y quickstart
 
 </div>
 
-> [!WARNING]
-> Adding this block makes GitHub authentication required: a workspace on this template can't start until you authenticate, with no option to skip.
-> If you'd rather leave it optional, set `optional = true` in the `coder_external_auth` block so users can skip authentication when they create or update a workspace.
+Coder validates the Terraform and creates a new active version.
+New workspaces use it right away, and existing workspaces adopt it on their next build.
 
-## Step 2: Connect your workspace to GitHub
+## Step 3: Confirm the module works
 
-Update the workspace you built in [Launch your first workspace](../index.md) to the version you just published.
-Because the local Coder server is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
+Create a workspace from the template.
+Select Rust as the language and JetBrains IDEs as the editor.
+When the workspace starts, the dashboard shows a RustRover button that the module created, with no hand-written parameter behind it.
+To open it, use [JetBrains Toolbox](../../user-guides/workspace-access/jetbrains/toolbox.md).
 
-<div class="tabs">
+## Roll back to a previous version
 
-### UI
-
-On your workspace, select **Update**.
-The update form shows a **Login with GitHub** button: select it, follow the prompts to authorize Coder, then select **Update and restart**.
-The following screenshot shows the **External Authentication** section of the workspace creation screen before connecting GitHub:
-
-![External Authentication with GitHub before logging in](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
-
-### CLI
-
-Update the workspace:
+A template version is a snapshot, so you can try the module and return to the earlier version at any time.
+List the template's versions:
 
 ```sh
-coder update <your-workspace>
+coder templates versions list quickstart
 ```
 
-If you aren't authenticated yet, Coder prints a URL to log in with GitHub; open it, authorize Coder, then run the command again.
-
-</div>
-
-Once you authorize Coder, the workspace starts, and Coder stores and refreshes your GitHub token for later builds.
-After authorizing Coder, Coder replaces the **Login with GitHub** button with an **Authenticated** message:
-
-![External Authentication with GitHub after logging in](../../images/screenshots/login-with-github-logged-in.png)_External Authentication with GitHub after logging in_
-
-## Step 3: Clone a private repository
-
-Now that your workspace is connected to GitHub, point the **Git Repository (Optional)** parameter at a private repository.
-
-<div class="tabs">
-
-### UI
-
-On your workspace, set **Git Repository (Optional)** to your private repository URL in the update form, then select **Update and restart**.
-
-### CLI
-
-Update the workspace and re-select its parameters:
+Find the version from before your push, then promote it back to active:
 
 ```sh
-coder update <your-workspace> --always-prompt
+coder templates versions promote --template quickstart --template-version <previous-version>
 ```
 
-When prompted for **Git Repository (Optional)**, enter your private repository URL, then let the workspace rebuild.
-
-</div>
-
-On the next build, the workspace clones the private repository with no manual login, because Coder supplies your GitHub token to `git`.
+You can do the same in the dashboard from **Templates** > **quickstart** > **Versions** by promoting the earlier version.
+New workspaces use the promoted version, and existing workspaces return to it on their next build.
 
 ## What just happened
 
-You added one data source and connected your workspace to GitHub:
+You replaced hand-written template code with a reusable module:
 
-- `coder_external_auth` declared that the workspace needs an authenticated GitHub session before it starts.
-- Selecting **Login with GitHub** authorized Coder, and Coder now supplies a GitHub token to `git` for every build.
+- The `coder/jetbrains` module now owns the IDE buttons and resolves each IDE's build version.
+- The template keeps only the language mapping and a single module block, which removes about 60 lines.
+- The same module block works in any template: add it, then point `agent_id` and `folder` at that template's agent and project directory.
 
-A `coder_parameter` reads an answer from the workspace owner.
-A `coder_external_auth` data source reaches outside the template for a prerequisite the deployment provides.
-Both are data sources, and neither creates infrastructure.
+Reusing a tested module instead of copying a parameter block is what keeps templates portable.
+Because you published the change as a version, the rollback command reverses it whenever you want.
 
 ## Final code
 
@@ -252,67 +266,6 @@ data "coder_parameter" "ides" {
   }
 }
 
-# Shown only when "JetBrains IDEs" is selected in the IDEs parameter.
-# Pre-selects IDEs that match the chosen languages.
-data "coder_parameter" "jetbrains_ides" {
-  count        = contains(local.ides, "jetbrains") ? 1 : 0
-  name         = "jetbrains_ides"
-  display_name = "JetBrains IDEs"
-  description  = "Select the JetBrains IDEs to install"
-  type         = "list(string)"
-  form_type    = "multi-select"
-  default      = jsonencode(local.jetbrains_ides_from_languages)
-  mutable      = true
-  icon         = "/icon/jetbrains.svg"
-  order        = 3
-
-  option {
-    name  = "IntelliJ IDEA"
-    value = "IU"
-    icon  = "/icon/intellij.svg"
-  }
-  option {
-    name  = "PyCharm"
-    value = "PY"
-    icon  = "/icon/pycharm.svg"
-  }
-  option {
-    name  = "GoLand"
-    value = "GO"
-    icon  = "/icon/goland.svg"
-  }
-  option {
-    name  = "WebStorm"
-    value = "WS"
-    icon  = "/icon/webstorm.svg"
-  }
-  option {
-    name  = "RustRover"
-    value = "RR"
-    icon  = "/icon/rustrover.svg"
-  }
-  option {
-    name  = "CLion"
-    value = "CL"
-    icon  = "/icon/clion.svg"
-  }
-  option {
-    name  = "PhpStorm"
-    value = "PS"
-    icon  = "/icon/phpstorm.svg"
-  }
-  option {
-    name  = "RubyMine"
-    value = "RM"
-    icon  = "/icon/rubymine.svg"
-  }
-  option {
-    name  = "Rider"
-    value = "RD"
-    icon  = "/icon/rider.svg"
-  }
-}
-
 data "coder_parameter" "git_repo" {
   name         = "git_repo"
   display_name = "Git Repository (Optional)"
@@ -324,12 +277,6 @@ data "coder_parameter" "git_repo" {
   order        = 4
 }
 
-# --- External authentication ---
-
-data "coder_external_auth" "github" {
-  id = "github"
-}
-
 # --- Locals ---
 
 locals {
@@ -338,7 +285,7 @@ locals {
   ides      = jsondecode(data.coder_parameter.ides.value)
 
   # Map selected languages to the relevant JetBrains IDE product codes.
-  # Used as the default for the JetBrains IDE selector parameter.
+  # Used as the default for the coder/jetbrains module.
   jetbrains_by_language = {
     python = ["PY"]
     go     = ["GO"]
@@ -350,10 +297,6 @@ locals {
   jetbrains_ides_from_languages = distinct(flatten([
     for lang in local.languages : lookup(local.jetbrains_by_language, lang, [])
   ]))
-
-  # The actual JetBrains IDEs to install, from the user's selection
-  # in the conditional JetBrains parameter (or empty if not shown).
-  jetbrains_selected = contains(local.ides, "jetbrains") ? jsondecode(data.coder_parameter.jetbrains_ides[0].value) : []
 }
 
 # --- Agent ---
@@ -427,6 +370,7 @@ module "code-server" {
   order    = 1
 }
 
+
 module "cursor" {
   count    = data.coder_workspace.me.start_count * (contains(local.ides, "cursor") ? 1 : 0)
   source   = "registry.coder.com/coder/cursor/coder"
@@ -434,6 +378,15 @@ module "cursor" {
   agent_id = coder_agent.main.id
   folder   = "/home/coder"
   order    = 3
+}
+
+module "jetbrains" {
+  count    = data.coder_workspace.me.start_count * (contains(local.ides, "jetbrains") && length(local.jetbrains_ides_from_languages) > 0 ? 1 : 0)
+  source   = "registry.coder.com/coder/jetbrains/coder"
+  version  = "~> 1.0"
+  agent_id = coder_agent.main.id
+  folder   = "/home/coder"
+  default  = toset(local.jetbrains_ides_from_languages)
 }
 
 module "zed" {
@@ -480,10 +433,9 @@ data "coder_workspace_preset" "backend_go" {
   name = "Backend (Go)"
   icon = "/icon/go.svg"
   parameters = {
-    languages      = jsonencode(["go"])
-    ides           = jsonencode(["code-server", "jetbrains"])
-    jetbrains_ides = jsonencode(["GO"])
-    git_repo       = ""
+    languages = jsonencode(["go"])
+    ides      = jsonencode(["code-server", "jetbrains"])
+    git_repo  = ""
   }
 }
 
@@ -576,12 +528,19 @@ resource "docker_container" "workspace" {
 
 ## What's next?
 
-Your workspaces can now clone private repositories.
+You finished the Customize your template series, and your template now pulls its JetBrains IDEs from the Coder Registry.
 
-Continue with [Replace template code with a registry module](./replace-template-code-with-modules.md) to swap hand-written IDE code for a reusable Coder Registry module and learn how to roll back a template change.
+This is the last guide in the series.
+To keep going, explore more of what Coder offers:
+
+- [Manage workspaces for your team](../../user-guides/workspace-management.md).
+- [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
+
+Or revisit the [Customize your template overview](./index.md) for the full list of guides.
 
 ## Learn more
 
-- [External authentication](../../admin/external-auth/index.md) in the Coder documentation
-- [coder_external_auth data source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/external_auth) in the Terraform Registry
-- [Terraform data sources](https://developer.hashicorp.com/terraform/language/data-sources)
+- [Add modules to a template](../../admin/templates/extending-templates/modules.md)
+- [`coder/jetbrains` module](https://registry.coder.com/modules/coder/jetbrains)
+- [Template change management](../../admin/templates/managing-templates/change-management.md)
+- [JetBrains Toolbox](../../user-guides/workspace-access/jetbrains/toolbox.md)

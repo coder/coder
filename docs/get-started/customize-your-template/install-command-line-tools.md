@@ -712,19 +712,6 @@ module "cursor" {
   order    = 3
 }
 
-# TODO: Re-add the coder/jetbrains module once Coder's dynamic
-# parameter system respects module count for parameter visibility.
-# The module's internal coder_parameter appears even when count = 0,
-# creating a ghost parameter in the workspace creation form.
-# module "jetbrains" {
-#   count    = data.coder_workspace.me.start_count * (contains(local.ides, "jetbrains") && length(local.jetbrains_selected) > 0 ? 1 : 0)
-#   source   = "registry.coder.com/coder/jetbrains/coder"
-#   version  = "~> 1.0"
-#   agent_id = coder_agent.main.id
-#   folder   = "/home/coder"
-#   default  = toset(local.jetbrains_selected)
-# }
-
 module "zed" {
   count    = data.coder_workspace.me.start_count * (contains(local.ides, "zed") ? 1 : 0)
   source   = "registry.coder.com/coder/zed/coder"

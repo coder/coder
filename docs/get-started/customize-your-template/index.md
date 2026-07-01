@@ -19,6 +19,7 @@ Work through the guides in order, or pick the one that solves your problem:
 - [Add a programming language](./add-a-language.md): expose a new language through a parameter and install it at startup.
 - [Install your own command-line tools](./install-command-line-tools.md): install personal command-line tools and make them persist.
 - [Clone private repositories](./authenticate-to-github.md): authenticate to GitHub with an external-auth data source.
+- [Replace template code with a registry module](./replace-template-code-with-modules.md): swap hand-written IDE code for a reusable Coder Registry module, then roll back safely.
 
 Each guide takes about 10 minutes.
 

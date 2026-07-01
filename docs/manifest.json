@@ -107,6 +107,11 @@
 							"title": "Clone private repositories",
 							"description": "Authenticate to GitHub with an external-auth data source",
 							"path": "./get-started/customize-your-template/authenticate-to-github.md"
+						},
+						{
+							"title": "Replace template code with a registry module",
+							"description": "Swap hand-written template code for a Coder Registry module, then roll back safely",
+							"path": "./get-started/customize-your-template/replace-template-code-with-modules.md"
 						}
 					]
 				}
@@ -1411,11 +1416,6 @@
 					"title": "Write a Template from Scratch",
 					"description": "Learn how to author Coder templates",
 					"path": "./tutorials/template-from-scratch.md"
-				},
-				{
-					"title": "Replace Template Code with a Registry Module",
-					"description": "Swap hand-written template code for a Coder Registry module, then roll back safely",
-					"path": "./tutorials/replace-template-code-with-modules.md"
 				},
 				{
 					"title": "Using an External Database",
