@@ -146,7 +146,7 @@ export const providerFormValuesToCreate = (
 			values.roleArn.trim(),
 		);
 		return {
-			type: "anthropic",
+			type: "bedrock",
 			...base,
 			settings: settings as AIProviderSettings,
 		};

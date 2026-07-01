@@ -15,8 +15,6 @@ import (
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // StartTestAIBridgeDaemon wires an in-process aibridged daemon onto the
@@ -24,6 +22,10 @@ import (
 // create AI provider rows with BaseURL pointing at fake upstream HTTP servers
 // (e.g. chattest.NewOpenAI) will have their requests proxied through the real
 // aibridged stack as they would in production.
+//
+// The daemon starts with an empty pool and fetches providers from coderd over
+// the in-memory DRPC, then refreshes on ai_providers change events, exactly
+// like cli.newAIBridgeDaemon.
 //
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
@@ -40,26 +42,15 @@ func StartTestAIBridgeDaemon(
 	cfg := api.DeploymentValues.AI.BridgeConfig
 	tracer := otel.Tracer("aibridge-test")
 
-	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger, nil)
-	if err != nil {
-		t.Fatalf("build providers: %v", err)
+	if metrics == nil {
+		metrics = aibridged.NewMetrics(prometheus.NewRegistry())
 	}
 
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool"), nil, tracer)
+	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), nil, tracer)
 	if err != nil {
 		t.Fatalf("create bridge pool: %v", err)
 	}
 	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
-
-	if metrics == nil {
-		metrics = aibridged.NewMetrics(prometheus.NewRegistry())
-	}
-	reloader := &testPoolReloader{pool: pool, db: api.Database, cfg: cfg, logger: logger.Named("reloader"), metrics: metrics}
-	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
-	if err != nil {
-		t.Fatalf("subscribe provider reload: %v", err)
-	}
-	t.Cleanup(unsubscribe)
 
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return api.CreateInMemoryAIBridgeServer(dialCtx)
@@ -69,26 +60,14 @@ func StartTestAIBridgeDaemon(
 	}
 	t.Cleanup(func() { _ = srv.Close() })
 
-	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
-}
-
-type testPoolReloader struct {
-	pool    *aibridged.CachedBridgePool
-	db      database.Store
-	cfg     codersdk.AIBridgeConfig
-	logger  slog.Logger
-	metrics *aibridged.Metrics
-}
-
-func (r *testPoolReloader) Reload(ctx context.Context) error {
-	// Stamp the attempt before building providers so the gap between
-	// attempt and success timestamps reveals a mid-reload hang.
-	r.metrics.RecordReloadAttempt()
-	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger, nil)
+	// The reloader fetches providers from coderd over srv's DRPC client; the
+	// subscription drives an initial load and refreshes on change events.
+	reloader := cli.NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("reloader"), nil, metrics)
+	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
 	if err != nil {
-		return err
+		t.Fatalf("subscribe provider reload: %v", err)
 	}
-	r.pool.ReplaceProviders(providers)
-	r.metrics.RecordReloadSuccess(outcomes)
-	return nil
+	t.Cleanup(unsubscribe)
+
+	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
 }

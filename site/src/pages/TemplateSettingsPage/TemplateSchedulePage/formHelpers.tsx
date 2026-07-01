@@ -38,6 +38,14 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
 				24 * MAX_TTL_DAYS /* 30 days in hours */,
 				"Please enter an activity bump duration that is less than or equal to 720 hours (30 days).",
 			),
+		time_til_autostop_notify_ms: Yup.number()
+			.integer("Autostop reminder must be an integer.")
+			.required()
+			.min(0, "Autostop reminder must not be less than 0.")
+			.max(
+				24 * MAX_TTL_DAYS /* 30 days in hours */,
+				"Autostop reminder must not exceed 720 hours (30 days).",
+			),
 		failure_ttl_ms: Yup.number()
 			.integer("Failure cleanup days must be an integer.")
 			.required()

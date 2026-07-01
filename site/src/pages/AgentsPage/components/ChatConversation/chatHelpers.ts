@@ -81,27 +81,11 @@ export const resolveModelFromChatConfig = (
 
 	const typedModelConfig = modelConfig as Record<string, unknown>;
 	const model = asString(typedModelConfig.model);
-	const provider = asString(typedModelConfig.provider);
-
-	const candidates = [model];
-	if (provider && model) {
-		candidates.push(`${provider}:${model}`);
-	}
-
-	for (const candidate of candidates) {
-		const match = modelOptions.find((option) => option.id === candidate);
-		if (match) {
-			return match.id;
-		}
-	}
 
 	if (model) {
-		const modelMatch = modelOptions.find(
-			(option) =>
-				option.model === model && (!provider || option.provider === provider),
-		);
-		if (modelMatch) {
-			return modelMatch.id;
+		const match = modelOptions.find((option) => option.id === model);
+		if (match) {
+			return match.id;
 		}
 	}
 

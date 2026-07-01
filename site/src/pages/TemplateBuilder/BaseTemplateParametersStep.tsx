@@ -10,7 +10,12 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import type { ConfigurationFieldDefinition } from "./ConfigurationField";
+import { cn } from "#/utils/cn";
+import {
+	type ConfigurationFieldDefinition,
+	ConfigurationFieldLabel,
+} from "./ConfigurationField";
+import { defaultPlaceholder } from "./defaultPlaceholder";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
 interface BaseTemplateParametersStepProps {
@@ -33,12 +38,13 @@ function variableToField(
 	onChange: (name: string, value: string) => void,
 ): ConfigurationFieldDefinition {
 	const id = `base-var-${variable.name}`;
+	const label = <ConfigurationFieldLabel variable={variable} />;
 
 	if (variable.type === "bool") {
 		return {
 			type: "switch",
 			id,
-			label: variable.name,
+			label,
 			description: variable.description || undefined,
 			required: variable.required,
 			checked: value === "true",
@@ -50,10 +56,12 @@ function variableToField(
 	return {
 		type: "text",
 		id,
-		label: variable.name,
+		label,
 		description: variable.description || undefined,
 		required: variable.required,
-		placeholder: variable.required ? "Required" : "Optional",
+		placeholder:
+			defaultPlaceholder(variable.default) ??
+			(variable.required ? "Required" : "Optional"),
 		field: {
 			name: variable.name,
 			id,
@@ -111,19 +119,32 @@ export const BaseTemplateParametersStep: FC<
 				Your base template requires customizations.
 			</TemplateBuilderSubtitle>
 
-			<TemplateConfiguration
-				name={base?.name ?? "Base Template"}
-				description={base?.description ?? ""}
-				iconUrl={base?.icon}
-				detailsUrl={detailsUrl(baseId)}
-				fields={fields}
-			>
-				{prerequisites && (
-					<div className="mt-6">
-						<MemoizedMarkdown>{prerequisites}</MemoizedMarkdown>
-					</div>
-				)}
-			</TemplateConfiguration>
+			{/* 340px accounts for navbar, page header, card padding, and nav controls */}
+			<div className="max-h-[calc(100vh-340px)] overflow-y-auto">
+				<TemplateConfiguration
+					name={base?.name ?? "Base Template"}
+					description={base?.description ?? ""}
+					iconUrl={base?.icon}
+					detailsUrl={detailsUrl(baseId)}
+					fields={fields}
+				>
+					{prerequisites && (
+						<div className="mt-6">
+							<MemoizedMarkdown
+								className={cn(
+									"text-sm font-normal",
+									"[&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-semibold",
+									"[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
+									"[&_p]:mb-3 [&_p]:text-content-secondary",
+									"[&_a]:font-normal",
+								)}
+							>
+								{prerequisites}
+							</MemoizedMarkdown>
+						</div>
+					)}
+				</TemplateConfiguration>
+			</div>
 		</>
 	);
 };

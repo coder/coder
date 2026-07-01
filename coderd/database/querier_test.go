@@ -1250,7 +1250,6 @@ func TestChatContextHydration(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1381,7 +1380,6 @@ func TestGetAuthorizedChats(t *testing.T) {
 		DisplayName: "OpenAI",
 	})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1645,7 +1643,6 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1766,7 +1763,6 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -1869,7 +1865,6 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:             "openai",
 		Model:                "test-model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
 		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -11097,24 +11092,21 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 	enabledConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: string(enabledProvider.Type),
-		Model:    "openrouter-model-" + uuid.NewString(),
+		Model: "openrouter-model-" + uuid.NewString(),
 		AIProviderID: uuid.NullUUID{
 			UUID:  enabledProvider.ID,
 			Valid: true,
 		},
 	})
 	disabledProviderConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: string(disabledProvider.Type),
-		Model:    "vercel-model-" + uuid.NewString(),
+		Model: "vercel-model-" + uuid.NewString(),
 		AIProviderID: uuid.NullUUID{
 			UUID:  disabledProvider.ID,
 			Valid: true,
 		},
 	})
 	disabledModelConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: string(enabledProvider.Type),
-		Model:    "disabled-model-" + uuid.NewString(),
+		Model: "disabled-model-" + uuid.NewString(),
 		AIProviderID: uuid.NullUUID{
 			UUID:  enabledProvider.ID,
 			Valid: true,
@@ -11125,14 +11117,14 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	require.NoError(t, err)
-	require.True(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == enabledConfig.ID
+	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+		return row.ChatModelConfig.ID == enabledConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == disabledProviderConfig.ID
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+		return row.ChatModelConfig.ID == disabledProviderConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == disabledModelConfig.ID
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 
 	config, err := store.GetEnabledChatModelConfigByID(ctx, enabledConfig.ID)
@@ -11150,16 +11142,16 @@ func insertChatModelConfigForTest(
 	ctx context.Context,
 	t testing.TB,
 	store database.Store,
+	providerType string,
 	params database.InsertChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
 	t.Helper()
 	if params.AIProviderID.Valid {
 		return store.InsertChatModelConfig(ctx, params)
 	}
-	providerName := params.Provider
+	providerName := providerType
 	if providerName == "" {
 		providerName = "openai"
-		params.Provider = providerName
 	}
 	providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	if err != nil {
@@ -11198,8 +11190,7 @@ func TestInsertChatMessages(t *testing.T) {
 	) database.ChatModelConfig {
 		t.Helper()
 
-		modelConfig, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-			Provider:             provider,
+		modelConfig, err := insertChatModelConfigForTest(ctx, t, store, provider, database.InsertChatModelConfigParams{
 			Model:                model,
 			DisplayName:          displayName,
 			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
@@ -11410,8 +11401,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		APIKey:     "test-key",
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -11786,8 +11776,7 @@ func TestChatPinOrderQueries(t *testing.T) {
 			CentralApiKeyEnabled: true,
 		})
 
-		modelCfg, err := insertChatModelConfigForTest(bg, t, db, database.InsertChatModelConfigParams{
-			Provider:             "openai",
+		modelCfg, err := insertChatModelConfigForTest(bg, t, db, "openai", database.InsertChatModelConfigParams{
 			Model:                "test-model",
 			DisplayName:          "Test Model",
 			CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -11966,8 +11955,7 @@ func TestChatPinOrderConstraints(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(bg, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(bg, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -12058,8 +12046,7 @@ func TestChatLabels(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -12357,8 +12344,7 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -12524,8 +12510,6 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, chat.Summary.Valid)
 	require.False(t, chat.SummaryGeneratedAt.Valid)
 
-	// Writing a summary stores it, records summary_generated_at, and does not
-	// bump updated_at.
 	affected, err := db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
@@ -12540,7 +12524,6 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.True(t, fetched.SummaryGeneratedAt.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
-	// Blank summaries are stored as NULL.
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
@@ -12554,9 +12537,7 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, fetched.Summary.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
-	// Establish a known-good summary, then advance history_version with a new
-	// turn so a write carrying the stale history_version is rejected. This is
-	// how background summary writes racing a newer turn lose.
+	// Background summaries generated from stale history must lose to newer turns.
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,
 		ExpectedHistoryVersion: chat.HistoryVersion,
@@ -12623,8 +12604,7 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -12815,8 +12795,7 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13072,8 +13051,7 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13510,8 +13488,7 @@ func TestChatDebugSQLGuards(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13643,8 +13620,7 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13757,8 +13733,7 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13881,8 +13856,7 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -13978,8 +13952,7 @@ func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testi
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14089,8 +14062,7 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             providerName,
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, providerName, database.InsertChatModelConfigParams{
 		Model:                modelName,
 		DisplayName:          "Debug Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14174,7 +14146,6 @@ func TestGetChatsFilter(t *testing.T) {
 	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
@@ -14472,8 +14443,7 @@ func TestChatHasUnread(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
-	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},

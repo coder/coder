@@ -5025,37 +5025,6 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
-const backfillChatModelConfigProvider = `-- name: BackfillChatModelConfigProvider :execresult
-UPDATE
-    chat_model_configs
-SET
-    provider   = $1::text,
-    updated_at = NOW()
-WHERE
-    provider          = $2::text
-    AND deleted       = FALSE
-    AND ai_provider_id IS NOT NULL
-    AND EXISTS (
-        SELECT 1 FROM ai_providers
-        WHERE  id      = chat_model_configs.ai_provider_id
-          AND  type    = $1::ai_provider_type
-          AND  deleted = FALSE
-    )
-`
-
-type BackfillChatModelConfigProviderParams struct {
-	NewProvider string `db:"new_provider" json:"new_provider"`
-	OldProvider string `db:"old_provider" json:"old_provider"`
-}
-
-// old_provider is matched as text; new_provider is also cast to ai_provider_type
-// for the EXISTS check against ai_providers.type.
-// ai_provider_id IS NOT NULL is defensive; the check constraint already
-// enforces that non-deleted rows always have a provider ID.
-func (q *sqlQuerier) BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, backfillChatModelConfigProvider, arg.NewProvider, arg.OldProvider)
-}
-
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs
@@ -5089,26 +5058,9 @@ func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, a
 	return err
 }
 
-const deleteChatModelConfigsByProvider = `-- name: DeleteChatModelConfigsByProvider :exec
-UPDATE
-    chat_model_configs
-SET
-    deleted = TRUE,
-    deleted_at = NOW(),
-    updated_at = NOW()
-WHERE
-    provider = $1::text
-    AND deleted = FALSE
-`
-
-func (q *sqlQuerier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
-	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByProvider, provider)
-	return err
-}
-
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 FROM
     chat_model_configs
 WHERE
@@ -5121,7 +5073,6 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
-		&i.Provider,
 		&i.Model,
 		&i.DisplayName,
 		&i.CreatedBy,
@@ -5142,16 +5093,18 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
-    chat_model_configs
+    chat_model_configs cmc
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    deleted = FALSE
+    cmc.deleted = FALSE
 ORDER BY
-    provider ASC,
-    model ASC,
-    updated_at DESC,
-    id DESC
+    ap.type::text ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC
 `
 
 func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
@@ -5165,7 +5118,6 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 		var i ChatModelConfig
 		if err := rows.Scan(
 			&i.ID,
-			&i.Provider,
 			&i.Model,
 			&i.DisplayName,
 			&i.CreatedBy,
@@ -5196,7 +5148,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 FROM
     chat_model_configs
 WHERE
@@ -5209,7 +5161,6 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
-		&i.Provider,
 		&i.Model,
 		&i.DisplayName,
 		&i.CreatedBy,
@@ -5230,7 +5181,7 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 
 const getEnabledChatModelConfigByID = `-- name: GetEnabledChatModelConfigByID :one
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
 JOIN
@@ -5250,7 +5201,6 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
-		&i.Provider,
 		&i.Model,
 		&i.DisplayName,
 		&i.CreatedBy,
@@ -5271,7 +5221,8 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id,
+    ap.type::text AS provider
 FROM
     chat_model_configs cmc
 JOIN
@@ -5282,38 +5233,43 @@ WHERE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
 ORDER BY
-    cmc.provider ASC,
+    ap.type::text ASC,
     cmc.model ASC,
     cmc.updated_at DESC,
     cmc.id DESC
 `
 
-func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+type GetEnabledChatModelConfigsRow struct {
+	ChatModelConfig ChatModelConfig `db:"chat_model_config" json:"chat_model_config"`
+	Provider        string          `db:"provider" json:"provider"`
+}
+
+func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatModelConfig
+	var items []GetEnabledChatModelConfigsRow
 	for rows.Next() {
-		var i ChatModelConfig
+		var i GetEnabledChatModelConfigsRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.ChatModelConfig.ID,
+			&i.ChatModelConfig.Model,
+			&i.ChatModelConfig.DisplayName,
+			&i.ChatModelConfig.CreatedBy,
+			&i.ChatModelConfig.UpdatedBy,
+			&i.ChatModelConfig.Enabled,
+			&i.ChatModelConfig.IsDefault,
+			&i.ChatModelConfig.Deleted,
+			&i.ChatModelConfig.DeletedAt,
+			&i.ChatModelConfig.CreatedAt,
+			&i.ChatModelConfig.UpdatedAt,
+			&i.ChatModelConfig.ContextLimit,
+			&i.ChatModelConfig.CompressionThreshold,
+			&i.ChatModelConfig.Options,
+			&i.ChatModelConfig.AIProviderID,
 			&i.Provider,
-			&i.Model,
-			&i.DisplayName,
-			&i.CreatedBy,
-			&i.UpdatedBy,
-			&i.Enabled,
-			&i.IsDefault,
-			&i.Deleted,
-			&i.DeletedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ContextLimit,
-			&i.CompressionThreshold,
-			&i.Options,
-			&i.AIProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -5330,7 +5286,6 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 
 const insertChatModelConfig = `-- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
-    provider,
     model,
     display_name,
     created_by,
@@ -5344,22 +5299,20 @@ INSERT INTO chat_model_configs (
 ) VALUES (
     $1::text,
     $2::text,
-    $3::text,
+    $3::uuid,
     $4::uuid,
-    $5::uuid,
+    $5::boolean,
     $6::boolean,
-    $7::boolean,
-    $8::bigint,
-    $9::integer,
-    $10::jsonb,
-    $11::uuid
+    $7::bigint,
+    $8::integer,
+    $9::jsonb,
+    $10::uuid
 )
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 `
 
 type InsertChatModelConfigParams struct {
-	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
@@ -5374,7 +5327,6 @@ type InsertChatModelConfigParams struct {
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
 	row := q.db.QueryRowContext(ctx, insertChatModelConfig,
-		arg.Provider,
 		arg.Model,
 		arg.DisplayName,
 		arg.CreatedBy,
@@ -5389,7 +5341,6 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
-		&i.Provider,
 		&i.Model,
 		&i.DisplayName,
 		&i.CreatedBy,
@@ -5428,26 +5379,24 @@ const updateChatModelConfig = `-- name: UpdateChatModelConfig :one
 UPDATE
     chat_model_configs
 SET
-    provider = $1::text,
-    model = $2::text,
-    display_name = $3::text,
-    updated_by = $4::uuid,
-    enabled = $5::boolean,
-    is_default = $6::boolean,
-    context_limit = $7::bigint,
-    compression_threshold = $8::integer,
-    options = $9::jsonb,
-    ai_provider_id = $10::uuid,
+    model = $1::text,
+    display_name = $2::text,
+    updated_by = $3::uuid,
+    enabled = $4::boolean,
+    is_default = $5::boolean,
+    context_limit = $6::bigint,
+    compression_threshold = $7::integer,
+    options = $8::jsonb,
+    ai_provider_id = $9::uuid,
     updated_at = NOW()
 WHERE
-    id = $11::uuid
+    id = $10::uuid
     AND deleted = FALSE
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
 `
 
 type UpdateChatModelConfigParams struct {
-	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
@@ -5462,7 +5411,6 @@ type UpdateChatModelConfigParams struct {
 
 func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateChatModelConfig,
-		arg.Provider,
 		arg.Model,
 		arg.DisplayName,
 		arg.UpdatedBy,
@@ -5477,7 +5425,6 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
-		&i.Provider,
 		&i.Model,
 		&i.DisplayName,
 		&i.CreatedBy,
@@ -6995,7 +6942,7 @@ const getChatCostPerModel = `-- name: GetChatCostPerModel :many
 SELECT
     cmc.id AS model_config_id,
     cmc.display_name,
-    cmc.provider,
+    COALESCE(ap.type::text, '')::text AS provider,
     cmc.model,
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
@@ -7016,13 +6963,15 @@ JOIN
     chats c ON c.id = cm.chat_id
 JOIN
     chat_model_configs cmc ON cmc.id = cm.model_config_id
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     c.owner_id = $1::uuid
     AND cm.role = 'assistant'
     AND cm.created_at >= $2::timestamptz
     AND cm.created_at < $3::timestamptz
 GROUP BY
-    cmc.id, cmc.display_name, cmc.provider, cmc.model
+    cmc.id, cmc.display_name, ap.type, cmc.model
 ORDER BY
     total_cost_micros DESC
 `
@@ -7988,9 +7937,10 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 }
 
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
-SELECT id, provider, model, context_limit, enabled, is_default
-FROM chat_model_configs
-WHERE deleted = false
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+FROM chat_model_configs cmc
+JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE cmc.deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {
@@ -8003,6 +7953,7 @@ type GetChatModelConfigsForTelemetryRow struct {
 }
 
 // Returns all model configurations for telemetry snapshot collection.
+// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatModelConfigsForTelemetry)
 	if err != nil {
@@ -12423,12 +12374,8 @@ type UpdateChatSummaryParams struct {
 	ExpectedHistoryVersion int64          `db:"expected_history_version" json:"expected_history_version"`
 }
 
-// Stores the summary and stamps summary_generated_at (used to schedule the
-// next regeneration).
-// Guards on history_version, not updated_at (left untouched), so the write
-// is rejected only when the message history changed under it; unrelated
-// worker state transitions cannot block it. Same pattern as
-// UpdateChatLastTurnSummary.
+// The history_version fence lets background summary writes ignore worker-only
+// updates while losing to newer message history.
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatSummary, arg.Summary, arg.ID, arg.ExpectedHistoryVersion)
 	if err != nil {
@@ -38470,6 +38417,10 @@ WHERE
 		--   * The workspace is not dormant and its owner is not suspended.
 		--   * The build has a deadline in the future (we never remind about a stop already due).
 		--   * The template opts in (time_til_autostop_notify > 0) and now is within the lead window.
+		--   * The owner is not active in a way that can keep the workspace
+		--     alive: either they have not used it within the active threshold
+		--     (15 minutes), or activity bumps are disabled, or the max_deadline
+		--     ceiling pins the stop inside the lead window so a bump cannot save it.
 		--   * A reminder has not yet been sent for THIS deadline.
 		--
 		-- NOTE: time_til_autostop_notify has no upper bound. If it exceeds a
@@ -38490,7 +38441,26 @@ WHERE
 			workspace_builds.deadline > $1::timestamptz AND
 			templates.time_til_autostop_notify > 0 AND
 			workspace_builds.deadline <= ($1::timestamptz) + (INTERVAL '1 millisecond' * (templates.time_til_autostop_notify / 1000000)) AND
-			workspace_builds.notified_autostop_deadline != workspace_builds.deadline
+			workspace_builds.notified_autostop_deadline != workspace_builds.deadline AND
+			-- Keep the reminder unless the user is active AND an activity bump can
+			-- still move the deadline out of the lead window. This block is the
+			-- exact complement of the skip-guard in shouldRemindAutostop (Go)
+			-- (userActive AND bumpEnabled AND NOT maxDeadlineTraps), so the
+			-- pre-filter and the re-check agree on the boundary.
+			(
+				-- Not used within the active threshold (15 minutes). This is the exact
+				-- complement of the < autostopReminderActiveThreshold guard in
+				-- shouldRemindAutostop (Go); keep the two in sync.
+				($1 :: timestamptz) - workspaces.last_used_at >= INTERVAL '15 minutes'
+				-- ...or activity bumps are disabled (deadline can't move)...
+				OR templates.activity_bump <= 0
+				-- ...or the hard max_deadline ceiling is within the lead window, so
+				-- the workspace will stop regardless of activity.
+				OR (
+					workspace_builds.max_deadline != '0001-01-01 00:00:00+00'::timestamptz
+					AND workspace_builds.max_deadline <= ($1::timestamptz) + (INTERVAL '1 millisecond' * (templates.time_til_autostop_notify / 1000000))
+				)
+			)
 		)
 	)
   	AND workspaces.deleted = 'false'

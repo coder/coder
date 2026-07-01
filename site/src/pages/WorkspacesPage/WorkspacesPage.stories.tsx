@@ -182,7 +182,7 @@ const makePage = (prefix: string) =>
 
 export const PaginationChangesQueryKey: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 		queries: [
 			...meta.parameters.queries,
 			{

@@ -118,7 +118,7 @@ AI GATEWAY OPTIONS:
           limit, and is currently the only supported value.
 
       --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
-          Base directory for dumping AI Bridge request/response pairs to disk
+          Base directory for dumping AI Gateway request/response pairs to disk
           for debugging. When set, each provider writes under a subdirectory
           named after the provider. Sensitive headers are redacted. Leave empty
           to disable.
