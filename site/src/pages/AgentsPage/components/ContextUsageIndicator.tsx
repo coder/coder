@@ -6,7 +6,7 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -87,7 +87,7 @@ const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 const formatTokenCount = (value: number | undefined): string =>
-	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+	hasFiniteTokenValue(value) ? value.toLocaleString("en-US") : "--";
 
 const formatTokenCountCompact = (value: number | undefined): string => {
 	if (!hasFiniteTokenValue(value)) {
@@ -102,6 +102,24 @@ const formatTokenCountCompact = (value: number | undefined): string => {
 		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
 	}
 	return String(value);
+};
+
+// Two MCP tools can collide on name after the agent strips the "<server>__"
+// prefix. Dedupe by name so a duplicate cannot render twice or produce a
+// duplicate React key.
+const dedupeToolsByName = (
+	tools: readonly ChatContextTool[],
+): readonly ChatContextTool[] => {
+	const seen = new Set<string>();
+	const unique: ChatContextTool[] = [];
+	for (const tool of tools) {
+		if (seen.has(tool.name)) {
+			continue;
+		}
+		seen.add(tool.name);
+		unique.push(tool);
+	}
+	return unique;
 };
 
 // Sum the byte size of the OK resources in the given kinds so each popover
@@ -194,7 +212,33 @@ export const ContextUsageIndicator: FC<{
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
 	const [open, setOpen] = useState(false);
+	// Track the mobile breakpoint reactively so a viewport crossing it swaps
+	// between the tap (mobile) and hover/focus (desktop) interaction models.
+	const [isMobile, setIsMobile] = useState(isMobileViewport);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Clear any pending close timer on unmount so it cannot fire setState after
+	// the component is gone.
+	useEffect(() => {
+		return () => {
+			if (closeTimerRef.current) {
+				clearTimeout(closeTimerRef.current);
+				closeTimerRef.current = null;
+			}
+		};
+	}, []);
+
+	// Subscribe to the mobile media query so crossing the breakpoint re-renders
+	// into the correct interaction model.
+	useEffect(() => {
+		const mediaQuery = window.matchMedia("(max-width: 639px)");
+		const onChange = () => setIsMobile(mediaQuery.matches);
+		// Sync once in case the viewport changed between the initial render and
+		// the effect running.
+		onChange();
+		mediaQuery.addEventListener("change", onChange);
+		return () => mediaQuery.removeEventListener("change", onChange);
+	}, []);
 
 	const cancelClose = () => {
 		if (closeTimerRef.current) {
@@ -211,7 +255,8 @@ export const ContextUsageIndicator: FC<{
 		}, HOVER_CLOSE_DELAY_MS);
 	};
 
-	const handleMouseEnter = () => {
+	// Open on hover or keyboard focus; cancel any pending close first.
+	const openPopover = () => {
 		cancelClose();
 		setOpen(true);
 	};
@@ -286,7 +331,7 @@ export const ContextUsageIndicator: FC<{
 		.map((resource) => ({
 			name: resource.source,
 			source: resource.source,
-			tools: resource.tools ?? [],
+			tools: dedupeToolsByName(resource.tools ?? []),
 		}))
 		// Drop entries with no usable name so an empty MCP marker never renders as
 		// a blank row.
@@ -458,7 +503,10 @@ export const ContextUsageIndicator: FC<{
 										</div>
 										{mcp.tools.length > 0 && (
 											<div className="ml-4 flex flex-col gap-0.5">
-												{mcp.tools.map((tool) => {
+												{mcp.tools.map((tool, index) => {
+													// Tool names are deduped above; the index keeps the
+													// key unique even if a duplicate ever slips through.
+													const toolKey = `${mcp.source}__${tool.name}__${index}`;
 													const row = (
 														<div className="flex items-center gap-1.5 rounded px-0.5 py-px text-content-secondary transition-colors hover:bg-surface-tertiary">
 															<WrenchIcon className="size-3 shrink-0" />
@@ -466,10 +514,10 @@ export const ContextUsageIndicator: FC<{
 														</div>
 													);
 													if (!tool.description) {
-														return <div key={tool.name}>{row}</div>;
+														return <div key={toolKey}>{row}</div>;
 													}
 													return (
-														<Tooltip key={tool.name}>
+														<Tooltip key={toolKey}>
 															<TooltipTrigger asChild>
 																<div className="cursor-default">{row}</div>
 															</TooltipTrigger>
@@ -556,12 +604,13 @@ export const ContextUsageIndicator: FC<{
 		</div>
 	);
 
-	const triggerButton = (
-		<button
-			type="button"
-			aria-label={ariaLabel}
-			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
-		>
+	const triggerClassName =
+		"relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40";
+
+	// Inner visual of the trigger. Each branch wraps it in a real <button> so the
+	// focusable element is itself the Radix popover trigger.
+	const triggerVisual = (
+		<>
 			<SvgRingProgress
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
@@ -581,16 +630,24 @@ export const ContextUsageIndicator: FC<{
 					)}
 				/>
 			)}
-		</button>
+		</>
 	);
 
-	// On mobile, a tap toggles the popover. On desktop, hover opens
-	// it like a dropdown menu and skill descriptions appear as
-	// nested tooltips to the right (same pattern as ModelSelector).
-	if (isMobileViewport()) {
+	// On mobile, a tap toggles the popover. On desktop, hover or keyboard focus
+	// opens it like a dropdown menu and skill descriptions appear as nested
+	// tooltips to the right (same pattern as ModelSelector).
+	if (isMobile) {
 		return (
 			<Popover>
-				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+				<PopoverTrigger asChild>
+					<button
+						type="button"
+						aria-label={ariaLabel}
+						className={triggerClassName}
+					>
+						{triggerVisual}
+					</button>
+				</PopoverTrigger>
 				<PopoverContent
 					side="top"
 					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
@@ -604,9 +661,20 @@ export const ContextUsageIndicator: FC<{
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
-					{triggerButton}
-				</div>
+				{/* The focusable button is the trigger, so Radix applies
+				    aria-haspopup/aria-expanded to it and hover or keyboard focus
+				    both open the popover. */}
+				<button
+					type="button"
+					aria-label={ariaLabel}
+					className={triggerClassName}
+					onMouseEnter={openPopover}
+					onMouseLeave={scheduleClose}
+					onFocus={openPopover}
+					onBlur={scheduleClose}
+				>
+					{triggerVisual}
+				</button>
 			</PopoverTrigger>
 			<PopoverContent
 				side="top"
