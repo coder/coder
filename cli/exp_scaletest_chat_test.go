@@ -128,7 +128,7 @@ func chatMessageText(messages []codersdk.ChatMessage, role codersdk.ChatMessageR
 func scaletestModelConfigsForProvider(configs []codersdk.ChatModelConfig, providerID uuid.UUID) []codersdk.ChatModelConfig {
 	matches := make([]codersdk.ChatModelConfig, 0, 1)
 	for _, config := range configs {
-		if config.AIProviderID == nil || *config.AIProviderID != providerID {
+		if config.AIProviderID != providerID {
 			continue
 		}
 		if config.Model != "scaletest-model" {

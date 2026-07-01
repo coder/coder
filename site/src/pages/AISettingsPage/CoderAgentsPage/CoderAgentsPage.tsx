@@ -11,6 +11,7 @@ import {
 	chatComputerUseProvider,
 	chatModelConfigs,
 	chatPersonalModelOverridesAdminSettings,
+	chatProviderConfigs,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
 	updateChatPersonalModelOverridesAdminSettings,
@@ -19,6 +20,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { providerTypeByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
@@ -86,6 +88,10 @@ const CoderAgentsPage: FC = () => {
 		...chatComputerUseProvider(),
 		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
 	});
+	const providerConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canEditDeploymentConfig,
+	});
 	const savePersonalModelOverridesAdminSettingsMutation = useMutation(
 		updateChatPersonalModelOverridesAdminSettings(queryClient),
 	);
@@ -106,6 +112,10 @@ const CoderAgentsPage: FC = () => {
 	);
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
+	);
+
+	const providerTypeByID = providerTypeByIDFromConfigs(
+		providerConfigsQuery.data,
 	);
 
 	return (
@@ -133,6 +143,7 @@ const CoderAgentsPage: FC = () => {
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
+				providerTypeByID={providerTypeByID}
 				modelConfigsError={modelConfigsQuery.error}
 				isLoadingModelConfigs={modelConfigsQuery.isLoading}
 				isFetchingModelConfigs={modelConfigsQuery.isFetching}
