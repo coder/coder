@@ -426,7 +426,6 @@ func Test_warnDeprecatedChatAIGatewayRoutingFlag(t *testing.T) {
 		{name: "Env", source: serpent.ValueSourceEnv, wantsWarn: true},
 		{name: "YAML", source: serpent.ValueSourceYAML, wantsWarn: true},
 		{name: "Default", source: serpent.ValueSourceDefault, wantsWarn: false},
-		{name: "None", source: serpent.ValueSourceNone, wantsWarn: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

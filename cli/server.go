@@ -2939,20 +2939,18 @@ func ConfigureHTTPServers(logger slog.Logger, inv *serpent.Invocation, cfg *code
 // AI Gateway routing is now the only routing path; the option is accepted
 // for upgrade safety but its value has no effect.
 func warnDeprecatedChatAIGatewayRoutingFlag(ctx context.Context, logger slog.Logger, opts serpent.OptionSet) {
-	for _, opt := range opts {
-		if opt.Flag != "chat-ai-gateway-routing-enabled" {
-			continue
-		}
-		switch opt.ValueSource {
-		case serpent.ValueSourceFlag, serpent.ValueSourceEnv, serpent.ValueSourceYAML:
-			logger.Warn(ctx,
-				"chat-ai-gateway-routing-enabled is deprecated and has no effect; "+
-					"AI Gateway routing is the only routing path. "+
-					"Remove the option from your configuration; it will be deleted in a future release",
-				slog.F("source", opt.ValueSource),
-			)
-		}
+	opt := opts.ByFlag("chat-ai-gateway-routing-enabled")
+	if opt == nil {
 		return
+	}
+	switch opt.ValueSource {
+	case serpent.ValueSourceFlag, serpent.ValueSourceEnv, serpent.ValueSourceYAML:
+		logger.Warn(ctx,
+			"chat-ai-gateway-routing-enabled is deprecated and has no effect; "+
+				"AI Gateway routing is the only routing path. "+
+				"Remove the option from your configuration; it will be deleted in a future release",
+			slog.F("source", opt.ValueSource),
+		)
 	}
 }
 
