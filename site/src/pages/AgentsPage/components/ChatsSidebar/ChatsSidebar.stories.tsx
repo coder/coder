@@ -77,6 +77,7 @@ const agentsRouting = [
 ];
 
 const settingsRouting = [
+	{ path: "/ai/settings/coder-agents", useStoryElement: true },
 	{ path: "/agents/settings/:section", useStoryElement: true },
 	{ path: "/agents/settings", useStoryElement: true },
 	...agentsRouting,
@@ -1949,6 +1950,45 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 };
 
+export const AgentWithWorkspaceMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-workspace",
+				title: "Agent with workspace",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent with workspace")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText(
+			"Open actions for Agent with workspace",
+		);
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
 export const PinnedChatsSection: Story = {
 	args: {
 		chats: [
@@ -2232,33 +2272,13 @@ export const SettingsUserAgentsAdmin: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(
-			canvas.getByRole("link", { name: "Manage agents" }),
-		).toBeInTheDocument();
-	},
-};
-
-export const SettingsAdminCoderAgentsEntryPreserved: Story = {
-	args: {
-		chats: [],
-		isAdmin: true,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/agents" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const coderAgentsLink = canvas.getByRole("link", {
-			name: "Coder Agents",
+		const manageAgentsLink = canvas.getByRole("link", {
+			name: "Manage agents",
 		});
-		expect(coderAgentsLink).toHaveAttribute(
+		expect(manageAgentsLink).toHaveAttribute(
 			"href",
 			"/ai/settings/coder-agents",
 		);
-		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
 	},
 };
 

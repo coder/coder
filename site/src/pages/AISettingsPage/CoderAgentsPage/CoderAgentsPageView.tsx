@@ -1,10 +1,13 @@
 import type { FC } from "react";
+import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
+import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
@@ -33,6 +36,7 @@ export interface CoderAgentsPageViewProps {
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
+	isFetchingModelConfigs: boolean;
 	onSaveGeneralModelOverride?: SaveModelOverride;
 	isSavingGeneralModelOverride?: boolean;
 	isSaveGeneralModelOverrideError?: boolean;
@@ -42,6 +46,29 @@ export interface CoderAgentsPageViewProps {
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
+	showAdvisorSettings: boolean;
+	advisorConfigData: TypesGen.AdvisorConfig | undefined;
+	isAdvisorConfigLoading: boolean;
+	isAdvisorConfigFetching: boolean;
+	isAdvisorConfigLoadError: boolean;
+	onSaveAdvisorConfig: (
+		req: TypesGen.UpdateAdvisorConfigRequest,
+		options?: MutationCallbacks,
+	) => void;
+	isSavingAdvisorConfig: boolean;
+	isSaveAdvisorConfigError: boolean;
+	saveAdvisorConfigError: unknown;
+	showVirtualDesktopSettings: boolean;
+	computerUseProviderData: TypesGen.ChatComputerUseProviderResponse | undefined;
+	isLoadingComputerUseProvider: boolean;
+	onSaveComputerUseProvider: UseMutateFunction<
+		void,
+		Error,
+		TypesGen.UpdateChatComputerUseProviderRequest,
+		unknown
+	>;
+	isSavingComputerUseProvider: boolean;
+	computerUseProviderSaveError: Error | null;
 }
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
@@ -58,6 +85,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	modelConfigsData,
 	modelConfigsError,
 	isLoadingModelConfigs,
+	isFetchingModelConfigs,
 	onSaveGeneralModelOverride,
 	isSavingGeneralModelOverride = false,
 	isSaveGeneralModelOverrideError = false,
@@ -67,6 +95,21 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
+	showAdvisorSettings,
+	advisorConfigData,
+	isAdvisorConfigLoading,
+	isAdvisorConfigFetching,
+	isAdvisorConfigLoadError,
+	onSaveAdvisorConfig,
+	isSavingAdvisorConfig,
+	isSaveAdvisorConfigError,
+	saveAdvisorConfigError,
+	showVirtualDesktopSettings,
+	computerUseProviderData,
+	isLoadingComputerUseProvider,
+	onSaveComputerUseProvider,
+	isSavingComputerUseProvider,
+	computerUseProviderSaveError,
 }) => {
 	const enabledModelConfigs = (modelConfigsData ?? []).filter(
 		(modelConfig) => modelConfig.enabled,
@@ -136,6 +179,31 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					isSaveError={isSaveExploreModelOverrideError}
 					saveErrorMessage="Failed to save Explore model override."
 				/>
+				{showVirtualDesktopSettings && (
+					<VirtualDesktopSettings
+						computerUseProviderData={computerUseProviderData}
+						isLoadingComputerUseProvider={isLoadingComputerUseProvider}
+						onSaveComputerUseProvider={onSaveComputerUseProvider}
+						isSavingComputerUseProvider={isSavingComputerUseProvider}
+						computerUseProviderSaveError={computerUseProviderSaveError}
+					/>
+				)}
+				{showAdvisorSettings && (
+					<AdvisorSettings
+						advisorConfigData={advisorConfigData}
+						isAdvisorConfigLoading={isAdvisorConfigLoading}
+						isAdvisorConfigFetching={isAdvisorConfigFetching}
+						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+						modelConfigs={modelConfigsData ?? []}
+						modelConfigsError={modelConfigsError}
+						isLoadingModelConfigs={isLoadingModelConfigs}
+						isFetchingModelConfigs={isFetchingModelConfigs}
+						onSaveAdvisorConfig={onSaveAdvisorConfig}
+						isSavingAdvisorConfig={isSavingAdvisorConfig}
+						isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+						saveAdvisorConfigError={saveAdvisorConfigError}
+					/>
+				)}
 			</div>
 		</div>
 	);

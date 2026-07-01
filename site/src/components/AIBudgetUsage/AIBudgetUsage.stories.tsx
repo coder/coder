@@ -4,18 +4,18 @@ import { AIBudgetUsage } from "./AIBudgetUsage";
 
 // Spend and limit are in micros (1_000_000 = $1).
 const meta: Meta<typeof AIBudgetUsage> = {
-	title: "pages/OrganizationGroupsPage/AIBudgetUsage",
+	title: "components/AIBudgetUsage",
 	component: AIBudgetUsage,
 };
 
 export default meta;
 type Story = StoryObj<typeof AIBudgetUsage>;
 
-// No limit: spend shown against "unlimited".
+// No limit: spend shown against "Unlimited".
 export const Unlimited: Story = {
 	args: { currentSpend: 25_492_000_000, spendLimit: null },
 	play: async ({ canvasElement }) => {
-		await expect(canvasElement).toHaveTextContent("$25,492 / unlimited USD");
+		await expect(canvasElement).toHaveTextContent("$25,492 / Unlimited USD");
 	},
 };
 
