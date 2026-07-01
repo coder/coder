@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -41,53 +40,6 @@ var toolNameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 // should truncate the final result to MaxToolNameLen.
 func SanitizeToolName(name string) string {
 	return toolNameSanitizer.ReplaceAllString(name, "_")
-}
-
-// SanitizeAndTruncateToolName returns the provider-safe form of a fully
-// assembled tool name: characters outside [a-zA-Z0-9_-] are replaced with
-// "_" (via SanitizeToolName) and the result is capped at MaxToolNameLen. Use
-// it for names that join a server and tool component with a "__" separator;
-// the separator survives because underscores are already in the allowed set.
-func SanitizeAndTruncateToolName(name string) string {
-	sanitized := SanitizeToolName(name)
-	if len(sanitized) > MaxToolNameLen {
-		sanitized = sanitized[:MaxToolNameLen]
-	}
-	return sanitized
-}
-
-// DisambiguateToolName returns name unchanged when it is absent from seen and
-// records it. Otherwise it appends an incrementing "_N" suffix (starting at
-// 2), truncating the base so the result stays within MaxToolNameLen, until it
-// finds a name absent from seen, then records and returns that.
-//
-// Sanitizing and truncating tool names can map two distinct server/tool pairs
-// to the same string. The model dispatches tool calls by name, so duplicates
-// would make one tool unreachable, and some providers reject a request that
-// declares the same tool name twice. Disambiguating keeps every tool
-// addressable. Callers should iterate in a stable order so suffix assignment
-// is deterministic across turns.
-func DisambiguateToolName(name string, seen map[string]struct{}) string {
-	if _, ok := seen[name]; !ok {
-		seen[name] = struct{}{}
-		return name
-	}
-	for i := 2; ; i++ {
-		suffix := "_" + strconv.Itoa(i)
-		base := name
-		if len(base)+len(suffix) > MaxToolNameLen {
-			cut := MaxToolNameLen - len(suffix)
-			if cut < 0 {
-				cut = 0
-			}
-			base = base[:cut]
-		}
-		candidate := base + suffix
-		if _, ok := seen[candidate]; !ok {
-			seen[candidate] = struct{}{}
-			return candidate
-		}
-	}
 }
 
 // ToolCaller is the narrowest interface which describes the behavior required from [mcp.Client],

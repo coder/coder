@@ -144,17 +144,16 @@ func TestConnectAll_SanitizesDottedSlug(t *testing.T) {
 	assert.Equal(t, "echo: hello", resp.Content)
 }
 
-func TestConnectAll_TruncationCollisionDisambiguated(t *testing.T) {
+func TestConnectAll_TruncationCollisionWarning(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	// Two servers whose slugs differ only in a trailing suffix. After
-	// sanitization + truncation to 64 chars, both would produce the same
-	// prefixed tool name. ConnectAll must disambiguate them so the model can
-	// address (and the dispatch map can reach) both tools.
-	// slug (65) + "__" (2) + "echo" (4) = 71 chars; truncated to 64 chops the
-	// suffix and tool name entirely, colliding on the first 64 chars.
+	// Two servers whose slugs differ only in a trailing suffix.
+	// After sanitization + truncation to 64 chars, both produce
+	// the same prefixed tool name, triggering a collision warning.
+	// slug (65) + "__" (2) + "echo" (4) = 71 chars; truncated to
+	// 64 chops the suffix and tool name entirely.
 	base := strings.Repeat("a", 64)
 	slug1 := base + "x"
 	slug2 := base + "y"
@@ -171,17 +170,11 @@ func TestConnectAll_TruncationCollisionDisambiguated(t *testing.T) {
 	)
 	t.Cleanup(cleanup)
 
+	// Both tools should be present (the caller decides policy),
+	// but their names collide after truncation.
 	require.Len(t, tools, 2)
-	names := toolNames(tools)
-	assert.NotEqual(t, names[0], names[1],
-		"colliding names must be disambiguated")
-	// One tool keeps the truncated name; the other gets a numeric suffix,
-	// both within the 64-char provider limit.
-	assert.ElementsMatch(t,
-		[]string{base, strings.Repeat("a", 62) + "_2"}, names)
-	for _, name := range names {
-		assert.LessOrEqual(t, len(name), 64)
-	}
+	assert.Equal(t, tools[0].Info().Name, tools[1].Info().Name,
+		"truncated names should collide")
 }
 
 func TestConnectAll_CallTool(t *testing.T) {
@@ -397,10 +390,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 		t.Cleanup(cleanup)
 
 		require.Len(t, tools, 2)
-		// Both servers produce the same prefixed name (a__b__z) before
-		// disambiguation; the collision is resolved with a numeric suffix
-		// while ordering stays tiebroken by config ID.
-		assert.Equal(t, []string{"a__b__z", "a__b__z_2"}, toolNames(tools))
+		assert.Equal(t, []string{"a__b__z", "a__b__z"}, toolNames(tools))
 
 		id0 := tools[0].(mcpclient.MCPToolIdentifier).MCPServerConfigID()
 		id1 := tools[1].(mcpclient.MCPToolIdentifier).MCPServerConfigID()

@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -219,7 +218,9 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 	t.Run("LongNameTruncatedForModel", func(t *testing.T) {
 		t.Parallel()
 
-		longName := "srv__" + strings.Repeat("a", aidmcp.MaxToolNameLen)
+		// A name longer than the provider limit is truncated. "srv__" plus a
+		// 64-char tool name exceeds the 64-char cap.
+		longName := "srv__" + strings.Repeat("a", 64)
 		tool := chattool.NewWorkspaceMCPTool(
 			workspacesdk.MCPToolInfo{
 				Name:        longName,
@@ -236,7 +237,7 @@ func TestWorkspaceMCPTool_SanitizesModelNameKeepsRoutingName(t *testing.T) {
 		)
 
 		// The model-facing name is capped at the strictest provider limit.
-		assert.LessOrEqual(t, len(tool.Info().Name), aidmcp.MaxToolNameLen)
+		assert.LessOrEqual(t, len(tool.Info().Name), 64)
 	})
 }
 
