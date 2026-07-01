@@ -207,26 +207,35 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.notifyChatShared(ctx, oldChat, aReq.New, apiKey.UserID); err != nil {
-		api.Logger.Warn(ctx, "failed to enqueue chat shared notification", slog.Error(err), slog.F("chat_id", chat.ID))
+	// Load under the request actor; the notifier actor cannot read users.
+	initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
+	} else {
+		// Fan out on the server context so a large group does not block the
+		// response and a client disconnect does not drop notifications.
+		newChat := aReq.New
+		go func() {
+			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {
+				api.Logger.Warn(api.ctx, "failed to enqueue chat shared notification", slog.Error(err), slog.F("chat_id", newChat.ID), slog.F("recipient_count", count))
+			}
+		}()
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiatorID uuid.UUID) error {
-	// Resolving recipients reads group membership and enqueues notifications,
-	// neither of which the sharing user is authorized to do.
-	//nolint:gocritic // Notifier actor is required to read members and enqueue.
+func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiator database.User) (int, error) {
+	//nolint:gocritic // Notifier actor is required to read group members and enqueue.
 	notifierCtx := dbauthz.AsNotifier(ctx)
 
 	oldReaders, err := api.effectiveChatReaders(notifierCtx, oldChat)
 	if err != nil {
-		return xerrors.Errorf("resolve previous chat readers: %w", err)
+		return 0, xerrors.Errorf("resolve previous chat readers: %w", err)
 	}
 	newReaders, err := api.effectiveChatReaders(notifierCtx, newChat)
 	if err != nil {
-		return xerrors.Errorf("resolve current chat readers: %w", err)
+		return 0, xerrors.Errorf("resolve current chat readers: %w", err)
 	}
 
 	recipientIDs := make([]uuid.UUID, 0, len(newReaders))
@@ -234,19 +243,15 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 		if _, alreadyReader := oldReaders[userID]; alreadyReader {
 			continue
 		}
-		if userID == initiatorID {
+		if userID == initiator.ID {
 			continue
 		}
 		recipientIDs = append(recipientIDs, userID)
 	}
 	if len(recipientIDs) == 0 {
-		return nil
+		return 0, nil
 	}
 
-	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
-	if err != nil {
-		return xerrors.Errorf("get initiator: %w", err)
-	}
 	labels := map[string]string{
 		"chat_id":    newChat.ID.String(),
 		"chat_title": newChat.Title,
@@ -257,14 +262,14 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	eg.SetLimit(10)
 	for _, userID := range recipientIDs {
 		eg.Go(func() error {
-			_, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiatorID.String(), newChat.ID)
+			_, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiator.ID.String(), newChat.ID)
 			if err != nil {
 				return xerrors.Errorf("enqueue chat shared notification: %w", err)
 			}
 			return nil
 		})
 	}
-	return eg.Wait()
+	return len(recipientIDs), eg.Wait()
 }
 
 func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (map[uuid.UUID]struct{}, error) {
@@ -276,6 +281,7 @@ func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (m
 		}
 		userID, err := uuid.Parse(rawUserID)
 		if err != nil {
+			api.Logger.Warn(ctx, "skip chat ACL entry with invalid user UUID", slog.F("chat_id", chat.ID), slog.F("user_id", rawUserID), slog.Error(err))
 			continue
 		}
 		readers[userID] = struct{}{}
@@ -287,6 +293,7 @@ func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (m
 		}
 		groupID, err := uuid.Parse(rawGroupID)
 		if err != nil {
+			api.Logger.Warn(ctx, "skip chat ACL entry with invalid group UUID", slog.F("chat_id", chat.ID), slog.F("group_id", rawGroupID), slog.Error(err))
 			continue
 		}
 		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
