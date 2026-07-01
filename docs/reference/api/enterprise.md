@@ -178,6 +178,152 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI Gateway keys
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/keys`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "key_prefix": "string",
+    "last_heartbeat_at": "2019-08-24T14:15:22Z",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayKey](schemas.md#codersdkaigatewaykey) |
+
+<h3 id="list-ai-gateway-keys-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» created_at`        | string(date-time) | false    |              |             |
+| `» id`                | string(uuid)      | false    |              |             |
+| `» key_prefix`        | string            | false    |              |             |
+| `» last_heartbeat_at` | string(date-time) | false    |              |             |
+| `» name`              | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create AI Gateway key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/ai-gateway/keys`
+
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description                   |
+|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------|
+| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | Create AI Gateway key request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                               |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateAIGatewayKeyResponse](schemas.md#codersdkcreateaigatewaykeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete AI Gateway key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/ai-gateway/keys/{key}`
+
+### Parameters
+
+| Name  | In   | Type         | Required | Description |
+|-------|------|--------------|----------|-------------|
+| `key` | path | string(uuid) | true     | Key ID      |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## AI Gateway serve
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
+  -H 'X-AI-Governance-Gateway-Key: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/serve`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get appearance
 
 ### Code samples
