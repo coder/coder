@@ -334,6 +334,8 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.6.1 h1:bMVBtDNP/1gW58NFRBdzStAQzXlveMrLAnORpwE9tYo=
 github.com/coder/guts v1.6.1/go.mod h1:FaECwB632JE8nYi7nrKfO0PVjbOl4+hSWupKO2Z99JI=
+github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714 h1:j7tyq3rv0ZXkbyy/BE5K3lYiIqEsV8sDTiTjpLLxjiw=
+github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714/go.mod h1:sxc3Uvk/vHcd3tj7/DHVBoR5wvWT/MmRq2pj7HRJnwU=
 github.com/coder/paralleltestctx v0.0.1 h1:eauyehej1XYTGwgzGWMTjeRIVgOpU6XLPNVb2oi6kDs=
 github.com/coder/paralleltestctx v0.0.1/go.mod h1:q/wi6cmlBOhrJKjUtouTn4J9xZlRhK0MbgHvJNdGW3w=
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7R7n+wsCqNve7Brdvj0F1rDnU=
@@ -1560,8 +1562,6 @@ gotest.tools v2.2.0+incompatible h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=
 gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
 gotest.tools/v3 v3.5.2 h1:7koQfIKdy+I8UTetycgUqXWSDwpgv193Ka+qRsmBY8Q=
 gotest.tools/v3 v3.5.2/go.mod h1:LtdLGcnqToBH83WByAAi/wiwSFCArdFIUV/xxN4pcjA=
-gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc h1:DXLLFYv/k/xr0rWcwVEvWme1GR36Oc4kNMspg38JeiE=
-gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc/go.mod h1:sxc3Uvk/vHcd3tj7/DHVBoR5wvWT/MmRq2pj7HRJnwU=
 howett.net/plist v1.0.0 h1:7CrbWYbPPO/PyNy38b2EB/+gYbjCe2DXBxgtOOZbSQM=
 howett.net/plist v1.0.0/go.mod h1:lqaXoTrLY4hg8tnEzNru53gicrbv7rrk+2xJA/7hw9g=
 k8s.io/apimachinery v0.34.2 h1:zQ12Uk3eMHPxrsbUJgNF8bTauTVR2WgqJsTmwTE/NW4=
