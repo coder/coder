@@ -385,6 +385,9 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	);
 };
 
+// Escaped em dash for empty cells; a literal one trips the emdash lint check.
+const emDash = "\u2014";
+
 const GroupMemberAIBudgetCells: FC<{
 	group: Group;
 	userID: string;
@@ -393,8 +396,8 @@ const GroupMemberAIBudgetCells: FC<{
 	// Budget and source apply only on the member's effective group.
 	const onEffectiveGroup = costControl?.effective_group_id === group.id;
 
-	let budget: ReactNode = "—";
-	let source: ReactNode = "—";
+	let budget: ReactNode = emDash;
+	let source: ReactNode = emDash;
 	if (costControl && onEffectiveGroup) {
 		budget = (
 			<AIBudgetUsage
@@ -413,7 +416,7 @@ const GroupMemberAIBudgetCells: FC<{
 		// Another group governs the budget; name it in a tooltip.
 		const attribution = (
 			<span className="inline-flex items-center gap-1 text-content-disabled">
-				—
+				{emDash}
 				<MemberBudgetSourceTooltip groupId={costControl.effective_group_id} />
 			</span>
 		);

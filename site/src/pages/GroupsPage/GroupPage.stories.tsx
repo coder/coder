@@ -323,7 +323,7 @@ export const WithMemberAIBudget: Story = {
 		// No spend reported for this member.
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${memberWithoutSpend.id}`),
-		).toHaveTextContent("—");
+		).toHaveTextContent("\u2014");
 
 		// Column header tooltips.
 		const body = within(document.body);
@@ -384,7 +384,7 @@ export const WithMemberAIBudgetFromAnotherGroup: Story = {
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
-		await expect(cell).toHaveTextContent("—");
+		await expect(cell).toHaveTextContent("\u2014");
 		await expect(cell).not.toHaveTextContent("USD");
 		await expect(canvas.queryByText("Group")).not.toBeInTheDocument();
 		// The info tooltip names the group that governs the budget.
@@ -487,7 +487,7 @@ export const WithMemberAIBudgetWithoutEffectiveGroup: Story = {
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
-		await expect(cell).toHaveTextContent("—");
+		await expect(cell).toHaveTextContent("\u2014");
 		await expect(cell).not.toHaveTextContent("USD");
 		// Generic fallback when no group name resolves.
 		await userEvent.click(
