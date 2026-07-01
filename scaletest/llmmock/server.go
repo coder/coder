@@ -68,8 +68,7 @@ type Config struct {
 	MaxStreamDuration   time.Duration
 	ResponsePayloadSize int
 	ToolCallsPerTurn    int
-	// ToolCallCommand is the command sent in generated execute tool calls.
-	ToolCallCommand string
+	ToolCallCommand     string
 
 	TraceEnable bool
 }
@@ -88,7 +87,6 @@ type llmRequestMessage struct {
 	Role string `json:"role"`
 }
 
-// openAIMessage is the assistant message shape used in responses.
 type openAIMessage struct {
 	Role      string           `json:"role"`
 	Content   string           `json:"content,omitempty"`
