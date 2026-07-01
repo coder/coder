@@ -40,15 +40,6 @@ import (
 // directly when calling the remote server.
 const toolNameSep = "__"
 
-// truncateToolName caps the assembled tool name at MaxToolNameLen so
-// it fits within provider limits (e.g. OpenAI 64, Bedrock 128).
-func truncateToolName(name string) string {
-	if len(name) > aidmcp.MaxToolNameLen {
-		return name[:aidmcp.MaxToolNameLen]
-	}
-	return name
-}
-
 // connectTimeout bounds how long we wait for a single MCP server
 // to start its transport and complete initialization. Servers that
 // take longer are skipped so one slow server cannot block the
@@ -173,28 +164,26 @@ func ConnectAll(
 		)
 	})
 
-	// Warn about name collisions that may result from sanitization
-	// and truncation. When two tools resolve to the same name, the
-	// LLM tool-call dispatch map keeps only one, so the other
-	// becomes silently unreachable.
-	for i := 1; i < len(tools); i++ {
-		if tools[i-1].Info().Name == tools[i].Info().Name {
-			prevTool, ok := tools[i-1].(MCPToolIdentifier)
-			if !ok {
-				continue
-			}
-			currTool, ok := tools[i].(MCPToolIdentifier)
-			if !ok {
-				continue
-			}
-			if prevTool.MCPServerConfigID() != currTool.MCPServerConfigID() {
-				logger.Warn(ctx,
-					"duplicate tool name after sanitization; one tool will be unreachable",
-					slog.F("tool_name", tools[i].Info().Name),
-					slog.F("prev_config_id", prevTool.MCPServerConfigID()),
-					slog.F("curr_config_id", currTool.MCPServerConfigID()),
-				)
-			}
+	// Sanitizing and truncating tool names can map two distinct servers or
+	// tools to the same prefixed name. The model dispatches tool calls by
+	// name, so a duplicate would make one tool unreachable. Disambiguate in
+	// the sorted order (stable across turns) so every tool keeps a unique,
+	// reachable name while still routing to its own original tool.
+	seen := make(map[string]struct{}, len(tools))
+	for _, t := range tools {
+		w, ok := t.(*mcpToolWrapper)
+		if !ok {
+			continue
+		}
+		unique := aidmcp.DisambiguateToolName(w.prefixedName, seen)
+		if unique != w.prefixedName {
+			logger.Warn(ctx,
+				"duplicate MCP tool name after sanitization; renamed to keep it reachable",
+				slog.F("original_name", w.prefixedName),
+				slog.F("unique_name", unique),
+				slog.F("config_id", w.configID),
+			)
+			w.prefixedName = unique
 		}
 	}
 
@@ -555,7 +544,7 @@ func newMCPTool(
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
 		configID:     configID,
-		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
+		prefixedName: aidmcp.SanitizeAndTruncateToolName(serverSlug + toolNameSep + tool.Name),
 		originalName: tool.Name,
 		description:  tool.Description,
 		parameters:   tool.InputSchema.Properties,

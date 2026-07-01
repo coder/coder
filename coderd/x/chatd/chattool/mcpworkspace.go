@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
 
+	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -19,20 +21,74 @@ import (
 // connection. It implements fantasy.AgentTool so it can be
 // registered alongside built-in chat tools.
 type WorkspaceMCPTool struct {
-	info            fantasy.ToolInfo
+	info fantasy.ToolInfo
+	// routingName is the unsanitized "serverName__toolName" form the
+	// workspace agent expects: it splits on "__" to locate the server and
+	// calls the original tool name. info.Name is the sanitized, provider-safe
+	// name shown to the model, so the two can differ when the server or tool
+	// name contains characters outside the provider's allowed set.
+	routingName     string
 	getConn         func(context.Context) (workspacesdk.AgentConn, error)
 	providerOpts    fantasy.ProviderOptions
 	invalidateCache func()
 }
 
-// NewWorkspaceMCPTool creates a tool wrapper from an MCPToolInfo
-// discovered on a workspace agent. Each tool proxies calls back
-// through the agent connection. The optional invalidateCache
-// callback is invoked when CallMCPTool returns a 404 error,
-// indicating that the server was removed and the chat's cached
-// tool list should be dropped.
+// NewWorkspaceMCPTool creates a single tool wrapper from an MCPToolInfo
+// discovered on a workspace agent. Each tool proxies calls back through the
+// agent connection. The optional invalidateCache callback is invoked when
+// CallMCPTool returns a 404 error, indicating that the server was removed and
+// the chat's cached tool list should be dropped.
+//
+// The model-facing name is sanitized to the provider-safe character set and
+// length (see aibridge/mcp.SanitizeAndTruncateToolName) so a server or tool
+// name containing characters such as "@" cannot produce an invalid tool name
+// that the provider rejects (Anthropic and Bedrock require
+// ^[a-zA-Z0-9_-]{1,128}$). The unsanitized name is retained as routingName so
+// the workspace agent can still route the call to the original server and
+// tool.
+//
+// Prefer NewWorkspaceMCPTools when building a set of tools, because that path
+// also disambiguates names that collide after sanitization. This single-tool
+// constructor cannot detect collisions on its own.
 func NewWorkspaceMCPTool(
 	tool workspacesdk.MCPToolInfo,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+	invalidateCache func(),
+) *WorkspaceMCPTool {
+	return buildWorkspaceMCPTool(tool, aidmcp.SanitizeAndTruncateToolName(tool.Name), getConn, invalidateCache)
+}
+
+// NewWorkspaceMCPTools builds wrappers for a set of workspace MCP tools.
+// Because the model-facing name is sanitized and length-capped, two distinct
+// servers or tools can normalize to the same string (for example server keys
+// "foo.bar" and "foo_bar" each exposing "echo", or names that share the first
+// MaxToolNameLen bytes). Duplicate names would be sent to the provider, which
+// can reject the request, and the model's name-keyed dispatch would make one
+// tool unreachable. To keep every tool addressable, colliding model-facing
+// names are disambiguated with a numeric suffix while each tool keeps its own
+// original routing name. Tools are sorted by routing name first so the suffix
+// assignment is stable across turns.
+func NewWorkspaceMCPTools(
+	infos []workspacesdk.MCPToolInfo,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+	invalidateCache func(),
+) []fantasy.AgentTool {
+	sorted := slices.Clone(infos)
+	slices.SortFunc(sorted, func(a, b workspacesdk.MCPToolInfo) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	tools := make([]fantasy.AgentTool, 0, len(sorted))
+	seen := make(map[string]struct{}, len(sorted))
+	for _, info := range sorted {
+		modelName := aidmcp.DisambiguateToolName(aidmcp.SanitizeAndTruncateToolName(info.Name), seen)
+		tools = append(tools, buildWorkspaceMCPTool(info, modelName, getConn, invalidateCache))
+	}
+	return tools
+}
+
+func buildWorkspaceMCPTool(
+	tool workspacesdk.MCPToolInfo,
+	modelName string,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 	invalidateCache func(),
 ) *WorkspaceMCPTool {
@@ -42,12 +98,13 @@ func NewWorkspaceMCPTool(
 	}
 	return &WorkspaceMCPTool{
 		info: fantasy.ToolInfo{
-			Name:        tool.Name,
+			Name:        modelName,
 			Description: tool.Description,
 			Parameters:  tool.Schema,
 			Required:    required,
 			Parallel:    true,
 		},
+		routingName:     tool.Name,
 		getConn:         getConn,
 		invalidateCache: invalidateCache,
 	}
@@ -80,7 +137,7 @@ func (t *WorkspaceMCPTool) Run(
 	}
 
 	resp, err := conn.CallMCPTool(ctx, workspacesdk.CallMCPToolRequest{
-		ToolName:  t.info.Name,
+		ToolName:  t.routingName,
 		Arguments: args,
 	})
 	if err != nil {
