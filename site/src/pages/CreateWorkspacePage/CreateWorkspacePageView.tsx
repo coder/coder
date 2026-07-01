@@ -398,7 +398,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<button
 					onClick={onCancel}
 					type="button"
-					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
+					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-[68px]"
 				>
 					<ArrowLeftIcon size={20} />
 					Go back
