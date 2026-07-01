@@ -129,7 +129,6 @@ interface AgentCreateFormProps {
 	providerCount?: number;
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
-	/** Backend reports AI Gateway is disabled at the deployment level. */
 	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];

@@ -175,70 +175,68 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	return (
 		<div
 			data-testid="agents-page-layout"
-			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary"
+			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 		>
 			<title>{pageTitle("Agents")}</title>
-			<div className="flex min-h-0 flex-1 flex-col sm:flex-row">
-				<ResizableChatsSidebarFrame
-					className={cn(
-						"sm:h-full sm:min-h-0 sm:border-b-0",
-						agentId
-							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail || isAnalytics
-								? "hidden sm:block shrink-0"
-								: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
-						isSidebarCollapsed && "sm:hidden",
-					)}
-				>
-					<ChatsSidebar
-						chats={chatList}
-						currentUserId={currentUserId}
-						chatErrorReasons={sidebarChatErrorReasons}
-						modelOptions={catalogModelOptions}
-						modelConfigs={modelConfigs}
-						onArchiveAgent={requestArchiveAgent}
-						onUnarchiveAgent={requestUnarchiveAgent}
-						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-						onPinAgent={requestPinAgent}
-						onUnpinAgent={requestUnpinAgent}
-						onReorderPinnedAgent={requestReorderPinnedAgent}
-						onRenameTitle={onRenameTitle}
-						onProposeTitle={onProposeTitle}
-						chatPendingRename={chatPendingRename}
-						onChatPendingRenameChange={setChatPendingRename}
-						regeneratingTitleChatIds={regeneratingTitleChatIds}
-						onBeforeNewAgent={handleNewAgent}
-						isSearchDialogOpen={isSearchDialogOpen}
-						onSearchDialogOpenChange={onSearchDialogOpenChange}
-						isCreating={isCreating}
-						isArchiving={isArchiving}
-						archivingChatId={archivingChatId}
-						isLoading={isChatsLoading}
-						loadError={chatsLoadError}
-						onRetryLoad={onRetryChatsLoad}
-						hasNextPage={hasNextPage}
-						onLoadMore={onLoadMore}
-						isFetchingNextPage={isFetchingNextPage}
-						sidebarFilters={sidebarFilters}
-						onSidebarFiltersChange={onSidebarFiltersChange}
-						onCollapse={onCollapseSidebar}
-						isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
-						isAdmin={isAgentsAdmin}
-					/>
-				</ResizableChatsSidebarFrame>
-				<div
-					data-testid="agents-main-panel"
-					className={cn(
-						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-						isSettingsIndex ? "hidden sm:flex" : "flex",
-						!agentId &&
-							!isSettingsDetail &&
-							sidebarView.panel === "chats" &&
-							"contents sm:flex sm:flex-1 sm:flex-col",
-					)}
-				>
-					<Outlet context={outletContextValue} />
-				</div>
+			<ResizableChatsSidebarFrame
+				className={cn(
+					"sm:h-full sm:min-h-0 sm:border-b-0",
+					agentId
+						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
+						: isSettingsDetail || isAnalytics
+							? "hidden sm:block shrink-0"
+							: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+					isSidebarCollapsed && "sm:hidden",
+				)}
+			>
+				<ChatsSidebar
+					chats={chatList}
+					currentUserId={currentUserId}
+					chatErrorReasons={sidebarChatErrorReasons}
+					modelOptions={catalogModelOptions}
+					modelConfigs={modelConfigs}
+					onArchiveAgent={requestArchiveAgent}
+					onUnarchiveAgent={requestUnarchiveAgent}
+					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+					onPinAgent={requestPinAgent}
+					onUnpinAgent={requestUnpinAgent}
+					onReorderPinnedAgent={requestReorderPinnedAgent}
+					onRenameTitle={onRenameTitle}
+					onProposeTitle={onProposeTitle}
+					chatPendingRename={chatPendingRename}
+					onChatPendingRenameChange={setChatPendingRename}
+					regeneratingTitleChatIds={regeneratingTitleChatIds}
+					onBeforeNewAgent={handleNewAgent}
+					isSearchDialogOpen={isSearchDialogOpen}
+					onSearchDialogOpenChange={onSearchDialogOpenChange}
+					isCreating={isCreating}
+					isArchiving={isArchiving}
+					archivingChatId={archivingChatId}
+					isLoading={isChatsLoading}
+					loadError={chatsLoadError}
+					onRetryLoad={onRetryChatsLoad}
+					hasNextPage={hasNextPage}
+					onLoadMore={onLoadMore}
+					isFetchingNextPage={isFetchingNextPage}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+					onCollapse={onCollapseSidebar}
+					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
+					isAdmin={isAgentsAdmin}
+				/>
+			</ResizableChatsSidebarFrame>
+			<div
+				data-testid="agents-main-panel"
+				className={cn(
+					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					isSettingsIndex ? "hidden sm:flex" : "flex",
+					!agentId &&
+						!isSettingsDetail &&
+						sidebarView.panel === "chats" &&
+						"contents sm:flex sm:flex-1 sm:flex-col",
+				)}
+			>
+				<Outlet context={outletContextValue} />
 			</div>
 		</div>
 	);

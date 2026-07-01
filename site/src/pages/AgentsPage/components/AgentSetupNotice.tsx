@@ -9,9 +9,6 @@ interface AgentSetupNoticeProps {
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
 	unsupportedProviderNames?: readonly string[];
-	// AI Gateway is disabled deployment-wide. This can be true even when
-	// providers/models exist in the DB catalog, since the gateway toggle is
-	// independent of what's configured.
 	aiGatewayDisabled?: boolean;
 }
 
