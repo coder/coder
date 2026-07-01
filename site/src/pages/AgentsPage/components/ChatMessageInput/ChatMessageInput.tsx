@@ -595,12 +595,28 @@ const ChatMessageInput = ({
 		useState<ActiveSkillsTrigger | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
-	const skillsMenuOpen = Boolean(skillsTrigger);
+	const hasSkillsTrigger = Boolean(skillsTrigger);
+	const hasPersonalSkillsOverride = personalSkillsOverride !== undefined;
 	const skillsQuery = useQuery({
 		...userSkills(),
-		enabled: skillsMenuOpen && personalSkillsOverride === undefined,
+		enabled: hasSkillsTrigger && !hasPersonalSkillsOverride,
+		// Keep cached skills fresh briefly so caret movement that closes and
+		// reopens the trigger does not refetch on every toggle.
+		staleTime: 60_000,
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
+	// Only a settled fetch counts as resolved. A stale cached empty list with
+	// a refetch in flight must keep the menu open so it is not dismissed
+	// right before skills arrive.
+	const isResolvedEmptySkillsList = hasPersonalSkillsOverride
+		? personalSkills.length === 0
+		: skillsQuery.isSuccess &&
+			!skillsQuery.isFetching &&
+			personalSkills.length === 0;
+	// With no personal skills, "/" behaves like plain text: no popover and no
+	// Enter/arrow interception. Filtered-empty (user has skills, query
+	// matches none) keeps the menu open to show the no-match message.
+	const skillsMenuOpen = hasSkillsTrigger && !isResolvedEmptySkillsList;
 	const filteredPersonalSkills = skillsTrigger
 		? filterPersonalSkills(personalSkills, skillsTrigger.query)
 		: [];
@@ -890,7 +906,11 @@ const ChatMessageInput = ({
 					anchorRect={skillsTrigger?.anchorRect ?? null}
 					query={skillsTrigger?.query ?? ""}
 					skills={filteredPersonalSkills}
-					isLoading={skillsMenuOpen && skillsQuery.isLoading}
+					isLoading={
+						skillsMenuOpen &&
+						personalSkills.length === 0 &&
+						(skillsQuery.isLoading || skillsQuery.isFetching)
+					}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					isError={skillsMenuOpen && skillsQuery.isError}
 					selectedIndex={selectedSkillIndex}

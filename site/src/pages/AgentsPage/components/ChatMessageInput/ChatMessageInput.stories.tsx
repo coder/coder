@@ -79,10 +79,27 @@ export const EmptySkills: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		expect(await findVisibleText("No personal skills found.")).toBeDefined();
+		// With no personal skills, "/" behaves like plain text: no popover
+		// opens and Enter submits instead of being swallowed.
+		expectNoVisibleTextImmediately("No personal skills found.");
+		await userEvent.keyboard("{Enter}");
+		expect(args.onEnter).toHaveBeenCalledTimes(1);
+		expect(editor.textContent).toBe("/");
+	},
+};
+
+export const FilteredEmptyKeepsMenuOpen: Story = {
+	args: {
+		onEnter: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const editor = await typeInEditor(canvasElement, "/zzzz");
+		expect(
+			await findVisibleText("No personal skills match that query."),
+		).toBeDefined();
 		await userEvent.keyboard("{Enter}");
 		expect(args.onEnter).not.toHaveBeenCalled();
-		expect(editor.textContent).toBe("/");
+		expect(editor.textContent).toBe("/zzzz");
 	},
 };
 
