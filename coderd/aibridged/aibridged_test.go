@@ -134,7 +134,33 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 
 		// Coderd connection-related failures.
 		{
-			name: "fatal dial error",
+			name: "fatal bad request dial error",
+			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
+				return nil, codersdk.ReadBodyAsError(&http.Response{
+					StatusCode: http.StatusBadRequest,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(bytes.NewBufferString(`{"message":"bad request"}`)),
+				})
+			},
+			ignoreLogs:     true,
+			expectedErr:    aibridged.ErrConnect,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+		{
+			name: "fatal unauthorized dial error",
+			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
+				return nil, codersdk.ReadBodyAsError(&http.Response{
+					StatusCode: http.StatusUnauthorized,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(bytes.NewBufferString(`{"message":"unauthorized"}`)),
+				})
+			},
+			ignoreLogs:     true,
+			expectedErr:    aibridged.ErrConnect,
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+		{
+			name: "fatal forbidden dial error",
 			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
 				return nil, codersdk.ReadBodyAsError(&http.Response{
 					StatusCode: http.StatusForbidden,

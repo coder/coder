@@ -105,12 +105,18 @@ connectLoop:
 				return
 			}
 			var sdkErr *codersdk.Error
-			// If something is wrong with our auth, stop trying to connect.
-			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
-				err = xerrors.Errorf("dial coderd: %w", err)
-				s.logger.Error(s.lifecycleCtx, "not authorized to dial coderd", slog.Error(err))
-				s.cancelFn(err)
-				return
+			// If something is wrong with configuration, stop trying to connect.
+			if errors.As(err, &sdkErr) {
+				switch sdkErr.StatusCode() {
+				// These statuses are returned by the /api/v2/ai-gateway/serve
+				// (wrong Gateway key or incompatible API versions)
+				// or FeatureAIBridge check the WebSocket upgrade.
+				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
+					err = xerrors.Errorf("dial coderd: %w", err)
+					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd", slog.Error(err))
+					s.cancelFn(err)
+					return
+				}
 			}
 			if s.isShutdown() {
 				return

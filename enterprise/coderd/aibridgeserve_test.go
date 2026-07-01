@@ -35,7 +35,7 @@ func manualDialAIGatewayServe(ctx context.Context, t *testing.T, client *codersd
 	require.NoError(t, err)
 	query := serverURL.Query()
 	if version != "" {
-		query.Set("version", version)
+		query.Set(aibridgedproto.VersionQueryParam, version)
 	}
 	serverURL.RawQuery = query.Encode()
 
