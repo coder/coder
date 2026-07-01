@@ -397,3 +397,63 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 		})
 	}
 }
+
+func Test_warnDeprecatedChatAIGatewayRoutingFlag(t *testing.T) {
+	t.Parallel()
+
+	isDeprecationWarning := func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn &&
+			e.Message == "chat-ai-gateway-routing-enabled is deprecated and has no effect; "+
+				"AI Gateway routing is the only routing path. "+
+				"Remove the option from your configuration; it will be deleted in a future release"
+	}
+
+	newOptionSet := func(source serpent.ValueSource) serpent.OptionSet {
+		return serpent.OptionSet{
+			{
+				Flag:        "chat-ai-gateway-routing-enabled",
+				ValueSource: source,
+			},
+		}
+	}
+
+	for _, tc := range []struct {
+		name      string
+		source    serpent.ValueSource
+		wantsWarn bool
+	}{
+		{name: "Flag", source: serpent.ValueSourceFlag, wantsWarn: true},
+		{name: "Env", source: serpent.ValueSourceEnv, wantsWarn: true},
+		{name: "YAML", source: serpent.ValueSourceYAML, wantsWarn: true},
+		{name: "Default", source: serpent.ValueSourceDefault, wantsWarn: false},
+		{name: "None", source: serpent.ValueSourceNone, wantsWarn: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sink := testutil.NewFakeSink(t)
+			warnDeprecatedChatAIGatewayRoutingFlag(
+				context.Background(), sink.Logger(), newOptionSet(tc.source),
+			)
+
+			entries := sink.Entries(isDeprecationWarning)
+			if tc.wantsWarn {
+				require.Len(t, entries, 1)
+			} else {
+				require.Empty(t, entries)
+			}
+		})
+	}
+
+	t.Run("OptionNotPresent", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnDeprecatedChatAIGatewayRoutingFlag(
+			context.Background(), sink.Logger(), serpent.OptionSet{
+				{Flag: "some-other-flag", ValueSource: serpent.ValueSourceFlag},
+			},
+		)
+		require.Empty(t, sink.Entries(isDeprecationWarning))
+	})
+}

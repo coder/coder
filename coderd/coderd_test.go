@@ -263,6 +263,32 @@ func TestHealthz(t *testing.T) {
 	assert.Equal(t, "OK", string(body))
 }
 
+// TestAIGatewayDisabledStartupAndShutdown regression-tests that the server
+// starts up and shuts down cleanly when the AI Gateway is disabled at the
+// deployment level, in which case api.chatDaemon stays nil. Before this
+// test was added, the git sync worker captured api.chatDaemon.PublishDiffStatusChange
+// as a method value unconditionally (a method value on a nil receiver is
+// itself non-nil, so the worker's own nil check on its callback did not
+// help), and api.chatDaemon.Close() was called unconditionally during
+// shutdown; both dereferenced the nil receiver and panicked.
+func TestAIGatewayDisabledStartupAndShutdown(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	require.NoError(t, dv.AI.BridgeConfig.Enabled.Set("false"))
+	// Constructing the client starts the server; t.Cleanup (registered by
+	// coderdtest.New) closes it at the end of the test, exercising the
+	// shutdown path that used to panic.
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+
+	res, err := client.Request(context.Background(), http.MethodGet, "/healthz", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
 func TestSwagger(t *testing.T) {
 	t.Parallel()
 

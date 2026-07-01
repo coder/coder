@@ -866,9 +866,18 @@ func New(options *Options) *API {
 			gitSyncLogger.Named("refresher"),
 			quartz.NewReal(),
 		)
+		// api.chatDaemon.PublishDiffStatusChange is a method value on a
+		// pointer receiver: even when api.chatDaemon is nil, the method
+		// value itself is non-nil, so gitsync.Worker's own nil check on
+		// its callback would not catch it. Only bind the callback when the
+		// chat daemon actually exists.
+		var publishDiffStatusChange gitsync.PublishDiffStatusChangeFunc
+		if api.chatDaemon != nil {
+			publishDiffStatusChange = api.chatDaemon.PublishDiffStatusChange
+		}
 		api.gitSyncWorker = gitsync.NewWorker(options.Database,
 			refresher,
-			api.chatDaemon.PublishDiffStatusChange,
+			publishDiffStatusChange,
 			quartz.NewReal(),
 			gitSyncLogger,
 		)
@@ -2348,8 +2357,10 @@ func (api *API) Close() error {
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
 	}
-	if err := api.chatDaemon.Close(); err != nil {
-		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+	if api.chatDaemon != nil {
+		if err := api.chatDaemon.Close(); err != nil {
+			api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+		}
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
