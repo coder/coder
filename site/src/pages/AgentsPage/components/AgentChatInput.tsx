@@ -192,6 +192,7 @@ interface AgentChatInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
 }
 
 export interface AttachedWorkspaceInfo {
@@ -394,6 +395,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames = [],
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const showAgentSetupNotice = canConfigureAgentSetup
@@ -1070,12 +1072,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount}
 							modelCount={modelCount}
+							unsupportedProviderNames={unsupportedProviderNames}
 						/>
 					) : (
 						<AgentSetupNotice
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							unsupportedProviderNames={unsupportedProviderNames}
 						/>
 					)}
 				</div>

@@ -69,6 +69,14 @@ func newChatTestOptions(
 ) *coderdtest.Options {
 	t.Helper()
 
+	// Enable experiment-gated chat endpoints in tests.
+	if len(values.Experiments) == 0 {
+		values.Experiments = serpent.StringArray{
+			string(codersdk.ExperimentChatAdvisor),
+			string(codersdk.ExperimentChatVirtualDesktop),
+		}
+	}
+
 	opts := &coderdtest.Options{
 		DeploymentValues: values,
 	}
@@ -1180,7 +1188,7 @@ func TestListChats(t *testing.T) {
 		// shift the cursor position between page requests.
 		const totalChats = 5
 		createdChatIDs := make([]uuid.UUID, 0, totalChats)
-		for i := 0; i < totalChats; i++ {
+		for i := range totalChats {
 			dbChat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    firstUser.OrganizationID,
 				OwnerID:           firstUser.UserID,
@@ -1716,6 +1724,46 @@ func TestListChatModels(t *testing.T) {
 		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		_, err := unauthenticatedClient.ListChatModels(ctx)
 		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("CopilotOnlyUnsupported", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		// Copilot is a valid AI Gateway provider but the Agents harness
+		// cannot use it. It must surface as an unsupported provider rather
+		// than vanish, so the empty state can explain why.
+		_ = createAIProviderForTest(t, client, string(codersdk.AIProviderTypeCopilot), "")
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		require.False(t, slices.ContainsFunc(models.Providers, func(p codersdk.ChatModelProvider) bool {
+			return p.Provider == string(codersdk.AIProviderTypeCopilot)
+		}), "copilot must not appear in the supported model picker")
+
+		require.Equal(t, []codersdk.ChatUnsupportedProvider{
+			{
+				Provider:    "copilot",
+				DisplayName: "GitHub Copilot",
+			},
+		}, models.UnsupportedProviders)
+	})
+
+	t.Run("SupportedProviderHasNoUnsupportedEntry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+		require.Empty(t, models.UnsupportedProviders)
 	})
 
 	t.Run("CentralOnlyProviderAvailable", func(t *testing.T) {
@@ -4951,7 +4999,7 @@ func TestGetChatUserPrompts(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			insertUserMessage(t, ctx, db, chat.ID, modelConfig.ID, user.UserID,
 				[]codersdk.ChatMessagePart{
 					{Type: codersdk.ChatMessagePartTypeText, Text: fmt.Sprintf("prompt %d", i)},
@@ -12230,110 +12278,6 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 	})
 }
 
-func TestChatDesktopEnabled(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ReturnsFalseWhenUnset", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		resp, err := adminClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, resp.EnableDesktop)
-	})
-
-	t.Run("AdminCanSetTrue", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.True(t, resp.EnableDesktop)
-	})
-
-	t.Run("AdminCanSetFalse", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		// Set true first, then set false.
-		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		require.NoError(t, err)
-
-		err = adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: false,
-		})
-		require.NoError(t, err)
-
-		resp, err := adminClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.False(t, resp.EnableDesktop)
-	})
-
-	t.Run("NonAdminCanRead", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		require.NoError(t, err)
-
-		resp, err := memberClient.GetChatDesktopEnabled(ctx)
-		require.NoError(t, err)
-		require.True(t, resp.EnableDesktop)
-	})
-
-	t.Run("NonAdminWriteFails", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		err := memberClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
-			EnableDesktop: true,
-		})
-		requireSDKError(t, err, http.StatusForbidden)
-	})
-
-	t.Run("UnauthenticatedFails", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient.Client)
-
-		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
-		_, err := anonClient.GetChatDesktopEnabled(ctx)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-	})
-}
-
 func TestChatComputerUseProvider(t *testing.T) {
 	t.Parallel()
 
@@ -12960,7 +12904,12 @@ func TestChatAdvisorConfig_GetDefault(t *testing.T) {
 
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, codersdk.AdvisorConfig{}, resp)
+	// Enabled reflects the experiment state, not the DB value. The test
+	// deployment enables chat-advisor, so Enabled is true.
+	require.True(t, resp.Enabled)
+	require.Equal(t, 0, resp.MaxUsesPerRun)
+	require.Equal(t, int64(0), resp.MaxOutputTokens)
+	require.Equal(t, uuid.Nil, resp.ModelConfigID)
 }
 
 func TestChatAdvisorConfig_Update(t *testing.T) {
@@ -13149,11 +13098,11 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	require.Equal(t, sparse, resp)
 }
 
-// TestChatAdvisorConfig_CanBeDisabledAfterEnabled pins the feature
-// gate's "off" path. The downstream runtime gates the advisor tool and
-// prompt guidance on Enabled, so a regression that silently drops or
-// ignores Enabled: false on PUT would leave the feature stuck on.
-func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
+// TestChatAdvisorConfig_EnabledReflectsExperiment pins that the Enabled
+// field in the GET response reflects the experiment state, not the DB-stored
+// value. Setting Enabled: false via PUT stores false in the DB, but the GET
+// handler overrides it with the experiment check.
+func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -13177,7 +13126,8 @@ func TestChatAdvisorConfig_CanBeDisabledAfterEnabled(t *testing.T) {
 
 	disabledResp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.False(t, disabledResp.Enabled)
+	// Enabled reflects the experiment state (on), not the DB-stored false.
+	require.True(t, disabledResp.Enabled)
 }
 
 func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {

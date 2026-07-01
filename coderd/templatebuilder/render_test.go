@@ -215,7 +215,28 @@ func TestExtractAgentResourceName(t *testing.T) {
 
 		name, err := templatebuilder.ExtractAgentResourceName(rendered)
 		require.NoError(t, err)
-		require.Equal(t, "dev", name)
+		require.Equal(t, "dev[0]", name, "counted agent should include index")
+	})
+
+	t.Run("CountedAgent", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`resource "coder_agent" "myagent" {
+  count = data.coder_workspace.me.start_count
+  arch  = "amd64"
+}`)
+		name, err := templatebuilder.ExtractAgentResourceName(hcl)
+		require.NoError(t, err)
+		require.Equal(t, "myagent[0]", name)
+	})
+
+	t.Run("UncountedAgent", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`resource "coder_agent" "main" {
+  arch = "amd64"
+}`)
+		name, err := templatebuilder.ExtractAgentResourceName(hcl)
+		require.NoError(t, err)
+		require.Equal(t, "main", name)
 	})
 
 	t.Run("NoAgent", func(t *testing.T) {
@@ -270,6 +291,24 @@ func TestModuleTemplateFS(t *testing.T) {
 	})
 }
 
+func TestAllBasesRenderAndExtractAgent(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			renderCtx := templatebuilder.DefaultBaseRenderContext(id)
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", renderCtx)
+			require.NoError(t, err, "base %q should render without error", id)
+			require.NotEmpty(t, rendered)
+
+			name, err := templatebuilder.ExtractAgentResourceName(rendered)
+			require.NoError(t, err, "base %q should have exactly one coder_agent", id)
+			require.NotEmpty(t, name)
+		})
+	}
+}
+
 func TestBaseTemplateSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -279,6 +318,12 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		{exampleID: "docker"},
 		{exampleID: "kubernetes"},
 		{exampleID: "aws-linux"},
+		{exampleID: "aws-windows"},
+		{exampleID: "azure-linux"},
+		{exampleID: "digitalocean-linux"},
+		{exampleID: "gcp-linux"},
+		{exampleID: "gcp-windows"},
+		{exampleID: "scratch"},
 	}
 
 	for _, tc := range tests {

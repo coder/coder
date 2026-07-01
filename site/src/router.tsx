@@ -372,9 +372,6 @@ const AgentSettingsCompactionPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
 );
 
-const AgentSettingsExperimentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
-);
 const AISettingsLifecyclePage = lazy(
 	() => import("./pages/AISettingsPage/LifecyclePage/LifecyclePage"),
 );
@@ -437,7 +434,7 @@ const AISettingsAddProviderPage = lazy(
 			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
 		),
 );
-const AISettingsGatewayKeysPage = lazy(
+const _AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
 );
 const AISettingsModelsPage = lazy(
@@ -477,10 +474,6 @@ const AISettingsIndexRedirect = () => {
 
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
-	}
-
-	if (permissions.viewAIGatewayKeys) {
-		return <Navigate to="/ai/settings/gateway-keys" replace />;
 	}
 
 	if (permissions.editDeploymentConfig) {
@@ -763,10 +756,6 @@ export const router = createBrowserRouter(
 						<Route element={<DeploymentConfigProvider />}>
 							<Route path="governance" element={<AIGovernanceSettingsPage />} />
 						</Route>
-						<Route
-							path="gateway-keys"
-							element={<AISettingsGatewayKeysPage />}
-						/>
 						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
 						<Route path="spend" element={<AISettingsSpendPage />} />
@@ -865,10 +854,6 @@ export const router = createBrowserRouter(
 							element={<Navigate to="/ai/settings/instructions" replace />}
 						/>
 						<Route
-							path="experiments"
-							element={<AgentSettingsExperimentsPage />}
-						/>
-						<Route
 							path="lifecycle"
 							element={<Navigate to="/ai/settings/lifecycle" replace />}
 						/>
@@ -886,6 +871,14 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="coder-agents"
+							element={<Navigate to="/ai/settings/coder-agents" replace />}
+						/>
+						<Route
+							path="experiments"
 							element={<Navigate to="/ai/settings/coder-agents" replace />}
 						/>
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />

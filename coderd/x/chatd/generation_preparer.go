@@ -118,6 +118,8 @@ func (server *Server) prepareGeneration(
 
 	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 	advisorCfg := server.loadAdvisorConfig(ctx, logger)
+	// Force Enabled from the experiment; the stored DB value is ignored.
+	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
 
 	var advisorRuntime *chatadvisor.Runtime
 	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
