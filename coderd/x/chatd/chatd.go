@@ -1495,6 +1495,16 @@ func applyGoalMutation(
 		}
 		return &goal, nil
 	case codersdk.ChatGoalMutationActionPause:
+		current, err := currentChatGoal(ctx, tx, rootChatID)
+		if err != nil {
+			return nil, err
+		}
+		if current == nil || current.ID != *mutation.GoalID {
+			return nil, ErrChatGoalNotFound
+		}
+		if current.Status != database.ChatGoalStatusActive {
+			return nil, &ChatGoalMutationError{Message: "current goal is not active"}
+		}
 		goal, err := tx.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
 			RootChatID: rootChatID,
 			ID:         *mutation.GoalID,
@@ -1504,6 +1514,16 @@ func applyGoalMutation(
 		}
 		return &goal, nil
 	case codersdk.ChatGoalMutationActionResume:
+		current, err := currentChatGoal(ctx, tx, rootChatID)
+		if err != nil {
+			return nil, err
+		}
+		if current == nil || current.ID != *mutation.GoalID {
+			return nil, ErrChatGoalNotFound
+		}
+		if current.Status != database.ChatGoalStatusPaused {
+			return nil, &ChatGoalMutationError{Message: "current goal is not paused"}
+		}
 		goal, err := tx.ResumeChatGoalByID(ctx, database.ResumeChatGoalByIDParams{
 			RootChatID: rootChatID,
 			ID:         *mutation.GoalID,

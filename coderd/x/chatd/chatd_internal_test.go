@@ -667,6 +667,31 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 		))
 	})
 
+	t.Run("ChildChatSuppressesStopAfterGoal", func(t *testing.T) {
+		t.Parallel()
+		result := stopAfterBehaviorTools(
+			database.NullChatPlanMode{},
+			database.NullChatMode{},
+			uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			stopAfterBehaviorToolOptions{stopAfterCompleteGoal: true},
+		)
+		require.NotContains(t, result, chattool.CompleteGoalToolName)
+	})
+
+	t.Run("PlanModeWithGoalStopMergesBoth", func(t *testing.T) {
+		t.Parallel()
+		result := stopAfterBehaviorTools(
+			planMode,
+			database.NullChatMode{},
+			uuid.NullUUID{},
+			stopAfterBehaviorToolOptions{stopAfterCompleteGoal: true},
+		)
+		for tool := range stopAfterPlanTools(planMode, uuid.NullUUID{}) {
+			require.Contains(t, result, tool)
+		}
+		require.Contains(t, result, chattool.CompleteGoalToolName)
+	})
+
 	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
 		t.Parallel()
 		require.Nil(t, stopAfterBehaviorTools(
