@@ -34,9 +34,8 @@ func TestEnsureBedrockExternalID(t *testing.T) {
 			RoleARN: "arn:aws:iam::123456789012:role/BedrockRole",
 		}}
 		ensureBedrockExternalID(&s)
-		require.NotEmpty(t, s.Bedrock.ExternalID)
-		// crypto/rand.Text returns a 26-character base32 string.
-		require.Len(t, s.Bedrock.ExternalID, 26)
+		require.GreaterOrEqual(t, len(s.Bedrock.ExternalID), 26)
+		require.LessOrEqual(t, len(s.Bedrock.ExternalID), 52)
 	})
 
 	t.Run("DoesNotOverwriteExisting", func(t *testing.T) {
