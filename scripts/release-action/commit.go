@@ -58,10 +58,10 @@ var humanizedAreas = []struct {
 // commitLog returns non-merge commits in the given range, filtering
 // out left-side commits (already in the base) and deduplicating
 // cherry-picks using git's --cherry-mark.
-func commitLog(commitRange string) ([]commitEntry, error) {
+func commitLog(exec CommandExecutor, commitRange string) ([]commitEntry, error) {
 	// Use --left-right --cherry-mark to identify equivalent
 	// (cherry-picked) commits and left-side-only commits.
-	out, err := gitOutput("log", "--no-merges", "--left-right", "--cherry-mark",
+	out, err := gitOutput(exec, "log", "--no-merges", "--left-right", "--cherry-mark",
 		"--pretty=format:%m %ct %h %H %s", commitRange)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func commitLog(commitRange string) ([]commitEntry, error) {
 		}
 
 		// Normalize cherry-pick bot titles:
-		// "chore: foo (cherry-pick #42) (#43)" → "chore: foo (#42)"
+		// "chore: foo (cherry-pick #42) (#43)" -> "chore: foo (#42)"
 		if m := cherryPickPRRe.FindStringSubmatch(title); m != nil {
 			title = title[:cherryPickPRRe.FindStringIndex(title)[0]] + "(#" + m[1] + ")"
 		}
