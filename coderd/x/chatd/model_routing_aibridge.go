@@ -110,7 +110,7 @@ func isOpenRouterLikeAIGatewayProvider(provider database.AIProvider) bool {
 	return host == "openrouter.ai" || strings.HasSuffix(host, ".openrouter.ai")
 }
 
-func (p *Server) newAIGatewayModel(
+func (p *Server) newModel(
 	_ context.Context,
 	req modelClientRequest,
 	route aiGatewayModelRoute,
@@ -267,7 +267,7 @@ func (p *Server) resolveAIGatewayRoute(
 	return newAIGatewayModelRoute(provider, modelProviderHint, auth), nil
 }
 
-func (p *Server) resolveAIGatewayModelRouteForConfig(
+func (p *Server) resolveModelRouteForConfig(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	modelConfig database.ChatModelConfig,
@@ -279,7 +279,7 @@ func (p *Server) resolveAIGatewayModelRouteForConfig(
 	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type))
 }
 
-func (p *Server) resolveAIGatewayModelRouteForProviderType(
+func (p *Server) resolveModelRouteForProviderType(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	providerType string,
