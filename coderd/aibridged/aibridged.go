@@ -42,10 +42,11 @@ type Server struct {
 	initConnectionCh   chan struct{}
 	initConnectionOnce sync.Once
 
-	// lifecycleCtx is canceled when we start closing.
+	// lifecycleCtx is canceled when we start closing or when the
+	// connection loop exits permanently.
 	lifecycleCtx context.Context
-	// cancelFn closes the lifecycleCtx.
-	cancelFn func()
+	// cancelFn closes the lifecycleCtx with the reason it closed.
+	cancelFn context.CancelCauseFunc
 
 	shutdownOnce sync.Once
 }
@@ -55,7 +56,7 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 	daemon := &Server{
 		logger:           logger,
 		tracer:           tracer,
@@ -78,6 +79,11 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 func (s *Server) connect() {
 	defer s.logger.Debug(s.lifecycleCtx, "connect loop exited")
 	defer s.wg.Done()
+	defer func() {
+		if s.lifecycleCtx.Err() == nil {
+			s.cancelFn(xerrors.New("connect loop exited"))
+		}
+	}()
 
 	logConnect := s.logger.With(slog.F("context", "aibridged.server")).Debug
 	// An exponential back-off occurs when the connection is failing to dial.
@@ -93,12 +99,17 @@ connectLoop:
 		client, err := s.clientDialer(s.lifecycleCtx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				if s.lifecycleCtx.Err() == nil {
+					s.cancelFn(err)
+				}
 				return
 			}
 			var sdkErr *codersdk.Error
 			// If something is wrong with our auth, stop trying to connect.
 			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
+				err = xerrors.Errorf("dial coderd: %w", err)
 				s.logger.Error(s.lifecycleCtx, "not authorized to dial coderd", slog.Error(err))
+				s.cancelFn(err)
 				return
 			}
 			if s.isShutdown() {
@@ -136,6 +147,9 @@ connectLoop:
 func (s *Server) Client() (DRPCClient, error) {
 	select {
 	case <-s.lifecycleCtx.Done():
+		if cause := context.Cause(s.lifecycleCtx); cause != nil {
+			return nil, cause
+		}
 		return nil, xerrors.New("context closed")
 	case client := <-s.clientCh:
 		return client, nil
@@ -170,7 +184,7 @@ func (s *Server) isShutdown() bool {
 func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	s.shutdownOnce.Do(func() {
-		s.cancelFn()
+		s.cancelFn(context.Canceled)
 
 		// Wait for any outstanding connections to terminate.
 		s.wg.Wait()
