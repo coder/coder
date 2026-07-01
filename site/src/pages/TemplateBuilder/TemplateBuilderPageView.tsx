@@ -163,7 +163,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				</div>
 
 				{/* Sidebar */}
-				<div className="w-64 shrink-0 hidden md:block sticky top-0 self-start">
+				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						selectedTemplate={
