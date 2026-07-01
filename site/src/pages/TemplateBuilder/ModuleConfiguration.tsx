@@ -1,4 +1,4 @@
-import { TrashIcon } from "lucide-react";
+import { CheckIcon, TrashIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
@@ -58,14 +58,19 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 				</ConfigurationFieldContainer>
 			)}
 
-			{optionalFields && optionalFields.length > 0 && (
-				<CollapsibleSummary label="Advanced settings" className="mt-4">
+			{optionalFields && optionalFields.length > 0 ? (
+				<CollapsibleSummary label="Additional settings" className="mt-4">
 					<ConfigurationFieldContainer>
 						{optionalFields.map((f) => (
 							<ConfigurationField key={f.id} field={f} />
 						))}
 					</ConfigurationFieldContainer>
 				</CollapsibleSummary>
+			) : (
+				<div className="text-sm text-content-secondary flex items-center gap-2 mt-4">
+					<CheckIcon className="w-4 h-4" />
+					No configuration required.
+				</div>
 			)}
 		</section>
 	);

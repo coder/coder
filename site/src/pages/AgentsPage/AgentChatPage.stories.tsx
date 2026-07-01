@@ -1548,6 +1548,7 @@ export const WithSubagentCards: Story = {
  *  that opens the right sidebar panel and switches to the Desktop tab. */
 export const WithComputerUseAgent: Story = {
 	parameters: {
+		experiments: ["chat-virtual-desktop"],
 		queries: [
 			...buildQueries(
 				{
@@ -1613,11 +1614,6 @@ export const WithComputerUseAgent: Story = {
 				},
 				{ diffUrl: undefined },
 			),
-			// Enable the desktop feature so the Desktop tab appears in the sidebar.
-			{
-				key: ["chat-desktop-enabled"],
-				data: { enable_desktop: true },
-			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -2476,6 +2472,7 @@ export const WithEveryTool: Story = {
  *  (SubagentTool with computer-use variant) instead of the plain SubagentTool card. */
 export const WithWaitAgentComputerUseVNC: Story = {
 	parameters: {
+		experiments: ["chat-virtual-desktop"],
 		queries: [
 			...buildQueries(
 				{
@@ -2519,10 +2516,6 @@ export const WithWaitAgentComputerUseVNC: Story = {
 				},
 				{ diffUrl: undefined },
 			),
-			{
-				key: ["chat-desktop-enabled"],
-				data: { enable_desktop: true },
-			},
 		],
 		// The wait_agent arrives via WebSocket so it renders in
 		// the streaming/running state (no tool-result yet).

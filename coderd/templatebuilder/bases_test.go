@@ -8,23 +8,40 @@ import (
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 )
 
+// allBaseIDs is the set of base template IDs expected in the catalog.
+var allBaseIDs = []string{
+	"aws-linux",
+	"aws-windows",
+	"azure-linux",
+	"digitalocean-linux",
+	"docker",
+	"gcp-linux",
+	"gcp-windows",
+	"kubernetes",
+	"scratch",
+}
+
 func TestBaseTemplateOS(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Docker", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, templatebuilder.BaseOSLinux, templatebuilder.BaseTemplateOS("docker"))
-	})
+	linuxBases := []string{
+		"aws-linux", "azure-linux", "digitalocean-linux",
+		"docker", "gcp-linux", "kubernetes", "scratch",
+	}
+	for _, id := range linuxBases {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, templatebuilder.BaseOSLinux, templatebuilder.BaseTemplateOS(id))
+		})
+	}
 
-	t.Run("Kubernetes", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, templatebuilder.BaseOSLinux, templatebuilder.BaseTemplateOS("kubernetes"))
-	})
-
-	t.Run("AWSLinux", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, templatebuilder.BaseOSLinux, templatebuilder.BaseTemplateOS("aws-linux"))
-	})
+	windowsBases := []string{"aws-windows", "gcp-windows"}
+	for _, id := range windowsBases {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, templatebuilder.BaseOSWindows, templatebuilder.BaseTemplateOS(id))
+		})
+	}
 
 	t.Run("UnknownReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
@@ -36,10 +53,10 @@ func TestBaseTemplateIDs(t *testing.T) {
 	t.Parallel()
 
 	ids := templatebuilder.BaseTemplateIDs()
-	require.Len(t, ids, 3)
-	require.Contains(t, ids, "docker")
-	require.Contains(t, ids, "kubernetes")
-	require.Contains(t, ids, "aws-linux")
+	require.Len(t, ids, len(allBaseIDs))
+	for _, id := range allBaseIDs {
+		require.Contains(t, ids, id)
+	}
 }
 
 func TestDefaultBaseRenderContext(t *testing.T) {
@@ -59,11 +76,16 @@ func TestDefaultBaseRenderContext(t *testing.T) {
 		require.Nil(t, rc.ImageOptions)
 	})
 
-	t.Run("AWSLinux", func(t *testing.T) {
+	t.Run("VMBasesHaveNoContainerImage", func(t *testing.T) {
 		t.Parallel()
-		rc := templatebuilder.DefaultBaseRenderContext("aws-linux")
-		require.Empty(t, rc.ContainerImage)
-		require.Nil(t, rc.ImageOptions)
+		vmBases := []string{
+			"aws-linux", "aws-windows", "azure-linux", "azure-windows",
+			"digitalocean-linux", "gcp-linux", "gcp-windows", "scratch",
+		}
+		for _, id := range vmBases {
+			rc := templatebuilder.DefaultBaseRenderContext(id)
+			require.Empty(t, rc.ContainerImage, "base %q should have no container image", id)
+		}
 	})
 
 	t.Run("Unknown", func(t *testing.T) {
@@ -74,12 +96,9 @@ func TestDefaultBaseRenderContext(t *testing.T) {
 
 	t.Run("AllBaseTemplatesHaveDefaults", func(t *testing.T) {
 		t.Parallel()
-		// Verify that every known base template produces a render
-		// context via DefaultBaseRenderContext (not just the zero value
-		// from an unknown ID). This catches forgotten entries.
 		for _, id := range templatebuilder.BaseTemplateIDs() {
 			rc := templatebuilder.DefaultBaseRenderContext(id)
-			_ = rc // existence is the assertion; the value varies per template
+			_ = rc
 		}
 	})
 }

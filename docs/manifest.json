@@ -86,7 +86,31 @@
 			"title": "Get started",
 			"description": "Install Coder and launch your first workspace",
 			"path": "./get-started/index.md",
-			"icon_path": "./images/icons/rocket.svg"
+			"icon_path": "./images/icons/rocket.svg",
+			"children": [
+				{
+					"title": "Customize your template",
+					"description": "Add a language, install command-line tools, and authenticate to GitHub",
+					"path": "./get-started/customize-your-template/index.md",
+					"children": [
+						{
+							"title": "Add a programming language",
+							"description": "Expose a new language through a parameter and install it at startup",
+							"path": "./get-started/customize-your-template/add-a-language.md"
+						},
+						{
+							"title": "Install your own command-line tools",
+							"description": "Install personal command-line tools and make them persist",
+							"path": "./get-started/customize-your-template/install-command-line-tools.md"
+						},
+						{
+							"title": "Clone private repositories",
+							"description": "Authenticate to GitHub with an external-auth data source",
+							"path": "./get-started/customize-your-template/authenticate-to-github.md"
+						}
+					]
+				}
+			]
 		},
 		{
 			"title": "Install",
@@ -1080,10 +1104,22 @@
 									"state": ["beta"]
 								},
 								{
-									"title": "Experiments",
-									"description": "Experimental Coder Agents features admins can opt in to: virtual desktop, advisor, and chat debug logging",
-									"path": "./ai-coder/agents/platform-controls/experiments.md",
-									"state": ["beta"]
+									"title": "Advisor",
+									"description": "Strategic guidance for root agent chats",
+									"path": "./ai-coder/agents/platform-controls/advisor.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Virtual desktop",
+									"description": "Allow agents to use a graphical desktop within workspaces",
+									"path": "./ai-coder/agents/platform-controls/virtual-desktop.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Chat debug logging",
+									"description": "Record detailed traces of chat turns for troubleshooting",
+									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md",
+									"state": ["early access"]
 								}
 							]
 						},
@@ -1286,6 +1322,12 @@
 									"title": "Reference",
 									"description": "Technical reference for AI Gateway",
 									"path": "./ai-coder/ai-gateway/reference.md",
+									"state": ["ai governance add-on"]
+								},
+								{
+									"title": "Rebranding Migration",
+									"description": "Migrate from AI Bridge names to AI Gateway",
+									"path": "./ai-coder/ai-gateway/rebranding-migration.md",
 									"state": ["ai governance add-on"]
 								}
 							]

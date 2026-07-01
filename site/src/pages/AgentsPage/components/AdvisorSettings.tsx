@@ -1,16 +1,12 @@
 import { useFormik } from "formik";
-import { TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useId, useRef } from "react";
+import { type FC, useId } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
 	ChatModelConfig,
 	UpdateAdvisorConfigRequest,
 } from "#/api/typesGenerated";
-import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
@@ -18,7 +14,9 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { Switch } from "#/components/Switch/Switch";
+import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
+import { cn } from "#/utils/cn";
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 const chatModelFallbackValue = "__use-chat-model__";
@@ -48,7 +46,6 @@ interface AdvisorSettingsProps {
 }
 
 type AdvisorSettingsFormValues = {
-	enabled: boolean;
 	max_uses_per_run: string;
 	max_output_tokens: string;
 	model_config_id: string;
@@ -70,7 +67,6 @@ const normalizeNonNegativeInteger = (
 const normalizeAdvisorConfig = (
 	config: AdvisorConfig | undefined,
 ): AdvisorSettingsFormValues => ({
-	enabled: config?.enabled ?? false,
 	max_uses_per_run: String(
 		normalizeNonNegativeInteger(config?.max_uses_per_run),
 	),
@@ -87,7 +83,7 @@ const normalizeAdvisorConfig = (
 const toAdvisorConfigRequest = (
 	values: AdvisorSettingsFormValues,
 ): UpdateAdvisorConfigRequest => ({
-	enabled: values.enabled,
+	enabled: true,
 	max_uses_per_run: normalizeNonNegativeInteger(values.max_uses_per_run),
 	max_output_tokens: normalizeNonNegativeInteger(values.max_output_tokens),
 	model_config_id: isUnsetModelConfigId(values.model_config_id)
@@ -105,13 +101,6 @@ const isNonNegativeIntegerString = (value: string): boolean => {
 
 const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 	const errors: Partial<Record<keyof AdvisorSettingsFormValues, string>> = {};
-
-	// Skip validation of the advisor-only fields when the feature is disabled.
-	// Those inputs are hidden, so an admin disabling the advisor should not be
-	// blocked by stale invalid values left in hidden fields.
-	if (!values.enabled) {
-		return errors;
-	}
 
 	if (!isNonNegativeIntegerString(values.max_uses_per_run)) {
 		errors.max_uses_per_run =
@@ -145,20 +134,9 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 }) => {
 	const maxUsesId = useId();
 	const maxOutputTokensId = useId();
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
 	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
-
-	// Track the most recent committed advisor values (the server's view or the
-	// last successful save). Reading `advisorConfigData` directly in `onSubmit`
-	// can yield a stale snapshot when a refetch is in flight or has failed,
-	// which would silently roll back recently saved limits if the user then
-	// disables the advisor before the query settles.
-	const committedValuesRef = useRef<AdvisorSettingsFormValues>(
-		normalizeAdvisorConfig(advisorConfigData),
-	);
-	useEffect(() => {
-		committedValuesRef.current = normalizeAdvisorConfig(advisorConfigData);
-	}, [advisorConfigData]);
 
 	const form = useFormik<AdvisorSettingsFormValues>({
 		enableReinitialize: true,
@@ -166,33 +144,13 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		initialValues: normalizeAdvisorConfig(advisorConfigData),
 		validate: validateAdvisorConfig,
 		onSubmit: (values, { resetForm }) => {
-			// When disabling, preserve the last committed values for the hidden
-			// fields so potentially invalid in-flight edits (empty strings,
-			// fractional numbers) cannot silently overwrite previously
-			// configured limits, and so a pending or failed refetch of the
-			// advisor config cannot revert recently saved values.
-			let source: AdvisorSettingsFormValues = values.enabled
-				? values
-				: { ...committedValuesRef.current, enabled: false };
 			// If the last committed model override references a model config
 			// that no longer exists, the backend rejects the stale ID with a
-			// 400. When disabling, clear the override so a simple disable
-			// stays reliable in that edge case; the override is unusable
-			// anyway and the admin will reselect one on re-enable. Only scrub
-			// when model configs have loaded successfully and no refetch is in
-			// flight: during an initial load, a background refetch, or on
-			// error we cannot distinguish "truly missing" from "not loaded
-			// yet", and deciding from stale cache could either preserve a
-			// now-deleted ID (causing a 400 on disable/save) or silently drop
-			// an override that is actually still valid but missing from a
-			// stale cache. `isLoading` alone is insufficient because
-			// react-query keeps it false during background refetches when
-			// cached data already exists, so `isFetching` covers that gap. An
-			// empty list after a successful load is a definitive answer, so
-			// the scrub still fires (covers the recovery case where every
-			// model config has been deleted).
+			// 400. Clear the override so a save stays reliable in that edge
+			// case. Only scrub when model configs have loaded successfully and
+			// no refetch is in flight.
+			let source = values;
 			if (
-				!source.enabled &&
 				!isUnsetModelConfigId(source.model_config_id) &&
 				!isLoadingModelConfigs &&
 				!isFetchingModelConfigs &&
@@ -205,7 +163,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			onSaveAdvisorConfig(request, {
 				onSuccess: () => {
 					const nextValues = normalizeAdvisorConfig(request);
-					committedValuesRef.current = nextValues;
+					showSavedState();
 					resetForm({ values: nextValues });
 				},
 			});
@@ -240,188 +198,164 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		: hasUnavailableSelectedModel
 			? unavailableModelValue
 			: form.values.model_config_id;
-	const modelHelperText = isLoadingModelConfigs
-		? "Loading chat model overrides."
-		: modelConfigsError
-			? isUnsetModelConfigId(form.values.model_config_id)
-				? "Model overrides are unavailable. Saving will keep using the chat model."
-				: "Model overrides are unavailable. The current selection will be sent unchanged."
-			: "Choose a dedicated advisor model, or leave this unset to reuse the chat model.";
+	const canSave = hasLoadedAdvisorConfig && form.dirty && form.isValid;
 
 	return (
-		<form className="space-y-3" onSubmit={form.handleSubmit}>
-			<div className="flex items-center gap-2">
-				<h3 className="m-0 text-sm font-semibold text-content-primary">
-					Advisor
-				</h3>
-				<Badge size="sm" variant="warning" className="cursor-default">
-					<TriangleAlertIcon className="size-3" />
-					Experimental feature
-				</Badge>
-			</div>
-			<div className="flex items-center justify-between gap-4">
-				<div className="!mt-0.5 m-0 flex-1 space-y-2 text-xs text-content-secondary">
+		<AgentSettingLayout
+			title="Advisor"
+			description="Cap advisor usage per run and optionally use an override model. The advisor provides strategic guidance to root agent chats. Set limits to 0 for unlimited."
+			showSave={canSave}
+			isSaving={isSavingAdvisorConfig}
+			isSavedVisible={isSavedVisible}
+			saveDisabled={isFormDisabled || !canSave}
+			onSubmit={form.handleSubmit}
+			error={
+				isSaveAdvisorConfigError ? (
 					<p className="m-0">
-						Allow root agent chats to call the advisor tool for strategic
-						guidance.
+						{getErrorMessage(
+							saveAdvisorConfigError,
+							"Failed to save advisor settings.",
+						)}
 					</p>
-					<p className="m-0">
-						When enabled, you can cap advisor usage per run and optionally use
-						an override model.
-					</p>
-				</div>
-				<Switch
-					checked={form.values.enabled}
-					onCheckedChange={(checked) =>
-						void form.setFieldValue("enabled", checked)
+				) : isAdvisorConfigLoadError ? (
+					<p className="m-0">Failed to load advisor settings.</p>
+				) : undefined
+			}
+		>
+			<CompactIntegerField
+				id={maxUsesId}
+				name="max_uses_per_run"
+				label="Uses / run"
+				ariaLabel="Max uses per run"
+				value={form.values.max_uses_per_run}
+				onChange={(value) => void form.setFieldValue("max_uses_per_run", value)}
+				onBlur={form.handleBlur}
+				error={Boolean(form.errors.max_uses_per_run)}
+				disabled={isFormDisabled}
+				className="w-[7.5rem]"
+			/>
+			<CompactIntegerField
+				id={maxOutputTokensId}
+				name="max_output_tokens"
+				label="Max tokens"
+				ariaLabel="Max output tokens"
+				value={form.values.max_output_tokens}
+				onChange={(value) =>
+					void form.setFieldValue("max_output_tokens", value)
+				}
+				onBlur={form.handleBlur}
+				error={Boolean(form.errors.max_output_tokens)}
+				disabled={isFormDisabled}
+				className="w-36"
+			/>
+			<Select
+				value={selectedModelValue}
+				onValueChange={(value) => {
+					if (value === chatModelFallbackValue) {
+						void form.setFieldValue("model_config_id", "");
+						return;
 					}
-					aria-label="Enable advisor"
-					disabled={isFormDisabled}
-				/>
-			</div>
-
-			{form.values.enabled && (
-				<div className="grid gap-4 rounded-lg border border-border bg-surface-secondary p-4 md:grid-cols-2">
-					<div className="space-y-1.5">
-						<Label htmlFor={maxUsesId} className="text-xs text-content-primary">
-							Max uses per run
-						</Label>
-						<Input
-							id={maxUsesId}
-							name="max_uses_per_run"
-							type="number"
-							min={0}
-							step={1}
-							inputMode="numeric"
-							aria-label="Max uses per run"
-							value={form.values.max_uses_per_run}
-							// Bypass Formik's `handleChange` on purpose: for `type="number"`
-							// it parses the raw input with `parseFloat` and replaces the
-							// declared `string` form value with a `number`, which would
-							// break string-only validators like `isNonNegativeIntegerString`.
-							onChange={(event) =>
-								void form.setFieldValue(
-									"max_uses_per_run",
-									event.currentTarget.value,
-								)
-							}
-							onBlur={form.handleBlur}
-							aria-invalid={Boolean(form.errors.max_uses_per_run)}
-							disabled={isFormDisabled}
-							className="h-9 bg-surface-primary text-[13px]"
-						/>
-						<p className="m-0 text-xs text-content-secondary">
-							Set to 0 to leave the per-run call count unlimited.
-						</p>
-					</div>
-
-					<div className="space-y-1.5">
-						<Label
-							htmlFor={maxOutputTokensId}
-							className="text-xs text-content-primary"
-						>
-							Max output tokens
-						</Label>
-						<Input
-							id={maxOutputTokensId}
-							name="max_output_tokens"
-							type="number"
-							min={0}
-							step={1}
-							inputMode="numeric"
-							aria-label="Max output tokens"
-							value={form.values.max_output_tokens}
-							// See `max_uses_per_run` above for why `handleChange` is
-							// bypassed: Formik's `type="number"` coercion would replace
-							// the declared `string` form value with a `number`.
-							onChange={(event) =>
-								void form.setFieldValue(
-									"max_output_tokens",
-									event.currentTarget.value,
-								)
-							}
-							onBlur={form.handleBlur}
-							aria-invalid={Boolean(form.errors.max_output_tokens)}
-							disabled={isFormDisabled}
-							className="h-9 bg-surface-primary text-[13px]"
-						/>
-						<p className="m-0 text-xs text-content-secondary">
-							Set to 0 to use the server default output limit.
-						</p>
-					</div>
-
-					<div className="space-y-1.5">
-						<Label className="text-xs text-content-primary">
-							Advisor model
-						</Label>
-						<Select
-							value={selectedModelValue}
-							onValueChange={(value) => {
-								if (value === chatModelFallbackValue) {
-									void form.setFieldValue("model_config_id", "");
-									return;
-								}
-								if (value === unavailableModelValue) {
-									return;
-								}
-								void form.setFieldValue("model_config_id", value);
-							}}
-							disabled={isModelSelectDisabled}
-						>
-							<SelectTrigger
-								className="h-9 bg-surface-primary text-[13px]"
-								aria-label="Advisor model"
-							>
-								<SelectValue placeholder="Use chat model">
-									{selectedModelLabel}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent>
-								{hasUnavailableSelectedModel && (
-									<SelectItem value={unavailableModelValue}>
-										{selectedModelLabel}
-									</SelectItem>
-								)}
-								<SelectItem value={chatModelFallbackValue}>
-									Use chat model
-								</SelectItem>
-								{enabledModelConfigs.map((config) => (
-									<SelectItem key={config.id} value={config.id}>
-										{getModelDisplayName(config)}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<p className="m-0 text-xs text-content-secondary">
-							{modelHelperText}
-						</p>
-					</div>
-				</div>
-			)}
-
-			<div className="flex justify-end">
-				<Button
-					size="sm"
-					type="submit"
-					disabled={isFormDisabled || !form.dirty || !form.isValid}
+					if (value === unavailableModelValue) {
+						return;
+					}
+					void form.setFieldValue("model_config_id", value);
+				}}
+				disabled={isModelSelectDisabled}
+			>
+				<SelectTrigger
+					className="h-10 w-[22rem] max-w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm shadow-none"
+					aria-label="Advisor model"
 				>
-					Save
-				</Button>
-			</div>
-
-			{isSaveAdvisorConfigError && (
-				<p className="m-0 text-xs text-content-destructive">
-					{getErrorMessage(
-						saveAdvisorConfigError,
-						"Failed to save advisor settings.",
+					<SelectValue placeholder="Use chat model">
+						{selectedModelLabel}
+					</SelectValue>
+				</SelectTrigger>
+				<SelectContent>
+					{hasUnavailableSelectedModel && (
+						<SelectItem value={unavailableModelValue}>
+							{selectedModelLabel}
+						</SelectItem>
 					)}
-				</p>
+					<SelectItem value={chatModelFallbackValue}>Use chat model</SelectItem>
+					{enabledModelConfigs.map((config) => (
+						<SelectItem key={config.id} value={config.id}>
+							{getModelDisplayName(config)}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+			<Button
+				size="lg"
+				variant="outline"
+				type="button"
+				onClick={() => {
+					void form.setValues({
+						max_uses_per_run: "0",
+						max_output_tokens: "0",
+						model_config_id: "",
+					});
+				}}
+				disabled={isFormDisabled}
+				className="h-10"
+			>
+				Clear
+			</Button>
+		</AgentSettingLayout>
+	);
+};
+
+interface CompactIntegerFieldProps {
+	id: string;
+	name: string;
+	label: string;
+	ariaLabel: string;
+	value: string;
+	onChange: (value: string) => void;
+	onBlur: (event: React.FocusEvent<HTMLInputElement>) => void;
+	error?: boolean;
+	disabled?: boolean;
+	className?: string;
+}
+
+const CompactIntegerField: FC<CompactIntegerFieldProps> = ({
+	id,
+	name,
+	label,
+	ariaLabel,
+	value,
+	onChange,
+	onBlur,
+	error,
+	disabled,
+	className,
+}) => {
+	return (
+		<label
+			className={cn(
+				"grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border border-solid bg-transparent px-3 transition-colors",
+				error && "border-border-destructive",
+				disabled && "opacity-50",
+				className,
 			)}
-			{isAdvisorConfigLoadError && (
-				<p className="m-0 text-xs text-content-destructive">
-					Failed to load advisor settings.
-				</p>
-			)}
-		</form>
+		>
+			<input
+				id={id}
+				type="number"
+				name={name}
+				min={0}
+				step={1}
+				inputMode="numeric"
+				aria-label={ariaLabel}
+				value={value}
+				onChange={(event) => onChange(event.currentTarget.value)}
+				onBlur={onBlur}
+				aria-invalid={error}
+				disabled={disabled}
+				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-none disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+			/>
+			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-placeholder">
+				{label}
+			</span>
+		</label>
 	);
 };
