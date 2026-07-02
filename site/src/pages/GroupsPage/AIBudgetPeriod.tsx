@@ -24,7 +24,7 @@ export const AIBudgetPeriod: FC = () => {
 	const end = dayjs(data.period_end).subtract(1, "day").format("MMMM D, YYYY");
 	return (
 		<span className="text-sm text-content-secondary">
-			{`AI budget period ${start} - ${end}`}
+			{`AI budget period: ${start} - ${end}`}
 		</span>
 	);
 };
