@@ -209,6 +209,26 @@ var (
 	}
 )
 
+// ValidateCreateUserSecretRequest validates a single create-secret request.
+func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationError {
+	var validations []ValidationError
+	if err := UserSecretNameValid(req.Name); err != nil {
+		validations = append(validations, ValidationError{Field: "name", Detail: err.Error()})
+	}
+	if req.Value == "" {
+		validations = append(validations, ValidationError{Field: "value", Detail: "Value is required."})
+	} else if err := UserSecretValueValid(req.Value); err != nil {
+		validations = append(validations, ValidationError{Field: "value", Detail: err.Error()})
+	}
+	if err := UserSecretEnvNameValid(req.EnvName); err != nil {
+		validations = append(validations, ValidationError{Field: "env_name", Detail: err.Error()})
+	}
+	if err := UserSecretFilePathValid(req.FilePath); err != nil {
+		validations = append(validations, ValidationError{Field: "file_path", Detail: err.Error()})
+	}
+	return validations
+}
+
 // UserSecretNameValid validates a user secret name. Names are used in
 // API route path segments, so they must not include route separators.
 func UserSecretNameValid(s string) error {

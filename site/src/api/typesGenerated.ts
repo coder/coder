@@ -5509,6 +5509,12 @@ export const MaxChatFileIDs = 50;
  */
 export const MaxChatFileSizeBytes = 10485760;
 
+// From codersdk/usersecretsimport.go
+/**
+ * MaxSecretsFileBytes bounds the raw size of a secrets file before parsing.
+ */
+export const MaxSecretsFileBytes = 1048576; // 1 MiB
+
 // From codersdk/usersecretvalidation.go
 /**
  * MaxUserSecretEnvNameLength caps the length of an env_name when one
@@ -7579,6 +7585,11 @@ export interface STUNReport {
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
 }
+
+// From codersdk/usersecretsimport.go
+export type SecretsFileFormat = "env" | "json" | "yaml";
+
+export const SecretsFileFormats: SecretsFileFormat[] = ["env", "json", "yaml"];
 
 // From serpent/serpent.go
 /**
