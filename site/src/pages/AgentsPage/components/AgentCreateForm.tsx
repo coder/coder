@@ -40,29 +40,13 @@ export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
-/**
- * URL query parameter that pre-fills the empty-state composer.
- * Matches the industry convention used by ChatGPT, Grok, Gemini,
- * and Perplexity so a copy/paste from those tools works.
- */
+// Industry-convention prefill param (ChatGPT, Grok, Gemini, Perplexity).
 const URL_PROMPT_PARAM = "q";
 
 /**
- * Read the `?q=<prompt>` URL search param and strip it from the
- * browser URL so a submit-and-navigate flow doesn't leak the
- * prompt into the resulting chat's URL and a subsequent "new
- * chat" action starts from a clean slate.
- *
- * The prompt is prefilled into the composer but never
- * auto-submitted; running the agent is always an explicit user
- * action, and a warning banner is shown while the prefilled
- * value is unmodified. See
- * https://www.tenable.com/security/research/tra-2025-22 for the
- * prompt-injection class of vulnerability this guards against.
- *
- * The captured value is held in local state so it survives the
- * URL strip that happens in the mount effect. Returns `null`
- * when no non-empty prompt is present.
+ * Reads `?q=<prompt>` and strips it from the URL on mount. The value
+ * survives the strip via `useState`, and is never auto-submitted.
+ * See https://www.tenable.com/security/research/tra-2025-22.
  */
 function useConsumedUrlPrompt(): string | null {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -107,12 +91,9 @@ export type CreateChatOptions = {
  * Persists the current input to localStorage so the user's draft
  * survives page reloads.
  *
- * When `urlPrompt` is provided, it wins over any stored draft: the
- * composer initializes with the URL prompt, a warning banner is
- * surfaced (`showUrlPromptWarning`), and the prompt is intentionally
- * not persisted to localStorage until the user modifies it. That
- * way a user who opens a link from an untrusted source and closes
- * the tab doesn't leave the prompt sitting in their next chat draft.
+ * When `urlPrompt` is provided it wins over any stored draft and is
+ * kept out of localStorage until modified, so opening an untrusted
+ * link and closing the tab leaves no residue.
  *
  * Once `submitDraft` is called, the stored draft is removed and further
  * content changes are no longer persisted for the lifetime of the hook.
@@ -142,8 +123,7 @@ export function useEmptyStateDraft(urlPrompt: string | null = null) {
 	);
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
-	// Once the URL-supplied prompt has been modified by the user,
-	// resume normal draft persistence and drop the warning banner.
+	// Flips true on the first user edit, resuming persistence and dismissing the banner.
 	const [hasModifiedUrlPrompt, setHasModifiedUrlPrompt] = useState(false);
 	const showUrlPromptWarning = isFromUrl && !hasModifiedUrlPrompt;
 
@@ -156,9 +136,7 @@ export function useEmptyStateDraft(urlPrompt: string | null = null) {
 		if (sentRef.current) {
 			return;
 		}
-		// Skip persistence and warning-dismissal while the URL prompt
-		// is still exactly as delivered. Only once the user edits it
-		// do we treat the content as their own draft.
+		// Don't persist or dismiss while the URL prompt is unmodified.
 		if (isFromUrl && !hasModifiedUrlPrompt) {
 			if (content === initialInputValue) {
 				return;

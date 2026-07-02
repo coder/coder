@@ -155,10 +155,8 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
-	// URL-supplied prompt caution state, owned by the parent.
-	// When true, the composer renders a warning ring and an inline
-	// caution banner. Auto-dismisses upstream when the user edits
-	// the prefilled prompt.
+	// URL-prompt caution: wraps composer with a warning ring and a
+	// top-of-composer banner. Auto-dismissed upstream on user edit.
 	showUrlPromptWarning?: boolean;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];

@@ -831,11 +831,7 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	},
 };
 
-/**
- * When the user follows a link like `/agents?q=<prompt>`, the composer
- * is prefilled with that prompt and a warning banner is shown until
- * the prompt is modified. The prompt is never auto-submitted.
- */
+/** `/agents?q=<prompt>` prefills the composer with a caution banner; never auto-submits. */
 export const PrefillPromptFromUrl: Story = {
 	args: {
 		...defaultArgs,
@@ -855,7 +851,6 @@ export const PrefillPromptFromUrl: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// The composer is prefilled with the URL prompt.
 		const input = await canvas.findByTestId("chat-message-input");
 		await waitFor(() => {
 			expect(input.textContent).toContain(
@@ -863,17 +858,15 @@ export const PrefillPromptFromUrl: Story = {
 			);
 		});
 
-		// The caution banner is visible while the prompt is unmodified.
 		await waitFor(() => {
 			expect(
 				canvas.getByText(/Use caution before running this prompt/),
 			).toBeInTheDocument();
 		});
 
-		// The user still has to press Send: nothing is auto-submitted.
+		// Never auto-submits.
 		expect(args.onCreateChat).not.toHaveBeenCalled();
 
-		// Submitting sends the URL prompt verbatim.
 		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
@@ -887,10 +880,7 @@ export const PrefillPromptFromUrl: Story = {
 	},
 };
 
-/**
- * Editing the URL-supplied prompt dismisses the caution banner because
- * the user has taken ownership of the text.
- */
+/** Editing the URL-supplied prompt dismisses the caution banner. */
 export const UrlPromptWarningDismissesOnEdit: Story = {
 	args: {
 		...defaultArgs,
@@ -914,12 +904,11 @@ export const UrlPromptWarningDismissesOnEdit: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Type into the input to modify the URL-supplied prompt.
+		// Modify the prompt.
 		const input = canvas.getByTestId("chat-message-input");
 		await userEvent.click(input);
 		await userEvent.keyboard(" and add tests");
 
-		// The caution banner should be gone.
 		await waitFor(() => {
 			expect(
 				canvas.queryByText(/Use caution before running this prompt/),
@@ -928,10 +917,7 @@ export const UrlPromptWarningDismissesOnEdit: Story = {
 	},
 };
 
-/**
- * An empty `?q=` param is ignored: no prompt is prefilled and the
- * warning banner is not shown.
- */
+/** Whitespace-only `?q=` is ignored: no prefill, no banner. */
 export const EmptyUrlPromptIsIgnored: Story = {
 	args: {
 		...defaultArgs,
@@ -948,7 +934,6 @@ export const EmptyUrlPromptIsIgnored: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const input = await canvas.findByTestId("chat-message-input");
-		// The composer starts empty (placeholder visible).
 		expect(input.textContent).toBe("");
 		expect(
 			canvas.queryByText(/Use caution before running this prompt/),

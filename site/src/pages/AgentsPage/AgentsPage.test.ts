@@ -362,14 +362,12 @@ describe("useEmptyStateDraft", () => {
 		it("keeps persisting after modification even if the user retypes the URL prompt", () => {
 			const { result, unmount } = renderWithUrlPrompt("from url");
 
-			// Modify.
 			act(() => {
 				result.current.handleContentChange("modified", "modified", false);
 			});
 			expect(localStorage.getItem(emptyInputStorageKey)).toBe("modified");
 
-			// Retype exactly the URL prompt. The warning should stay
-			// dismissed and persistence continues.
+			// Retype the URL prompt verbatim: banner stays dismissed, persistence continues.
 			act(() => {
 				result.current.handleContentChange("from url", "from url", false);
 			});
