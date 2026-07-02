@@ -2,13 +2,11 @@ package coderd_test
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -16,67 +14,44 @@ import (
 	aibridgedproto "github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	entcoderd "github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
-	"github.com/coder/websocket"
 )
 
-// manualDialAIGatewayServe dials /api/v2/ai-gateway/serve, authenticating with the given
-// gateway key and API version. On a successful WebSocket upgrade it returns a
-// yamux session and http.StatusSwitchingProtocols. Otherwise it returns a nil
-// session and the HTTP status code coderd responded with.
-func manualDialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version string) (*yamux.Session, int) {
-	t.Helper()
-
-	serverURL, err := client.URL.Parse("/api/v2/ai-gateway/serve")
-	require.NoError(t, err)
-	query := serverURL.Query()
-	if version != "" {
-		query.Set(aibridgedproto.VersionQueryParam, version)
-	}
-	serverURL.RawQuery = query.Encode()
-
-	headers := http.Header{}
-	if key != "" {
-		headers.Set(codersdk.AIGatewayKeyHeader, key)
-	}
-
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient:      &http.Client{Transport: client.HTTPClient.Transport},
-		CompressionMode: websocket.CompressionDisabled,
-		HTTPHeader:      headers,
-	})
-	if err != nil {
-		statusCode := 0
-		if res != nil {
-			statusCode = res.StatusCode
-			_ = res.Body.Close()
-		}
-		return nil, statusCode
-	}
-	cfg := yamux.DefaultConfig()
-	cfg.LogOutput = io.Discard
-	_, wsNetConn := codersdk.WebsocketNetConn(context.Background(), conn, websocket.MessageBinary)
-	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
-	session, err := yamux.Client(wsNetConn, cfg)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = session.Close()
-		_ = wsNetConn.Close()
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	})
-	return session, http.StatusSwitchingProtocols
+type versionOverridingRoundTripper struct {
+	baseTransport      http.RoundTripper
+	overrideAPIVersion string
 }
 
-// dialAIGatewayServe connects to /api/v2/ai-gateway/serve using the production NewWebsocketDialer.
+func (f versionOverridingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	query := req.URL.Query()
+	query.Del(aibridgedproto.VersionQueryParam)
+	if f.overrideAPIVersion != "" {
+		query.Set(aibridgedproto.VersionQueryParam, f.overrideAPIVersion)
+	}
+	req.URL.RawQuery = query.Encode()
+	return f.baseTransport.RoundTrip(req)
+}
+
 func dialAIGatewayServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string) (aibridged.DRPCClient, error) {
+	return dialAIGatewayServeWithVersion(ctx, t, client, key, nil)
+}
+
+func dialAIGatewayServeWithVersion(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version *string) (aibridged.DRPCClient, error) {
 	t.Helper()
 
-	dc, err := aibridged.NewWebsocketDialer(client.URL, client.HTTPClient.Transport, key)(ctx)
+	transport := client.HTTPClient.Transport
+	if version != nil {
+		transport = versionOverridingRoundTripper{
+			baseTransport:      transport,
+			overrideAPIVersion: *version,
+		}
+	}
+
+	dc, err := aibridged.NewWebsocketDialer(client.URL, transport, key)(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -160,48 +135,58 @@ func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {
 	require.NoError(t, client.DeleteAIGatewayKey(ctx, revoked.ID))
 
 	tests := []struct {
-		name       string
-		key        string
-		version    string
-		wantStatus int
+		name        string
+		key         string
+		version     string
+		wantStatus  int
+		wantMessage string
 	}{
 		{
-			name:       "MissingKey",
-			key:        "",
-			version:    aibridgedproto.CurrentVersion.String(),
-			wantStatus: http.StatusUnauthorized,
+			name:        "MissingKey",
+			key:         "",
+			version:     aibridgedproto.CurrentVersion.String(),
+			wantStatus:  http.StatusUnauthorized,
+			wantMessage: "AI Gateway key required.",
 		},
 		{
-			name:       "InvalidKey",
-			key:        "not-a-real-key",
-			version:    aibridgedproto.CurrentVersion.String(),
-			wantStatus: http.StatusUnauthorized,
+			name:        "InvalidKey",
+			key:         "not-a-real-key",
+			version:     aibridgedproto.CurrentVersion.String(),
+			wantStatus:  http.StatusUnauthorized,
+			wantMessage: "AI Gateway key invalid.",
 		},
 		{
-			name:       "RevokedKey",
-			key:        revoked.Key,
-			version:    aibridgedproto.CurrentVersion.String(),
-			wantStatus: http.StatusUnauthorized,
+			name:        "RevokedKey",
+			key:         revoked.Key,
+			version:     aibridgedproto.CurrentVersion.String(),
+			wantStatus:  http.StatusUnauthorized,
+			wantMessage: "AI Gateway key invalid.",
 		},
 		{
-			name:       "IncompatibleVersion",
-			key:        validKey,
-			version:    "999.0",
-			wantStatus: http.StatusBadRequest,
+			name:        "IncompatibleVersion",
+			key:         validKey,
+			version:     "999.0",
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Incompatible or unparsable version",
 		},
 		{
-			name:       "MissingVersion",
-			key:        validKey,
-			version:    "",
-			wantStatus: http.StatusBadRequest,
+			name:        "MissingVersion",
+			key:         validKey,
+			version:     "",
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Incompatible or unparsable version",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, status := manualDialAIGatewayServe(t.Context(), t, client, tc.key, tc.version)
-			require.Equal(t, tc.wantStatus, status)
+
+			_, err := dialAIGatewayServeWithVersion(t.Context(), t, client, tc.key, &tc.version)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Error(), tc.wantMessage)
 		})
 	}
 }
