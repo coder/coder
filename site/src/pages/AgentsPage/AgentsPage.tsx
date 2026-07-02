@@ -32,6 +32,7 @@ import {
 	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
+	removeChatFromUnreadChatListCache,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
@@ -573,7 +574,8 @@ const AgentsPage: FC = () => {
 			});
 			return changed ? next : chats;
 		});
-		void invalidateChatListQueries(queryClient);
+		// Window-focus refetch backstops any other unread drift.
+		removeChatFromUnreadChatListCache(queryClient, agentId);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({

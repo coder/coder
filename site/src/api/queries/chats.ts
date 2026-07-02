@@ -87,10 +87,13 @@ export const chatsByWorkspace = (workspaceIds: string[]) => {
 export const updateInfiniteChatsCache = (
 	queryClient: QueryClient,
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
+	predicate: (query: {
+		queryKey: readonly unknown[];
+	}) => boolean = isChatListQuery,
 ) => {
-	// Update ALL infinite chat queries regardless of their filter opts.
+	// Pass a narrower predicate to update only a subset of chat-list queries.
 	queryClient.setQueriesData<InfiniteChatsCacheData>(
-		{ queryKey: chatsKey, predicate: isChatListQuery },
+		{ queryKey: chatsKey, predicate },
 		(prev) => {
 			if (!prev?.pages) return prev;
 			const nextPages = prev.pages.map((page) => updater(page));
@@ -592,6 +595,41 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 		queryKey: chatsKey,
 		predicate: isChatListQuery,
 	});
+};
+
+/**
+ * The chatStatus filter object sits at queryKey[1] (see infiniteChatsKey).
+ */
+const isUnreadChatListQuery = (query: {
+	queryKey: readonly unknown[];
+}): boolean => {
+	if (!isChatListQuery(query)) return false;
+	const segment = query.queryKey[1];
+	return (
+		typeof segment === "object" &&
+		segment !== null &&
+		"chatStatus" in segment &&
+		segment.chatStatus === "unread"
+	);
+};
+
+/**
+ * Prunes the chat from unread-filter caches so a just-read chat leaves
+ * the unread view with no refetch; its has_unread flag is cleared
+ * separately.
+ */
+export const removeChatFromUnreadChatListCache = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	updateInfiniteChatsCache(
+		queryClient,
+		(page) => {
+			const filtered = page.filter((c) => c.id !== chatId);
+			return filtered.length === page.length ? page : filtered;
+		},
+		isUnreadChatListQuery,
+	);
 };
 
 /**
