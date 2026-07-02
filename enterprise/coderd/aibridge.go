@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -575,7 +576,7 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	group := httpmw.GroupParam(r)
 
-	budget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	groupBudget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -586,7 +587,7 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(groupBudget))
 }
 
 // @Summary Upsert group AI budget
@@ -863,4 +864,66 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	aReq.Old = userOverride.Auditable(user.Username, group.Name)
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Get user AI spend
+// @ID get-user-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {object} codersdk.UserAISpendStatus
+// @Router /api/v2/users/{user}/ai/spend [get]
+func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+	logger := api.Logger.With(slog.F("user_id", user.ID))
+
+	periodWindow, err := budget.CurrentPeriod(api.Clock.Now(), codersdk.AIBudgetPeriodMonth)
+	if err != nil {
+		logger.Error(ctx, "compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	policy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
+	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, api.Database, user.ID, policy)
+	if err != nil {
+		logger.Error(ctx, "resolve user AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.UserAISpendStatus{
+		UserAIBudgetSummary: codersdk.UserAIBudgetSummary{
+			UserID: user.ID,
+		},
+		PeriodStart: periodWindow.Start,
+		PeriodEnd:   periodWindow.End,
+	}
+
+	if ok {
+		groupID := effectiveBudget.GroupID
+		limit := effectiveBudget.SpendLimitMicros
+		source := effectiveBudget.Source
+		resp.EffectiveGroupID = &groupID
+		resp.SpendLimitMicros = &limit
+		resp.LimitSource = &source
+
+		spend, err := api.Database.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: effectiveBudget.GroupID,
+			PeriodStart:      periodWindow.Start,
+		})
+		if err != nil {
+			logger.Error(ctx, "get user AI spend",
+				slog.F("effective_group_id", effectiveBudget.GroupID),
+				slog.Error(err))
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		resp.CurrentSpendMicros = spend.SpendMicros
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }

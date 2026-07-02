@@ -20,12 +20,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -2952,6 +2954,157 @@ func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
 	})
 }
 
+func TestUserAISpendStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.UserAISpendStatus(ctx, uuid.New())
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("RequiresExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is irrelevant here; the request is blocked before RBAC.
+		_, err := client.UserAISpendStatus(ctx, uuid.New())
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	tests := []struct {
+		name string
+		// Setup inputs.
+		groupBudget   *int64 // nil = no group budget configured
+		overrideLimit *int64 // nil = no user override configured
+		spent         int64  // 0 = no spend seeded
+		// Expected response fields. wantHasEffectiveGroup asserts against the
+		// setup group's ID because we can't know it at row declaration time.
+		wantHasEffectiveGroup  bool
+		wantSpendLimitMicros   *int64
+		wantLimitSource        *codersdk.AIBudgetLimitSource
+		wantCurrentSpendMicros int64
+	}{
+		{
+			name: "NoEffectiveGroup",
+		},
+		{
+			name:                  "GroupBudget/ZeroSpend",
+			groupBudget:           ptr.Ref(int64(1_000_000_000)),
+			wantHasEffectiveGroup: true,
+			wantSpendLimitMicros:  ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:       ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+		},
+		{
+			name:                   "GroupBudget/PartialSpend",
+			groupBudget:            ptr.Ref(int64(1_000_000_000)),
+			spent:                  250_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			wantCurrentSpendMicros: 250_000_000,
+		},
+		{
+			name:                   "GroupBudget/SpendExceedsLimit",
+			groupBudget:            ptr.Ref(int64(1_000_000_000)),
+			spent:                  1_500_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(1_000_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceGroup),
+			wantCurrentSpendMicros: 1_500_000_000,
+		},
+		{
+			name:                   "UserOverride/PartialSpend",
+			groupBudget:            ptr.Ref(int64(5_000_000_000)),
+			overrideLimit:          ptr.Ref(int64(200_000_000)),
+			spent:                  50_000_000,
+			wantHasEffectiveGroup:  true,
+			wantSpendLimitMicros:   ptr.Ref(int64(200_000_000)),
+			wantLimitSource:        ptr.Ref(codersdk.AIBudgetLimitSourceUserOverride),
+			wantCurrentSpendMicros: 50_000_000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock, db, adminClient, targetUser, group := setupUserAISpendStatusTest(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Use fixed dates to keep the test deterministic.
+			clock.Set(time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC))
+			wantPeriodStart := time.Date(2026, time.March, 1, 0, 0, 0, 0, time.UTC)
+			wantPeriodEnd := time.Date(2026, time.April, 1, 0, 0, 0, 0, time.UTC)
+
+			if tt.groupBudget != nil {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: *tt.groupBudget,
+				})
+				require.NoError(t, err)
+			}
+			if tt.overrideLimit != nil {
+				_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+					GroupID:          group.ID,
+					SpendLimitMicros: *tt.overrideLimit,
+				})
+				require.NoError(t, err)
+			}
+			if tt.spent > 0 {
+				_, err := db.IncrementUserAIDailySpend(ctx, database.IncrementUserAIDailySpendParams{
+					UserID:           targetUser.ID,
+					EffectiveGroupID: group.ID,
+					Day:              clock.Now(),
+					CostMicros:       tt.spent,
+				})
+				require.NoError(t, err)
+			}
+
+			got, err := adminClient.UserAISpendStatus(ctx, targetUser.ID)
+			require.NoError(t, err)
+			require.Equal(t, targetUser.ID, got.UserID)
+			require.Equal(t, wantPeriodStart, got.PeriodStart)
+			require.Equal(t, wantPeriodEnd, got.PeriodEnd)
+			require.Equal(t, tt.wantCurrentSpendMicros, got.CurrentSpendMicros)
+
+			var wantEffectiveGroupID *uuid.UUID
+			if tt.wantHasEffectiveGroup {
+				wantEffectiveGroupID = &group.ID
+			}
+			require.Equal(t, wantEffectiveGroupID, got.EffectiveGroupID)
+			require.Equal(t, tt.wantSpendLimitMicros, got.SpendLimitMicros)
+			require.Equal(t, tt.wantLimitSource, got.LimitSource)
+		})
+	}
+}
+
 // setupUserAIBudgetOverrideTest returns an Admin client, a target user, and a
 // group the target user is a member of.
 func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, targetUser codersdk.User, group codersdk.Group) {
@@ -2982,6 +3135,46 @@ func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, 
 	})
 	require.NoError(t, err)
 	return adminClient, targetUser, g
+}
+
+// setupUserAISpendStatusTest mirrors setupUserAIBudgetOverrideTest but also
+// returns direct db access (so tests can seed ai_user_daily_spend rows) and
+// a mock clock (so tests can pin the endpoint's period computation).
+func setupUserAISpendStatusTest(t *testing.T) (*quartz.Mock, database.Store, *codersdk.Client, codersdk.User, codersdk.Group) {
+	t.Helper()
+
+	clock := quartz.NewMock(t)
+	db, ps := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+			Database:         db,
+			Pubsub:           ps,
+			Clock:            clock,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	g, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "spend-test-group",
+	})
+	require.NoError(t, err)
+	g, err = adminClient.PatchGroup(ctx, g.ID, codersdk.PatchGroupRequest{
+		AddUsers: []string{targetUser.ID.String()},
+	})
+	require.NoError(t, err)
+	return clock, db, adminClient, targetUser, g
 }
 
 // setupUserAIBudgetOverrideAuditTest builds a deployment wired with the
