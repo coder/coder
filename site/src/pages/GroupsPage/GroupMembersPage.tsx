@@ -1,19 +1,17 @@
+import dayjs from "dayjs";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
-import type {
-	GroupMemberAICostControl,
-	GroupMemberWithAICostControl,
-} from "#/api/api";
+import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { addMembers, groupById, removeMember } from "#/api/queries/groups";
+import { addMembers, groupAIBudget, removeMember } from "#/api/queries/groups";
+import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
 } from "#/api/typesGenerated";
-import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -48,6 +46,7 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
+import { GroupMemberBudgetCells } from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
@@ -76,6 +75,28 @@ const GroupMembersPage: FC = () => {
 	const aibridgeVisible =
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
+
+	// Spend resets at period_end, rendered in the viewer's local time.
+	const { data: aiSpend } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
+	const { data: groupBudget } = useQuery({
+		...groupAIBudget(groupData.id),
+		enabled: aibridgeVisible,
+	});
+	const resetAt = aiSpend
+		? dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")
+		: undefined;
+	let aiBudgetNote = "Monthly AI API cost for this user.";
+	if (resetAt) {
+		aiBudgetNote += ` Resets ${resetAt}.`;
+	}
+	if (groupBudget && groupBudget.spend_limit_micros > 0) {
+		aiBudgetNote += ` The group's default limit is ${formatBudgetUSD(
+			groupBudget.spend_limit_micros,
+		)} per member.`;
+	}
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -110,13 +131,13 @@ const GroupMembersPage: FC = () => {
 									<TableHead>
 										<div className="flex items-center gap-1">
 											AI budget
-											<InfoIconTooltip message="A member's AI spend against their budget for the current period." />
+											<InfoIconTooltip message={aiBudgetNote} />
 										</div>
 									</TableHead>
 									<TableHead>
 										<div className="flex items-center gap-1">
-											Budget type
-											<InfoIconTooltip message="Whether a member's budget comes from their group or an individual override." />
+											Budget group
+											<InfoIconTooltip message="The group or individual budget currently responsible for this user's AI budget. Admins can reassign a member's group or set a custom individual budget at any time, so spend history may reflect more than one source over a period." />
 										</div>
 									</TableHead>
 								</>
@@ -288,6 +309,12 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onManageAIBudget,
 	onRemove,
 }) => {
+	const costControl = member.ai_cost_control;
+	// A budget from another group is managed there, not here.
+	const budgetFromOtherGroup =
+		costControl?.effective_group_id != null &&
+		costControl.effective_group_id !== group.id;
+
 	return (
 		<TableRow key={member.id}>
 			<TableCell width={showAIBudget ? undefined : "59%"}>
@@ -316,10 +343,10 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<LastSeen at={member.last_seen_at} className="text-xs" />
 			</TableCell>
 			{showAIBudget && (
-				<GroupMemberAIBudgetCells
+				<GroupMemberBudgetCells
 					group={group}
 					userID={member.id}
-					costControl={member.ai_cost_control}
+					costControl={costControl}
 				/>
 			)}
 			<TableCell className="w-1 whitespace-nowrap">
@@ -333,8 +360,11 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							{showAIBudget && (
-								<DropdownMenuItem onClick={onManageAIBudget}>
-									AI Budget
+								<DropdownMenuItem
+									onClick={onManageAIBudget}
+									disabled={budgetFromOtherGroup}
+								>
+									Manage AI budget
 								</DropdownMenuItem>
 							)}
 							<DropdownMenuItem
@@ -350,76 +380,6 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 			</TableCell>
 		</TableRow>
 	);
-};
-
-const GroupMemberAIBudgetCells: FC<{
-	group: Group;
-	userID: string;
-	costControl: GroupMemberAICostControl | undefined;
-}> = ({ group, userID, costControl }) => {
-	// Limit and type apply only when this group is the member's effective source.
-	const onEffectiveGroup = costControl?.effective_group_id === group.id;
-
-	let budget: ReactNode = "-";
-	let type: ReactNode = "-";
-	if (costControl) {
-		// Another group sets this member's budget; surface their spend only.
-		budget = onEffectiveGroup ? (
-			<AIBudgetUsage
-				currentSpend={costControl.current_spend_micros}
-				spendLimit={costControl.spend_limit_micros}
-			/>
-		) : (
-			<span className="inline-flex items-center gap-1 text-content-disabled">
-				{formatBudgetUSD(costControl.current_spend_micros)}
-				<MemberBudgetSourceTooltip groupId={costControl.effective_group_id} />
-			</span>
-		);
-		if (onEffectiveGroup && costControl.limit_source) {
-			type = budgetTypeLabels[costControl.limit_source];
-		}
-	}
-
-	return (
-		<>
-			<TableCell
-				data-testid={`member-ai-budget-${userID}`}
-				className="whitespace-nowrap tabular-nums"
-			>
-				{budget}
-			</TableCell>
-			<TableCell>{type}</TableCell>
-		</>
-	);
-};
-
-// Names the group whose budget governs a member, resolving the id to a name.
-const MemberBudgetSourceTooltip: FC<{ groupId: string | null }> = ({
-	groupId,
-}) => {
-	const { data: group } = useQuery({
-		...groupById(groupId ?? "", { exclude_members: true }),
-		enabled: Boolean(groupId),
-	});
-	const name = group?.display_name || group?.name;
-	return (
-		<InfoIconTooltip
-			className="text-content-disabled"
-			message={
-				name
-					? `This member's AI budget is set by the "${name}" group.`
-					: "This member's AI budget is set by another group."
-			}
-		/>
-	);
-};
-
-const budgetTypeLabels: Record<
-	NonNullable<GroupMemberAICostControl["limit_source"]>,
-	string
-> = {
-	group: "Group",
-	override: "Individual",
 };
 
 export default GroupMembersPage;

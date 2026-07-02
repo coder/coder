@@ -48,6 +48,18 @@ export function severityTextClassName(
 	return SEVERITY_CLASSES[severity].text;
 }
 
+/**
+ * Text color for a spend amount: emphasized (primary) until the spend nears its
+ * limit, then it takes on the warning/exceeded color.
+ */
+export function severityAmountClassName(
+	severity: UsageSeverity = "normal",
+): string {
+	return severity === "normal"
+		? "text-content-primary"
+		: severityTextClassName(severity);
+}
+
 export function severityProgressClassName(
 	severity: UsageSeverity = "normal",
 ): string {

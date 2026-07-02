@@ -35,6 +35,7 @@ import {
 import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { pageTitle } from "#/utils/page";
+import { AIBudgetPeriod } from "./AIBudgetPeriod";
 
 export type GroupPageOutletContext = {
 	group: Group;
@@ -149,8 +150,11 @@ const GroupPage: FC = () => {
 			</div>
 			<div className="flex flex-col gap-10 w-full">
 				{canUpdateGroup && (
-					<LinkTabs active={activeTab}>
-						<LinkTabsList className="w-full justify-start">
+					<LinkTabs
+						active={activeTab}
+						className="flex items-baseline justify-between"
+					>
+						<LinkTabsList className="justify-start">
 							<TabLink to="." value="members">
 								Group members
 							</TabLink>
@@ -158,6 +162,7 @@ const GroupPage: FC = () => {
 								Group settings
 							</TabLink>
 						</LinkTabsList>
+						{activeTab === "members" && <AIBudgetPeriod />}
 					</LinkTabs>
 				)}
 
