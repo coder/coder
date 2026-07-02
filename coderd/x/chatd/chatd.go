@@ -2212,20 +2212,15 @@ func updateChatStatusPreserveUpdatedAt(
 }
 
 // acquireManualTitleLock deduplicates concurrent manual title requests.
-// Only a fresh synthetic marker blocks a request. Running chats proceed
-// without a marker regardless of worker ownership: a real worker may own
-// the row, or an unowned running chat may be acquired at any moment, and
-// in both cases title writes resolve by last write wins. All other
-// statuses (waiting, error, requires_action, interrupting, and legacy
-// pending rows that workers never acquire) get a synthetic marker.
-// The returned acquired flag reports whether the marker was written; the
-// caller must release the lock only when it holds the marker, so that a
-// marker-less request cannot clear a concurrent request's fresh marker.
+// Running chats skip the marker regardless of worker ownership because
+// title writes resolve by last write wins. The caller must release only
+// when acquired; a marker-less release could clear a concurrent request's
+// fresh marker.
 func (p *Server) acquireManualTitleLock(
 	ctx context.Context,
 	chatID uuid.UUID,
 ) (acquired bool, err error) {
-	now := time.Now()
+	now := p.clock.Now()
 	err = p.db.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
 		if err != nil {
@@ -2359,7 +2354,8 @@ func (p *Server) PublishTitleChange(chat database.Chat) {
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
-// ProposeChatTitle generates a title suggestion from the chat's visible messages without persisting it.
+// ProposeChatTitle generates a title suggestion from the chat's
+// visible messages without persisting it.
 func (p *Server) ProposeChatTitle(
 	ctx context.Context,
 	chat database.Chat,

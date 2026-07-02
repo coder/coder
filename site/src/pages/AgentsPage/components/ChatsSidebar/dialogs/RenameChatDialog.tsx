@@ -7,7 +7,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -199,9 +199,12 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 			if (sessionRef.current !== requestedSession) return;
 			setGenerateTitleError({
 				message: getErrorMessage(error, "Failed to generate a new title."),
-				// Only real API errors carry an actionable detail; plain
-				// errors would surface the generic developer-console hint.
-				detail: isApiError(error) ? getErrorDetail(error) : undefined,
+				// Read the response detail directly; getErrorDetail falls
+				// back to a generic developer-console hint for errors
+				// without a detail field.
+				detail: isApiError(error)
+					? error.response.data.detail || undefined
+					: undefined,
 			});
 			setIsGeneratingTitle(false);
 		}

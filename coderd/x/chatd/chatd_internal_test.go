@@ -711,7 +711,7 @@ func TestRenameChatTitle(t *testing.T) {
 		updated := stored
 		updated.Title = "renamed"
 
-		server := &Server{db: db, logger: logger}
+		server := &Server{db: db, logger: logger, clock: quartz.NewReal()}
 
 		setupRealWorkerLock(db, chatID, stored)
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
@@ -745,7 +745,7 @@ func TestRenameChatTitle(t *testing.T) {
 		landed := stale
 		landed.Title = "landed-concurrently"
 
-		server := &Server{db: db, logger: logger}
+		server := &Server{db: db, logger: logger, clock: quartz.NewReal()}
 
 		setupRealWorkerLock(db, chatID, landed)
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
@@ -852,6 +852,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		db:                       db,
 		logger:                   logger,
 		pubsub:                   pubsub,
+		clock:                    quartz.NewReal(),
 		configCache:              newChatConfigCache(context.Background(), db, clock),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
@@ -905,9 +906,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
 
-	// A running chat never takes the synthetic marker, so only the lock
-	// probe and usage transactions run. No unlock transaction may follow:
-	// releasing without holding the marker could clear a concurrent
+	// No unlock: releasing without the marker could clear a concurrent
 	// request's fresh marker.
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
@@ -1033,6 +1032,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 		db:                       db,
 		logger:                   logger,
 		pubsub:                   pubsub,
+		clock:                    quartz.NewReal(),
 		configCache:              newChatConfigCache(context.Background(), db, clock),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
@@ -1166,12 +1166,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	}
 }
 
-// TestRegenerateChatTitle_RunningChatSkipsMarkerAndRelease verifies that a
-// running chat regenerates its title without writing the synthetic lock
-// marker and, critically, without issuing the unlock transaction. Releasing
-// without holding the marker could clear a fresh marker written by a
-// concurrent manual title request. The strict mock fails the test if the
-// server issues any marker write or unlock transaction.
+// Releasing without the marker could clear a concurrent request's fresh
+// marker; the strict mock enforces the absence of both writes.
 func TestRegenerateChatTitle_RunningChatSkipsMarkerAndRelease(t *testing.T) {
 	t.Parallel()
 
@@ -1226,6 +1222,7 @@ func TestRegenerateChatTitle_RunningChatSkipsMarkerAndRelease(t *testing.T) {
 		db:                       db,
 		logger:                   logger,
 		pubsub:                   pubsub,
+		clock:                    quartz.NewReal(),
 		configCache:              newChatConfigCache(context.Background(), db, clock),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
@@ -1272,9 +1269,8 @@ func TestRegenerateChatTitle_RunningChatSkipsMarkerAndRelease(t *testing.T) {
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
 
-	// Exactly two transactions run: the lock probe and the usage
-	// recording. No unlock transaction may follow because the request
-	// never wrote the marker.
+	// No unlock: releasing without the marker could clear a concurrent
+	// request's fresh marker.
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
 			func(fn func(database.Store) error, opts *database.TxOptions) error {
@@ -1406,7 +1402,7 @@ func TestAcquireManualTitleLock(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			db := dbmock.NewMockStore(ctrl)
 			lockTx := dbmock.NewMockStore(ctrl)
-			server := &Server{db: db}
+			server := &Server{db: db, clock: quartz.NewReal()}
 
 			chatID := uuid.New()
 			chat := tc.chat(chatID)

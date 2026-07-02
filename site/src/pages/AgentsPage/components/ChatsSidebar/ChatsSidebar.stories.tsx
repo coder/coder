@@ -1163,6 +1163,57 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 	},
 };
 
+export const RenameChatGenerateApiErrorWithoutDetailHidesHint: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-api-error-no-detail",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw mockApiError({
+				message: "No default chat model config is configured.",
+			});
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent(
+			"No default chat model config is configured.",
+		);
+		// An API error without a detail field must not surface the generic
+		// developer-console hint as a second line.
+		expect(alert).not.toHaveTextContent("developer console");
+	},
+};
+
 export const RenameChatGenerateApiErrorShowsDetail: Story = {
 	args: {
 		chats: [
