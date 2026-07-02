@@ -88,6 +88,7 @@ const AgentCreatePage: FC = () => {
 		fileIDs,
 		workspaceId,
 		model,
+		reasoningEffort,
 		mcpServerIds,
 		organizationId,
 		planMode,
@@ -110,6 +111,7 @@ const AgentCreatePage: FC = () => {
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
+			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 

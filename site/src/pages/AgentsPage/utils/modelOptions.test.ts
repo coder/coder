@@ -312,6 +312,51 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 	});
 
+	it("populates reasoning effort bounds from the model config", () => {
+		const configs = [
+			createConfig({
+				id: "config-effort",
+				ai_provider_id: "prov-openai",
+				model: "gpt-5",
+				display_name: "GPT-5",
+				model_config: {
+					reasoning_effort: { default: "medium", max: "xhigh" },
+				},
+			}),
+			createConfig({
+				id: "config-no-effort",
+				ai_provider_id: "prov-openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				model_config: {},
+			}),
+		];
+		const catalog = createCatalog([
+			{ provider: "openai", available: true, models: [] },
+		]);
+
+		expect(
+			getModelOptionsFromConfigs(configs, catalog, providerTypeByID),
+		).toEqual([
+			{
+				id: "config-no-effort",
+				provider: "openai",
+				model: "gpt-4o",
+				displayName: "GPT-4o",
+				contextLimit: 0,
+			},
+			{
+				id: "config-effort",
+				provider: "openai",
+				model: "gpt-5",
+				displayName: "GPT-5",
+				contextLimit: 0,
+				reasoningEffortDefault: "medium",
+				reasoningEffortMax: "xhigh",
+			},
+		]);
+	});
+
 	it("excludes configs whose providers are unavailable", () => {
 		const configs = [
 			createConfig({
