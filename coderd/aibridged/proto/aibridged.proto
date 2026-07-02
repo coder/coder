@@ -83,6 +83,12 @@ message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
   string credential_hint = 3;
+  // error_type is the categorised terminal upstream error, absent when the
+  // interception succeeded. Matches the aibridge_interception_error_type enum.
+  optional string error_type = 4;
+  // error_message is the raw terminal upstream error message, absent when the
+  // interception succeeded.
+  optional string error_message = 5;
 }
 
 message RecordInterceptionEndedResponse {}

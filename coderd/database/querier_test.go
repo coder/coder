@@ -11037,6 +11037,59 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "sk-u...byok", updated.CredentialHint)
 	})
+
+	t.Run("ErrorRecorded", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+		})
+		require.NoError(t, err)
+		require.False(t, intc.ErrorType.Valid)
+		require.False(t, intc.ErrorMessage.Valid)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc.ID,
+			EndedAt: time.Now(),
+			ErrorType: database.NullAIBridgeInterceptionErrorType{
+				AIBridgeInterceptionErrorType: database.AibridgeInterceptionErrorTypeOverloaded,
+				Valid:                         true,
+			},
+			ErrorMessage: sql.NullString{String: "upstream overloaded", Valid: true},
+		})
+		require.NoError(t, err)
+		require.True(t, updated.ErrorType.Valid)
+		require.Equal(t, database.AibridgeInterceptionErrorTypeOverloaded, updated.ErrorType.AIBridgeInterceptionErrorType)
+		require.True(t, updated.ErrorMessage.Valid)
+		require.Equal(t, "upstream overloaded", updated.ErrorMessage.String)
+	})
+
+	t.Run("NoErrorLeavesColumnsNull", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc.ID,
+			EndedAt: time.Now(),
+		})
+		require.NoError(t, err)
+		require.False(t, updated.ErrorType.Valid)
+		require.False(t, updated.ErrorMessage.Valid)
+	})
 }
 
 func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {

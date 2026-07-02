@@ -2022,6 +2022,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 			ID:             interception.ID,
 			EndedAt:        *endedAt,
 			CredentialHint: takeFirst(seed.CredentialHint, ""),
+			ErrorType:      database.NullAIBridgeInterceptionErrorType{},
+			ErrorMessage:   sql.NullString{},
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}

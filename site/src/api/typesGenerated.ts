@@ -204,6 +204,17 @@ export interface AIBridgeThread {
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
+	 * ErrorType is the categorized terminal upstream error from the root
+	 * interception. Nil when the interception succeeded. One of bad_request,
+	 * unauthorized, rate_limited, overloaded, server_error, or unknown.
+	 */
+	readonly error_type?: string;
+	/**
+	 * ErrorMessage is the raw terminal upstream error message from the root
+	 * interception. Nil when the interception succeeded.
+	 */
+	readonly error_message?: string;
+	/**
 	 * AgentFirewallSessionID links this thread to an agent firewall
 	 * confinement session. Nil when the request did not pass through
 	 * the agent firewall.

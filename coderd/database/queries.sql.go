@@ -2402,21 +2402,33 @@ UPDATE aibridge_interceptions
 		credential_hint = CASE
 			WHEN credential_kind = 'centralized' THEN $2::text
 			ELSE credential_hint
-		END
+		END,
+		-- Terminal upstream error, only set when the interception failed.
+		-- NULL leaves the columns empty for successful interceptions.
+		error_type = $3::aibridge_interception_error_type,
+		error_message = $4::text
 WHERE
-	id = $3::uuid
+	id = $5::uuid
 	AND ended_at IS NULL
 RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
-	EndedAt        time.Time `db:"ended_at" json:"ended_at"`
-	CredentialHint string    `db:"credential_hint" json:"credential_hint"`
-	ID             uuid.UUID `db:"id" json:"id"`
+	EndedAt        time.Time                         `db:"ended_at" json:"ended_at"`
+	CredentialHint string                            `db:"credential_hint" json:"credential_hint"`
+	ErrorType      NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
+	ErrorMessage   sql.NullString                    `db:"error_message" json:"error_message"`
+	ID             uuid.UUID                         `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.CredentialHint, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded,
+		arg.EndedAt,
+		arg.CredentialHint,
+		arg.ErrorType,
+		arg.ErrorMessage,
+		arg.ID,
+	)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,
