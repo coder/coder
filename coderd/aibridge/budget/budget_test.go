@@ -72,7 +72,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 					SpendLimitMicros: 1_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, budget.EffectiveBudget{GroupID: og.ID, SpendLimitMicros: 1_000_000, Source: budget.SourceUserOverride}, true
+				return user.ID, budget.EffectiveBudget{GroupID: og.ID, SpendLimitMicros: 1_000_000, Source: codersdk.AIBudgetLimitSourceUserOverride}, true
 			},
 		},
 		{
@@ -82,7 +82,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				org := dbgen.Organization(t, db, database.Organization{})
 				user := dbgen.User(t, db, database.User{})
 				gid := budgetedGroup(t, ctx, db, org.ID, user.ID, "only", 8_000_000)
-				return user.ID, budget.EffectiveBudget{GroupID: gid, SpendLimitMicros: 8_000_000, Source: budget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: gid, SpendLimitMicros: 8_000_000, Source: codersdk.AIBudgetLimitSourceGroup}, true
 			},
 		},
 		{
@@ -94,7 +94,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "low", 5_000_000)
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "mid", 20_000_000)
 				high := budgetedGroup(t, ctx, db, org.ID, user.ID, "high", 50_000_000)
-				return user.ID, budget.EffectiveBudget{GroupID: high, SpendLimitMicros: 50_000_000, Source: budget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: high, SpendLimitMicros: 50_000_000, Source: codersdk.AIBudgetLimitSourceGroup}, true
 			},
 		},
 		{
@@ -106,7 +106,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				// Equal limits; "alpha" must win over "beta" by name ascending.
 				alpha := budgetedGroup(t, ctx, db, org.ID, user.ID, "alpha", 10_000_000)
 				budgetedGroup(t, ctx, db, org.ID, user.ID, "beta", 10_000_000)
-				return user.ID, budget.EffectiveBudget{GroupID: alpha, SpendLimitMicros: 10_000_000, Source: budget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: alpha, SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}, true
 			},
 		},
 		{
@@ -124,7 +124,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				if bytes.Compare(g2[:], g1[:]) < 0 {
 					winner = g2
 				}
-				return user.ID, budget.EffectiveBudget{GroupID: winner, SpendLimitMicros: 10_000_000, Source: budget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: winner, SpendLimitMicros: 10_000_000, Source: codersdk.AIBudgetLimitSourceGroup}, true
 			},
 		},
 		{
@@ -147,7 +147,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 				// Membership is via organization_members only (no group_members row),
 				// exercising the org-members half of group_members_expanded.
 				everyoneID := budgetedEveryoneGroup(t, ctx, db, org.ID, user.ID, 7_000_000)
-				return user.ID, budget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 7_000_000, Source: budget.SourceGroup}, true
+				return user.ID, budget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 7_000_000, Source: codersdk.AIBudgetLimitSourceGroup}, true
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func TestResolveUserAIBudget(t *testing.T) {
 					SpendLimitMicros: 2_000_000,
 				})
 				require.NoError(t, err)
-				return user.ID, budget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 2_000_000, Source: budget.SourceUserOverride}, true
+				return user.ID, budget.EffectiveBudget{GroupID: everyoneID, SpendLimitMicros: 2_000_000, Source: codersdk.AIBudgetLimitSourceUserOverride}, true
 			},
 		},
 		{

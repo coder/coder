@@ -654,6 +654,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Put("/", api.upsertUserAIBudgetOverride)
 			r.Delete("/", api.deleteUserAIBudgetOverride)
 		})
+		r.Route("/users/{user}/ai/spend", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance add-on).
+			r.Use(
+				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.userAISpendStatus)
+		})
 		r.Route("/prebuilds", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
