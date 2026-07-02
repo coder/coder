@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 import { MockModelSelectorOption } from "./modelSelectorFixtures";
@@ -47,6 +48,16 @@ const anthropicModels: ModelSelectorOption[] = [
 ];
 
 const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
+
+const effortModel: ModelSelectorOption = {
+	...MockModelSelectorOption,
+	id: "openai/gpt-5",
+	model: "gpt-5",
+	displayName: "GPT-5",
+	contextLimit: 400_000,
+	reasoningEffortDefault: "medium",
+	reasoningEffortMax: "xhigh",
+};
 
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
@@ -222,5 +233,136 @@ export const FiltersModels: Story = {
 		expect(args.onValueChange).toHaveBeenCalledWith(
 			"anthropic/claude-haiku-3.5",
 		);
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Reasoning effort row
+// ---------------------------------------------------------------------------
+
+export const EffortRowHiddenWithoutConfig: Story = {
+	args: {
+		options: openAIModels,
+		value: "openai/gpt-4o",
+		reasoningEffort: "medium",
+		onReasoningEffortChange: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(canvas.getByRole("combobox"));
+		await body.findByRole("listbox");
+
+		expect(body.queryByRole("slider")).not.toBeInTheDocument();
+		expect(body.queryByText("Effort")).not.toBeInTheDocument();
+	},
+};
+
+const EffortRowStory = ({
+	onReasoningEffortChange,
+}: {
+	onReasoningEffortChange: (value: string) => void;
+}) => {
+	const [effort, setEffort] = useState("medium");
+	return (
+		<ModelSelector
+			options={[...openAIModels, effortModel]}
+			value="openai/gpt-5"
+			onValueChange={fn()}
+			reasoningEffort={effort}
+			onReasoningEffortChange={(value) => {
+				onReasoningEffortChange(value);
+				setEffort(value);
+			}}
+		/>
+	);
+};
+
+export const EffortRow: Story = {
+	args: {
+		onReasoningEffortChange: fn(),
+	},
+	render: (args) => (
+		<EffortRowStory
+			onReasoningEffortChange={(value) => args.onReasoningEffortChange?.(value)}
+		/>
+	),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-5" }));
+		await body.findByRole("listbox");
+
+		// The row is visible with one discrete step per selectable effort
+		// (OpenAI supports minimal..xhigh, max is xhigh: 5 steps, 0-4).
+		await waitFor(() => {
+			expect(body.getByText("Effort")).toBeVisible();
+		});
+		const slider = await body.findByRole("slider");
+		expect(slider).toHaveAttribute("aria-valuemin", "0");
+		expect(slider).toHaveAttribute("aria-valuemax", "4");
+		// "medium" is the third of five selectable efforts.
+		expect(slider).toHaveAttribute("aria-valuenow", "2");
+		expect(body.getByText("Medium")).toBeVisible();
+
+		// The slider is keyboard-reachable from the search input and
+		// arrow keys move between efforts, updating the badge and
+		// notifying the caller.
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "3");
+		});
+		expect(args.onReasoningEffortChange).toHaveBeenCalledWith("high");
+		expect(body.getByText("High")).toBeVisible();
+
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "4");
+		});
+		expect(args.onReasoningEffortChange).toHaveBeenCalledWith("xhigh");
+		expect(body.getByText("Xhigh")).toBeVisible();
+
+		await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "0");
+		});
+		expect(args.onReasoningEffortChange).toHaveBeenCalledWith("minimal");
+		expect(body.getByText("Minimal")).toBeVisible();
+	},
+};
+
+export const EffortRowClampedToMax: Story = {
+	args: {
+		options: [
+			{
+				...effortModel,
+				reasoningEffortDefault: "low",
+				reasoningEffortMax: "medium",
+			},
+		],
+		value: "openai/gpt-5",
+		reasoningEffort: "low",
+		onReasoningEffortChange: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(canvas.getByRole("combobox"));
+		await body.findByRole("listbox");
+
+		// Selectable efforts stop at the configured max
+		// (minimal, low, medium: 3 steps, 0-2).
+		const slider = await body.findByRole("slider");
+		expect(slider).toHaveAttribute("aria-valuemax", "2");
+		expect(slider).toHaveAttribute("aria-valuenow", "1");
+		await waitFor(() => {
+			expect(body.getByText("Low")).toBeVisible();
+		});
 	},
 };

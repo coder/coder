@@ -217,12 +217,17 @@ export const getModelOptionsFromConfigs = (
 
 		const displayName = config.display_name.trim() || model;
 		const contextLimit = asNumber(config.context_limit);
+		const reasoningEffort = config.model_config?.reasoning_effort;
+		const reasoningEffortDefault = asString(reasoningEffort?.default).trim();
+		const reasoningEffortMax = asString(reasoningEffort?.max).trim();
 		options.push({
 			id: configID,
 			provider,
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
+			...(reasoningEffortDefault ? { reasoningEffortDefault } : {}),
+			...(reasoningEffortMax ? { reasoningEffortMax } : {}),
 		});
 	}
 
