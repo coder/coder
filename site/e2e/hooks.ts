@@ -71,8 +71,8 @@ export const resetExternalAuthKey = async (context: BrowserContext) => {
 		});
 
 		res.on("end", () => {
-			// Both 200 (key deleted successfully) and 500 (key was not found) are valid responses.
-			if (res.statusCode !== 200 && res.statusCode !== 500) {
+			// 200 = link deleted; 404 = no link existed for this provider.
+			if (res.statusCode !== 200 && res.statusCode !== 404) {
 				console.error("failed to delete external auth link", data);
 				throw new Error(
 					`failed to delete external auth link: HTTP response ${res.statusCode}`,
