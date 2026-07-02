@@ -1178,6 +1178,282 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	}
 }
 
+// TestRegenerateChatTitle_RunningChatSkipsMarkerAndRelease verifies that a
+// running chat regenerates its title without writing the synthetic lock
+// marker and, critically, without issuing the unlock transaction. Releasing
+// without holding the marker could clear a fresh marker written by a
+// concurrent manual title request. The strict mock fails the test if the
+// server issues any marker write or unlock transaction.
+func TestRegenerateChatTitle_RunningChatSkipsMarkerAndRelease(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	lockTx := dbmock.NewMockStore(ctrl)
+	usageTx := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	pubsub := dbpubsub.NewInMemory()
+	clock := quartz.NewReal()
+
+	ownerID := uuid.New()
+	chatID := uuid.New()
+	modelConfigID := uuid.New()
+	providerID := uuid.New()
+	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
+	wantTitle := "Review PR 23633"
+
+	// The chat is running without a worker: the window between
+	// CreateChat/SendMessage and worker acquisition.
+	chat := database.Chat{
+		ID:                chatID,
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Status:            database.ChatStatusRunning,
+		Title:             fallbackChatTitle(userPrompt),
+	}
+	modelConfig := database.ChatModelConfig{
+		ID:           modelConfigID,
+		Model:        "gpt-4o-mini",
+		ContextLimit: 8192,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+	}
+	updatedChat := chat
+	updatedChat.Title = wantTitle
+
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOutgoingRequestModel(t, req, modelConfig.Model)
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
+
+	server := &Server{
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+	}
+
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
+		ID:      providerID,
+		Name:    "primary-openai",
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}, nil).AnyTimes()
+	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+		ID:      providerID,
+		Name:    "primary-openai",
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}}, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
+	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
+	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
+		gomock.Any(),
+		database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chatID,
+			AfterID:  0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return([]database.ChatMessage{
+		withChatMessageAPIKeyID(mustChatMessage(
+			t,
+			database.ChatMessageRoleUser,
+			database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText(userPrompt),
+		), activeAPIKeyID),
+	}, nil)
+	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
+		gomock.Any(),
+		database.GetChatMessagesByChatIDDescPaginatedParams{
+			ChatID:   chatID,
+			BeforeID: 0,
+			LimitVal: manualTitleMessageWindowLimit,
+		},
+	).Return(nil, nil)
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
+
+	// Exactly two transactions run: the lock probe and the usage
+	// recording. No unlock transaction may follow because the request
+	// never wrote the marker.
+	gomock.InOrder(
+		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Equal(t, "chat_title_regenerate_lock", opts.TxIdentifier)
+				return fn(lockTx)
+			},
+		),
+		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+			func(fn func(database.Store) error, opts *database.TxOptions) error {
+				require.Nil(t, opts)
+				return fn(usageTx)
+			},
+		),
+	)
+
+	// The lock probe must only read the chat; a running chat gets no
+	// synthetic marker write.
+	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
+
+	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
+	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
+			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
+			return []database.ChatMessage{{ID: 91}}, nil
+		},
+	)
+	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
+	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
+		ID:    chatID,
+		Title: wantTitle,
+	}).Return(updatedChat, nil)
+
+	gotChat, err := server.RegenerateChatTitle(ctx, chat)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, gotChat)
+}
+
+// TestAcquireManualTitleLock covers the lock decision table: only a fresh
+// synthetic marker rejects a request, running chats proceed without a
+// marker, and parked or legacy pending chats get the marker.
+func TestAcquireManualTitleLock(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		chat         func(chatID uuid.UUID) database.Chat
+		wantMarker   bool
+		wantAcquired bool
+		wantErr      error
+	}{
+		{
+			name: "RunningWithRealWorker",
+			chat: func(chatID uuid.UUID) database.Chat {
+				return database.Chat{
+					ID:       chatID,
+					Status:   database.ChatStatusRunning,
+					WorkerID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				}
+			},
+			wantAcquired: false,
+		},
+		{
+			name: "RunningWithoutWorker",
+			chat: func(chatID uuid.UUID) database.Chat {
+				return database.Chat{
+					ID:     chatID,
+					Status: database.ChatStatusRunning,
+				}
+			},
+			wantAcquired: false,
+		},
+		{
+			name: "PendingWithoutWorker",
+			chat: func(chatID uuid.UUID) database.Chat {
+				return database.Chat{
+					ID:     chatID,
+					Status: database.ChatStatusPending,
+				}
+			},
+			wantMarker:   true,
+			wantAcquired: true,
+		},
+		{
+			name: "WaitingChat",
+			chat: func(chatID uuid.UUID) database.Chat {
+				return database.Chat{
+					ID:     chatID,
+					Status: database.ChatStatusWaiting,
+				}
+			},
+			wantMarker:   true,
+			wantAcquired: true,
+		},
+		{
+			name: "FreshManualLock",
+			chat: func(chatID uuid.UUID) database.Chat {
+				return database.Chat{
+					ID:        chatID,
+					Status:    database.ChatStatusWaiting,
+					WorkerID:  uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
+					StartedAt: sql.NullTime{Time: time.Now(), Valid: true},
+				}
+			},
+			wantErr: ErrManualTitleRegenerationInProgress,
+		},
+		{
+			name: "StaleManualLockReacquires",
+			chat: func(chatID uuid.UUID) database.Chat {
+				return database.Chat{
+					ID:       chatID,
+					Status:   database.ChatStatusWaiting,
+					WorkerID: uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
+					StartedAt: sql.NullTime{
+						Time:  time.Now().Add(-2 * manualTitleLockStaleAfter),
+						Valid: true,
+					},
+				}
+			},
+			wantMarker:   true,
+			wantAcquired: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			lockTx := dbmock.NewMockStore(ctrl)
+			server := &Server{db: db}
+
+			chatID := uuid.New()
+			chat := tc.chat(chatID)
+
+			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+				func(fn func(database.Store) error, _ *database.TxOptions) error {
+					return fn(lockTx)
+				},
+			)
+			lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
+			if tc.wantMarker {
+				lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
+					gomock.Any(),
+					gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{}),
+				).DoAndReturn(func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
+					require.Equal(t, chat.ID, arg.ID)
+					require.Equal(t, chat.Status, arg.Status)
+					require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
+					require.True(t, arg.StartedAt.Valid)
+					return chat, nil
+				})
+			}
+
+			acquired, err := server.acquireManualTitleLock(ctx, chatID)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				require.False(t, acquired)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.wantAcquired, acquired)
+		})
+	}
+}
+
 func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 	t.Parallel()
 

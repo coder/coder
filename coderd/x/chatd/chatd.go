@@ -1093,6 +1093,11 @@ var (
 	// accept modifications (messages, edits, promotions, or
 	// tool-result submissions).
 	ErrChatArchived = xerrors.New("chat is archived")
+	// ErrNoDefaultChatModelConfig indicates no default chat model config
+	// exists, so chatd cannot resolve a model for the request.
+	ErrNoDefaultChatModelConfig = xerrors.New(
+		"no default chat model config is available",
+	)
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -1559,7 +1564,7 @@ func resolveFallbackModelConfigID(
 	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, xerrors.New("no default chat model config is available")
+			return uuid.Nil, ErrNoDefaultChatModelConfig
 		}
 		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
 	}
@@ -2206,25 +2211,31 @@ func updateChatStatusPreserveUpdatedAt(
 	)
 }
 
-func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) error {
+// acquireManualTitleLock deduplicates concurrent manual title requests.
+// Only a fresh synthetic marker blocks a request. Running chats proceed
+// without a marker regardless of worker ownership: a real worker may own
+// the row, or an unowned running chat may be acquired at any moment, and
+// in both cases title writes resolve by last write wins. All other
+// statuses (waiting, error, requires_action, interrupting, and legacy
+// pending rows that workers never acquire) get a synthetic marker.
+// The returned acquired flag reports whether the marker was written; the
+// caller must release the lock only when it holds the marker, so that a
+// marker-less request cannot clear a concurrent request's fresh marker.
+func (p *Server) acquireManualTitleLock(
+	ctx context.Context,
+	chatID uuid.UUID,
+) (acquired bool, err error) {
 	now := time.Now()
-	return p.db.InTx(func(tx database.Store) error {
+	err = p.db.InTx(func(tx database.Store) error {
+		acquired = false
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
 		}
-		// Only a fresh manual lock or a chat without a real worker should
-		// block title regeneration. Running chats with a real worker may
-		// regenerate their title concurrently, and last write wins.
-		hasRealWorker := lockedChat.Status == database.ChatStatusRunning &&
-			lockedChat.WorkerID.Valid &&
-			lockedChat.WorkerID.UUID != manualTitleLockWorkerID
-		if lockedChat.Status == database.ChatStatusPending ||
-			(lockedChat.Status == database.ChatStatusRunning && !hasRealWorker) ||
-			isFreshManualTitleLock(lockedChat, now) {
+		if isFreshManualTitleLock(lockedChat, now) {
 			return ErrManualTitleRegenerationInProgress
 		}
-		if hasRealWorker {
+		if lockedChat.Status == database.ChatStatusRunning {
 			return nil
 		}
 
@@ -2239,8 +2250,13 @@ func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) e
 		if err != nil {
 			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)
 		}
+		acquired = true
 		return nil
 	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
+	if err != nil {
+		return false, err
+	}
+	return acquired, nil
 }
 
 func (p *Server) releaseManualTitleLock(ctx context.Context, chatID uuid.UUID) {
@@ -2286,10 +2302,13 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+	acquired, err := p.acquireManualTitleLock(ctx, chat.ID)
+	if err != nil {
 		return database.Chat{}, err
 	}
-	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+	if acquired {
+		defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+	}
 
 	updatedChat, err := p.regenerateChatTitleWithStore(
 		chatdCtx,
@@ -2310,10 +2329,13 @@ func (p *Server) RenameChatTitle(
 ) (updated database.Chat, wrote bool, err error) {
 	//nolint:gocritic // Lock release needs chatd-scoped writes.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+	acquired, err := p.acquireManualTitleLock(ctx, chat.ID)
+	if err != nil {
 		return database.Chat{}, false, err
 	}
-	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+	if acquired {
+		defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+	}
 
 	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
 	if err != nil {
@@ -2345,10 +2367,13 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
+	acquired, err := p.acquireManualTitleLock(ctx, chat.ID)
+	if err != nil {
 		return "", err
 	}
-	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+	if acquired {
+		defer p.releaseManualTitleLock(chatdCtx, chat.ID)
+	}
 
 	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat)
 	if err != nil {
@@ -4422,9 +4447,7 @@ func (p *Server) resolveModelConfig(
 	defaultConfig, err := p.configCache.DefaultModelConfig(ctx)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
-			return database.ChatModelConfig{}, xerrors.New(
-				"no default chat model config is available",
-			)
+			return database.ChatModelConfig{}, ErrNoDefaultChatModelConfig
 		}
 		return database.ChatModelConfig{}, xerrors.Errorf(
 			"get default chat model config: %w", err,

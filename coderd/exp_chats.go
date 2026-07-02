@@ -3844,6 +3844,12 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No default chat model config is configured.",
+			})
+			return
+		}
 		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}
@@ -3891,6 +3897,12 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, chatd.ErrManualTitleRegenerationInProgress) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Title regeneration already in progress for this chat.",
+			})
+			return
+		}
+		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No default chat model config is configured.",
 			})
 			return
 		}

@@ -8621,7 +8621,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
+		// The openai provider type routes structured title generation
+		// through the Responses API, which the chattest fake answers
+		// with {"title": "Test Chat"}.
+		modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -8629,6 +8632,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "pending chat without worker",
 		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
 
 		var err error
 		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
@@ -8641,28 +8645,47 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		// Legacy pending rows are never acquired by workers, so manual
+		// title regeneration must proceed instead of returning a
+		// permanent 409.
+		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
 		require.NoError(t, err)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chat.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusConflict, res.StatusCode)
-
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
-		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
+		require.Equal(t, "Test Chat", updated.Title)
 
 		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
+		require.Equal(t, "Test Chat", persisted.Title)
 		require.Equal(t, database.ChatStatusPending, persisted.Status)
-		require.False(t, persisted.WorkerID.Valid)
-		require.True(t, persisted.UpdatedAt.Equal(before.UpdatedAt))
+		require.False(t, persisted.WorkerID.Valid,
+			"manual title lock marker must be cleared after regeneration")
+	})
+
+	t.Run("NoDefaultModelConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+
+		// The config exists only to satisfy the chats foreign key.
+		// Soft-deleting it leaves the deployment without any usable
+		// model config.
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat without model config",
+		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+		require.NoError(t, db.DeleteChatModelConfigByID(
+			dbauthz.AsSystemRestricted(ctx),
+			modelConfig.ID,
+		))
+
+		_, err := client.RegenerateChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
 	})
 
 	t.Run("RegenerationFailure", func(t *testing.T) {
@@ -8753,6 +8776,143 @@ func TestProposeChatTitle(t *testing.T) {
 		_, err := client.ProposeChatTitle(ctx, chat.ID)
 
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("Unauthenticated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "chat for unauthenticated proposal",
+			}},
+		})
+		require.NoError(t, err)
+
+		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
+		_, err = unauthenticatedClient.ProposeChatTitle(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("PendingWithoutWorker", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		// The openai provider type routes structured title generation
+		// through the Responses API, which the chattest fake answers
+		// with {"title": "Test Chat"}.
+		modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "pending chat without worker",
+		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+
+		var err error
+		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   pqtype.NullRawMessage{},
+		})
+		require.NoError(t, err)
+
+		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		// Legacy pending rows are never acquired by workers, so title
+		// proposal must proceed instead of returning a permanent 409.
+		resp, err := client.ProposeChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", resp.Title)
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, before.Title, persisted.Title,
+			"propose must not persist the suggested title")
+		require.Equal(t, database.ChatStatusPending, persisted.Status)
+		require.False(t, persisted.WorkerID.Valid,
+			"manual title lock marker must be cleared after proposal")
+		require.True(t, persisted.UpdatedAt.Equal(before.UpdatedAt))
+	})
+
+	t.Run("NoDefaultModelConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+
+		// The config exists only to satisfy the chats foreign key.
+		// Soft-deleting it leaves the deployment without any usable
+		// model config.
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat without model config",
+		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+		require.NoError(t, db.DeleteChatModelConfigByID(
+			dbauthz.AsSystemRestricted(ctx),
+			modelConfig.ID,
+		))
+
+		_, err := client.ProposeChatTitle(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
+	})
+
+	t.Run("StoppedWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		// The openai provider type routes structured title generation
+		// through the Responses API, which the chattest fake answers
+		// with {"title": "Test Chat"}.
+		modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+		dbfake.WorkspaceBuild(t, db, workspaceBuild.Workspace).Seed(database.WorkspaceBuild{
+			Transition:  database.WorkspaceTransitionStop,
+			BuildNumber: 2,
+		}).Do()
+
+		// Chats bound to stopped workspaces settle in waiting (or
+		// error). Title generation never touches the workspace, so it
+		// must still succeed.
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspaceBuild.Workspace.ID, Valid: true},
+			Status:            database.ChatStatusWaiting,
+			Title:             "stopped workspace chat",
+		})
+		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+
+		resp, err := client.ProposeChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", resp.Title)
 	})
 
 	t.Run("DoesNotPersistTitleOrBumpUpdatedAt", func(t *testing.T) {
@@ -10882,6 +11042,30 @@ func aiProviderBaseURLForTest(provider string) string {
 	default:
 		return "https://api.example.com/v1"
 	}
+}
+
+// seedManualTitleSourceMessage inserts a visible user message so manual
+// title generation has content to summarize.
+func seedManualTitleSourceMessage(
+	t testing.TB,
+	db database.Store,
+	chat database.Chat,
+	modelConfigID uuid.UUID,
+) {
+	t.Helper()
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("manual title source"),
+	})
+	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: chat.OwnerID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		Content:       content,
+	})
 }
 
 func createChatModelConfig(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
