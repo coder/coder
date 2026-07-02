@@ -80,12 +80,12 @@ func (p Part) jsonValue() partJSON {
 // EpisodeInfo is a point-in-time snapshot of one buffered episode, returned
 // by InspectChat for debugging purposes.
 type EpisodeInfo struct {
-	HistoryVersion    int64
-	GenerationAttempt int64
-	PartsCount        int
-	Bytes             int64
-	SubscriberCount   int
-	IsClosed          bool
+	HistoryVersion    int64 `json:"history_version"`
+	GenerationAttempt int64 `json:"generation_attempt"`
+	PartsCount        int   `json:"parts_buffered"`
+	Bytes             int64 `json:"bytes_buffered"`
+	SubscriberCount   int   `json:"subscriber_count"`
+	IsClosed          bool  `json:"is_closed"`
 }
 
 // Options configures a Buffer.
@@ -568,7 +568,7 @@ func serializedPartBytes(part Part) (int64, error) {
 func (b *Buffer) InspectChat(chatID uuid.UUID) []EpisodeInfo {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	var infos []EpisodeInfo
+	infos := make([]EpisodeInfo, 0)
 	for key, ep := range b.episodes {
 		if key.ChatID != chatID {
 			continue

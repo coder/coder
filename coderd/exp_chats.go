@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -7934,19 +7935,10 @@ type chatDebugMessageStats struct {
 }
 
 type chatDebugRuntime struct {
-	LocalWorkerID        uuid.UUID                `json:"local_worker_id"`
-	WorkerIDMatchesLocal bool                     `json:"worker_id_matches_local"`
-	Runners              []chatd.RunnerSnapshot   `json:"runners"`
-	MessageBuffers       []chatDebugBufferEpisode `json:"message_buffers"`
-}
-
-type chatDebugBufferEpisode struct {
-	HistoryVersion    int64 `json:"history_version"`
-	GenerationAttempt int64 `json:"generation_attempt"`
-	PartsBuffered     int   `json:"parts_buffered"`
-	BytesBuffered     int64 `json:"bytes_buffered"`
-	SubscriberCount   int   `json:"subscriber_count"`
-	IsClosed          bool  `json:"is_closed"`
+	LocalWorkerID        uuid.UUID                       `json:"local_worker_id"`
+	WorkerIDMatchesLocal bool                            `json:"worker_id_matches_local"`
+	Runners              []chatd.RunnerSnapshot          `json:"runners"`
+	MessageBuffers       []messagepartbuffer.EpisodeInfo `json:"message_buffers"`
 }
 
 // ChatDebugForwardedHeader marks a debug snapshot request that has already
@@ -8078,22 +8070,16 @@ func (api *API) getChatDebugSnapshot(rw http.ResponseWriter, r *http.Request) {
 		LocalWorkerID:        rtSnap.LocalWorkerID,
 		WorkerIDMatchesLocal: chat.WorkerID.Valid && chat.WorkerID.UUID == rtSnap.LocalWorkerID,
 		Runners:              rtSnap.Runners,
-		MessageBuffers:       make([]chatDebugBufferEpisode, 0, len(rtSnap.Episodes)),
+		MessageBuffers:       rtSnap.Episodes,
 	}
 	if rtSection.Runners == nil {
-		// Match MessageBuffers above: serialize as "[]" rather than "null"
-		// for a consistent empty-collection representation.
+		// chatWorker.InspectChat and Server.Snapshot return nil when the
+		// worker or manager isn't running (e.g. ChatWorkerDisabled in
+		// tests), unlike messagePartBuffer.InspectChat which always
+		// returns a non-nil slice. Normalize here so "runners" serializes
+		// as "[]" rather than "null" for a consistent empty-collection
+		// representation.
 		rtSection.Runners = []chatd.RunnerSnapshot{}
-	}
-	for _, ep := range rtSnap.Episodes {
-		rtSection.MessageBuffers = append(rtSection.MessageBuffers, chatDebugBufferEpisode{
-			HistoryVersion:    ep.HistoryVersion,
-			GenerationAttempt: ep.GenerationAttempt,
-			PartsBuffered:     ep.PartsCount,
-			BytesBuffered:     ep.Bytes,
-			SubscriberCount:   ep.SubscriberCount,
-			IsClosed:          ep.IsClosed,
-		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, chatDebugSnapshot{

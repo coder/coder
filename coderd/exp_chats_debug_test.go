@@ -14,7 +14,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/tools/txtar"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -24,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -73,19 +73,10 @@ type debugSnapshotMessageStats struct {
 }
 
 type debugSnapshotRuntime struct {
-	LocalWorkerID        uuid.UUID                    `json:"local_worker_id"`
-	WorkerIDMatchesLocal bool                         `json:"worker_id_matches_local"`
-	Runners              []chatd.RunnerSnapshot       `json:"runners"`
-	MessageBuffers       []debugSnapshotBufferEpisode `json:"message_buffers"`
-}
-
-type debugSnapshotBufferEpisode struct {
-	HistoryVersion    int64 `json:"history_version"`
-	GenerationAttempt int64 `json:"generation_attempt"`
-	PartsBuffered     int   `json:"parts_buffered"`
-	BytesBuffered     int64 `json:"bytes_buffered"`
-	SubscriberCount   int   `json:"subscriber_count"`
-	IsClosed          bool  `json:"is_closed"`
+	LocalWorkerID        uuid.UUID                       `json:"local_worker_id"`
+	WorkerIDMatchesLocal bool                            `json:"worker_id_matches_local"`
+	Runners              []chatd.RunnerSnapshot          `json:"runners"`
+	MessageBuffers       []messagepartbuffer.EpisodeInfo `json:"message_buffers"`
 }
 
 // driveChatToError transitions the chat from running to error state.
@@ -139,11 +130,11 @@ func getDebugSnapshot(t *testing.T, client *codersdk.ExperimentalClient, chatID 
 	return out
 }
 
-// assertDebugSnapshotGolden compares snap against the golden txtar fixture
-// at testdata/chatdebugsnapshot/<name>.txtar, following the same pattern as
-// the golden file tests in insights_test.go: non-deterministic fields
-// (timestamps, the per-instance local worker ID) are reset to their zero
-// value directly on the typed struct, and the comparison is done with
+// assertDebugSnapshotGolden compares snap against the golden JSON fixture
+// at testdata/chatdebugsnapshot/<name>.json.golden, following the same
+// pattern as the golden file tests in insights_test.go: non-deterministic
+// fields (timestamps, the per-instance local worker ID) are reset to their
+// zero value directly on the typed struct, and the comparison is done with
 // cmp.Diff on the decoded struct rather than on raw JSON text. Any
 // dynamically-generated UUIDs that appear elsewhere in the payload (e.g.
 // runner/worker IDs) should be arranged by the caller to be deterministic
@@ -163,21 +154,20 @@ func assertDebugSnapshotGolden(t *testing.T, name string, snap debugSnapshot) {
 	goldenPath := filepath.Join("testdata", "chatdebugsnapshot", name+".json.golden")
 	if *updateGoldenFiles {
 		require.NoError(t, os.MkdirAll(filepath.Dir(goldenPath), 0o755), "want no error creating golden file directory")
-		data, err := json.MarshalIndent(snap, "", "  ")
-		require.NoError(t, err)
-		data = append(data, '\n')
-		ar := &txtar.Archive{Files: []txtar.File{{Name: "response.json", Data: data}}}
-		require.NoError(t, os.WriteFile(goldenPath, txtar.Format(ar), 0o600), "want no error writing golden file")
+		f, err := os.Create(goldenPath)
+		require.NoError(t, err, "want no error creating golden file")
+		defer f.Close()
+		enc := json.NewEncoder(f)
+		enc.SetIndent("", "  ")
+		require.NoError(t, enc.Encode(snap), "want no error writing golden file")
 		return
 	}
 
-	raw, err := os.ReadFile(goldenPath)
+	f, err := os.Open(goldenPath)
 	require.NoError(t, err, "open golden file, run \"go test ./coderd -run 'Test.*Golden$' -update\" and commit the changes")
-	ar := txtar.Parse(raw)
-	require.Len(t, ar.Files, 1, "golden file %s should contain exactly one file", goldenPath)
-
+	defer f.Close()
 	var want debugSnapshot
-	require.NoError(t, json.Unmarshal(ar.Files[0].Data, &want), "want no error decoding golden file")
+	require.NoError(t, json.NewDecoder(f).Decode(&want), "want no error decoding golden file")
 
 	cmpOpts := []cmp.Option{
 		// Ensure readable UUIDs in diff, matching insights_test.go.
