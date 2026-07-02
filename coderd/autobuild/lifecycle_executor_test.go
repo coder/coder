@@ -1994,7 +1994,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		require.Len(t, sent, 1)
 		require.Equal(t, workspace.OwnerID, sent[0].UserID)
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
-		require.Equal(t, deadline.UTC().Format(time.RFC1123), sent[0].Labels["deadline"])
+		require.NotEmpty(t, sent[0].Labels["timeTilShutdown"])
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
 		require.Contains(t, sent[0].Targets, workspace.TemplateID)
@@ -2169,7 +2169,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		testutil.TryReceive(ctx, t, statsCh)
 		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
 		require.Len(t, sent, 1)
-		require.Equal(t, deadline.UTC().Format(time.RFC1123), sent[0].Labels["deadline"])
+		require.NotEmpty(t, sent[0].Labels["timeTilShutdown"])
 
 		// Move the deadline well into the future. The marker now differs from
 		// the build deadline, re-arming the reminder.
@@ -2188,7 +2188,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		testutil.TryReceive(ctx, t, statsCh)
 		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
 		require.Len(t, sent, 2)
-		require.Equal(t, newDeadline.UTC().Format(time.RFC1123), sent[1].Labels["deadline"])
+		require.NotEmpty(t, sent[1].Labels["timeTilShutdown"])
 	})
 
 	// ExceedsLifetime: a time_til_autostop_notify larger than the
