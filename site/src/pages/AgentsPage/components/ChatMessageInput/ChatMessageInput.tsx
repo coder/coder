@@ -600,22 +600,18 @@ const ChatMessageInput = ({
 	const skillsQuery = useQuery({
 		...userSkills(),
 		enabled: hasSkillsTrigger && !hasPersonalSkillsOverride,
-		// Keep cached skills fresh briefly so caret movement that closes and
-		// reopens the trigger does not refetch on every toggle.
+		// Avoid refetching on each trigger toggle from caret movement.
 		staleTime: 60_000,
 	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
-	// Only a settled fetch counts as resolved. A stale cached empty list with
-	// a refetch in flight must keep the menu open so it is not dismissed
-	// right before skills arrive.
+	// A stale empty cache with a refetch in flight must not dismiss the menu.
 	const isResolvedEmptySkillsList = hasPersonalSkillsOverride
 		? personalSkills.length === 0
 		: skillsQuery.isSuccess &&
 			!skillsQuery.isFetching &&
 			personalSkills.length === 0;
-	// With no personal skills, "/" behaves like plain text: no popover and no
-	// Enter/arrow interception. Filtered-empty (user has skills, query
-	// matches none) keeps the menu open to show the no-match message.
+	// Resolved-empty suppresses the menu; filtered-empty keeps it open for
+	// the no-match message.
 	const skillsMenuOpen = hasSkillsTrigger && !isResolvedEmptySkillsList;
 	const filteredPersonalSkills = skillsTrigger
 		? filterPersonalSkills(personalSkills, skillsTrigger.query)
@@ -909,7 +905,7 @@ const ChatMessageInput = ({
 					isLoading={
 						skillsMenuOpen &&
 						personalSkills.length === 0 &&
-						(skillsQuery.isLoading || skillsQuery.isFetching)
+						skillsQuery.isFetching
 					}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					isError={skillsMenuOpen && skillsQuery.isError}

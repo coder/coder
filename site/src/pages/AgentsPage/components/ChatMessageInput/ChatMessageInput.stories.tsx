@@ -79,8 +79,7 @@ export const EmptySkills: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const editor = await typeInEditor(canvasElement, "/");
-		// With no personal skills, "/" behaves like plain text: no popover
-		// opens and Enter submits instead of being swallowed.
+		// "/" is plain text when the skills list is empty.
 		expectNoVisibleTextImmediately("No personal skills found.");
 		await userEvent.keyboard("{Enter}");
 		expect(args.onEnter).toHaveBeenCalledTimes(1);
