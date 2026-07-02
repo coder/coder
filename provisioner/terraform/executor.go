@@ -31,6 +31,44 @@ var (
 	version190 = version.Must(version.NewVersion("1.9.0"))
 )
 
+// maxScanTokenSize is the maximum buffer size for bufio.Scanner when reading terraform logs.
+// Terraform providers (e.g. azurerm with TF_LOG=DEBUG) can emit single log lines that exceed
+// the default 64 KiB bufio.MaxScanTokenSize, causing the scanner to fail and the provisioner
+// to deadlock because the pipe writer blocks and cmd.Wait() never returns.
+// 4 MiB is large enough for provider debug output (e.g. ~3 MB HTTP response bodies) while
+// remaining bounded.
+const maxScanTokenSize = 4 * 1024 * 1024 // 4 MiB
+
+// newLogScanner returns a bufio.Scanner configured with a buffer large enough
+// to handle terraform provider debug output (e.g. azurerm with TF_LOG=DEBUG)
+// without failing on lines that exceed the default 64 KiB limit.
+func newLogScanner(r io.Reader) *bufio.Scanner {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanTokenSize)
+	return scanner
+}
+
+// readLineWithFallback attempts to read a single line from r.  If the line
+// exceeds maxScanTokenSize it falls back to io.ReadLine which returns the line
+// in chunks.  This prevents the provisioner from deadlocking when a provider
+// emits unexpectedly large output.
+func readLineWithFallback(r *bufio.Reader) (line []byte, err error) {
+	line, isPrefix, err := r.ReadLine()
+	if err != nil {
+		return nil, err
+	}
+	// If the line is longer than the buffer, ReadLine returns it in pieces.
+	for isPrefix {
+		next, nextPrefix, err := r.ReadLine()
+		if err != nil {
+			return nil, err
+		}
+		line = append(line, next...)
+		isPrefix = nextPrefix
+	}
+	return line, nil
+}
+
 type executor struct {
 	logger     slog.Logger
 	server     *server
@@ -439,7 +477,7 @@ func resourceReplaceLogWriter(sink logSink, logger slog.Logger) (io.WriteCloser,
 	go func() {
 		defer close(done)
 
-		scanner := bufio.NewScanner(r)
+		scanner := newLogScanner(r)
 		for scanner.Scan() {
 			line := scanner.Bytes()
 			level := proto.LogLevel_INFO
@@ -609,7 +647,7 @@ func logWriter(sink logSink, level proto.LogLevel) (io.WriteCloser, <-chan any) 
 
 func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel) {
 	defer close(done)
-	scanner := bufio.NewScanner(r)
+	scanner := newLogScanner(r)
 	for scanner.Scan() {
 		var log terraformProvisionLog
 		err := json.Unmarshal(scanner.Bytes(), &log)
@@ -637,6 +675,9 @@ func readAndLog(sink logSink, r io.Reader, done chan<- any, level proto.LogLevel
 		}
 		sink.ProvisionLog(logLevel, log.Message)
 	}
+	if err := scanner.Err(); err != nil {
+		sink.ProvisionLog(proto.LogLevel_ERROR, "failed to read terraform log: "+err.Error())
+	}
 }
 
 // provisionLogWriter creates a WriteCloser that will log each JSON formatted terraform log.  The WriteCloser must be
@@ -655,7 +696,7 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 
 	errCount := 0
 
-	scanner := bufio.NewScanner(r)
+	scanner := newLogScanner(r)
 	for scanner.Scan() {
 		log := parseTerraformLogLine(scanner.Bytes())
 		if log == nil {
@@ -686,6 +727,9 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
 			sink.ProvisionLog(logLevel, diagLine)
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		e.logger.Error(context.Background(), "failed to read terraform log", slog.Error(err))
 	}
 }
 

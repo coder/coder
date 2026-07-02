@@ -3,13 +3,16 @@ package terraform
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/coder/coder/v2/testutil"
+
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/testutil"
 )
 
 type mockLogger struct {
@@ -215,4 +218,43 @@ func TestChecksumFileCRC32(t *testing.T) {
 		checksum := checksumFileCRC32(ctx, logger, "/nonexistent/file.hcl")
 		require.Zero(t, checksum)
 	})
+}
+
+func TestLogWriter_LargeLine(t *testing.T) {
+	t.Parallel()
+
+	logr := &mockLogger{}
+	writer, doneLogging := logWriter(logr, proto.LogLevel_INFO)
+
+	// Write a line that exceeds the default 64 KiB bufio.MaxScanTokenSize
+	largeLine := strings.Repeat("A", 128*1024)
+	_, err := writer.Write([]byte(largeLine + "\n"))
+	require.NoError(t, err)
+	err = writer.Close()
+	require.NoError(t, err)
+	<-doneLogging
+
+	require.Len(t, logr.logs, 1)
+	require.Equal(t, proto.LogLevel_INFO, logr.logs[0].Level)
+	require.Equal(t, largeLine, logr.logs[0].Output)
+}
+
+func TestResourceReplaceLogWriter_LargeLine(t *testing.T) {
+	t.Parallel()
+
+	logr := &mockLogger{}
+	logger := testutil.Logger(t)
+	writer, done := resourceReplaceLogWriter(logr, logger)
+
+	// Write a line that exceeds the default 64 KiB bufio.MaxScanTokenSize
+	largeLine := strings.Repeat("B", 128*1024)
+	_, err := writer.Write([]byte(largeLine + "\n"))
+	require.NoError(t, err)
+	err = writer.Close()
+	require.NoError(t, err)
+	<-done
+
+	require.Len(t, logr.logs, 1)
+	require.Equal(t, proto.LogLevel_INFO, logr.logs[0].Level)
+	require.Equal(t, largeLine, logr.logs[0].Output)
 }
