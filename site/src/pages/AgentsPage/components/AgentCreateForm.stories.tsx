@@ -61,7 +61,7 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,
@@ -546,6 +546,20 @@ export const MissingProviderAndModelSetup: Story = {
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
 			"/ai/settings/models",
+		);
+	},
+};
+
+export const AIGatewayDisabled: Story = {
+	args: {
+		...defaultArgs,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
 		);
 	},
 };

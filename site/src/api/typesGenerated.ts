@@ -335,6 +335,13 @@ export interface AIProviderBedrockSettings {
 	 * call, and the resulting temporary credentials sign Bedrock requests.
 	 */
 	readonly role_arn?: string;
+	/**
+	 * ExternalID is the STS external ID sent on the AssumeRole call when
+	 * RoleARN is set. The server generates and owns it: create and update
+	 * reject any client-supplied value that differs from the stored one (an
+	 * update may echo the stored value back).
+	 */
+	readonly external_id?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -1680,6 +1687,10 @@ export interface ChatComputerUseProviderResponse {
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
+	/**
+	 * @deprecated AI Gateway routing is now the only routing path. Setting this
+	 * value has no effect. This option will be removed in a future release.
+	 */
 	readonly ai_gateway_routing_enabled: boolean;
 }
 
@@ -2567,8 +2578,7 @@ export interface ChatModelCallConfig {
  */
 export interface ChatModelConfig {
 	readonly id: string;
-	readonly provider: string;
-	readonly ai_provider_id?: string;
+	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
@@ -3603,7 +3613,6 @@ export interface CreateChatMessageResponse {
  * CreateChatModelConfigRequest creates a chat model config.
  */
 export interface CreateChatModelConfigRequest {
-	readonly provider?: string;
 	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
@@ -9013,7 +9022,6 @@ export interface UpdateChatGoalsEnabledRequest {
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
-	readonly provider?: string;
 	readonly ai_provider_id?: string;
 	readonly model?: string;
 	readonly display_name?: string;

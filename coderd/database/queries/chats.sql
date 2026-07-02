@@ -2377,7 +2377,7 @@ WHERE
 SELECT
     cmc.id AS model_config_id,
     cmc.display_name,
-    cmc.provider,
+    COALESCE(ap.type::text, '')::text AS provider,
     cmc.model,
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
@@ -2398,13 +2398,15 @@ JOIN
     chats c ON c.id = cm.chat_id
 JOIN
     chat_model_configs cmc ON cmc.id = cm.model_config_id
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     c.owner_id = @owner_id::uuid
     AND cm.role = 'assistant'
     AND cm.created_at >= @start_date::timestamptz
     AND cm.created_at < @end_date::timestamptz
 GROUP BY
-    cmc.id, cmc.display_name, cmc.provider, cmc.model
+    cmc.id, cmc.display_name, ap.type, cmc.model
 ORDER BY
     total_cost_micros DESC;
 
@@ -2737,9 +2739,11 @@ GROUP BY cm.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many
 -- Returns all model configurations for telemetry snapshot collection.
-SELECT id, provider, model, context_limit, enabled, is_default
-FROM chat_model_configs
-WHERE deleted = false;
+-- deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+FROM chat_model_configs cmc
+JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+WHERE cmc.deleted = false;
 -- name: GetActiveChatsByAgentID :many
 SELECT *
 FROM chats_expanded

@@ -41,6 +41,7 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
+	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -54,6 +55,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
@@ -97,12 +99,11 @@ import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
-	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
-	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 	resolveModelOptionId,
+	resolveModelSelector,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
@@ -832,6 +833,7 @@ const AgentChatPage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const chatGoalsEnabledQuery = useQuery(chatGoalsEnabled());
@@ -863,9 +865,15 @@ const AgentChatPage: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(
+		chatModelConfigsQuery,
+		chatModelsQuery,
+		userProviderConfigsQuery,
 	);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const providerCount =
@@ -884,8 +892,6 @@ const AgentChatPage: FC = () => {
 	const unsupportedProviderNames = getUnsupportedProviderNames(
 		chatModelsQuery.data,
 	);
-	const modelCatalog = chatModelsQuery.data;
-	const isModelCatalogLoading = chatModelsQuery.isLoading;
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -1124,6 +1130,7 @@ const AgentChatPage: FC = () => {
 		void trackedSync.catch(() => undefined);
 	};
 
+	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const { store, clearStreamError, upsertCacheMessages } = useChatStore({
 		chatID: agentId,
 		chatMessages: chatMessagesList,
@@ -1132,6 +1139,7 @@ const AgentChatPage: FC = () => {
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
+		aiGatewayDisabled,
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
@@ -1205,7 +1213,6 @@ const AgentChatPage: FC = () => {
 		modelConfigs,
 	);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
@@ -1226,7 +1233,11 @@ const AgentChatPage: FC = () => {
 		isUpdateChatWorkspacePending ||
 		isUpdateChatGoalPending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+		!hasModelOptions ||
+		isArchived ||
+		isChatSettingsPending ||
+		isViewerNotOwner ||
+		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const canMutateGoal = areChatGoalsEnabled && isRootChat && !isViewerNotOwner;
 	const isGoalActionDisabled = isArchived || isViewerNotOwner;
@@ -1755,6 +1766,7 @@ const AgentChatPage: FC = () => {
 			providerCount={providerCount}
 			modelCount={modelCount}
 			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

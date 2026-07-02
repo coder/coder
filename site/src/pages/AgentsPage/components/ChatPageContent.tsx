@@ -179,6 +179,7 @@ interface ChatPageInputProps {
 	providerCount?: number;
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	showPursueGoal?: boolean;
@@ -251,6 +252,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	providerCount,
 	modelCount,
 	unsupportedProviderNames,
+	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
 	showPursueGoal = false,
@@ -525,6 +527,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			providerCount={providerCount}
 			modelCount={modelCount}
 			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
 		/>
 	);
 

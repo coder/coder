@@ -1952,7 +1952,6 @@ ALTER SEQUENCE chat_messages_id_seq OWNED BY chat_messages.id;
 
 CREATE TABLE chat_model_configs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    provider text NOT NULL,
     model text NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
     created_by uuid,
@@ -4676,10 +4675,6 @@ CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_i
 CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING btree (ai_provider_id);
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
-
-CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
-
-CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
 

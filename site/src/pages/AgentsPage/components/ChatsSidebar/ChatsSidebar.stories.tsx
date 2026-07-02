@@ -45,7 +45,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: "config-openai-gpt-4o",
-		provider: "openai",
+		ai_provider_id: "prov-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -91,6 +91,7 @@ const agentsRouting = [
 ];
 
 const settingsRouting = [
+	{ path: "/ai/settings/coder-agents", useStoryElement: true },
 	{ path: "/agents/settings/:section", useStoryElement: true },
 	{ path: "/agents/settings", useStoryElement: true },
 	...agentsRouting,
@@ -2308,33 +2309,13 @@ export const SettingsUserAgentsAdmin: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(
-			canvas.getByRole("link", { name: "Manage agents" }),
-		).toBeInTheDocument();
-	},
-};
-
-export const SettingsAdminCoderAgentsEntryPreserved: Story = {
-	args: {
-		chats: [],
-		isAdmin: true,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/coder-agents" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const coderAgentsLink = canvas.getByRole("link", {
-			name: "Coder Agents",
+		const manageAgentsLink = canvas.getByRole("link", {
+			name: "Manage agents",
 		});
-		expect(coderAgentsLink).toHaveAttribute(
+		expect(manageAgentsLink).toHaveAttribute(
 			"href",
 			"/ai/settings/coder-agents",
 		);
-		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
 	},
 };
 

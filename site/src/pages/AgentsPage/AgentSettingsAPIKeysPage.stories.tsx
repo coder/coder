@@ -24,7 +24,7 @@ const createProvider = (
 
 const createModel = (
 	overrides: Partial<ChatModelConfig> &
-		Pick<ChatModelConfig, "id" | "provider" | "model">,
+		Pick<ChatModelConfig, "id" | "ai_provider_id" | "model">,
 ): ChatModelConfig => ({
 	...MockChatModelConfig,
 	created_at: "2026-03-01T00:00:00.000Z",
@@ -40,7 +40,7 @@ const baseProvider = createProvider({
 
 const baseModel = createModel({
 	id: "model-1",
-	provider: "openai",
+	ai_provider_id: "prov-1",
 	display_name: "GPT-4o",
 	model: "gpt-4o",
 });
@@ -127,7 +127,7 @@ export const WithFallback: Story = {
 		models: [
 			createModel({
 				id: "model-1",
-				provider: "anthropic",
+				ai_provider_id: "prov-1",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
@@ -160,19 +160,19 @@ export const MultipleProviders: Story = {
 		models: [
 			createModel({
 				id: "model-openai-1",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				display_name: "GPT-4o",
 				model: "gpt-4o",
 			}),
 			createModel({
 				id: "model-anthropic-1",
-				provider: "anthropic",
+				ai_provider_id: "prov-anthropic",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
 			createModel({
 				id: "model-anthropic-2",
-				provider: "anthropic",
+				ai_provider_id: "prov-anthropic",
 				display_name: "Claude Opus 4",
 				model: "claude-opus-4-20250514",
 			}),
@@ -226,7 +226,7 @@ export const SavingSingleProvider: Story = {
 			...baseModels,
 			createModel({
 				id: "model-2",
-				provider: "anthropic",
+				ai_provider_id: "prov-2",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
@@ -330,19 +330,19 @@ export const ShowsProviderStatuses: Story = {
 		models: [
 			createModel({
 				id: "model-openai-1",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				display_name: "GPT-4o",
 				model: "gpt-4o",
 			}),
 			createModel({
 				id: "model-anthropic-1",
-				provider: "anthropic",
+				ai_provider_id: "prov-anthropic",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
 			createModel({
 				id: "model-google-1",
-				provider: "google",
+				ai_provider_id: "prov-google",
 				display_name: "Gemini 2.5 Pro",
 				model: "gemini-2.5-pro",
 			}),

@@ -193,4 +193,5 @@ message AIProviderKindBedrock {
   string model = 4;
   string small_fast_model = 5;
   string role_arn = 6;
+  string external_id = 7;
 }

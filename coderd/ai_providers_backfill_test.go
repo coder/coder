@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -193,112 +192,6 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, database.AIProviderTypeBedrock, goodRow.Type, "valid row alongside unparsable one must still be promoted")
 		})
-
-		// --- chat_model_configs.provider backfill ---
-		// These subtests rely on the DB already having type=bedrock providers
-		// from the provider backfill subtests above.
-
-		t.Run("FixesStaleModelConfigProvider", func(t *testing.T) {
-			// Simulate a model config created when the linked provider was still
-			// type=anthropic. The stored provider string is "anthropic" but the
-			// linked provider row now has type=bedrock.
-			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AIProviderTypeBedrock,
-				Settings: bedrockSettings,
-			})
-			staleConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Provider:     "anthropic",
-				AIProviderID: uuid.NullUUID{UUID: bedrockProvider.ID, Valid: true},
-			})
-
-			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
-
-			updated, err := db.GetChatModelConfigByID(ctx, staleConfig.ID)
-			require.NoError(t, err)
-			require.Equal(t, "bedrock", updated.Provider, "stale anthropic provider string must be fixed to bedrock")
-
-			// Second run must be a no-op: the same config must still be "bedrock".
-			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
-
-			updated, err = db.GetChatModelConfigByID(ctx, staleConfig.ID)
-			require.NoError(t, err)
-			require.Equal(t, "bedrock", updated.Provider, "provider must remain bedrock after second run")
-		})
-
-		t.Run("ModelConfigIdempotent", func(t *testing.T) {
-			before, err := db.GetChatModelConfigs(ctx)
-			require.NoError(t, err)
-
-			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
-
-			after, err := db.GetChatModelConfigs(ctx)
-			require.NoError(t, err)
-			require.Equal(t, len(before), len(after), "second run must not create or delete rows")
-		})
-
-		t.Run("PreservesNonAnthropicModelConfig", func(t *testing.T) {
-			// A model config with provider="openai" linked to a Bedrock provider
-			// must not be touched. Only "anthropic" → "bedrock" is in scope.
-			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AIProviderTypeBedrock,
-				Settings: bedrockSettings,
-			})
-			openAIConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Provider:     "openai",
-				AIProviderID: uuid.NullUUID{UUID: bedrockProvider.ID, Valid: true},
-			})
-
-			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
-
-			row, err := db.GetChatModelConfigByID(ctx, openAIConfig.ID)
-			require.NoError(t, err)
-			require.Equal(t, "openai", row.Provider, "non-anthropic provider string must not be changed")
-		})
-
-		t.Run("SkipsModelConfigWithDeletedProvider", func(t *testing.T) {
-			// Verifies the EXISTS subquery excludes soft-deleted providers.
-			// The model config provider string must stay "anthropic" because
-			// the linked provider is deleted and therefore excluded by the
-			// AND deleted = FALSE condition in the query.
-			deletedProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AIProviderTypeBedrock,
-				Settings: bedrockSettings,
-			})
-			staleConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Provider:     "anthropic",
-				AIProviderID: uuid.NullUUID{UUID: deletedProvider.ID, Valid: true},
-			})
-			require.NoError(t, db.DeleteAIProviderByID(ctx, deletedProvider.ID))
-
-			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
-
-			row, err := db.GetChatModelConfigByID(ctx, staleConfig.ID)
-			require.NoError(t, err)
-			require.Equal(t, "anthropic", row.Provider, "config linked to deleted provider must not be updated")
-		})
-
-		t.Run("SkipsDeletedModelConfig", func(t *testing.T) {
-			// The SQL query guards on deleted = FALSE. Capture the config ID
-			// before deletion so we delete the right row regardless of ordering.
-			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AIProviderTypeBedrock,
-				Settings: bedrockSettings,
-			})
-			cfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-				Provider:     "anthropic",
-				AIProviderID: uuid.NullUUID{UUID: bedrockProvider.ID, Valid: true},
-			})
-
-			before, err := db.GetChatModelConfigs(ctx)
-			require.NoError(t, err)
-			require.NoError(t, db.DeleteChatModelConfigByID(ctx, cfg.ID))
-
-			coderd.BackfillChatModelConfigProviderStrings(ctx, db, logger)
-
-			after, err := db.GetChatModelConfigs(ctx)
-			require.NoError(t, err)
-			require.Equal(t, len(before)-1, len(after), "deleted config must not reappear after backfill")
-		})
 	})
 
 	t.Run("ListFailure", func(t *testing.T) {
@@ -351,18 +244,5 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 
 		// ErrNoRows is benign: provider was deleted between list and update.
 		coderd.BackfillBedrockProviderType(ctx, db, testLogger(t))
-	})
-
-	t.Run("ModelConfigQueryFailure", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-
-		db.EXPECT().
-			BackfillChatModelConfigProvider(gomock.Any(), gomock.Any()).
-			Return(nil, sql.ErrConnDone)
-
-		coderd.BackfillChatModelConfigProviderStrings(ctx, db, testLogger(t))
 	})
 }

@@ -207,6 +207,61 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	require.Equal(t, bedrockSessionName, gotSessionName)
 }
 
+// TestBuildBedrockCredentialsAssumeRoleExternalID verifies that a configured
+// external ID is sent on the STS AssumeRole call, and that omitting it sends
+// no ExternalId parameter.
+// NOTE: no t.Parallel() because it uses t.Setenv.
+func TestBuildBedrockCredentialsAssumeRoleExternalID(t *testing.T) {
+	tests := []struct {
+		name           string
+		externalID     string
+		wantExternalID string
+	}{
+		{name: "with external id", externalID: "trust-policy-id-123", wantExternalID: "trust-policy-id-123"},
+		{name: "without external id", externalID: "", wantExternalID: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotExternalID string
+			// Mock the AWS STS AssumeRole API.
+			// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+			sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.NoError(t, r.ParseForm())
+				gotExternalID = r.Form.Get("ExternalId")
+
+				w.Header().Set("Content-Type", "text/xml")
+				_, _ = w.Write([]byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASIAASSUMED</AccessKeyId>
+      <SecretAccessKey>assumed-secret</SecretAccessKey>
+      <SessionToken>assumed-token</SessionToken>
+      <Expiration>2999-01-01T00:00:00Z</Expiration>
+    </Credentials>
+  </AssumeRoleResult>
+</AssumeRoleResponse>`))
+			}))
+			defer sts.Close()
+
+			t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
+			t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
+			t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
+
+			creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+				Region:     "us-east-1",
+				RoleARN:    "arn:aws:iam::123456789012:role/target",
+				ExternalID: tt.externalID,
+			})
+			require.NoError(t, err)
+
+			_, err = creds.Retrieve(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, tt.wantExternalID, gotExternalID)
+		})
+	}
+}
+
 // TestBuildBedrockCredentialsAssumeRoleError verifies that when STS rejects the
 // AssumeRole call (e.g. a trust-policy or IAM denial), the failure surfaces to
 // the caller on Retrieve with enough detail to diagnose it, rather than being

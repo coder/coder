@@ -1326,8 +1326,7 @@ type CreateUserChatProviderKeyRequest struct {
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	Provider             string               `json:"provider"`
-	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
+	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
@@ -1538,7 +1537,6 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string               `json:"provider,omitempty"`
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -1551,7 +1549,6 @@ type CreateChatModelConfigRequest struct {
 
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
-	Provider             string               `json:"provider,omitempty"`
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`

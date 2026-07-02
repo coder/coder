@@ -714,6 +714,7 @@ func New(options *Options) *API {
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
+		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -825,37 +826,38 @@ func New(options *Options) *API {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
-		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
-			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
-
-		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
-			Logger:                         options.Logger.Named("chatd"),
-			Database:                       options.Database,
-			ReplicaID:                      api.ID,
-			StreamPartsDialer:              options.ChatStreamPartsDialer,
-			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                providerAPIKeys,
-			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			AllowBYOKSet:                   true,
-			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
-			AIGatewayRoutingEnabled:        chatAIGatewayRoutingEnabled,
-			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-			Experiments:                    experiments,
-			AgentConn:                      api.agentProvider.AgentConn,
-			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
-			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
-			CreateWorkspace:                api.chatCreateWorkspace,
-			StartWorkspace:                 api.chatStartWorkspace,
-			StopWorkspace:                  api.chatStopWorkspace,
-			WebpushDispatcher:              options.WebPushDispatcher,
-			UsageTracker:                   options.WorkspaceUsageTracker,
-			PrometheusRegistry:             options.PrometheusRegistry,
-			OIDCTokenSource:                oidcMCPSrc,
-			NotificationsEnqueuer:          options.NotificationsEnqueuer,
-			Auditor:                        &api.Auditor,
-		})
-		if !options.ChatWorkerDisabled {
-			api.chatDaemon.Start()
+		// AI Gateway is mandatory for chat. When the bridge is disabled
+		// the chat daemon stays nil and chat HTTP handlers return a
+		// service-unavailable error with a clear remediation message.
+		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+				Logger:                         options.Logger.Named("chatd"),
+				Database:                       options.Database,
+				ReplicaID:                      api.ID,
+				StreamPartsDialer:              options.ChatStreamPartsDialer,
+				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+				ProviderAPIKeys:                providerAPIKeys,
+				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+				AllowBYOKSet:                   true,
+				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				Experiments:                    experiments,
+				AgentConn:                      api.agentProvider.AgentConn,
+				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+				CreateWorkspace:                api.chatCreateWorkspace,
+				StartWorkspace:                 api.chatStartWorkspace,
+				StopWorkspace:                  api.chatStopWorkspace,
+				WebpushDispatcher:              options.WebPushDispatcher,
+				UsageTracker:                   options.WorkspaceUsageTracker,
+				PrometheusRegistry:             options.PrometheusRegistry,
+				OIDCTokenSource:                oidcMCPSrc,
+				NotificationsEnqueuer:          options.NotificationsEnqueuer,
+				Auditor:                        &api.Auditor,
+			})
+			if !options.ChatWorkerDisabled {
+				api.chatDaemon.Start()
+			}
 		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
@@ -864,9 +866,10 @@ func New(options *Options) *API {
 			gitSyncLogger.Named("refresher"),
 			quartz.NewReal(),
 		)
+		publishDiffStatusChange := chatDaemonPublishDiffStatusChangeFunc(api.chatDaemon)
 		api.gitSyncWorker = gitsync.NewWorker(options.Database,
 			refresher,
-			api.chatDaemon.PublishDiffStatusChange,
+			publishDiffStatusChange,
 			quartz.NewReal(),
 			gitSyncLogger,
 		)
@@ -2316,6 +2319,23 @@ type API struct {
 	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
 }
 
+// chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
+// PublishDiffStatusChange method bound as a gitsync.PublishDiffStatusChangeFunc,
+// or a true nil func value when chatDaemon is nil (AI Gateway disabled).
+//
+// This must not be inlined as chatDaemon.PublishDiffStatusChange: a method
+// value on a nil pointer receiver is itself non-nil (it captures the
+// receiver, it doesn't call the method), so gitsync.Worker's own "if
+// publishDiffStatusChangeFn != nil" check would not catch a nil chatDaemon,
+// and invoking the returned func would panic dereferencing the nil
+// receiver.
+func chatDaemonPublishDiffStatusChangeFunc(chatDaemon *chatd.Server) gitsync.PublishDiffStatusChangeFunc {
+	if chatDaemon == nil {
+		return nil
+	}
+	return chatDaemon.PublishDiffStatusChange
+}
+
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	select {
@@ -2350,8 +2370,10 @@ func (api *API) Close() error {
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
 	}
-	if err := api.chatDaemon.Close(); err != nil {
-		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+	if api.chatDaemon != nil {
+		if err := api.chatDaemon.Close(); err != nil {
+			api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+		}
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {

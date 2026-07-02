@@ -5039,7 +5039,6 @@ type ChatMessage struct {
 
 type ChatModelConfig struct {
 	ID                   uuid.UUID       `db:"id" json:"id"`
-	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`

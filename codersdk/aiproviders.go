@@ -275,6 +275,12 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		if req.Settings.Bedrock.ExternalID != "" {
+			validations = append(validations, ValidationError{
+				Field:  "settings.external_id",
+				Detail: "external_id is server-generated and cannot be set",
+			})
+		}
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{

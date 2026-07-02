@@ -113,7 +113,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:    "openai",
 			Model:       "gpt-4o-mini",
 			DisplayName: "gpt-4o-mini",
 			Options:     json.RawMessage(`{}`),
@@ -143,7 +142,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server := newInternalTestServer(
+			t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		)
 		return server, created.Chat
 	}
 
@@ -193,7 +195,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.NotNil(t, result.StatusLabelModel)
 		require.Equal(t, "openai", result.FallbackProvider)
 		require.Equal(t, "gpt-4o-mini", result.FallbackModel)
-		require.False(t, result.ProviderKeys.Empty())
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
@@ -233,7 +234,6 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		// degraded path that still returns the re-derived text and IDs.
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "openai",
 			Model:        "gpt-4o-mini",
 			DisplayName:  "gpt-4o-mini",
 			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},

@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -178,6 +179,9 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Generate the server-owned external ID when the provider assumes a role.
+	ensureBedrockExternalID(&req.Settings)
+
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
 		api.Logger.Error(ctx, "encode AI provider settings", slog.Error(err))
@@ -318,6 +322,9 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("decode existing settings: %w", err)
 		}
 		if req.Settings != nil {
+			if err := validateBedrockExternalIDUnchanged(existing, *req.Settings); err != nil {
+				return err
+			}
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
 		// Bedrock settings are only meaningful for anthropic- or
@@ -329,6 +336,9 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		// Generate the server-owned external ID when the provider assumes a role
+		// and lacks one.
+		ensureBedrockExternalID(&existing)
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -397,6 +407,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderExternalIDReadOnly) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The Bedrock external ID is server-generated and cannot be changed.",
 		})
 		return
 	}
@@ -505,6 +521,12 @@ var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_
 // Bedrock block but the provider is not anthropic- or bedrock-typed;
 // the outer handler translates it into a 400.
 var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
+
+// errAIProviderExternalIDReadOnly is the sentinel returned from inside
+// the update transaction when a patch tries to change the server-owned
+// Bedrock external ID; the outer handler translates it into a 400. A
+// patch may echo the stored value but not set a different one.
+var errAIProviderExternalIDReadOnly = xerrors.New("external_id is server-generated and cannot be changed")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.
@@ -772,6 +794,39 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 		if merged.AccessKeySecret == nil {
 			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
 		}
+		// The external ID is server-owned and stable: carry the stored value
+		// forward so a patch can't change it. A patch that sets a different
+		// value is rejected upstream.
+		merged.ExternalID = existing.Bedrock.ExternalID
 	}
 	return codersdk.AIProviderSettings{Bedrock: &merged}
+}
+
+// validateBedrockExternalIDUnchanged rejects a patch that sets a Bedrock
+// external ID different from the stored one. A patch may echo the stored
+// value (read-modify-write resends it) but not change it; the value is
+// server-owned.
+func validateBedrockExternalIDUnchanged(existing, patch codersdk.AIProviderSettings) error {
+	stored := ""
+	if existing.Bedrock != nil {
+		stored = existing.Bedrock.ExternalID
+	}
+
+	provided := ""
+	if patch.Bedrock != nil {
+		provided = patch.Bedrock.ExternalID
+	}
+
+	if provided != "" && provided != stored {
+		return errAIProviderExternalIDReadOnly
+	}
+	return nil
+}
+
+// ensureBedrockExternalID assigns a server-owned STS external ID when the
+// Bedrock provider assumes a role and none is set yet.
+func ensureBedrockExternalID(s *codersdk.AIProviderSettings) {
+	if s.Bedrock != nil && s.Bedrock.RoleARN != "" && s.Bedrock.ExternalID == "" {
+		s.Bedrock.ExternalID = rand.Text()
+	}
 }
