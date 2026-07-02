@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -356,6 +357,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			OIDCConfig:          api.OIDCConfig,
 			AISeatTracker:       api.AGPL.AISeatTracker,
 			Clock:               api.Clock,
+			KeyID:               authRes.keyID,
+			SessionCancel:       srvCancel,
 		},
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,
@@ -389,7 +392,37 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		rl.WriteLog(ctx, http.StatusAccepted)
 	}
 
-	err = server.Serve(ctx, session)
+	if codersdk.IsDeletableProvisionerKey(authRes.keyID) {
+		closeSubscribe, err := api.Pubsub.Subscribe(
+			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),
+			func(_ context.Context, _ []byte) {
+				logger.Info(ctx, "provisioner key deleted, canceling session",
+					slog.F("provisioner_key_id", authRes.keyID))
+				srvCancel()
+			},
+		)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("subscribe to provisioner key deletion: %s", err))
+			return
+		}
+		defer closeSubscribe()
+
+		// Postgres LISTEN/NOTIFY does not deliver notifications published before
+		// registration, so re-check after subscribing.
+		_, err = api.Database.GetProvisionerKeyByID(authCtx, authRes.keyID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			logger.Info(ctx, "provisioner key no longer exists, closing connection",
+				slog.F("provisioner_key_id", authRes.keyID))
+			_ = conn.Close(websocket.StatusGoingAway, "provisioner key deleted")
+			return
+		}
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("check provisioner key: %s", err))
+			return
+		}
+	}
+
+	err = server.Serve(srvCtx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {

@@ -79,6 +79,13 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	AISeatTracker       aiseats.SeatTracker
 
+	// KeyID is the provisioner key the daemon authenticated with, or the
+	// zero value if it did not authenticate with a key.
+	KeyID uuid.UUID
+
+	// SessionCancel, if set, terminates the daemon's session.
+	SessionCancel context.CancelFunc
+
 	// Clock for testing
 	Clock quartz.Clock
 
@@ -104,6 +111,8 @@ type server struct {
 	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
+	KeyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
@@ -141,6 +150,10 @@ type server struct {
 // it cannot be used in the tag keys or values.
 
 var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+
+// ErrProvisionerKeyDeleted is returned from job acquisition when the
+// provisioner key the daemon authenticated with no longer exists.
+var ErrProvisionerKeyDeleted = xerrors.New("provisioner key was deleted")
 
 type Tags map[string]string
 
@@ -236,6 +249,8 @@ func NewServer(
 		apiVersion:                  apiVersion,
 		AccessURL:                   accessURL,
 		ID:                          id,
+		KeyID:                       options.KeyID,
+		sessionCancel:               options.SessionCancel,
 		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
@@ -328,12 +343,46 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 	})
 }
 
+// keyDeleted reports whether the provisioner key no longer exists.
+func (s *server) keyDeleted(ctx context.Context) (bool, error) {
+	if !codersdk.IsDeletableProvisionerKey(s.KeyID) {
+		return false, nil
+	}
+	_, err := s.Database.GetProvisionerKeyByID(
+		//nolint:gocritic // The provisionerd actor cannot read provisioner keys,
+		// so use system restricted to look up the key.
+		dbauthz.AsSystemRestricted(ctx), s.KeyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
+	}
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner key: %w", err)
+	}
+	return false, nil
+}
+
+// terminateOnDeletedKey cancels the session, when a cancel is configured, so
+// the daemon stops after its key is deleted.
+func (s *server) terminateOnDeletedKey() {
+	if s.sessionCancel != nil {
+		s.sessionCancel()
+	}
+}
+
 // AcquireJob queries the database to lock a job.
 //
 // Deprecated: This method is only available for back-level provisioner daemons.
 func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
+	if deleted, err := s.keyDeleted(ctx); err != nil {
+		return nil, xerrors.Errorf("acquire job: check provisioner key: %w", err)
+	} else if deleted {
+		s.Logger.Warn(ctx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.terminateOnDeletedKey()
+		return nil, xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
+	}
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
 	// provisioner daemons to gracefully shut down within a few seconds, but keeps them from rapidly polling the
 	// database.
@@ -367,6 +416,14 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 			retErr = closeErr
 		}
 	}()
+	if deleted, err := s.keyDeleted(streamCtx); err != nil {
+		return xerrors.Errorf("acquire job: check provisioner key: %w", err)
+	} else if deleted {
+		s.Logger.Warn(streamCtx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
+		s.terminateOnDeletedKey()
+		return xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
+	}
 	acqCtx, acqCancel := context.WithCancel(streamCtx)
 	defer acqCancel()
 	recvCh := make(chan error, 1)
