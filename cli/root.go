@@ -605,9 +605,7 @@ func (r *RootCmd) SetClock(clk quartz.Clock) {
 // wasn't provided via --url or CODER_URL.
 func (r *RootCmd) ensureClientURL() error {
 	u, err := r.resolveClientURL()
-	if err == nil {
-		r.clientURL = u
-	}
+
 	if errors.Is(err, ErrClientURLNotConfigured) {
 		binPath, execErr := os.Executable()
 		if execErr != nil {
@@ -615,7 +613,13 @@ func (r *RootCmd) ensureClientURL() error {
 		}
 		return xerrors.Errorf(notLoggedInMessage, binPath)
 	}
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	r.clientURL = u
+	return nil
 }
 
 func (r *RootCmd) resolveClientURL() (*url.URL, error) {

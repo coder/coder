@@ -108,9 +108,8 @@ connectLoop:
 			// If something is wrong with configuration, stop trying to connect.
 			if errors.As(err, &sdkErr) {
 				switch sdkErr.StatusCode() {
-				// These statuses are returned by the /api/v2/ai-gateway/serve
-				// (wrong Gateway key or incompatible API versions)
-				// or FeatureAIBridge check the WebSocket upgrade.
+				// These statuses are returned by the /api/v2/ai-gateway/serve (wrong Gateway key or incompatible API versions)
+				// or FeatureAIBridge check.
 				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
 					err = xerrors.Errorf("dial coderd: %w", err)
 					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd", slog.Error(err))

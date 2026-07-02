@@ -201,27 +201,27 @@ func TestResolveClientConnection(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			var configure func(config.Root)
-			if tt.configure != nil {
+			if tc.configure != nil {
 				configure = func(cfg config.Root) {
-					tt.configure(t, cfg)
+					tc.configure(t, cfg)
 				}
 			}
 
-			serverURL, transport, err := run(t, configure, tt.args...)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
+			serverURL, transport, err := run(t, configure, tc.args...)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, tt.wantURL, serverURL)
-			require.Equal(t, tt.wantTransport, transport != nil)
-			if tt.checkTransport != nil {
-				tt.checkTransport(t, transport)
+			require.Equal(t, tc.wantURL, serverURL)
+			require.Equal(t, tc.wantTransport, transport != nil)
+			if tc.checkTransport != nil {
+				tc.checkTransport(t, transport)
 			}
 		})
 	}
