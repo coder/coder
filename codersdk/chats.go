@@ -107,26 +107,30 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID       `json:"id" format:"uuid"`
-	OrganizationID    uuid.UUID       `json:"organization_id" format:"uuid"`
-	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
-	OwnerUsername     string          `json:"owner_username,omitempty"`
-	OwnerName         string          `json:"owner_name,omitempty"`
-	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
-	Title             string          `json:"title"`
-	Status            ChatStatus      `json:"status"`
-	PlanMode          ChatPlanMode    `json:"plan_mode,omitempty"`
-	LastError         *ChatError      `json:"last_error,omitempty"`
-	LastTurnSummary   *string         `json:"last_turn_summary"`
-	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
-	Archived          bool            `json:"archived"`
+	ID                uuid.UUID  `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
+	OwnerID           uuid.UUID  `json:"owner_id" format:"uuid"`
+	OwnerUsername     string     `json:"owner_username,omitempty"`
+	OwnerName         string     `json:"owner_name,omitempty"`
+	WorkspaceID       *uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID  `json:"last_model_config_id" format:"uuid"`
+	// LastReasoningEffort is the reasoning effort carried by the most
+	// recent message that set one. Used to initialize the effort
+	// selector for subsequent turns.
+	LastReasoningEffort *string         `json:"last_reasoning_effort,omitempty"`
+	Title               string          `json:"title"`
+	Status              ChatStatus      `json:"status"`
+	PlanMode            ChatPlanMode    `json:"plan_mode,omitempty"`
+	LastError           *ChatError      `json:"last_error,omitempty"`
+	LastTurnSummary     *string         `json:"last_turn_summary"`
+	DiffStatus          *ChatDiffStatus `json:"diff_status,omitempty"`
+	CreatedAt           time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
+	Archived            bool            `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -548,13 +552,18 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
-	Content        []ChatInputPart   `json:"content"`
-	SystemPrompt   string            `json:"system_prompt,omitempty"`
-	WorkspaceID    *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels         map[string]string `json:"labels,omitempty"`
+	OrganizationID uuid.UUID       `json:"organization_id" format:"uuid"`
+	Content        []ChatInputPart `json:"content"`
+	SystemPrompt   string          `json:"system_prompt,omitempty"`
+	WorkspaceID    *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID  *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	// ReasoningEffort is the user-selected reasoning effort for the
+	// first turn. Clamped to the model config's max effort at
+	// generation time. Ignored when the model config has no
+	// reasoning effort configured.
+	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
+	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels          map[string]string `json:"labels,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -616,6 +625,11 @@ type CreateChatMessageRequest struct {
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	// ReasoningEffort is the user-selected reasoning effort for the
+	// turn triggered by this message. Clamped to the model config's
+	// max effort at generation time. Ignored when the model config
+	// has no reasoning effort configured.
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
@@ -625,6 +639,10 @@ type EditChatMessageRequest struct {
 	// replacement user message and the assistant turn that follows.
 	// When nil the original message's model is preserved.
 	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// ReasoningEffort, when set, overrides the reasoning effort for
+	// the replacement user message. When nil the original message's
+	// reasoning effort is preserved.
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.

@@ -827,7 +827,9 @@ The generation goroutine supports:
 
 ##### Reasoning effort
 
-Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. During generation preparation, the effective effort is resolved from the config's `default`, clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`, then snapped into the provider's supported subset (the largest supported value not exceeding it, or the provider minimum when below it). The resolved value is injected into the provider-native options (`chatprovider.ProviderOptionsFromChatModelConfig`).
+Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` (and `chat_queued_messages.reasoning_effort` for queued messages, which carry it through promotion), and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
+
+During generation preparation, the effective effort is resolved as: the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; then snapped into the provider's supported subset (the largest supported value not exceeding it, or the provider minimum when below it). If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options (`chatprovider.ProviderOptionsFromChatModelConfig`).
 
 #### Interrupt goroutine
 

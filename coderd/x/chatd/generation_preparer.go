@@ -533,12 +533,17 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	// Model-config reasoning effort defaults are clamped to the
-	// provider's supported range. Nil when the model config has no
+	// Per-turn reasoning effort: the last user-selected effort wins
+	// over the model config's default, clamped to the config's max and
+	// the provider's supported range. Nil when the model config has no
 	// reasoning effort configured.
+	var requestedEffort *string
+	if chat.LastReasoningEffort.Valid {
+		requestedEffort = &chat.LastReasoningEffort.String
+	}
 	reasoningEffort := chatprovider.ResolveReasoningEffort(
 		resolvedProvider,
-		nil,
+		requestedEffort,
 		callConfig.ReasoningEffort,
 	)
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions, reasoningEffort)

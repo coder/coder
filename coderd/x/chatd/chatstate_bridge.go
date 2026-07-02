@@ -29,15 +29,20 @@ func systemMessage(rawContent pqtype.NullRawMessage, modelConfigID uuid.UUID) ch
 	}
 }
 
-func userMessageWithAPIKeyID(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid.UUID, apiKeyID string) chatstate.Message {
+func userMessageWithAPIKeyID(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid.UUID, apiKeyID string, reasoningEffort *string) chatstate.Message {
+	var effort sql.NullString
+	if reasoningEffort != nil && *reasoningEffort != "" {
+		effort = sql.NullString{String: *reasoningEffort, Valid: true}
+	}
 	return chatstate.Message{
-		Role:           database.ChatMessageRoleUser,
-		Content:        rawContent,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
-		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
-		ContentVersion: chatprompt.CurrentContentVersion,
-		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
+		Role:            database.ChatMessageRoleUser,
+		Content:         rawContent,
+		Visibility:      database.ChatMessageVisibilityBoth,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
+		ReasoningEffort: effort,
+		CreatedBy:       uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		APIKeyID:        sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 

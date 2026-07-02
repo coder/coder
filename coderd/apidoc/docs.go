@@ -16680,6 +16680,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_reasoning_effort": {
+                    "description": "LastReasoningEffort is the reasoning effort carried by the most\nrecent message that set one. Used to initialize the effort\nselector for subsequent turns.",
+                    "type": "string"
+                },
                 "last_turn_summary": {
                     "type": "string"
                 },
@@ -18155,6 +18159,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "reasoning_effort": {
+                    "description": "ReasoningEffort is the user-selected reasoning effort for the\nturn triggered by this message. Clamped to the model config's\nmax effort at generation time. Ignored when the model config\nhas no reasoning effort configured.",
+                    "type": "string"
                 }
             }
         },
@@ -18213,6 +18221,10 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "reasoning_effort": {
+                    "description": "ReasoningEffort is the user-selected reasoning effort for the\nfirst turn. Clamped to the model config's max effort at\ngeneration time. Ignored when the model config has no\nreasoning effort configured.",
+                    "type": "string"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -19539,6 +19551,10 @@ const docTemplate = `{
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "description": "ReasoningEffort, when set, overrides the reasoning effort for\nthe replacement user message. When nil the original message's\nreasoning effort is preserved.",
+                    "type": "string"
                 }
             }
         },

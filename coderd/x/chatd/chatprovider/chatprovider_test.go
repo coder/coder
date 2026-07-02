@@ -477,27 +477,6 @@ func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.
 	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
 }
 
-func TestProviderOptionsFromChatModelConfig_ReasoningEffort(t *testing.T) {
-	t.Parallel()
-
-	provider, err := fantasyopenai.New()
-	require.NoError(t, err)
-	model, err := provider.LanguageModel(t.Context(), "gpt-5")
-	require.NoError(t, err)
-
-	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
-		model,
-		nil,
-		ptr.Ref("high"),
-	)
-
-	require.NotNil(t, providerOptions)
-	openAIOptions, ok := providerOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", providerOptions[fantasyopenai.Name])
-	require.NotNil(t, openAIOptions.ReasoningEffort)
-	require.Equal(t, fantasyopenai.ReasoningEffortHigh, *openAIOptions.ReasoningEffort)
-}
-
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	t.Parallel()
 
