@@ -1193,6 +1193,19 @@ type OIDCConfig struct {
 	// check. Used for IdP brokers that do not issue a stable `sub` for the
 	// same user across connections.
 	EmailFallback bool
+	// RedirectAllowedHosts, when non-empty, enables dynamic redirect_uri
+	// construction from the request Host header. The request Host must match
+	// (case-insensitive, ignoring port) one of the hostnames in this list,
+	// otherwise the OIDC flow is rejected.
+	RedirectAllowedHosts []string
+	// RedirectDefaultScheme is the scheme to use in the dynamically built
+	// redirect_uri. It is populated from the configured AccessURL (or
+	// OIDC.RedirectURL if explicitly overridden) so that the dynamic path
+	// uses the same scheme as the static path. It takes precedence over
+	// X-Forwarded-Proto because some reverse proxies report the inner-hop
+	// scheme (e.g. "http") rather than the original client-facing scheme,
+	// which would produce a redirect_uri the IdP rejects.
+	RedirectDefaultScheme string
 }
 
 // PKCESupported is to prevent nil pointer dereference.
