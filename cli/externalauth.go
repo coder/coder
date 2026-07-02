@@ -26,7 +26,10 @@ func externalAuth() *serpent.Command {
 }
 
 func externalAuthAccessToken() *serpent.Command {
-	var extra string
+	var (
+		extra        string
+		outputFormat string
+	)
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "access-token <provider>",
@@ -51,16 +54,29 @@ fi
 				Description: "Obtain an extra property of an access token for additional metadata.",
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
+			Example{
+				Description: "Print the full token response as JSON, including expiry.",
+				Command:     "coder external-auth access-token github --output json",
+			},
 		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
-		Options: serpent.OptionSet{{
-			Name:        "Extra",
-			Flag:        "extra",
-			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
-			Value:       serpent.StringOf(&extra),
-		}},
+		Options: serpent.OptionSet{
+			{
+				Name:        "Extra",
+				Flag:        "extra",
+				Description: "Extract a field from the \"extra\" properties of the OAuth token.",
+				Value:       serpent.StringOf(&extra),
+			},
+			{
+				Name:        "Output",
+				Flag:        "output",
+				Description: "Output format. Available formats: text, json.",
+				Value:       serpent.EnumOf(&outputFormat, "text", "json"),
+				Default:     "text",
+			},
+		},
 
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -79,6 +95,22 @@ fi
 			if err != nil {
 				return xerrors.Errorf("get external auth token: %w", err)
 			}
+
+			if outputFormat == "json" {
+				data, err := json.MarshalIndent(extAuth, "", "  ")
+				if err != nil {
+					return xerrors.Errorf("marshal external auth response: %w", err)
+				}
+				_, err = inv.Stdout.Write(data)
+				if err != nil {
+					return err
+				}
+				if extAuth.URL != "" {
+					return cliui.ErrCanceled
+				}
+				return nil
+			}
+
 			if extAuth.URL != "" {
 				_, err = inv.Stdout.Write([]byte(extAuth.URL))
 				if err != nil {

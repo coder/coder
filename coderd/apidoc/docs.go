@@ -14631,6 +14631,10 @@ const docTemplate = `{
                 "access_token": {
                     "type": "string"
                 },
+                "expires_at": {
+                    "description": "ExpiresAt is the time the token expires. Zero value means no expiry.",
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },

@@ -55,6 +55,7 @@
 ```json
 {
   "access_token": "string",
+  "expires_at": "string",
   "password": "string",
   "token_extra": {},
   "type": "string",
@@ -68,6 +69,7 @@
 | Name           | Type   | Required | Restrictions | Description                                                                              |
 |----------------|--------|----------|--------------|------------------------------------------------------------------------------------------|
 | `access_token` | string | false    |              |                                                                                          |
+| `expires_at`   | string | false    |              | Expires at is the time the token expires. Zero value means no expiry.                    |
 | `password`     | string | false    |              |                                                                                          |
 | `token_extra`  | object | false    |              |                                                                                          |
 | `type`         | string | false    |              |                                                                                          |
