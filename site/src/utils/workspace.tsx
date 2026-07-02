@@ -254,15 +254,27 @@ export const findWorkspaceAgent = (
 	return getWorkspaceAgents(workspace).find((agent) => agent.id === agentId);
 };
 
+// Returns the first root agent (an agent without a parent). Sub-agents,
+// such as dev container agents, have a parent_id set and are skipped so
+// that default agent selection targets a usable root agent. Falls back to
+// the first agent if no root agent exists.
+export const getFirstRootAgent = (
+	workspace: TypesGen.Workspace,
+): TypesGen.WorkspaceAgent | undefined => {
+	const agents = getWorkspaceAgents(workspace);
+	return agents.find((agent) => !agent.parent_id) ?? agents[0];
+};
+
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	const agents = getWorkspaceAgents(workspace);
 	if (!agentName) {
-		return agents[0];
+		return getFirstRootAgent(workspace);
 	}
-	return agents.find((agent) => agent.name === agentName);
+	return getWorkspaceAgents(workspace).find(
+		(agent) => agent.name === agentName,
+	);
 };
 
 export const mustUpdateWorkspace = (

@@ -385,6 +385,111 @@ func TestWatchChatGit(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
+	t.Run("RootAgentPreferredOverSubAgent", func(t *testing.T) {
+		t.Parallel()
+
+		// This test ensures that the handler selects a root agent
+		// even when the database returns a dev container sub-agent
+		// (parent_id set) first. Selection is asserted via the
+		// coordinator Node call, which receives the chosen agent's
+		// ID.
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitShort)
+			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+
+			mCtrl        = gomock.NewController(t)
+			mDB          = dbmock.NewMockStore(mCtrl)
+			mCoordinator = tailnettest.NewMockCoordinator(mCtrl)
+
+			chatID      = uuid.New()
+			workspaceID = uuid.New()
+			subAgentID  = uuid.New()
+			rootAgentID = uuid.New()
+			resourceID  = uuid.New()
+
+			r = chi.NewMux()
+
+			api = API{
+				ctx: ctx,
+				Options: &Options{
+					AgentInactiveDisconnectTimeout: testutil.WaitShort,
+					Database:                       mDB,
+					Logger:                         logger,
+					DeploymentValues:               &codersdk.DeploymentValues{},
+					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
+				},
+				HTTPAuth: &HTTPAuthorizer{
+					Authorizer: &mockAuthorizer{},
+					Logger:     logger,
+				},
+			}
+		)
+
+		var tailnetCoordinator tailnet.Coordinator = mCoordinator
+		api.TailnetCoordinator.Store(&tailnetCoordinator)
+
+		// Setup: Return a chat with a valid workspace ID.
+		mDB.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{
+			ID:          chatID,
+			OwnerID:     uuid.New(),
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+
+		// And: Return the workspace so the handler's
+		// workspace-level authz check can run.
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{
+			ID: workspaceID,
+		}, nil)
+
+		// And: Return a sub-agent first so a naive agents[0]
+		// selection would pick it, followed by the root agent.
+		// Both are disconnected so the handler stops after the
+		// agent state check.
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+			Return([]database.WorkspaceAgent{
+				{
+					ID:             subAgentID,
+					ParentID:       uuid.NullUUID{UUID: rootAgentID, Valid: true},
+					Name:           "dev-container",
+					ResourceID:     resourceID,
+					LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
+				},
+				{
+					ID:             rootAgentID,
+					Name:           "main",
+					ResourceID:     resourceID,
+					LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
+				},
+			}, nil)
+
+		// Then: db2sdk.WorkspaceAgent must be called with the root
+		// agent, not the sub-agent. Node receives the selected
+		// agent's ID.
+		mCoordinator.EXPECT().Node(rootAgentID).Return(nil)
+
+		// And: We mount the HTTP handler.
+		r.With(injectSystemActor, httpmw.ExtractChatParam(mDB)).
+			Get("/chats/{chat}/stream/git", api.watchChatGit)
+
+		// Given: We create the HTTP server.
+		srv := httptest.NewServer(r)
+		defer srv.Close()
+
+		// When: We make a request.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			fmt.Sprintf("%s/chats/%s/stream/git", srv.URL, chatID), nil)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// Then: We expect a 400 response since the selected root
+		// agent is not connected.
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	})
+
 	t.Run("BidirectionalProxyWorks", func(t *testing.T) {
 		t.Parallel()
 

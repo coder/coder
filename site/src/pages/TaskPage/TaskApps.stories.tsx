@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import kebabCase from "lodash/kebabCase";
+import { expect, within } from "storybook/test";
 import type { Task, Workspace, WorkspaceApp } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import {
@@ -10,6 +11,7 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
+	MockWorkspaceSubAgent,
 } from "#/testHelpers/entities";
 import { withAuthProvider, withProxyProvider } from "#/testHelpers/storybook";
 import { TaskApps } from "./TaskApps";
@@ -117,6 +119,43 @@ export const WithManyEmbeddedApps: Story = {
 			mockEmbeddedApp("Test Runner"),
 			mockEmbeddedApp("Build Pipeline"),
 		]),
+	},
+};
+
+export const WithDevContainerSubAgent: Story = {
+	args: {
+		task: mockTask,
+		// The sub-agent is listed before the root agent to reproduce the case
+		// where the flattened app list starts with a dev container sub-agent.
+		workspace: {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				resources: [
+					{
+						...MockWorkspace.latest_build.resources[0],
+						agents: [
+							{
+								...MockWorkspaceSubAgent,
+								apps: [mockEmbeddedApp("Dev Container App")],
+							},
+							{
+								...MockWorkspaceAgent,
+								apps: [mockEmbeddedApp("Root Agent App")],
+							},
+						],
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const terminalTab = canvas.getByRole("link", { name: /terminal/i });
+		await expect(terminalTab).toHaveAttribute(
+			"href",
+			expect.stringContaining(`.${MockWorkspaceAgent.name}/terminal`),
+		);
 	},
 };
 

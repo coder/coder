@@ -25,6 +25,7 @@ import {
 } from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
+import { getFirstRootAgent } from "#/utils/workspace";
 
 type TaskAppsProps = {
 	task: Task;
@@ -44,7 +45,10 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 	const hasAvailableAppsToDisplay =
 		embeddedApps.length > 0 || externalApps.length > 0;
-	const taskAgent = allApps.at(0)?.agent;
+	// Target a root agent for the terminal. Sub-agents (e.g. dev container
+	// agents) can sort first in the flattened app list, but their terminal is
+	// not the workspace's primary terminal.
+	const taskAgent = getFirstRootAgent(workspace);
 	const terminalHref = getTerminalHref({
 		username: task.owner_name,
 		workspace: task.workspace_name,

@@ -8,6 +8,7 @@ import {
 	getDisplayVersionStatus,
 	getDisplayWorkspaceBuildInitiatedBy,
 	getDisplayWorkspaceTemplateName,
+	getFirstRootAgent,
 	getMatchingAgentOrFirst,
 	getWorkspaceAgents,
 	isWorkspaceOn,
@@ -29,11 +30,15 @@ function buildWorkspace(
 	};
 }
 
-function buildAgent(id: string): TypesGen.WorkspaceAgent {
+function buildAgent(
+	id: string,
+	parentId: string | null = null,
+): TypesGen.WorkspaceAgent {
 	return {
 		...Mocks.MockWorkspaceAgent,
 		id,
 		name: id,
+		parent_id: parentId,
 	};
 }
 
@@ -199,6 +204,32 @@ describe("util > workspace", () => {
 		});
 	});
 
+	describe("getFirstRootAgent", () => {
+		it("skips sub-agents and returns the first root agent", () => {
+			const workspace = buildWorkspace([
+				[buildAgent("sub-agent", "root-agent")],
+				[buildAgent("root-agent")],
+			]);
+
+			expect(getFirstRootAgent(workspace)?.id).toBe("root-agent");
+		});
+
+		it("falls back to the first agent when all agents are sub-agents", () => {
+			const workspace = buildWorkspace([
+				[buildAgent("sub-agent-1", "missing")],
+				[buildAgent("sub-agent-2", "missing")],
+			]);
+
+			expect(getFirstRootAgent(workspace)?.id).toBe("sub-agent-1");
+		});
+
+		it("returns undefined when there are no agents", () => {
+			const workspace = buildWorkspace([[]]);
+
+			expect(getFirstRootAgent(workspace)).toBeUndefined();
+		});
+	});
+
 	describe("getMatchingAgentOrFirst", () => {
 		it("returns the agent matching by name across resources", () => {
 			const workspace = buildWorkspace([
@@ -216,6 +247,28 @@ describe("util > workspace", () => {
 			]);
 
 			expect(getMatchingAgentOrFirst(workspace, undefined)?.id).toBe("agent-1");
+		});
+
+		it("prefers a root agent over a sub-agent when no name is given", () => {
+			const workspace = buildWorkspace([
+				[buildAgent("sub-agent", "root-agent")],
+				[buildAgent("root-agent")],
+			]);
+
+			expect(getMatchingAgentOrFirst(workspace, undefined)?.id).toBe(
+				"root-agent",
+			);
+		});
+
+		it("still matches a sub-agent by name", () => {
+			const workspace = buildWorkspace([
+				[buildAgent("sub-agent", "root-agent")],
+				[buildAgent("root-agent")],
+			]);
+
+			expect(getMatchingAgentOrFirst(workspace, "sub-agent")?.id).toBe(
+				"sub-agent",
+			);
 		});
 
 		it("returns undefined when no agent matches the name", () => {
