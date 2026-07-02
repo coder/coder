@@ -13,6 +13,7 @@ import {
 } from "./ProviderForm";
 import {
 	aiProviderToFormValues,
+	bedrockExternalId,
 	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
@@ -186,6 +187,36 @@ describe("hasBedrockStoredCredentials", () => {
 	it("is false for non-Bedrock providers", () => {
 		expect(hasBedrockStoredCredentials(MockAIProviderOpenAI)).toBe(false);
 		expect(hasBedrockStoredCredentials(MockAIProviderAnthropic)).toBe(false);
+	});
+});
+
+describe("bedrockExternalId", () => {
+	it("returns the external ID from a role-based Bedrock provider", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				role_arn: "arn:aws:iam::123456789012:role/BedrockRole",
+				external_id: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+			}),
+		};
+		expect(bedrockExternalId(provider)).toBe("7QF3ZK2MLP4RS6TUVWXY2ABCDE");
+	});
+
+	it("returns undefined when the provider has no external ID", () => {
+		expect(bedrockExternalId(MockAIProviderBedrock)).toBeUndefined();
+	});
+
+	it("returns undefined when the external ID is an empty string", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({ _type: "bedrock", external_id: "" }),
+		};
+		expect(bedrockExternalId(provider)).toBeUndefined();
+	});
+
+	it("returns undefined for a non-Bedrock provider", () => {
+		expect(bedrockExternalId(MockAIProviderOpenAI)).toBeUndefined();
 	});
 });
 
