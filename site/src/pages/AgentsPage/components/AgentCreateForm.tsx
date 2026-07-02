@@ -1,6 +1,6 @@
 import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
@@ -40,6 +40,56 @@ export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
+/**
+ * URL query parameter that pre-fills the empty-state composer.
+ * Matches the industry convention used by ChatGPT, Grok, Gemini,
+ * and Perplexity so a copy/paste from those tools works.
+ */
+const URL_PROMPT_PARAM = "q";
+
+/**
+ * Read the `?q=<prompt>` URL search param and strip it from the
+ * browser URL so a submit-and-navigate flow doesn't leak the
+ * prompt into the resulting chat's URL and a subsequent "new
+ * chat" action starts from a clean slate.
+ *
+ * The prompt is prefilled into the composer but never
+ * auto-submitted; running the agent is always an explicit user
+ * action, and a warning banner is shown while the prefilled
+ * value is unmodified. See
+ * https://www.tenable.com/security/research/tra-2025-22 for the
+ * prompt-injection class of vulnerability this guards against.
+ *
+ * The captured value is held in local state so it survives the
+ * URL strip that happens in the mount effect. Returns `null`
+ * when no non-empty prompt is present.
+ */
+function useConsumedUrlPrompt(): string | null {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [urlPrompt] = useState<string | null>(() => {
+		const raw = searchParams.get(URL_PROMPT_PARAM);
+		const trimmed = raw?.trim();
+		return trimmed && trimmed.length > 0 ? trimmed : null;
+	});
+	useEffect(() => {
+		if (urlPrompt === null) {
+			return;
+		}
+		setSearchParams(
+			(prev) => {
+				if (!prev.has(URL_PROMPT_PARAM)) {
+					return prev;
+				}
+				const next = new URLSearchParams(prev);
+				next.delete(URL_PROMPT_PARAM);
+				return next;
+			},
+			{ replace: true },
+		);
+	}, [urlPrompt, setSearchParams]);
+	return urlPrompt;
+}
+
 type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
@@ -57,22 +107,45 @@ export type CreateChatOptions = {
  * Persists the current input to localStorage so the user's draft
  * survives page reloads.
  *
+ * When `urlPrompt` is provided, it wins over any stored draft: the
+ * composer initializes with the URL prompt, a warning banner is
+ * surfaced (`showUrlPromptWarning`), and the prompt is intentionally
+ * not persisted to localStorage until the user modifies it. That
+ * way a user who opens a link from an untrusted source and closes
+ * the tab doesn't leave the prompt sitting in their next chat draft.
+ *
  * Once `submitDraft` is called, the stored draft is removed and further
  * content changes are no longer persisted for the lifetime of the hook.
  * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
  *
  * @internal Exported for testing.
  */
-export function useEmptyStateDraft() {
-	const [{ initialInputValue, initialEditorState }] = useState(() => {
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
-		return {
-			initialInputValue: draft.text,
-			initialEditorState: draft.editorState,
-		};
-	});
+export function useEmptyStateDraft(urlPrompt: string | null = null) {
+	const [{ initialInputValue, initialEditorState, isFromUrl }] = useState(
+		() => {
+			if (urlPrompt !== null) {
+				return {
+					initialInputValue: urlPrompt,
+					initialEditorState: undefined as string | undefined,
+					isFromUrl: true,
+				};
+			}
+			const draft = parseStoredDraft(
+				localStorage.getItem(emptyInputStorageKey),
+			);
+			return {
+				initialInputValue: draft.text,
+				initialEditorState: draft.editorState,
+				isFromUrl: false,
+			};
+		},
+	);
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
+	// Once the URL-supplied prompt has been modified by the user,
+	// resume normal draft persistence and drop the warning banner.
+	const [hasModifiedUrlPrompt, setHasModifiedUrlPrompt] = useState(false);
+	const showUrlPromptWarning = isFromUrl && !hasModifiedUrlPrompt;
 
 	const handleContentChange = (
 		content: string,
@@ -80,17 +153,27 @@ export function useEmptyStateDraft() {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
-		if (!sentRef.current) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+		if (sentRef.current) {
+			return;
+		}
+		// Skip persistence and warning-dismissal while the URL prompt
+		// is still exactly as delivered. Only once the user edits it
+		// do we treat the content as their own draft.
+		if (isFromUrl && !hasModifiedUrlPrompt) {
+			if (content === initialInputValue) {
+				return;
 			}
+			setHasModifiedUrlPrompt(true);
+		}
+		const shouldPersist = content.trim() || hasFileReferences;
+		if (shouldPersist) {
+			try {
+				localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		} else {
+			localStorage.removeItem(emptyInputStorageKey);
 		}
 	};
 
@@ -114,6 +197,7 @@ export function useEmptyStateDraft() {
 		handleContentChange,
 		submitDraft,
 		resetDraft,
+		showUrlPromptWarning,
 	};
 }
 
@@ -169,13 +253,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isWorkspacesLoading,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	const urlPrompt = useConsumedUrlPrompt();
 	const {
 		initialInputValue,
 		initialEditorState,
 		handleContentChange,
 		submitDraft,
 		resetDraft,
-	} = useEmptyStateDraft();
+		showUrlPromptWarning,
+	} = useEmptyStateDraft(urlPrompt);
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
@@ -556,6 +642,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						unsupportedProviderNames={unsupportedProviderNames}
 						aiGatewayDisabled={aiGatewayDisabled}
 					/>
+					{showUrlPromptWarning && (
+						<Alert severity="warning" prominent>
+							<AlertDescription>
+								Use caution before running this prompt. Malicious content could
+								trick Coder Agents into attempting harmful actions or sharing
+								your data.
+							</AlertDescription>
+						</Alert>
+					)}
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">
 							{modelSelectorHelp}

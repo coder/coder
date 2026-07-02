@@ -8,6 +8,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -827,5 +828,130 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+/**
+ * When the user follows a link like `/agents?q=<prompt>`, the composer
+ * is prefilled with that prompt and a warning banner is shown until
+ * the prompt is modified. The prompt is never auto-submitted.
+ */
+export const PrefillPromptFromUrl: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: {
+					q: "summarize the top-level README of this repo",
+				},
+			},
+			routing: [{ path: "/agents", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// The composer is prefilled with the URL prompt.
+		const input = await canvas.findByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(input.textContent).toContain(
+				"summarize the top-level README of this repo",
+			);
+		});
+
+		// The caution banner is visible while the prompt is unmodified.
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Use caution before running this prompt/),
+			).toBeInTheDocument();
+		});
+
+		// The user still has to press Send: nothing is auto-submitted.
+		expect(args.onCreateChat).not.toHaveBeenCalled();
+
+		// Submitting sends the URL prompt verbatim.
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { message: string } | undefined;
+		if (!options) {
+			throw new Error("Expected onCreateChat to receive options");
+		}
+		expect(options.message).toBe("summarize the top-level README of this repo");
+	},
+};
+
+/**
+ * Editing the URL-supplied prompt dismisses the caution banner because
+ * the user has taken ownership of the text.
+ */
+export const UrlPromptWarningDismissesOnEdit: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { q: "prompt from url" },
+			},
+			routing: [{ path: "/agents", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Use caution before running this prompt/),
+			).toBeInTheDocument();
+		});
+
+		// Type into the input to modify the URL-supplied prompt.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard(" and add tests");
+
+		// The caution banner should be gone.
+		await waitFor(() => {
+			expect(
+				canvas.queryByText(/Use caution before running this prompt/),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+/**
+ * An empty `?q=` param is ignored: no prompt is prefilled and the
+ * warning banner is not shown.
+ */
+export const EmptyUrlPromptIsIgnored: Story = {
+	args: {
+		...defaultArgs,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { q: "   " },
+			},
+			routing: [{ path: "/agents", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByTestId("chat-message-input");
+		// The composer starts empty (placeholder visible).
+		expect(input.textContent).toBe("");
+		expect(
+			canvas.queryByText(/Use caution before running this prompt/),
+		).not.toBeInTheDocument();
 	},
 };
