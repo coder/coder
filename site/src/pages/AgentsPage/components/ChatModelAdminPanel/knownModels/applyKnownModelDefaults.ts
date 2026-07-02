@@ -1,4 +1,5 @@
 import { toFormFieldKey } from "#/api/chatModelOptions";
+import { getSupportedReasoningEfforts } from "../../../utils/reasoningEffort";
 import {
 	deepGet,
 	deepSet,
@@ -34,11 +35,6 @@ const pricingModelFieldByName = {
 	(typeof pricingFieldNameList)[number],
 	KnownModelCostField
 >;
-
-const reasoningEffortPathByProvider: Record<string, string> = {
-	openai: "config.openai.reasoningEffort",
-	anthropic: "config.anthropic.effort",
-};
 
 const thinkingBudgetTokensPathByProvider: Record<string, string> = {
 	anthropic: "config.anthropic.thinking.budgetTokens",
@@ -118,19 +114,25 @@ export const applyKnownModelDefaults = ({
 	}
 
 	if (knownModel.reasoningEffort !== undefined) {
-		// The catalog uses a single `reasoningEffort` field, but each provider
-		// exposes it under a different form path: OpenAI as `reasoningEffort`,
-		// Anthropic as `effort`. Providers without a mapping skip this default.
-		const reasoningEffortPath = reasoningEffortPathByProvider[provider];
-		if (reasoningEffortPath !== undefined) {
-			maybeApplyDefault({
-				appliedFields,
-				initialValues,
-				nextValues,
-				path: reasoningEffortPath,
-				value: knownModel.reasoningEffort,
-				values,
-			});
+		// The catalog carries a single editorial effort value. Mirror it
+		// into both reasoning_effort bounds (default and max), matching
+		// the server-side migration semantics for legacy per-provider
+		// effort fields. Providers without runtime effort support skip
+		// this default.
+		if (getSupportedReasoningEfforts(provider).length > 0) {
+			for (const path of [
+				"config.reasoningEffort.default",
+				"config.reasoningEffort.max",
+			]) {
+				maybeApplyDefault({
+					appliedFields,
+					initialValues,
+					nextValues,
+					path,
+					value: knownModel.reasoningEffort,
+					values,
+				});
+			}
 		}
 	}
 

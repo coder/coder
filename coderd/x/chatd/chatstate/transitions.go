@@ -231,11 +231,12 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:        tx.chatID,
-		Content:       rawContent,
-		ModelConfigID: m.ModelConfigID,
-		CreatedBy:     createdBy,
-		APIKeyID:      m.APIKeyID,
+		ChatID:          tx.chatID,
+		Content:         rawContent,
+		ModelConfigID:   m.ModelConfigID,
+		ReasoningEffort: m.ReasoningEffort,
+		CreatedBy:       createdBy,
+		APIKeyID:        m.APIKeyID,
 	})
 }
 
@@ -243,13 +244,14 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 // suitable for promoting into active history.
 func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
 	return Message{
-		Role:           database.ChatMessageRoleUser,
-		Content:        pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ModelConfigID:  q.ModelConfigID,
-		CreatedBy:      uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
-		ContentVersion: chatprompt.CurrentContentVersion,
-		APIKeyID:       q.APIKeyID,
+		Role:            database.ChatMessageRoleUser,
+		Content:         pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
+		Visibility:      database.ChatMessageVisibilityBoth,
+		ModelConfigID:   q.ModelConfigID,
+		ReasoningEffort: q.ReasoningEffort,
+		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		APIKeyID:        q.APIKeyID,
 	}
 }
 
@@ -488,7 +490,11 @@ type EditMessageInput struct {
 	CreatedBy             uuid.UUID
 	Content               pqtype.NullRawMessage
 	ModelConfigIDOverride uuid.NullUUID
-	APIKeyID              sql.NullString
+	// ReasoningEffortOverride, when valid, replaces the edited
+	// message's reasoning effort. When invalid the original
+	// message's reasoning effort is preserved.
+	ReasoningEffortOverride sql.NullString
+	APIKeyID                sql.NullString
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -564,18 +570,23 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if input.ModelConfigIDOverride.Valid {
 		modelConfig = input.ModelConfigIDOverride
 	}
+	reasoningEffort := target.ReasoningEffort
+	if input.ReasoningEffortOverride.Valid {
+		reasoningEffort = input.ReasoningEffortOverride
+	}
 	apiKeyID := input.APIKeyID
 	if !apiKeyID.Valid {
 		return EditMessageResult{}, xerrors.Errorf("api_key_id is required")
 	}
 	replacement := Message{
-		Role:           database.ChatMessageRoleUser,
-		Content:        input.Content,
-		Visibility:     target.Visibility,
-		ModelConfigID:  modelConfig,
-		CreatedBy:      uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
-		ContentVersion: chatprompt.CurrentContentVersion,
-		APIKeyID:       apiKeyID,
+		Role:            database.ChatMessageRoleUser,
+		Content:         input.Content,
+		Visibility:      target.Visibility,
+		ModelConfigID:   modelConfig,
+		ReasoningEffort: reasoningEffort,
+		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
+		ContentVersion:  chatprompt.CurrentContentVersion,
+		APIKeyID:        apiKeyID,
 	}
 	insertedReplacement, err := tx.insertMessages([]Message{replacement})
 	if err != nil {

@@ -157,6 +157,7 @@ const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
 
 type CreateChatSubmission = {
 	model?: string;
+	reasoningEffort?: string;
 };
 
 export const RootPersonalModelOverrideModelSelected: Story = {
@@ -302,6 +303,123 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
+
+// Model options with reasoning effort bounds configured. GPT-4o
+// supports the OpenAI range up to xhigh; Claude is capped at medium.
+const effortModelOptions = [
+	{
+		...modelOptions[0],
+		reasoningEffortDefault: "medium",
+		reasoningEffortMax: "xhigh",
+	},
+	{
+		...modelOptions[1],
+		reasoningEffortDefault: "low",
+		reasoningEffortMax: "medium",
+	},
+] as const;
+
+export const SubmitsReasoningEffort: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [...effortModelOptions],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Open the model selector; the effort row shows the model default.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const slider = await body.findByRole("slider");
+		// "medium" is the third of five selectable OpenAI efforts.
+		expect(slider).toHaveAttribute("aria-valuenow", "2");
+
+		// Bump the effort to "high" with the keyboard, then close.
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "3");
+		});
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with reasoning effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.model).toBe(modelConfigID);
+		expect(options.reasoningEffort).toBe("high");
+	},
+};
+
+export const ReasoningEffortClampedOnModelSwitch: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [...effortModelOptions],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Push the effort to "xhigh" on the OpenAI model.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const slider = await body.findByRole("slider");
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "4");
+		});
+
+		// Switch to Claude, whose max is medium: "xhigh" is no longer
+		// selectable, so the effort falls back to Claude's default.
+		await userEvent.click(
+			await body.findByRole("option", { name: /Claude Sonnet 4/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		);
+		const claudeSlider = await body.findByRole("slider");
+		// "low" is the first of two selectable efforts (low, medium).
+		expect(claudeSlider).toHaveAttribute("aria-valuemax", "1");
+		expect(claudeSlider).toHaveAttribute("aria-valuenow", "0");
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create after model switch");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.model).toBe(claudeModelConfigID);
+		expect(options.reasoningEffort).toBe("low");
+	},
+};
+
+export const NoReasoningEffortWithoutConfig: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The default model options have no effort config: no effort row.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		await body.findByRole("listbox");
+		expect(body.queryByRole("slider")).not.toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create without reasoning effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat).reasoningEffort).toBeUndefined();
 	},
 };
 

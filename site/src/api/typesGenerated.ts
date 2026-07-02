@@ -1576,6 +1576,12 @@ export interface Chat {
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
+	/**
+	 * LastReasoningEffort is the reasoning effort carried by the most
+	 * recent message that set one. Used to initialize the effort
+	 * selector for subsequent turns.
+	 */
+	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
@@ -2459,7 +2465,6 @@ export interface ChatModel {
 export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
-	readonly effort?: string;
 	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
@@ -2487,6 +2492,7 @@ export interface ChatModelCallConfig {
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
 	readonly cost?: ModelCostConfig;
+	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 
@@ -2544,7 +2550,6 @@ export interface ChatModelGoogleThinkingConfig {
  */
 export interface ChatModelOpenAICompatProviderOptions {
 	readonly user?: string;
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -2560,7 +2565,6 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly max_tool_calls?: number;
 	readonly parallel_tool_calls?: boolean;
 	readonly user?: string;
-	readonly reasoning_effort?: string;
 	readonly reasoning_summary?: string;
 	readonly max_completion_tokens?: number;
 	readonly text_verbosity?: string;
@@ -2671,6 +2675,20 @@ export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableRe
 
 // From codersdk/chats.go
 /**
+ * ChatModelReasoningEffortConfig configures per-model reasoning effort
+ * bounds. Values are ordered on the global effort scale
+ * minimal < low < medium < high < xhigh < max; each provider supports a
+ * subset and the effective effort is clamped into it at generation time.
+ * When only one of Default or Max is provided, it is mirrored into the
+ * other before storing.
+ */
+export interface ChatModelReasoningEffortConfig {
+	readonly default?: string;
+	readonly max?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelReasoningOptions configures reasoning behavior for model
  * providers that support it.
  */
@@ -2678,7 +2696,6 @@ export interface ChatModelReasoningOptions {
 	readonly enabled?: boolean;
 	readonly exclude?: boolean;
 	readonly max_tokens?: number;
-	readonly effort?: string;
 }
 
 // From codersdk/chats.go
@@ -3509,6 +3526,13 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * ReasoningEffort is the user-selected reasoning effort for the
+	 * turn triggered by this message. Clamped to the model config's
+	 * max effort at generation time. Ignored when the model config
+	 * has no reasoning effort configured.
+	 */
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -3562,6 +3586,13 @@ export interface CreateChatRequest {
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
+	/**
+	 * ReasoningEffort is the user-selected reasoning effort for the
+	 * first turn. Clamped to the model config's max effort at
+	 * generation time. Ignored when the model config has no
+	 * reasoning effort configured.
+	 */
+	readonly reasoning_effort?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
 	/**
@@ -4535,6 +4566,12 @@ export interface EditChatMessageRequest {
 	 * When nil the original message's model is preserved.
 	 */
 	readonly model_config_id?: string;
+	/**
+	 * ReasoningEffort, when set, overrides the reasoning effort for
+	 * the replacement user message. When nil the original message's
+	 * reasoning effort is preserved.
+	 */
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go

@@ -31,6 +31,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
+import { getSupportedReasoningEfforts } from "../../utils/reasoningEffort";
 import {
 	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,
@@ -49,6 +50,11 @@ const booleanFieldOptions = [
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
+
+/** General fields configuring the per-model reasoning effort bounds. */
+const isReasoningEffortField = (jsonName: string): boolean =>
+	jsonName === "reasoning_effort.default" ||
+	jsonName === "reasoning_effort.max";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -660,16 +666,24 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
  * top P, etc.) intended to be shown under an "Advanced" section.
  *
  * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
+ * `api/chatModelOptions`. The reasoning effort bounds render as
+ * selects limited to the selected provider's supported effort set and
+ * are hidden for providers without reasoning effort support.
  */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const supportedEfforts = getSupportedReasoningEfforts(
+		normalizeProvider(provider),
+	);
 	const fields = getVisibleGeneralFields().filter(
-		({ json_name }) => !pricingFieldNames.has(json_name),
+		({ json_name }) =>
+			!pricingFieldNames.has(json_name) &&
+			(!isReasoningEffortField(json_name) || supportedEfforts.length > 0),
 	);
 
 	return (
@@ -683,6 +697,22 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					.join(".");
 				const fieldKey = `config.${camelName}`;
 				const label = snakeToPrettyLabel(field);
+
+				if (isReasoningEffortField(field.json_name)) {
+					return (
+						<SelectField
+							key={fieldKey}
+							{...ctx}
+							fieldKey={fieldKey}
+							errorKey={camelName}
+							label={label}
+							description={field.description}
+							options={(field.enum ?? []).filter((value) =>
+								supportedEfforts.includes(value),
+							)}
+						/>
+					);
+				}
 
 				return (
 					<InputField

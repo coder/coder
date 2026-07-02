@@ -468,7 +468,7 @@ func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.
 		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
 			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
 		},
-	})
+	}, nil)
 
 	require.NotNil(t, providerOptions)
 	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)

@@ -1122,46 +1122,94 @@ func missingProviderAPIKeyError(provider string) error {
 }
 
 // ProviderOptionsFromChatModelConfig converts chat model provider options to
-// fantasy provider options used for inference calls.
+// fantasy provider options used for inference calls. reasoningEffort is the
+// resolved per-turn reasoning effort (see ResolveReasoningEffort); it is
+// routed to the option section matching the model's provider, creating the
+// section when the config has no other options for it. Azure uses the openai
+// section and Bedrock uses the anthropic section.
 func ProviderOptionsFromChatModelConfig(
 	model fantasy.LanguageModel,
 	options *codersdk.ChatModelProviderOptions,
+	reasoningEffort *string,
 ) fantasy.ProviderOptions {
-	if options == nil {
-		return nil
+	opts := codersdk.ChatModelProviderOptions{}
+	if options != nil {
+		opts = *options
+	}
+
+	var (
+		openAIEffort       *string
+		anthropicEffort    *string
+		openAICompatEffort *string
+		openRouterEffort   *string
+		vercelEffort       *string
+	)
+	if reasoningEffort != nil && model != nil {
+		switch NormalizeProvider(model.Provider()) {
+		case fantasyopenai.Name, fantasyazure.Name:
+			openAIEffort = reasoningEffort
+			if opts.OpenAI == nil {
+				opts.OpenAI = &codersdk.ChatModelOpenAIProviderOptions{}
+			}
+		case fantasyanthropic.Name, fantasybedrock.Name:
+			anthropicEffort = reasoningEffort
+			if opts.Anthropic == nil {
+				opts.Anthropic = &codersdk.ChatModelAnthropicProviderOptions{}
+			}
+		case fantasyopenaicompat.Name:
+			openAICompatEffort = reasoningEffort
+			if opts.OpenAICompat == nil {
+				opts.OpenAICompat = &codersdk.ChatModelOpenAICompatProviderOptions{}
+			}
+		case fantasyopenrouter.Name:
+			openRouterEffort = reasoningEffort
+			if opts.OpenRouter == nil {
+				opts.OpenRouter = &codersdk.ChatModelOpenRouterProviderOptions{}
+			}
+		case fantasyvercel.Name:
+			vercelEffort = reasoningEffort
+			if opts.Vercel == nil {
+				opts.Vercel = &codersdk.ChatModelVercelProviderOptions{}
+			}
+		}
 	}
 
 	result := fantasy.ProviderOptions{}
 
-	if options.OpenAI != nil {
+	if opts.OpenAI != nil {
 		result[fantasyopenai.Name] = chatopenai.ProviderOptionsFromChatConfig(
 			model,
-			options.OpenAI,
+			opts.OpenAI,
+			openAIEffort,
 		)
 	}
-	if options.Anthropic != nil {
+	if opts.Anthropic != nil {
 		result[fantasyanthropic.Name] = anthropicProviderOptionsFromChatConfig(
-			options.Anthropic,
+			opts.Anthropic,
+			anthropicEffort,
 		)
 	}
-	if options.Google != nil {
+	if opts.Google != nil {
 		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
-			options.Google,
+			opts.Google,
 		)
 	}
-	if options.OpenAICompat != nil {
+	if opts.OpenAICompat != nil {
 		result[fantasyopenaicompat.Name] = openAICompatProviderOptionsFromChatConfig(
-			options.OpenAICompat,
+			opts.OpenAICompat,
+			openAICompatEffort,
 		)
 	}
-	if options.OpenRouter != nil {
+	if opts.OpenRouter != nil {
 		result[fantasyopenrouter.Name] = openRouterProviderOptionsFromChatConfig(
-			options.OpenRouter,
+			opts.OpenRouter,
+			openRouterEffort,
 		)
 	}
-	if options.Vercel != nil {
+	if opts.Vercel != nil {
 		result[fantasyvercel.Name] = vercelProviderOptionsFromChatConfig(
-			options.Vercel,
+			opts.Vercel,
+			vercelEffort,
 		)
 	}
 
@@ -1173,10 +1221,11 @@ func ProviderOptionsFromChatModelConfig(
 
 func anthropicProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelAnthropicProviderOptions,
+	reasoningEffort *string,
 ) *fantasyanthropic.ProviderOptions {
 	result := &fantasyanthropic.ProviderOptions{
 		SendReasoning:          options.SendReasoning,
-		Effort:                 anthropicEffortFromChat(options.Effort),
+		Effort:                 anthropicEffortFromChat(reasoningEffort),
 		ThinkingDisplay:        AnthropicThinkingDisplayFromChat(options.ThinkingDisplay),
 		DisableParallelToolUse: options.DisableParallelToolUse,
 	}
@@ -1219,15 +1268,17 @@ func googleProviderOptionsFromChatConfig(
 
 func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
+	reasoningEffort *string,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
 		User:            chatutil.NormalizedStringPointer(options.User),
-		ReasoningEffort: chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
+		ReasoningEffort: chatopenai.ReasoningEffortFromChat(reasoningEffort),
 	}
 }
 
 func openRouterProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenRouterProviderOptions,
+	reasoningEffort *string,
 ) *fantasyopenrouter.ProviderOptions {
 	result := &fantasyopenrouter.ProviderOptions{
 		ExtraBody:         options.ExtraBody,
@@ -1237,12 +1288,14 @@ func openRouterProviderOptionsFromChatConfig(
 		ParallelToolCalls: options.ParallelToolCalls,
 		User:              chatutil.NormalizedStringPointer(options.User),
 	}
-	if options.Reasoning != nil {
+	if options.Reasoning != nil || reasoningEffort != nil {
 		result.Reasoning = &fantasyopenrouter.ReasoningOptions{
-			Enabled:   options.Reasoning.Enabled,
-			Exclude:   options.Reasoning.Exclude,
-			MaxTokens: options.Reasoning.MaxTokens,
-			Effort:    openRouterReasoningEffortFromChat(options.Reasoning.Effort),
+			Effort: openRouterReasoningEffortFromChat(reasoningEffort),
+		}
+		if options.Reasoning != nil {
+			result.Reasoning.Enabled = options.Reasoning.Enabled
+			result.Reasoning.Exclude = options.Reasoning.Exclude
+			result.Reasoning.MaxTokens = options.Reasoning.MaxTokens
 		}
 	}
 	if options.Provider != nil {
@@ -1262,6 +1315,7 @@ func openRouterProviderOptionsFromChatConfig(
 
 func vercelProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelVercelProviderOptions,
+	reasoningEffort *string,
 ) *fantasyvercel.ProviderOptions {
 	result := &fantasyvercel.ProviderOptions{
 		User:              chatutil.NormalizedStringPointer(options.User),
@@ -1271,12 +1325,14 @@ func vercelProviderOptionsFromChatConfig(
 		ParallelToolCalls: options.ParallelToolCalls,
 		ExtraBody:         options.ExtraBody,
 	}
-	if options.Reasoning != nil {
+	if options.Reasoning != nil || reasoningEffort != nil {
 		result.Reasoning = &fantasyvercel.ReasoningOptions{
-			Enabled:   options.Reasoning.Enabled,
-			MaxTokens: options.Reasoning.MaxTokens,
-			Effort:    vercelReasoningEffortFromChat(options.Reasoning.Effort),
-			Exclude:   options.Reasoning.Exclude,
+			Effort: vercelReasoningEffortFromChat(reasoningEffort),
+		}
+		if options.Reasoning != nil {
+			result.Reasoning.Enabled = options.Reasoning.Enabled
+			result.Reasoning.MaxTokens = options.Reasoning.MaxTokens
+			result.Reasoning.Exclude = options.Reasoning.Exclude
 		}
 	}
 	if options.ProviderOptions != nil {
