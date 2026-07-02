@@ -232,62 +232,81 @@ func TestAIGatewayServeMissingEntitlement(t *testing.T) {
 func TestAIGatewayServeTrackKeyUsageClosesActiveSession(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name   string
-		mutate func(context.Context, *codersdk.Client, *entcoderd.API, codersdk.CreateAIGatewayKeyResponse) error
-	}{
-		{
-			name: "DeletedKey",
-			mutate: func(ctx context.Context, client *codersdk.Client, _ *entcoderd.API, created codersdk.CreateAIGatewayKeyResponse) error {
-				//nolint:gocritic // Owner role is needed for gateway key management.
-				return client.DeleteAIGatewayKey(ctx, created.ID)
-			},
-		},
-		{
-			name: "RevokedEntitlement",
-			mutate: func(_ context.Context, _ *codersdk.Client, api *entcoderd.API, _ codersdk.CreateAIGatewayKeyResponse) error {
-				api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
-					entitlements.Features[codersdk.FeatureAIBridge] = codersdk.Feature{
-						Entitlement: codersdk.EntitlementNotEntitled,
-						Enabled:     false,
-					}
-				})
-				return nil
-			},
-		},
+	t.Run("DeletedKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		session := setupActiveAIGatewayServeSession(ctx, t)
+
+		//nolint:gocritic // Owner role is needed for gateway key management.
+		require.NoError(t, session.client.DeleteAIGatewayKey(ctx, session.created.ID))
+		requireAIGatewayServeSessionClosed(t, session)
+	})
+
+	t.Run("RevokedEntitlement", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		session := setupActiveAIGatewayServeSession(ctx, t)
+
+		licenses, err := session.client.Licenses(ctx)
+		require.NoError(t, err)
+		for _, license := range licenses {
+			require.NoError(t, session.client.DeleteLicense(ctx, license.ID))
+		}
+		require.Eventually(t, func() bool {
+			return !session.api.Entitlements.Enabled(codersdk.FeatureAIBridge)
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		requireAIGatewayServeSessionClosed(t, session)
+	})
+}
+
+type activeAIGatewayServeSession struct {
+	client  *codersdk.Client
+	api     *entcoderd.API
+	created codersdk.CreateAIGatewayKeyResponse
+	tick    chan time.Time
+	dc      aibridged.DRPCClient
+}
+
+func setupActiveAIGatewayServeSession(ctx context.Context, t *testing.T) activeAIGatewayServeSession {
+	t.Helper()
+
+	tick := make(chan time.Time, 1)
+	opts := aibridgeOpts(t)
+	opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+		return tick, func() {}
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	client, _, api, _ := coderdenttest.NewWithAPI(t, opts)
 
-			tick := make(chan time.Time, 1)
-			opts := aibridgeOpts(t)
-			opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
-				return tick, func() {}
-			}
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "key-name"})
+	require.NoError(t, err)
 
-			client, _, api, _ := coderdenttest.NewWithAPI(t, opts)
-			ctx := testutil.Context(t, testutil.WaitLong)
+	dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
+	require.NoError(t, err)
 
-			//nolint:gocritic // Owner role is needed for gateway key management.
-			created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "key-name"})
-			require.NoError(t, err)
-
-			dc, err := dialAIGatewayServe(ctx, t, client, created.Key)
-			require.NoError(t, err)
-
-			require.NoError(t, tc.mutate(ctx, client, api, created))
-
-			tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
-			require.Eventually(t, func() bool {
-				select {
-				case <-dc.DRPCConn().Closed():
-					return true
-				default:
-					return false
-				}
-			}, testutil.WaitShort, testutil.IntervalFast)
-		})
+	return activeAIGatewayServeSession{
+		client:  client,
+		api:     api,
+		created: created,
+		tick:    tick,
+		dc:      dc,
 	}
+}
+
+func requireAIGatewayServeSessionClosed(t *testing.T, s activeAIGatewayServeSession) {
+	t.Helper()
+
+	s.tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
+	require.Eventually(t, func() bool {
+		select {
+		case <-s.dc.DRPCConn().Closed():
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
