@@ -4678,6 +4678,18 @@ type AISeatState struct {
 	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
 }
 
+// Daily AI spend per user and effective group.
+type AIUserDailySpend struct {
+	// The user who incurred the spend.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The group this spend is attributed to for budget purposes.
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	// UTC calendar day the spend was incurred.
+	Day time.Time `db:"day" json:"day"`
+	// Accumulated spend in micro-units (1 unit = 1,000,000).
+	SpendMicros int64 `db:"spend_micros" json:"spend_micros"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.

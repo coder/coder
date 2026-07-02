@@ -2546,6 +2546,79 @@ func (q *sqlQuerier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UU
 	return i, err
 }
 
+const getUserAISpendSince = `-- name: GetUserAISpendSince :one
+SELECT
+	$1::uuid AS user_id,
+	$2::uuid AS effective_group_id,
+	(($3::timestamptz) AT TIME ZONE 'UTC')::date AS period_start,
+	COALESCE(SUM(spend_micros), 0)::BIGINT AS spend_micros
+FROM ai_user_daily_spend
+WHERE user_id = $1
+	AND effective_group_id = $2
+	AND day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
+`
+
+type GetUserAISpendSinceParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	PeriodStart      time.Time `db:"period_start" json:"period_start"`
+}
+
+type GetUserAISpendSinceRow struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	PeriodStart      time.Time `db:"period_start" json:"period_start"`
+	SpendMicros      int64     `db:"spend_micros" json:"spend_micros"`
+}
+
+// Total spend for (user_id, effective_group_id) on or after period_start until NOW.
+// The period_start parameter is normalized to its UTC calendar day.
+func (q *sqlQuerier) GetUserAISpendSince(ctx context.Context, arg GetUserAISpendSinceParams) (GetUserAISpendSinceRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAISpendSince, arg.UserID, arg.EffectiveGroupID, arg.PeriodStart)
+	var i GetUserAISpendSinceRow
+	err := row.Scan(
+		&i.UserID,
+		&i.EffectiveGroupID,
+		&i.PeriodStart,
+		&i.SpendMicros,
+	)
+	return i, err
+}
+
+const incrementUserAIDailySpend = `-- name: IncrementUserAIDailySpend :one
+INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
+VALUES ($1, $2, (($3::timestamptz) AT TIME ZONE 'UTC')::date, $4)
+ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
+	spend_micros = ai_user_daily_spend.spend_micros + EXCLUDED.spend_micros
+RETURNING user_id, effective_group_id, day, spend_micros
+`
+
+type IncrementUserAIDailySpendParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	Day              time.Time `db:"day" json:"day"`
+	CostMicros       int64     `db:"cost_micros" json:"cost_micros"`
+}
+
+// Adds cost_micros to the spend for (user_id, effective_group_id, day).
+// The day parameter is normalized to its UTC calendar day before storage.
+func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error) {
+	row := q.db.QueryRowContext(ctx, incrementUserAIDailySpend,
+		arg.UserID,
+		arg.EffectiveGroupID,
+		arg.Day,
+		arg.CostMicros,
+	)
+	var i AIUserDailySpend
+	err := row.Scan(
+		&i.UserID,
+		&i.EffectiveGroupID,
+		&i.Day,
+		&i.SpendMicros,
+	)
+	return i, err
+}
+
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
 INSERT INTO ai_model_prices (
 	provider, model, input_price, output_price, cache_read_price, cache_write_price

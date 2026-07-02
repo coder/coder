@@ -1,17 +1,20 @@
 package aibridged
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 var _ http.Handler = &Server{}
@@ -21,6 +24,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrBudgetCheck           = xerrors.New("internal server error checking user AI budget")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -135,6 +139,32 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, err := uuid.Parse(resp.GetOwnerId())
+	if err != nil {
+		logger.Warn(ctx, "failed to parse user ID", slog.Error(err), slog.F("id", resp.GetOwnerId()))
+		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		return
+	}
+	logger = logger.With(slog.F("user_id", id))
+
+	periodStart := dbtime.StartOfMonth(dbtime.Now().UTC())
+	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
+		UserId:      id.String(),
+		PeriodStart: timestamppb.New(periodStart),
+	})
+	if err != nil {
+		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
+		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
+		return
+	}
+	if budgetResp.GetExceeded() {
+		http.Error(rw, fmt.Sprintf(
+			"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
+			float64(budgetResp.GetSpendLimitMicros())/1_000_000,
+		), http.StatusForbidden)
+		return
+	}
+
 	// Rewire request context to include actor.
 	//
 	// [NOTE]
@@ -143,13 +173,6 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
 		"Username": resp.GetUsername(),
 	}))
-
-	id, err := uuid.Parse(resp.GetOwnerId())
-	if err != nil {
-		logger.Warn(ctx, "failed to parse user ID", slog.Error(err), slog.F("id", resp.GetOwnerId()))
-		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
-		return
-	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,
