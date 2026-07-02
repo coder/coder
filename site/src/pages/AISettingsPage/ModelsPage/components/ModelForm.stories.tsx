@@ -218,6 +218,49 @@ export const EditUpdateDisabledUntilDirty: Story = {
 	},
 };
 
+export const ReasoningEffortVisibleWithoutExpanding: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		// The effort selects sit in the always-visible top grid; no
+		// collapsible section is expanded in this story.
+		const defaultSelect = canvas.getByRole("combobox", {
+			name: /default reasoning effort/i,
+		});
+		const maxSelect = canvas.getByRole("combobox", {
+			name: /max reasoning effort/i,
+		});
+		await expect(defaultSelect).toBeVisible();
+		await expect(maxSelect).toBeVisible();
+
+		await userEvent.type(canvas.getByLabelText(/model identifier/i), "gpt-5");
+		await userEvent.type(canvas.getByLabelText(/context limit/i), "200000");
+
+		// Options are limited to OpenAI's supported effort set:
+		// "max" (Anthropic-only) is not offered.
+		await userEvent.click(defaultSelect);
+		await expect(
+			await screen.findByRole("option", { name: "Medium" }),
+		).toBeInTheDocument();
+		await expect(
+			screen.queryByRole("option", { name: "Max" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(screen.getByRole("option", { name: "Medium" }));
+
+		await userEvent.click(maxSelect);
+		await userEvent.click(await screen.findByRole("option", { name: "Xhigh" }));
+
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		await expect(args.onCreateModel).toHaveBeenCalledWith(
+			expect.objectContaining({
+				model_config: expect.objectContaining({
+					reasoning_effort: { default: "medium", max: "xhigh" },
+				}),
+			}),
+		);
+	},
+};
+
 export const CostTrackingExpanded: Story = {
 	args: {
 		editingModel: mockGPT5,
