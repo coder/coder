@@ -488,6 +488,13 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		req.UserLoginType = codersdk.LoginTypePassword
 	}
 
+	if !req.ServiceAccount && req.UserLoginType == codersdk.LoginTypeNone {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Login type 'none' requires a service account.",
+		})
+		return
+	}
+
 	if req.UserLoginType != codersdk.LoginTypePassword && req.Password != "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Password cannot be set for non-password (%q) authentication.", req.UserLoginType),
