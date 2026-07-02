@@ -60,6 +60,9 @@ const (
 	// Coder Connect DNS should answer locally, so a slow probe should fall
 	// back to the normal SSH tunnel.
 	coderConnectProbeTimeout = 100 * time.Millisecond
+	// Coder Connect traffic should be local, but allow enough time for a
+	// single TCP handshake before falling back to the normal SSH tunnel.
+	coderConnectLivenessProbeTimeout = 500 * time.Millisecond
 )
 
 var (
@@ -439,6 +442,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 						slog.F("hostname", coderConnectHost),
 						slog.Error(ccErr),
 					)
+				}
+				if exists {
+					if err := probeCoderConnect(ctx, testOrDefaultDialer(ctx), coderConnectHost); err != nil {
+						logger.Debug(ctx, "coder connect liveness probe failed",
+							slog.F("hostname", coderConnectHost),
+							slog.Error(err),
+						)
+						exists = false
+					}
 				}
 				if exists {
 					defer cancel()
@@ -1693,6 +1705,18 @@ func testOrDefaultDialer(ctx context.Context) coderConnectDialer {
 		}
 	}
 	return dialer
+}
+
+func probeCoderConnect(ctx context.Context, dialer coderConnectDialer, host string) error {
+	ctx, cancel := context.WithTimeout(ctx, coderConnectLivenessProbeTimeout)
+	defer cancel()
+
+	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, fmt.Sprint(workspacesdk.AgentHTTPAPIServerPort)))
+	if err != nil {
+		return err
+	}
+	_ = conn.Close()
+	return nil
 }
 
 func runCoderConnectStdio(ctx context.Context, addr string, stdin io.Reader, stdout io.Writer, stack *closerStack, logger slog.Logger) error {
