@@ -150,6 +150,20 @@ connectLoop:
 	}
 }
 
+// Done returns a channel that is closed when the server lifecycle ends.
+// It closes on explicit shutdown and on fatal connection-loop exit.
+func (s *Server) Done() <-chan struct{} {
+	return s.lifecycleCtx.Done()
+}
+
+// Err returns the reason the server lifecycle ended.
+func (s *Server) Err() error {
+	if cause := context.Cause(s.lifecycleCtx); cause != nil {
+		return cause
+	}
+	return s.lifecycleCtx.Err()
+}
+
 func (s *Server) Client() (DRPCClient, error) {
 	return s.ClientContext(context.Background())
 }
@@ -158,9 +172,9 @@ func (s *Server) ClientContext(ctx context.Context) (DRPCClient, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-s.lifecycleCtx.Done():
-		if cause := context.Cause(s.lifecycleCtx); cause != nil {
-			return nil, cause
+	case <-s.Done():
+		if err := s.Err(); err != nil {
+			return nil, err
 		}
 		return nil, xerrors.New("context closed")
 	case client := <-s.clientCh:

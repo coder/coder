@@ -30,6 +30,41 @@ func (r *blockingReloader) Reload(ctx context.Context) error {
 	return ctx.Err()
 }
 
+// failThenSucceedReloader fails the first failUntil reloads, then succeeds,
+// modeling a coderd connection or provider fetch that recovers after a few
+// transient failures.
+type failThenSucceedReloader struct {
+	calls     atomic.Int32
+	failUntil int32
+}
+
+func (r *failThenSucceedReloader) Reload(_ context.Context) error {
+	if r.calls.Add(1) <= r.failUntil {
+		return xerrors.New("transient failure")
+	}
+	return nil
+}
+
+// alwaysFailReloader returns the same error every time Reload is called.
+type alwaysFailReloader struct {
+	calls  atomic.Int32
+	err    error
+	after  func()
+	called chan struct{}
+}
+
+func (r *alwaysFailReloader) Reload(context.Context) error {
+	r.calls.Add(1)
+	if r.after != nil {
+		r.after()
+	}
+	select {
+	case r.called <- struct{}{}:
+	default:
+	}
+	return r.err
+}
+
 // TestLoadProviders_Interruptible verifies that a stop signal,
 // modeled by canceling the context, unblocks the initial provider load even
 // when the reloader is stuck waiting for coderd. This guards the standalone
@@ -51,7 +86,7 @@ func TestLoadProviders_Interruptible(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- loadProviders(runCtx, reloader, logger)
+		done <- loadProviders(runCtx, reloader, logger, nil)
 	}()
 
 	// Wait for the reload to be in-flight, then cancel as a signal would.
@@ -60,21 +95,6 @@ func TestLoadProviders_Interruptible(t *testing.T) {
 
 	err := testutil.RequireReceive(testCtx, t, done)
 	require.ErrorIs(t, err, context.Canceled)
-}
-
-// failThenSucceedReloader fails the first failUntil reloads, then succeeds,
-// modeling a coderd connection or provider fetch that recovers after a few
-// transient failures.
-type failThenSucceedReloader struct {
-	calls     atomic.Int32
-	failUntil int32
-}
-
-func (r *failThenSucceedReloader) Reload(_ context.Context) error {
-	if r.calls.Add(1) <= r.failUntil {
-		return xerrors.New("transient failure")
-	}
-	return nil
 }
 
 // TestLoadProviders_RetrySucceeds verifies loadProviders keeps retrying past
@@ -86,6 +106,25 @@ func TestLoadProviders_RetrySucceeds(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	reloader := &failThenSucceedReloader{failUntil: 2}
 
-	require.NoError(t, loadProviders(ctx, reloader, slog.Make()))
+	require.NoError(t, loadProviders(ctx, reloader, slog.Make(), nil))
 	require.GreaterOrEqual(t, reloader.calls.Load(), int32(3))
+}
+
+func TestLoadProviders_AIBridgedDoneStopsRetry(t *testing.T) {
+	t.Parallel()
+
+	errMsg := "aibridged fatal"
+	ctx := testutil.Context(t, testutil.WaitShort)
+	aibridgedDone := make(chan struct{})
+	reloader := &alwaysFailReloader{
+		err:    xerrors.New(errMsg),
+		called: make(chan struct{}, 1),
+		after: func() {
+			close(aibridgedDone)
+		},
+	}
+
+	err := loadProviders(ctx, reloader, slog.Make(), aibridgedDone)
+	require.ErrorContains(t, err, errMsg)
+	require.Equal(t, int32(1), reloader.calls.Load())
 }
