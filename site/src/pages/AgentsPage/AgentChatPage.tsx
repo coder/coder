@@ -1476,10 +1476,16 @@ const AgentChatPage: FC = () => {
 				pickerModelConfigID !== originalModelConfigID
 					? pickerModelConfigID
 					: undefined;
+			// Only override the original message's reasoning effort when
+			// the user explicitly moved the slider this session; otherwise
+			// omit it so the backend preserves the original message's
+			// effort, mirroring the model override above.
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
-				reasoning_effort: effectiveReasoningEffort,
+				reasoning_effort: selectedReasoningEffort
+					? effectiveReasoningEffort
+					: undefined,
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({

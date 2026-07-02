@@ -1420,13 +1420,13 @@ type ModelCostConfig struct {
 
 // ChatModelReasoningEffortConfig configures per-model reasoning effort
 // bounds. Values are ordered on the global effort scale
-// minimal < low < medium < high < xhigh < max; each provider supports a
-// subset and the effective effort is clamped into it at generation time.
-// When only one of Default or Max is provided, it is mirrored into the
-// other before storing.
+// none < minimal < low < medium < high < xhigh < max; each provider
+// supports a subset and the effective effort is clamped into it at
+// generation time. When only one of Default or Max is provided, it is
+// mirrored into the other before storing.
 type ChatModelReasoningEffortConfig struct {
-	Default *string `json:"default,omitempty" label:"Default Reasoning Effort" description:"Reasoning effort used when the user has not selected one" enum:"minimal,low,medium,high,xhigh,max"`
-	Max     *string `json:"max,omitempty" label:"Max Reasoning Effort" description:"Maximum reasoning effort the user may select" enum:"minimal,low,medium,high,xhigh,max"`
+	Default *string `json:"default,omitempty" label:"Default Reasoning Effort" description:"Reasoning effort used when the user has not selected one" enum:"none,minimal,low,medium,high,xhigh,max"`
+	Max     *string `json:"max,omitempty" label:"Max Reasoning Effort" description:"Maximum reasoning effort the user may select" enum:"none,minimal,low,medium,high,xhigh,max"`
 }
 
 // ChatModelCallConfig configures per-call model behavior defaults.

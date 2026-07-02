@@ -2677,10 +2677,10 @@ export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableRe
 /**
  * ChatModelReasoningEffortConfig configures per-model reasoning effort
  * bounds. Values are ordered on the global effort scale
- * minimal < low < medium < high < xhigh < max; each provider supports a
- * subset and the effective effort is clamped into it at generation time.
- * When only one of Default or Max is provided, it is mirrored into the
- * other before storing.
+ * none < minimal < low < medium < high < xhigh < max; each provider
+ * supports a subset and the effective effort is clamped into it at
+ * generation time. When only one of Default or Max is provided, it is
+ * mirrored into the other before storing.
  */
 export interface ChatModelReasoningEffortConfig {
 	readonly default?: string;

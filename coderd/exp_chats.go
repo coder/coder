@@ -1235,8 +1235,8 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	chatReasoningEffort, chatEffortOK := normalizeChatMessageReasoningEffort(req.ReasoningEffort)
-	if !chatEffortOK {
+	chatReasoningEffort := chatprovider.NormalizeGlobalReasoningEffort(req.ReasoningEffort)
+	if req.ReasoningEffort != nil && chatReasoningEffort == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid reasoning_effort value.",
 			Detail:  "Must be one of none, minimal, low, medium, high, xhigh, max.",
@@ -3170,8 +3170,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		modelConfigID = *req.ModelConfigID
 	}
 
-	reasoningEffort, effortOK := normalizeChatMessageReasoningEffort(req.ReasoningEffort)
-	if !effortOK {
+	reasoningEffort := chatprovider.NormalizeGlobalReasoningEffort(req.ReasoningEffort)
+	if req.ReasoningEffort != nil && reasoningEffort == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid reasoning_effort value.",
 			Detail:  "Must be one of none, minimal, low, medium, high, xhigh, max.",
@@ -3338,8 +3338,8 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		editModelConfigID = *req.ModelConfigID
 	}
 
-	editReasoningEffort, effortOK := normalizeChatMessageReasoningEffort(req.ReasoningEffort)
-	if !effortOK {
+	editReasoningEffort := chatprovider.NormalizeGlobalReasoningEffort(req.ReasoningEffort)
+	if req.ReasoningEffort != nil && editReasoningEffort == nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid reasoning_effort value.",
 			Detail:  "Must be one of none, minimal, low, medium, high, xhigh, max.",
@@ -7199,16 +7199,21 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// reasoning effort against the provider's supported set.
 		//nolint:gocritic // The route already authorized chat model config updates.
 		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), existing.AIProviderID.UUID)
-		if err != nil && !httpapi.Is404Error(err) {
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot update model config.",
+					Detail:  "The AI provider for this model config no longer exists. Set ai_provider_id to an existing provider.",
+				})
+				return
+			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get AI provider.",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		if err == nil {
-			aiProviderType = string(aiProvider.Type)
-		}
+		aiProviderType = string(aiProvider.Type)
 	}
 
 	model := existing.Model
@@ -7611,21 +7616,6 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig, prov
 	return validateChatModelProviderOptions(modelConfig.ProviderOptions)
 }
 
-// normalizeChatMessageReasoningEffort validates a per-turn reasoning
-// effort value against the global effort scale. Returns the normalized
-// value, or ok=false when the value is not on the scale. Per-provider
-// clamping happens at generation time.
-func normalizeChatMessageReasoningEffort(value *string) (*string, bool) {
-	if value == nil {
-		return nil, true
-	}
-	normalized := chatprovider.NormalizeGlobalReasoningEffort(value)
-	if normalized == nil {
-		return nil, false
-	}
-	return normalized, true
-}
-
 // validateChatModelReasoningEffortConfig validates and canonicalizes
 // the reasoning_effort config in place. When only one of default/max
 // is provided, it is mirrored into the other. Values must be on the
@@ -7657,8 +7647,8 @@ func validateChatModelReasoningEffortConfig(modelConfig *codersdk.ChatModelCallC
 
 	normalizeField := func(name string, value *string) (*string, error) {
 		normalized := chatprovider.NormalizeGlobalReasoningEffort(value)
-		if normalized == nil || *normalized == "none" {
-			return nil, xerrors.Errorf("reasoning_effort.%s must be one of minimal, low, medium, high, xhigh, max", name)
+		if normalized == nil {
+			return nil, xerrors.Errorf("reasoning_effort.%s must be one of none, minimal, low, medium, high, xhigh, max", name)
 		}
 		if len(supported) > 0 && !slices.Contains(supported, *normalized) {
 			return nil, xerrors.Errorf(

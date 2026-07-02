@@ -4,7 +4,6 @@ import {
 	formatReasoningEffort,
 	getSelectableReasoningEfforts,
 	getSupportedReasoningEfforts,
-	hasReasoningEffort,
 	reasoningEffortRank,
 } from "./reasoningEffort";
 
@@ -30,6 +29,10 @@ describe("reasoningEffortRank", () => {
 		);
 	});
 
+	it("ranks none at the bottom of the scale", () => {
+		expect(reasoningEffortRank("none")).toBe(0);
+	});
+
 	it("returns -1 for unknown values", () => {
 		expect(reasoningEffortRank("extreme")).toBe(-1);
 		expect(reasoningEffortRank("")).toBe(-1);
@@ -42,6 +45,7 @@ describe("reasoningEffortRank", () => {
 
 describe("formatReasoningEffort", () => {
 	it.each([
+		["none", "None"],
 		["minimal", "Minimal"],
 		["low", "Low"],
 		["medium", "Medium"],
@@ -154,21 +158,23 @@ describe("getSelectableReasoningEfforts", () => {
 			}),
 		).toEqual([]);
 	});
-});
 
-describe("hasReasoningEffort", () => {
-	it("is true when the model has a usable max", () => {
+	it("includes none for Vercel from the bottom of its range", () => {
 		expect(
-			hasReasoningEffort({ provider: "openai", reasoningEffortMax: "high" }),
-		).toBe(true);
-	});
-
-	it("is false without a max, for unsupported providers, or undefined", () => {
-		expect(hasReasoningEffort({ provider: "openai" })).toBe(false);
+			getSelectableReasoningEfforts({
+				provider: "vercel",
+				reasoningEffortDefault: "medium",
+				reasoningEffortMax: "xhigh",
+			}),
+		).toEqual(["none", "minimal", "low", "medium", "high", "xhigh"]);
+		// "none" itself is a selectable value.
 		expect(
-			hasReasoningEffort({ provider: "google", reasoningEffortMax: "high" }),
-		).toBe(false);
-		expect(hasReasoningEffort(undefined)).toBe(false);
+			clampReasoningEffort("none", {
+				provider: "vercel",
+				reasoningEffortDefault: "medium",
+				reasoningEffortMax: "xhigh",
+			}),
+		).toBe("none");
 	});
 });
 

@@ -246,9 +246,6 @@ const SelectField: FC<
 		label: string;
 		description?: string;
 		options: readonly string[];
-		// Label shown for the unset choice and as the placeholder.
-		// Defaults to "Default", meaning "use the provider default".
-		unsetLabel?: string;
 	}
 > = ({
 	form,
@@ -259,7 +256,6 @@ const SelectField: FC<
 	label,
 	description,
 	options,
-	unsetLabel = "Default",
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
@@ -283,10 +279,10 @@ const SelectField: FC<
 					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
-					<SelectValue placeholder={unsetLabel} />
+					<SelectValue placeholder="Default" />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value={unsetSelectValue}>{unsetLabel}</SelectItem>
+					<SelectItem value={unsetSelectValue}>Default</SelectItem>
 					{options.map((option) => (
 						<SelectItem key={option} value={option}>
 							{capitalize(option)}
@@ -679,7 +675,6 @@ export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 	fieldErrors,
 	disabled,
 }) => {
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 	const supportedEfforts = getSupportedReasoningEfforts(
 		normalizeProvider(provider),
 	);
@@ -698,19 +693,58 @@ export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 					.map(snakeToCamel)
 					.join(".");
 				const fieldKey = `config.${camelName}`;
+				const errorId = `${fieldKey}-error`;
+				const fieldError = fieldErrors[camelName];
+				const currentValue = (getIn(form.values, fieldKey) as string) || "";
+				// Rendered inline rather than through SelectField so the
+				// unset choice can read "Not set": next to a field named
+				// "Default Reasoning Effort", the generic "Default" label
+				// would be ambiguous.
 				return (
-					<SelectField
-						key={fieldKey}
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={camelName}
-						label={snakeToPrettyLabel(field)}
-						description={field.description}
-						unsetLabel="Not set"
-						options={(field.enum ?? []).filter((value) =>
-							supportedEfforts.includes(value),
+					<div key={fieldKey} className="flex min-w-0 flex-col gap-1.5">
+						<FieldLabel
+							htmlFor={fieldKey}
+							label={snakeToPrettyLabel(field)}
+							description={field.description}
+						/>
+						<Select
+							value={currentValue || unsetSelectValue}
+							onValueChange={(value) =>
+								void form.setFieldValue(
+									fieldKey,
+									value === unsetSelectValue ? "" : value,
+								)
+							}
+							disabled={disabled}
+						>
+							<SelectTrigger
+								id={fieldKey}
+								className={cn(
+									"min-w-0",
+									fieldError && "border-content-destructive",
+								)}
+								aria-invalid={Boolean(fieldError)}
+								aria-describedby={fieldError ? errorId : undefined}
+							>
+								<SelectValue placeholder="Not set" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={unsetSelectValue}>Not set</SelectItem>
+								{(field.enum ?? [])
+									.filter((value) => supportedEfforts.includes(value))
+									.map((option) => (
+										<SelectItem key={option} value={option}>
+											{capitalize(option)}
+										</SelectItem>
+									))}
+							</SelectContent>
+						</Select>
+						{fieldError && (
+							<p id={errorId} className="m-0 text-xs text-content-destructive">
+								{fieldError}
+							</p>
 						)}
-					/>
+					</div>
 				);
 			})}
 		</>

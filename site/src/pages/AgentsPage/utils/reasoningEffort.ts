@@ -99,15 +99,6 @@ export const getSelectableReasoningEfforts = (
 };
 
 /**
- * Whether the model has reasoning effort configured, i.e. the effort
- * selector should be shown for it.
- */
-export const hasReasoningEffort = (
-	model: ReasoningEffortModel | undefined,
-): boolean =>
-	model !== undefined && getSelectableReasoningEfforts(model).length > 0;
-
-/**
  * Resolve value to an effort valid for the model. Keeps value when
  * the model supports it under its max, otherwise falls back to the
  * model's default (snapped into the selectable range). Returns

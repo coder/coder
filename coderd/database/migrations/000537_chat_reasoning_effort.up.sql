@@ -62,17 +62,30 @@ CREATE VIEW chats_expanded AS
 -- Migrate the legacy per-provider effort values inside
 -- chat_model_configs.options to the new top-level reasoning_effort
 -- config. The old fixed value becomes both the default and the max.
+-- The legacy path is selected by the config's provider type; rows
+-- with a NULL or unknown provider fall back to the first populated
+-- legacy path.
 WITH legacy AS (
     SELECT
-        id,
-        COALESCE(
-            NULLIF(options #>> '{provider_options,openai,reasoning_effort}', ''),
-            NULLIF(options #>> '{provider_options,anthropic,effort}', ''),
-            NULLIF(options #>> '{provider_options,openaicompat,reasoning_effort}', ''),
-            NULLIF(options #>> '{provider_options,openrouter,reasoning,effort}', ''),
-            NULLIF(options #>> '{provider_options,vercel,reasoning,effort}', '')
-        ) AS effort
-    FROM chat_model_configs
+        cmc.id,
+        CASE ap.type
+            WHEN 'openai' THEN NULLIF(cmc.options #>> '{provider_options,openai,reasoning_effort}', '')
+            WHEN 'azure' THEN NULLIF(cmc.options #>> '{provider_options,openai,reasoning_effort}', '')
+            WHEN 'anthropic' THEN NULLIF(cmc.options #>> '{provider_options,anthropic,effort}', '')
+            WHEN 'bedrock' THEN NULLIF(cmc.options #>> '{provider_options,anthropic,effort}', '')
+            WHEN 'openai-compat' THEN NULLIF(cmc.options #>> '{provider_options,openaicompat,reasoning_effort}', '')
+            WHEN 'openrouter' THEN NULLIF(cmc.options #>> '{provider_options,openrouter,reasoning,effort}', '')
+            WHEN 'vercel' THEN NULLIF(cmc.options #>> '{provider_options,vercel,reasoning,effort}', '')
+            ELSE COALESCE(
+                NULLIF(cmc.options #>> '{provider_options,openai,reasoning_effort}', ''),
+                NULLIF(cmc.options #>> '{provider_options,anthropic,effort}', ''),
+                NULLIF(cmc.options #>> '{provider_options,openaicompat,reasoning_effort}', ''),
+                NULLIF(cmc.options #>> '{provider_options,openrouter,reasoning,effort}', ''),
+                NULLIF(cmc.options #>> '{provider_options,vercel,reasoning,effort}', '')
+            )
+        END AS effort
+    FROM chat_model_configs cmc
+    LEFT JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 )
 UPDATE chat_model_configs
 SET options = jsonb_set(

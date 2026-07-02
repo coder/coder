@@ -1,5 +1,5 @@
 -- Chat model configs carrying legacy per-provider reasoning effort
--- values inside options. Inserted at 000535 so the 000536 data
+-- values inside options. Inserted at 000535 so the 000537 data
 -- migration rewrites them into the top-level reasoning_effort config
 -- ({default, max}) and strips the legacy keys.
 INSERT INTO ai_providers (

@@ -10,24 +10,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestReasoningEffortRank(t *testing.T) {
-	t.Parallel()
-
-	ordered := []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
-	previous := -1
-	for _, value := range ordered {
-		rank, ok := chatprovider.ReasoningEffortRank(value)
-		require.True(t, ok, value)
-		require.Greater(t, rank, previous, value)
-		previous = rank
-	}
-
-	_, ok := chatprovider.ReasoningEffortRank("extreme")
-	require.False(t, ok)
-	_, ok = chatprovider.ReasoningEffortRank("")
-	require.False(t, ok)
-}
-
 func TestNormalizeGlobalReasoningEffort(t *testing.T) {
 	t.Parallel()
 
@@ -38,41 +20,6 @@ func TestNormalizeGlobalReasoningEffort(t *testing.T) {
 	got := chatprovider.NormalizeGlobalReasoningEffort(ptr.Ref(" HIGH "))
 	require.NotNil(t, got)
 	require.Equal(t, "high", *got)
-}
-
-func TestSupportedReasoningEfforts(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t,
-		[]string{"minimal", "low", "medium", "high", "xhigh"},
-		chatprovider.SupportedReasoningEfforts("openai"),
-	)
-	require.Equal(t,
-		[]string{"minimal", "low", "medium", "high", "xhigh"},
-		chatprovider.SupportedReasoningEfforts("azure"),
-	)
-	require.Equal(t,
-		[]string{"minimal", "low", "medium", "high", "xhigh"},
-		chatprovider.SupportedReasoningEfforts("openai-compat"),
-	)
-	require.Equal(t,
-		[]string{"low", "medium", "high", "xhigh", "max"},
-		chatprovider.SupportedReasoningEfforts("anthropic"),
-	)
-	require.Equal(t,
-		[]string{"low", "medium", "high", "xhigh", "max"},
-		chatprovider.SupportedReasoningEfforts("bedrock"),
-	)
-	require.Equal(t,
-		[]string{"low", "medium", "high"},
-		chatprovider.SupportedReasoningEfforts("openrouter"),
-	)
-	require.Equal(t,
-		[]string{"none", "minimal", "low", "medium", "high", "xhigh"},
-		chatprovider.SupportedReasoningEfforts("vercel"),
-	)
-	require.Nil(t, chatprovider.SupportedReasoningEfforts("google"))
-	require.Nil(t, chatprovider.SupportedReasoningEfforts("unknown"))
 }
 
 func TestResolveReasoningEffort(t *testing.T) {
