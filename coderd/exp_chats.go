@@ -473,22 +473,15 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	// Best-effort agent enrichment; see enrichChatAgentIDs.
 	api.enrichChatAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatAgentIDs fills AgentID on chats (and their embedded
-// children) that have a bound workspace but no persisted agent
-// binding. chatd persists the binding lazily, only once a turn dials
-// the workspace, so a chat can carry a workspace_id with a null
-// agent_id. The frontend must never select an agent itself, so the
-// response is enriched with the backend's deterministic selection.
-// Enrichment is response-only and best-effort: nothing is persisted,
-// and on any error the field stays null. Lookups are deduplicated per
-// workspace, but this is still one query per distinct workspace that
-// lacks a binding; acceptable because most chats already carry a
-// persisted agent_id.
+// enrichChatAgentIDs fills AgentID on chats (and their embedded children)
+// that have a bound workspace but no persisted agent binding, which chatd
+// only persists once a turn dials the workspace. Clients rely on this field
+// instead of selecting an agent themselves. Enrichment is response-only and
+// best-effort: on error the field stays null.
 func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	agentIDByWorkspace := make(map[uuid.UUID]*uuid.UUID)
 	resolve := func(workspaceID uuid.UUID) *uuid.UUID {
@@ -2151,7 +2144,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
-	// Best-effort agent enrichment; see enrichChatAgentIDs.
 	enriched := []codersdk.Chat{sdkChat}
 	api.enrichChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]

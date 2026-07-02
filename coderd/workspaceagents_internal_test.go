@@ -390,9 +390,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// This test ensures that the handler selects a root agent
 		// even when the database returns a dev container sub-agent
-		// (parent_id set) first. Selection is asserted via the
-		// coordinator Node call, which receives the chosen agent's
-		// ID.
+		// (parent_id set) first.
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
@@ -442,10 +440,9 @@ func TestWatchChatGit(t *testing.T) {
 			ID: workspaceID,
 		}, nil)
 
-		// And: Return a sub-agent first so a naive agents[0]
-		// selection would pick it, followed by the root agent.
-		// Both are disconnected so the handler stops after the
-		// agent state check.
+		// And: Return a sub-agent first, then the root agent. Both
+		// are disconnected so the handler stops after the agent
+		// state check.
 		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 			Return([]database.WorkspaceAgent{
 				{
@@ -463,9 +460,8 @@ func TestWatchChatGit(t *testing.T) {
 				},
 			}, nil)
 
-		// Then: db2sdk.WorkspaceAgent must be called with the root
-		// agent, not the sub-agent. Node receives the selected
-		// agent's ID.
+		// Then: Node receives the root agent's ID, proving it was
+		// selected over the sub-agent.
 		mCoordinator.EXPECT().Node(rootAgentID).Return(nil)
 
 		// And: We mount the HTTP handler.
