@@ -2,6 +2,7 @@ package provider
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -201,4 +203,28 @@ func (p *OpenAI) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *OpenAI) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+func (*OpenAI) CategorizeError(err error) *recorder.ErrorType {
+	return categorizeOpenAIError(err)
+}
+
+// categorizeOpenAIError categorizes a terminal error from an OpenAI-compatible
+// provider (OpenAI and Copilot) using the shared response envelope and SDK
+// error shapes. It returns nil when err is not an OpenAI-shaped error.
+func categorizeOpenAIError(err error) *recorder.ErrorType {
+	var status int
+	var envErr *intercept.ResponseError
+	switch {
+	case errors.As(err, &envErr):
+		status = envErr.StatusCode
+	default:
+		apiErr := intercept.ResponseErrorFromAPIError(err)
+		if apiErr == nil {
+			return nil
+		}
+		status = apiErr.StatusCode
+	}
+	t := recorder.ErrorTypeFromStatus(status)
+	return &t
 }

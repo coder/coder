@@ -80,6 +80,13 @@ type AIBridgeThread struct {
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
 	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// ErrorType is the categorized terminal upstream error from the root
+	// interception. Nil when the interception succeeded. One of bad_request,
+	// unauthorized, rate_limited, overloaded, server_error, or unknown.
+	ErrorType *string `json:"error_type,omitempty"`
+	// ErrorMessage is the raw terminal upstream error message from the root
+	// interception. Nil when the interception succeeded.
+	ErrorMessage *string `json:"error_message,omitempty"`
 	// AgentFirewallSessionID links this thread to an agent firewall
 	// confinement session. Nil when the request did not pass through
 	// the agent firewall.

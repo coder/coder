@@ -254,6 +254,8 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		ID:             intcID,
 		EndedAt:        in.EndedAt.AsTime(),
 		CredentialHint: in.CredentialHint,
+		ErrorType:      interceptionErrorType(in.GetErrorType()),
+		ErrorMessage:   sql.NullString{String: in.GetErrorMessage(), Valid: in.GetErrorMessage() != ""},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -809,6 +811,20 @@ func credentialKindOrDefault(kind string) database.CredentialKind {
 		return database.CredentialKindCentralized
 	}
 	return ck
+}
+
+// interceptionErrorType maps the wire error type onto the nullable DB enum.
+// An empty or unrecognized value yields an invalid (NULL) enum, which is the
+// case for successful interceptions.
+func interceptionErrorType(errType string) database.NullAIBridgeInterceptionErrorType {
+	et := database.AIBridgeInterceptionErrorType(errType)
+	if errType == "" || !et.Valid() {
+		return database.NullAIBridgeInterceptionErrorType{}
+	}
+	return database.NullAIBridgeInterceptionErrorType{
+		AIBridgeInterceptionErrorType: et,
+		Valid:                         true,
+	}
 }
 
 func metadataToMap(in map[string]*anypb.Any) map[string]any {

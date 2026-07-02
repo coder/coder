@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -119,6 +120,10 @@ func (p *Copilot) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *Copilot) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+func (*Copilot) CategorizeError(err error) *recorder.ErrorType {
+	return categorizeOpenAIError(err)
 }
 
 func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {

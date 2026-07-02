@@ -1280,6 +1280,16 @@ func buildAIBridgeThread(
 			n := rootIntc.AgentFirewallSequenceNumber.Int32
 			thread.AgentFirewallSequenceNumber = &n
 		}
+		// Surface the terminal upstream error from the root interception.
+		// Only set when the interception failed.
+		if rootIntc.ErrorType.Valid {
+			errType := string(rootIntc.ErrorType.AIBridgeInterceptionErrorType)
+			thread.ErrorType = &errType
+		}
+		if rootIntc.ErrorMessage.Valid {
+			errMsg := rootIntc.ErrorMessage.String
+			thread.ErrorMessage = &errMsg
+		}
 	}
 
 	// Compute thread time bounds from interceptions.

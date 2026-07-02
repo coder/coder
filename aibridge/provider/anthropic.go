@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -214,4 +216,28 @@ func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {
 
 func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
+}
+
+// statusOverloaded is the non-standard HTTP status Anthropic returns when its
+// API is overloaded. The net/http package does not define a constant for it.
+const statusOverloaded = 529
+
+func (*Anthropic) CategorizeError(err error) *recorder.ErrorType {
+	var status int
+	var envErr *messages.ResponseError
+	switch {
+	case errors.As(err, &envErr):
+		status = envErr.StatusCode
+	default:
+		apiErr := messages.ResponseErrorFromAPIError(err)
+		if apiErr == nil {
+			return nil
+		}
+		status = apiErr.StatusCode
+	}
+	t := recorder.ErrorTypeFromStatus(status)
+	if status == statusOverloaded {
+		t = recorder.ErrorTypeOverloaded
+	}
+	return &t
 }

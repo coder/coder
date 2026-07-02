@@ -592,7 +592,7 @@ func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
 	}
 }
 
-func responseErrorFromAPIError(err error) *ResponseError {
+func ResponseErrorFromAPIError(err error) *ResponseError {
 	var apierr *anthropic.Error
 	if !errors.As(err, &apierr) {
 		return nil

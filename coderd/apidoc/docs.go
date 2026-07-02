@@ -15201,6 +15201,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "error_message": {
+                    "description": "ErrorMessage is the raw terminal upstream error message from the root\ninterception. Nil when the interception succeeded.",
+                    "type": "string"
+                },
+                "error_type": {
+                    "description": "ErrorType is the categorized terminal upstream error from the root\ninterception. Nil when the interception succeeded. One of bad_request,\nunauthorized, rate_limited, overloaded, server_error, or unknown.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"

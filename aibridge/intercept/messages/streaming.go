@@ -618,7 +618,7 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 			// We can't reflect an error back if there's a connection error or the request context was canceled.
 			return nil
 		}
-		if antErr := responseErrorFromAPIError(streamErr); antErr != nil {
+		if antErr := ResponseErrorFromAPIError(streamErr); antErr != nil {
 			logger.Warn(ctx, "anthropic stream error", slog.Error(streamErr))
 			return antErr
 		}
