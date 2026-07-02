@@ -1092,6 +1092,12 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		// The NATS cluster CA bundle contains a private key and must never be
+		// served to workspace proxies.
+		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeature(database.CryptoKeyFeatureNATSCA))
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		_, err = proxy.SDKClient.CryptoKeys(ctx, "invalid")
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
