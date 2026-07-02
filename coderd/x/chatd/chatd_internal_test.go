@@ -676,27 +676,20 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 func TestRenameChatTitle(t *testing.T) {
 	t.Parallel()
 
+	// A running chat never takes the synthetic marker, so only the lock
+	// probe transaction runs; no unlock transaction may follow.
 	setupRealWorkerLock := func(
 		db *dbmock.MockStore,
 		chatID uuid.UUID,
 		lockedChat database.Chat,
 	) {
 		lockTx := dbmock.NewMockStore(gomock.NewController(t))
-		unlockTx := dbmock.NewMockStore(gomock.NewController(t))
-		gomock.InOrder(
-			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
-				func(fn func(database.Store) error, _ *database.TxOptions) error {
-					return fn(lockTx)
-				},
-			),
-			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
-				func(fn func(database.Store) error, _ *database.TxOptions) error {
-					return fn(unlockTx)
-				},
-			),
+		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
+			func(fn func(database.Store) error, _ *database.TxOptions) error {
+				return fn(lockTx)
+			},
 		)
 		lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
-		unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
 	}
 
 	t.Run("WritesAndReturnsWroteTrue", func(t *testing.T) {
@@ -795,7 +788,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	lockTx := dbmock.NewMockStore(ctrl)
 	usageTx := dbmock.NewMockStore(ctrl)
-	unlockTx := dbmock.NewMockStore(ctrl)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	pubsub := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
@@ -913,6 +905,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
 
+	// A running chat never takes the synthetic marker, so only the lock
+	// probe and usage transactions run. No unlock transaction may follow:
+	// releasing without holding the marker could clear a concurrent
+	// request's fresh marker.
 	gomock.InOrder(
 		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
 			func(fn func(database.Store) error, opts *database.TxOptions) error {
@@ -924,12 +920,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			func(fn func(database.Store) error, opts *database.TxOptions) error {
 				require.Nil(t, opts)
 				return fn(usageTx)
-			},
-		),
-		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Equal(t, "chat_title_regenerate_unlock", opts.TxIdentifier)
-				return fn(unlockTx)
 			},
 		),
 	)
@@ -950,8 +940,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		ID:    chatID,
 		Title: wantTitle,
 	}).Return(updatedChat, nil)
-
-	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
 
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)
