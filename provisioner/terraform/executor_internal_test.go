@@ -2,7 +2,10 @@ package terraform
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
+	"strings"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -214,5 +217,141 @@ func TestChecksumFileCRC32(t *testing.T) {
 
 		checksum := checksumFileCRC32(ctx, logger, "/nonexistent/file.hcl")
 		require.Zero(t, checksum)
+	})
+}
+
+func TestLargeLogLines(t *testing.T) {
+	t.Parallel()
+
+	// writeLines writes all lines to w in a goroutine and reports
+	// success on the returned channel. This is necessary because
+	// io.Pipe writes block until the reader consumes the data.
+	writeLines := func(w io.WriteCloser, lines ...string) <-chan error {
+		ch := make(chan error, 1)
+		go func() {
+			defer w.Close()
+			for _, line := range lines {
+				if _, err := io.WriteString(w, line+"\n"); err != nil {
+					ch <- err
+					return
+				}
+			}
+			ch <- nil
+		}()
+		return ch
+	}
+
+	t.Run("line exceeds old 64KiB default", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		logr := &mockLogger{}
+		writer, doneLogging := logWriter(logr, proto.LogLevel_INFO)
+
+		// 128 KiB line: would exceed the old default 64 KiB limit
+		// but fits within the new 4 MiB limit.
+		largeLine := strings.Repeat("x", 128*1024)
+		writeErr := writeLines(writer, "before", largeLine, "after")
+
+		select {
+		case err := <-writeErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out writing; provisioner would hang")
+		}
+
+		select {
+		case <-doneLogging:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for log processing")
+		}
+
+		// All three lines should be logged normally.
+		require.Len(t, logr.logs, 3)
+		require.Equal(t, "before", logr.logs[0].Output)
+		require.Equal(t, largeLine, logr.logs[1].Output)
+		require.Equal(t, "after", logr.logs[2].Output)
+	})
+
+	t.Run("line exceeds max 4MiB buffer", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		logr := &mockLogger{}
+		writer, doneLogging := logWriter(logr, proto.LogLevel_INFO)
+
+		// 5 MiB line: exceeds even the new 4 MiB limit.
+		largeLine := strings.Repeat("x", 5*1024*1024)
+		writeErr := writeLines(writer, "before", largeLine, "after")
+
+		select {
+		case err := <-writeErr:
+			require.NoError(t, err)
+		case <-ctx.Done():
+			t.Fatal("timed out writing; provisioner would hang")
+		}
+
+		select {
+		case <-doneLogging:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for log processing")
+		}
+
+		// "before" and "after" should still be logged.
+		var outputs []string
+		for _, log := range logr.logs {
+			outputs = append(outputs, log.Output)
+		}
+		require.Contains(t, outputs, "before")
+		require.Contains(t, outputs, "after")
+
+		// The oversized line should have produced a warning.
+		hasWarning := false
+		for _, log := range logr.logs {
+			if log.Level == proto.LogLevel_WARN &&
+				strings.Contains(log.Output, "too long") {
+				hasWarning = true
+				break
+			}
+		}
+		require.True(t, hasWarning,
+			"expected a WARN log about oversized line")
+	})
+
+	t.Run("shared mutex does not wedge stderr", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		stdoutLogr := &mockLogger{}
+		stderrLogr := &mockLogger{}
+
+		stdoutW, doneOut := logWriter(stdoutLogr, proto.LogLevel_INFO)
+		stderrW, doneErr := logWriter(stderrLogr, proto.LogLevel_ERROR)
+
+		// Write a normal line to each stream.
+		go func() {
+			defer stdoutW.Close()
+			_, _ = fmt.Fprintln(stdoutW, "stdout line")
+		}()
+		go func() {
+			defer stderrW.Close()
+			_, _ = fmt.Fprintln(stderrW, "stderr line")
+		}()
+
+		select {
+		case <-doneOut:
+		case <-ctx.Done():
+			t.Fatal("stdout log processing hung")
+		}
+		select {
+		case <-doneErr:
+		case <-ctx.Done():
+			t.Fatal("stderr log processing hung")
+		}
+
+		require.Len(t, stdoutLogr.logs, 1)
+		require.Equal(t, "stdout line", stdoutLogr.logs[0].Output)
+		require.Len(t, stderrLogr.logs, 1)
+		require.Equal(t, "stderr line", stderrLogr.logs[0].Output)
 	})
 }
