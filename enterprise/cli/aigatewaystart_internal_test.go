@@ -128,3 +128,33 @@ func TestLoadProviders_AIBridgedDoneStopsRetry(t *testing.T) {
 	require.ErrorContains(t, err, errMsg)
 	require.Equal(t, int32(1), reloader.calls.Load())
 }
+
+func TestAIGatewayStart_DeploymentOptions(t *testing.T) {
+	t.Parallel()
+
+	cmd := (&RootCmd{}).aiGatewayStart()
+
+	// Standalone Gateway only consumes options used in LLM traffic.
+	// Coderd-only settings such as provider seeds, retention,
+	// structured logging, and Coder MCP injection must stay server-only.
+	var got []string
+	for _, opt := range cmd.Options {
+		if opt.Group != nil && opt.Group.Name == "AI Gateway" {
+			got = append(got, opt.Env)
+		}
+	}
+
+	want := []string{
+		"CODER_AI_GATEWAY_ALLOW_BYOK",
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED",
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL",
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS",
+		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT",
+		"CODER_AI_GATEWAY_DUMP_DIR",
+		"CODER_AI_GATEWAY_MAX_CONCURRENCY",
+		"CODER_AI_GATEWAY_RATE_LIMIT",
+		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
+	}
+	require.ElementsMatch(t, want, got)
+}
