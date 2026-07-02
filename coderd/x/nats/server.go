@@ -11,8 +11,9 @@ import (
 const readyTimeout = 10 * time.Second
 
 // buildServerOptions constructs the embedded NATS server options. The
-// server runs with a loopback random client listener and an optional
-// cluster route listener.
+// server runs with a loopback random client listener and a plaintext
+// cluster route listener. Cluster mTLS is installed later, on the first
+// peer-route reload (see Pubsub.setPeerAddresses), not at boot.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {

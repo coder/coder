@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -135,6 +136,11 @@ type Options struct {
 	disableCluster bool
 }
 
+// ClusterTLSProvider returns the cluster route *tls.Config to apply on the
+// next route reload, or nil to leave routes plaintext. It is called under
+// clusterMu by setPeerAddresses.
+type ClusterTLSProvider func() (*tls.Config, error)
+
 // conn is a stripped down version of natsgo.Conn with just the methods we use, to allow us to fake it in tests.
 type conn interface {
 	Publish(event string, message []byte) error
@@ -182,6 +188,11 @@ type Pubsub struct {
 	clustered     bool
 	serverOpts    *natsserver.Options
 	currentRoutes []*url.URL
+	// clusterTLSProvider mints the cluster route TLS config installed on the
+	// first peer-route reload; clusterTLSApplied records that it has been
+	// installed so later reloads do not re-mint the leaf certificate.
+	clusterTLSProvider ClusterTLSProvider
+	clusterTLSApplied  bool
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
@@ -299,6 +310,17 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub, retErr error) {
+	// Persist the default cluster port onto opts so it is the same value the
+	// listener (buildServerOptions) binds and the value parsePeerAddresses
+	// compares against. parsePeerAddresses overwrites each peer's parsed port
+	// with defaultClusterPort, but only when opts.ClusterPort already equals
+	// defaultClusterPort. Callers like the cli leave ClusterPort at 0, so
+	// without this that branch is skipped and peers are dialed on the relay
+	// URL's port (e.g. 8080) instead of the NATS route port (6222).
+	if opts.ClusterPort == 0 {
+		opts.ClusterPort = defaultClusterPort
+	}
+
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err

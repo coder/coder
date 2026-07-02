@@ -560,6 +560,22 @@ func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 	return ps
 }
 
+// newTestPubsubIgnoreErrors is like newTestPubsub but tolerates ERROR-level
+// logs. The background peer-refresh worker logs at ERROR when a cluster TLS
+// provider fails (fail-closed retry), which is the expected path in
+// provider-error tests.
+func newTestPubsubIgnoreErrors(t *testing.T, opts Options) *Pubsub {
+	t.Helper()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ps, err := New(ctx, logger, opts)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ps.Close()
+	})
+	return ps
+}
+
 func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
 	t.Helper()
 	addr := ps.Server.ClusterAddr()
