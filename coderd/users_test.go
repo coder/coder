@@ -1442,6 +1442,70 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.NoError(t, err, "member should login successfully with the new password")
 	})
 
+	t.Run("UserAdminCanUpdateMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		apikey1, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		apikey1ID, _, ok := strings.Cut(apikey1.Key, "-")
+		require.True(t, ok)
+
+		apikey2, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, err)
+		apikey2ID, _, ok := strings.Cut(apikey2.Key, "-")
+		require.True(t, ok)
+
+		// Confirm the token IDs resolve before the reset, so later
+		// 404s prove password reset removed them.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.NoError(t, err)
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey2ID)
+		require.NoError(t, err)
+
+		err = userAdmin.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "user-admin should be able to update member password")
+
+		// The old session token was deleted with the password reset, so the
+		// member client is unauthorized before it logs back in.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.Error(t, err)
+		cerr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusUnauthorized, cerr.StatusCode())
+
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    member.Email,
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "member should login successfully with the new password")
+
+		memberClient = codersdk.New(
+			memberClient.URL,
+			codersdk.WithSessionToken(resp.SessionToken),
+			codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(memberClient.URL)),
+		)
+
+		// After re-authentication, the old API keys should be gone from storage.
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey1ID)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+
+		_, err = memberClient.APIKeyByID(ctx, member.ID.String(), apikey2ID)
+		require.Error(t, err)
+		cerr = coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
 	t.Run("AuditorCantUpdateOtherUserPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

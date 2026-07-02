@@ -453,6 +453,26 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	subjectAPIKeyRevoker = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeAPIKeyRevoker,
+			FriendlyName: "API Key Revoker",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "apikeyrevoker"},
+					DisplayName: "API Key Revoker",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceApiKey.Type: {policy.ActionDelete},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -843,6 +863,12 @@ func AsResourceMonitor(ctx context.Context) context.Context {
 // handling the lifecycle of sub agents.
 func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
 	return As(ctx, subjectSubAgentAPI(userID, orgID))
+}
+
+// AsAPIKeyRevoker returns a context with an actor that can revoke API
+// keys owned by the specified user, and nothing else.
+func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectAPIKeyRevoker(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions

@@ -2850,10 +2850,26 @@ func TestUserForgotPassword(t *testing.T) {
 		// as we haven't change the password yet.
 		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
 
+		// Create an API token to confirm the password reset revokes the
+		// user's existing keys.
+		token, tokenErr := anotherClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+		require.NoError(t, tokenErr)
+
+		tokenClient := codersdk.New(client.URL, codersdk.WithSessionToken(token.Key))
+
+		_, tokenErr = tokenClient.User(ctx, codersdk.Me)
+		require.NoError(t, tokenErr, "token should authenticate before the password reset")
+
 		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
 
 		requireChangePasswordWithOneTimePasscode(t, ctx, anotherClient, anotherUser.Email, oneTimePasscode, newPassword)
 		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+
+		// The password reset must revoke every API key owned by the user.
+		_, tokenErr = tokenClient.User(ctx, codersdk.Me)
+		var tokenAPIErr *codersdk.Error
+		require.ErrorAs(t, tokenErr, &tokenAPIErr)
+		require.Equal(t, http.StatusUnauthorized, tokenAPIErr.StatusCode())
 
 		// We now need to check that the one-time passcode isn't valid.
 		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
