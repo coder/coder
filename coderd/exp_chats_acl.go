@@ -3,9 +3,12 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	slog "cdr.dev/slog/v3"
@@ -15,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -145,6 +149,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var oldChat database.Chat
 	err := api.Database.InTx(func(tx database.Store) error {
 		current, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
@@ -156,6 +161,9 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		if current.GroupACL == nil {
 			current.GroupACL = database.ChatACL{}
 		}
+		oldChat = current
+		oldChat.UserACL = maps.Clone(current.UserACL)
+		oldChat.GroupACL = maps.Clone(current.GroupACL)
 
 		for id, role := range req.UserRoles {
 			if role == codersdk.ChatRoleDeleted {
@@ -199,7 +207,78 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load under the request actor; the notifier actor cannot read users.
+	initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
+	} else {
+		// Fan out on the server context, not the request, so a client
+		// disconnect after the ACL commit does not drop notifications.
+		newChat := aReq.New
+		go func() {
+			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {
+				api.Logger.Warn(api.ctx, "failed to enqueue chat shared notification", slog.Error(err), slog.F("chat_id", newChat.ID), slog.F("recipient_count", count))
+			}
+		}()
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiator database.User) (int, error) {
+	oldReaders := api.directChatReaders(ctx, oldChat)
+	newReaders := api.directChatReaders(ctx, newChat)
+
+	recipientIDs := make([]uuid.UUID, 0, len(newReaders))
+	for userID := range newReaders {
+		if _, alreadyReader := oldReaders[userID]; alreadyReader {
+			continue
+		}
+		if userID == initiator.ID {
+			continue
+		}
+		recipientIDs = append(recipientIDs, userID)
+	}
+	if len(recipientIDs) == 0 {
+		return 0, nil
+	}
+
+	labels := map[string]string{
+		"chat_id":    newChat.ID.String(),
+		"chat_title": newChat.Title,
+		"initiator":  initiator.Username,
+	}
+
+	//nolint:gocritic // Notifier actor is required to enqueue notifications.
+	notifierCtx := dbauthz.AsNotifier(ctx)
+	var eg errgroup.Group
+	eg.SetLimit(10)
+	for _, userID := range recipientIDs {
+		eg.Go(func() error {
+			_, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiator.ID.String(), newChat.ID)
+			if err != nil {
+				return xerrors.Errorf("enqueue chat shared notification: %w", err)
+			}
+			return nil
+		})
+	}
+	return len(recipientIDs), eg.Wait()
+}
+
+func (api *API) directChatReaders(ctx context.Context, chat database.Chat) map[uuid.UUID]struct{} {
+	readers := map[uuid.UUID]struct{}{chat.OwnerID: {}}
+	for rawUserID, entry := range chat.UserACL {
+		if !slices.Contains(entry.Permissions, policy.ActionRead) {
+			continue
+		}
+		userID, err := uuid.Parse(rawUserID)
+		if err != nil {
+			api.Logger.Warn(ctx, "skip chat ACL entry with invalid user UUID", slog.F("chat_id", chat.ID), slog.F("user_id", rawUserID), slog.Error(err))
+			continue
+		}
+		readers[userID] = struct{}{}
+	}
+	return readers
 }
 
 func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatUser, bool) {
