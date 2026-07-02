@@ -548,53 +548,13 @@ func createWorkspace(
 		opts = &createWorkspaceOptions{}
 	}
 
-	template, err := requestTemplate(ctx, req, api.Database)
+	template, err := api.preflightWorkspaceCreate(ctx, owner.ID, req)
 	if err != nil {
 		return codersdk.Workspace{}, err
 	}
 
-	// This is a premature auth check to avoid doing unnecessary work if the user
-	// doesn't have permission to create a workspace.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		// If this check fails, return a proper unauthorized error to the user to indicate
-		// what is going on.
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: "Unauthorized to create workspace.",
-			Detail: "You are unable to create a workspace in this organization. " +
-				"It is possible to have access to the template, but not be able to create a workspace. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		})
-	}
-
 	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
-
-	// Do this upfront to save work. If this fails, the rest of the work
-	// would be wasted.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
-		return codersdk.Workspace{}, httperror.ErrResourceNotFound
-	}
-	// The user also needs permission to use the template. At this point they have
-	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
-	// Doing this up front can save some work below if the user doesn't have permission.
-	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
-			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
-			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
-				"Please contact an administrator about your permissions if you feel this is an error.",
-		})
-	}
-
-	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
-	if templateAccessControl.IsDeprecated() {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
-			// Pass the deprecated message to the user.
-			Detail: templateAccessControl.Deprecated,
-		})
-	}
 
 	// Required external auth is otherwise only enforced by client-side preflight
 	// checks in the CLI and UI, so API-created workspaces must be validated here
@@ -956,6 +916,64 @@ func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateV
 		),
 		Validations: validations,
 	})
+}
+
+// preflightWorkspaceCreate resolves the template targeted by req and verifies
+// that the caller may create a workspace owned by ownerID using it. It performs
+// only side-effect-free authorization, so it is safe to call as an early gate:
+//
+//   - resolve the template (requestTemplate)
+//   - ActionCreate on a workspace in the template's organization for the owner
+//   - ActionUse on the template
+//   - reject deprecated templates
+//
+// It deliberately does not validate required external auth (that mutates the
+// owner's external auth links and is enforced separately) and does not touch
+// the audit request, so callers retain control over audit-organization
+// assignment and external-auth ordering. Both createWorkspace and tasksCreate
+// call it so these authorization gates cannot diverge.
+func (api *API) preflightWorkspaceCreate(ctx context.Context, ownerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (database.Template, error) {
+	template, err := requestTemplate(ctx, req, api.Database)
+	if err != nil {
+		return database.Template{}, err
+	}
+
+	// This is a premature auth check to avoid doing unnecessary work if the
+	// user doesn't have permission to create a workspace.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(ownerID.String())) {
+		// If this check fails, return a proper unauthorized error to the user
+		// to indicate what is going on.
+		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "Unauthorized to create workspace.",
+			Detail: "You are unable to create a workspace in this organization. " +
+				"It is possible to have access to the template, but not be able to create a workspace. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+		})
+	}
+
+	// The user also needs permission to use the template. At this point they
+	// have read perms, but not necessarily "use". This is also checked in
+	// `db.InsertWorkspace`. Doing this up front can save some work below if the
+	// user doesn't have permission.
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
+		return database.Template{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
+			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+		})
+	}
+
+	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
+	if templateAccessControl.IsDeprecated() {
+		return database.Template{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template %q has been deprecated, and cannot be used to create a new workspace.", template.Name),
+			// Pass the deprecated message to the user.
+			Detail: templateAccessControl.Deprecated,
+		})
+	}
+
+	return template, nil
 }
 
 func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {
