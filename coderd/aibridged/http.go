@@ -148,7 +148,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	logger = logger.With(slog.F("user_id", id))
 
 	periodStart := dbtime.StartOfMonth(dbtime.Now().UTC())
-	budgetStatus, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
+	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 		UserId:      id.String(),
 		PeriodStart: timestamppb.New(periodStart),
 	})
@@ -157,10 +157,10 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
 		return
 	}
-	if budgetStatus.GetExceeded() {
+	if budgetResp.GetExceeded() {
 		http.Error(rw, fmt.Sprintf(
 			"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
-			float64(budgetStatus.GetSpendLimitMicros())/1_000_000,
+			float64(budgetResp.GetSpendLimitMicros())/1_000_000,
 		), http.StatusForbidden)
 		return
 	}

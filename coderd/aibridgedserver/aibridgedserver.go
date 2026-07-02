@@ -747,30 +747,25 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 	}
 	periodStart := in.GetPeriodStart().AsTime()
 
-	status, err := s.resolveUserAISpendStatus(ctx, userID, periodStart)
+	userBudget, err := s.checkUserAIBudget(ctx, userID, periodStart)
 	if err != nil {
 		return nil, err
 	}
 	return &proto.IsBudgetExceededResponse{
-		Exceeded:         status.Exceeded,
-		SpendLimitMicros: status.SpendLimitMicros,
+		Exceeded:         userBudget.Exceeded,
+		SpendLimitMicros: userBudget.SpendLimitMicros,
 	}, nil
 }
 
-// userAISpendStatus is a snapshot of a user's AI spend against their effective
-// budget over [PeriodStart, now]. When no budget is configured for the user,
-// SpendLimitMicros is nil and the other fields are zero-valued.
-type userAISpendStatus struct {
-	EffectiveGroupID   uuid.UUID
-	PeriodStart        time.Time
-	SpendLimitMicros   *int64
-	CurrentSpendMicros int64
-	Exceeded           bool
+// userAIBudget is a snapshot of a user's AI budget status. SpendLimitMicros
+// is nil when no budget is configured for the user (unlimited).
+type userAIBudget struct {
+	Exceeded         bool
+	SpendLimitMicros *int64
 }
 
-// resolveUserAISpendStatus computes the user's AI spend status aggregated from
-// periodStart. Returns a zero-valued status (EffectiveGroupID = uuid.Nil) when
-// no budget applies to the user.
+// checkUserAIBudget evaluates the user's AI budget status aggregated over
+// [periodStart, now].
 //
 // Note: there is a potential race condition where two concurrent requests
 // from the same user can both pass the check if processed in parallel,
@@ -781,14 +776,14 @@ type userAISpendStatus struct {
 //   - Cost accounting is advisory, not strict. The goal is to prevent
 //     overages, not build an accounting system.
 //   - Fail-open is acceptable for this case.
-func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAISpendStatus, error) {
+func (s *Server) checkUserAIBudget(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAIBudget, error) {
 	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
 	if err != nil {
-		return userAISpendStatus{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
+		return userAIBudget{}, xerrors.Errorf("resolve effective AI budget for user %q with budget policy %q: %w", userID, s.budgetPolicy, err)
 	}
 	if !ok {
 		// No budget configured for the user; return zero-valued status.
-		return userAISpendStatus{}, nil
+		return userAIBudget{}, nil
 	}
 
 	spend, err := s.store.GetUserAISpendSince(ctx, database.GetUserAISpendSinceParams{
@@ -797,31 +792,28 @@ func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID,
 		PeriodStart:      periodStart,
 	})
 	if err != nil {
-		return userAISpendStatus{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveBudget.GroupID, err)
+		return userAIBudget{}, xerrors.Errorf("get user AI spend for user %q in group %q: %w", userID, effectiveBudget.GroupID, err)
 	}
 
-	status := userAISpendStatus{
-		EffectiveGroupID:   effectiveBudget.GroupID,
-		PeriodStart:        periodStart,
-		SpendLimitMicros:   ptr.Ref(effectiveBudget.SpendLimitMicros),
-		CurrentSpendMicros: spend.SpendMicros,
-		Exceeded:           spend.SpendMicros >= effectiveBudget.SpendLimitMicros,
-	}
+	exceeded := spend.SpendMicros >= effectiveBudget.SpendLimitMicros
 
 	logger := s.logger.With(
 		slog.F("user_id", userID),
-		slog.F("effective_group_id", status.EffectiveGroupID),
-		slog.F("period_start", status.PeriodStart),
-		slog.F("current_spend_micros", status.CurrentSpendMicros),
-		slog.F("spend_limit_micros", *status.SpendLimitMicros),
-		slog.F("exceeded", status.Exceeded),
+		slog.F("effective_group_id", effectiveBudget.GroupID),
+		slog.F("period_start", periodStart),
+		slog.F("current_spend_micros", spend.SpendMicros),
+		slog.F("spend_limit_micros", effectiveBudget.SpendLimitMicros),
+		slog.F("exceeded", exceeded),
 	)
 	logger.Debug(ctx, "user AI spend status")
-	if status.Exceeded {
+	if exceeded {
 		logger.Warn(ctx, "user AI budget exceeded")
 	}
 
-	return status, nil
+	return userAIBudget{
+		Exceeded:         exceeded,
+		SpendLimitMicros: ptr.Ref(effectiveBudget.SpendLimitMicros),
+	}, nil
 }
 
 // GetAIProviders returns the full AI provider set (enabled and disabled) from
