@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -471,7 +472,46 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID))
+	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
+	api.enrichChatAgentIDs(ctx, sdkChats)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
+}
+
+// enrichChatAgentIDs fills AgentID on chats (and their embedded children)
+// that have a bound workspace but no persisted agent binding, which chatd
+// only persists once a turn dials the workspace. Clients rely on this field
+// instead of selecting an agent themselves. Enrichment is response-only and
+// best-effort: on error the field stays null.
+func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	agentIDByWorkspace := make(map[uuid.UUID]*uuid.UUID)
+	resolve := func(workspaceID uuid.UUID) *uuid.UUID {
+		if agentID, ok := agentIDByWorkspace[workspaceID]; ok {
+			return agentID
+		}
+		var agentID *uuid.UUID
+		agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
+		if err != nil {
+			api.Logger.Debug(ctx, "failed to fetch workspace agents for chat agent enrichment",
+				slog.F("workspace_id", workspaceID),
+				slog.Error(err),
+			)
+		} else if agent, err := agentselect.FindChatAgent(agents); err == nil {
+			agentID = &agent.ID
+		}
+		agentIDByWorkspace[workspaceID] = agentID
+		return agentID
+	}
+	for i := range chats {
+		if chats[i].AgentID == nil && chats[i].WorkspaceID != nil {
+			chats[i].AgentID = resolve(*chats[i].WorkspaceID)
+		}
+		for j := range chats[i].Children {
+			child := &chats[i].Children[j]
+			if child.AgentID == nil && child.WorkspaceID != nil {
+				child.AgentID = resolve(*child.WorkspaceID)
+			}
+		}
+	}
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -2104,6 +2144,10 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
+	enriched := []codersdk.Chat{sdkChat}
+	api.enrichChatAgentIDs(ctx, enriched)
+	sdkChat = enriched[0]
+
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }
 
@@ -2373,11 +2417,19 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	agent, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: codersdk.ChatGitWatchWorkspaceNoAgentsMessage,
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		agent,
 		nil,
 		nil,
 		nil,
@@ -2401,7 +2453,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -2528,11 +2580,19 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	agent, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace has no eligible agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	apiAgent, err := db2sdk.WorkspaceAgent(
 		api.DERPMap(),
 		*api.TailnetCoordinator.Load(),
-		agents[0],
+		agent,
 		nil,
 		nil,
 		nil,
@@ -2556,7 +2616,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
 	defer dialCancel()
 
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to dial workspace agent.",
