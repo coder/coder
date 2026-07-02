@@ -77,6 +77,17 @@ func (p Part) jsonValue() partJSON {
 	}
 }
 
+// EpisodeInfo is a point-in-time snapshot of one buffered episode, returned
+// by InspectChat for debugging purposes.
+type EpisodeInfo struct {
+	HistoryVersion    int64 `json:"history_version"`
+	GenerationAttempt int64 `json:"generation_attempt"`
+	PartsCount        int   `json:"parts_buffered"`
+	Bytes             int64 `json:"bytes_buffered"`
+	SubscriberCount   int   `json:"subscriber_count"`
+	IsClosed          bool  `json:"is_closed"`
+}
+
 // Options configures a Buffer.
 type Options struct {
 	MaxEpisodeBytes        int64
@@ -549,4 +560,27 @@ func serializedPartBytes(part Part) (int64, error) {
 		return 0, err
 	}
 	return int64(len(data)), nil
+}
+
+// InspectChat returns a snapshot of all known episodes for the given chat ID.
+// It holds the buffer lock only briefly, so the returned data may be
+// slightly stale; it is intended for debugging only.
+func (b *Buffer) InspectChat(chatID uuid.UUID) []EpisodeInfo {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	infos := make([]EpisodeInfo, 0)
+	for key, ep := range b.episodes {
+		if key.ChatID != chatID {
+			continue
+		}
+		infos = append(infos, EpisodeInfo{
+			HistoryVersion:    key.HistoryVersion,
+			GenerationAttempt: key.GenerationAttempt,
+			PartsCount:        len(ep.parts),
+			Bytes:             ep.bytes,
+			SubscriberCount:   len(ep.subscribers),
+			IsClosed:          ep.closed,
+		})
+	}
+	return infos
 }

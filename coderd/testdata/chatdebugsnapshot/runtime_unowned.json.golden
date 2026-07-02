@@ -1,0 +1,35 @@
+{
+  "execution_state": "R0",
+  "database": {
+    "status": "running",
+    "archived": false,
+    "generation_attempt": 0,
+    "snapshot_version": 1,
+    "history_version": 1,
+    "worker_id": null,
+    "runner_id": null,
+    "last_error": null,
+    "retry_state": null,
+    "requires_action_deadline_at": null,
+    "created_at": "0001-01-01T00:00:00Z",
+    "updated_at": "0001-01-01T00:00:00Z",
+    "queue_depth": 0,
+    "heartbeat": null,
+    "message_stats": {
+      "total": 3,
+      "deleted": 0,
+      "by_role": {
+        "assistant": 0,
+        "system": 2,
+        "tool": 0,
+        "user": 1
+      }
+    }
+  },
+  "runtime": {
+    "local_worker_id": "00000000-0000-0000-0000-000000000000",
+    "worker_id_matches_local": false,
+    "runners": [],
+    "message_buffers": []
+  }
+}

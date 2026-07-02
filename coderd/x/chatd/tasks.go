@@ -74,7 +74,7 @@ type retryWrapperTaskInfo struct {
 func runTaskWithRetry(
 	ctx context.Context,
 	opts retryWrapperOptions,
-	kind taskKind,
+	kind TaskKind,
 	info retryWrapperTaskInfo,
 	fn func(context.Context) error,
 ) error {
@@ -153,7 +153,7 @@ func runTaskWithRetry(
 	}
 }
 
-func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
+func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind TaskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
 	timer := clock.AfterFunc(defaultTaskTimeout, func() {
 		cancelCause(errTaskTimeout)

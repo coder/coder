@@ -128,6 +128,19 @@ func (w *chatWorker) WaitIdle(ctx context.Context) error {
 	}
 }
 
+// InspectChat returns a point-in-time snapshot of the runners tracked for
+// the given chat on this worker. It is safe to call from any goroutine,
+// including concurrently with Close.
+func (w *chatWorker) InspectChat(chatID uuid.UUID) []RunnerSnapshot {
+	w.mu.Lock()
+	manager := w.manager
+	w.mu.Unlock()
+	if manager == nil {
+		return nil
+	}
+	return manager.InspectChat(chatID)
+}
+
 // Close stops the worker and waits for its loops to exit.
 func (w *chatWorker) Close() error {
 	w.mu.Lock()

@@ -2967,6 +2967,21 @@ func (mr *MockStoreMockRecorder) GetChatMessageByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByID", reflect.TypeOf((*MockStore)(nil).GetChatMessageByID), ctx, id)
 }
 
+// GetChatMessageStatsByChatID mocks base method.
+func (m *MockStore) GetChatMessageStatsByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatMessageStatsByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessageStatsByChatID", ctx, chatID)
+	ret0, _ := ret[0].(database.GetChatMessageStatsByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessageStatsByChatID indicates an expected call of GetChatMessageStatsByChatID.
+func (mr *MockStoreMockRecorder) GetChatMessageStatsByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageStatsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessageStatsByChatID), ctx, chatID)
+}
+
 // GetChatMessageSummariesPerChat mocks base method.
 func (m *MockStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	m.ctrl.T.Helper()

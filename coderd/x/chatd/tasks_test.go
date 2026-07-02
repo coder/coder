@@ -42,7 +42,7 @@ func TestRetryWrapper_ExpectedExitsDoNotRetry(t *testing.T) {
 		logger:       sink.Logger(),
 		initialDelay: time.Second,
 		maxDelay:     time.Second,
-	}, taskKindInterrupt, retryWrapperTaskInfo{}, func(context.Context) error {
+	}, TaskKindInterrupt, retryWrapperTaskInfo{}, func(context.Context) error {
 		calls++
 		return errTaskExpectedExit
 	})
@@ -67,7 +67,7 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
-		}, taskKindRequiresActionTimeout, retryWrapperTaskInfo{}, func(context.Context) error {
+		}, TaskKindRequiresActionTimeout, retryWrapperTaskInfo{}, func(context.Context) error {
 			calls++
 			if calls == 1 {
 				return xerrors.New("database unavailable")
@@ -82,7 +82,7 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 	require.Equal(t, 2, calls)
 	entries := entriesWithMessage(sink, "chatworker task retrying")
 	require.Len(t, entries, 1)
-	require.Equal(t, string(taskKindRequiresActionTimeout), sinkFieldValue(t, entries[0].Fields, "task_kind"))
+	require.Equal(t, string(TaskKindRequiresActionTimeout), sinkFieldValue(t, entries[0].Fields, "task_kind"))
 	require.Equal(t, time.Minute.String(), sinkFieldValue(t, entries[0].Fields, "delay"))
 	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), "database unavailable")
 }
@@ -103,7 +103,7 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
-		}, taskKindGeneration, retryWrapperTaskInfo{}, func(context.Context) error {
+		}, TaskKindGeneration, retryWrapperTaskInfo{}, func(context.Context) error {
 			calls++
 			if calls == 1 {
 				panic("database unavailable")
@@ -146,7 +146,7 @@ func TestRetryWrapper_TaskTimeoutDBQueryCancellationRetries(t *testing.T) {
 			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
-		}, taskKindGeneration, retryWrapperTaskInfo{}, func(ctx context.Context) error {
+		}, TaskKindGeneration, retryWrapperTaskInfo{}, func(ctx context.Context) error {
 			calls++
 			if calls == 1 {
 				close(firstCallStarted)
@@ -190,7 +190,7 @@ func TestRetryWrapper_ContextCancellationDoesNotRetryOrLog(t *testing.T) {
 		logger:       sink.Logger(),
 		initialDelay: time.Second,
 		maxDelay:     time.Second,
-	}, taskKindGeneration, retryWrapperTaskInfo{}, func(context.Context) error {
+	}, TaskKindGeneration, retryWrapperTaskInfo{}, func(context.Context) error {
 		calls++
 		return original
 	})

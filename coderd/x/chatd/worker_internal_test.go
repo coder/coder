@@ -52,7 +52,7 @@ func TestWorker_AcquiresRunnableChatFromOwnershipHint(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	worker := startWorker(t, testOptions(t, f, starter))
 
-	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	call := starter.waitCall(t, TaskKindGeneration, chat.ID)
 	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
 	require.Equal(t, database.ChatStatusRunning, call.input.Status)
 	require.NotEqual(t, uuid.Nil, call.input.RunnerID)
@@ -75,7 +75,7 @@ func TestWorker_AcquiresRequiresActionChatFromOwnershipHint(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	startWorker(t, testOptions(t, f, starter))
 
-	call := starter.waitCall(t, taskKindRequiresActionTimeout, chat.ID)
+	call := starter.waitCall(t, TaskKindRequiresActionTimeout, chat.ID)
 	require.Equal(t, database.ChatStatusRequiresAction, call.input.Status)
 	require.True(t, call.input.RequiresActionDeadlineAt.Valid)
 }
@@ -109,7 +109,7 @@ func TestWorker_ReacquiresStaleOwnedChat(t *testing.T) {
 	starter := newBlockingTaskStarter(false)
 	worker := startWorker(t, testOptions(t, f, starter))
 
-	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	call := starter.waitCall(t, TaskKindGeneration, chat.ID)
 	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
 	require.Equal(t, database.ChatStatusRunning, call.input.Status)
 	require.NotEqual(t, deadRunner, call.input.RunnerID)
@@ -136,7 +136,7 @@ func TestWorker_TwoWorkersRaceSingleOwner(t *testing.T) {
 	first := startWorker(t, testOptions(t, f, firstStarter))
 	second := startWorker(t, testOptions(t, f, secondStarter))
 
-	call := waitAnyTaskCall(t, firstStarter, secondStarter, taskKindGeneration, chat.ID)
+	call := waitAnyTaskCall(t, firstStarter, secondStarter, TaskKindGeneration, chat.ID)
 	require.Contains(t, []uuid.UUID{first.chatWorkerID(), second.chatWorkerID()}, call.input.WorkerID)
 	firstStarter.assertNoCall(t)
 	secondStarter.assertNoCall(t)
@@ -162,7 +162,7 @@ func TestWorker_DrainsMultipleRunnableChatsOnWake(t *testing.T) {
 
 	want := map[uuid.UUID]bool{first.ID: true, second.ID: true, third.ID: true}
 	for range 3 {
-		call := starter.waitCall(t, taskKindGeneration, uuid.Nil)
+		call := starter.waitCall(t, TaskKindGeneration, uuid.Nil)
 		delete(want, call.input.ChatID)
 	}
 	require.Empty(t, want)
@@ -197,7 +197,7 @@ func TestWorker_HeartbeatLoopRefreshesActiveRunnerHeartbeat(t *testing.T) {
 	opts.HeartbeatInterval = time.Minute
 	startWorker(t, opts)
 	heartbeatTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
-	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	call := starter.waitCall(t, TaskKindGeneration, chat.ID)
 	oldHeartbeat := makeHeartbeatStale(t, f, chat.ID, call.input.RunnerID)
 
 	clock.Advance(time.Minute).MustWait(testutil.Context(t, testutil.WaitLong))
@@ -253,7 +253,7 @@ func TestWorker_CloseDeletesOwnedHeartbeatsAndPublishesOwnershipHints(t *testing
 	worker := startWorker(t, opts)
 	callsByChat := make(map[uuid.UUID]taskCall)
 	for range 2 {
-		call := starter.waitCall(t, taskKindGeneration, uuid.Nil)
+		call := starter.waitCall(t, TaskKindGeneration, uuid.Nil)
 		callsByChat[call.input.ChatID] = call
 	}
 	require.Contains(t, callsByChat, first.ID)
@@ -284,7 +284,7 @@ func TestWorker_CloseIsIdempotentAndDoesNotBlock(t *testing.T) {
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
 	worker := startWorker(t, testOptions(t, f, starter))
-	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	call := starter.waitCall(t, TaskKindGeneration, chat.ID)
 
 	closed := make(chan error, 1)
 	go func() {
@@ -311,7 +311,7 @@ func waitAnyTaskCall(
 	t *testing.T,
 	first *recordingTaskStarter,
 	second *recordingTaskStarter,
-	kind taskKind,
+	kind TaskKind,
 	chatID uuid.UUID,
 ) taskCall {
 	t.Helper()

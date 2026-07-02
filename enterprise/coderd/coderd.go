@@ -213,13 +213,58 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// Use a closure that captures api by reference so it can access
 	// api.AGPL.ID after coderd.New is called. The parts dialer is
 	// only invoked from stream subscriptions, which happen after init.
-	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
+	replicaCfg := entchatd.StreamPartsDialerConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {
 			return api.AGPL.ID
 		},
-	})
+	}
+	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(replicaCfg)
+
+	// Forward debug snapshot requests to the owning replica by resolving its
+	// address and proxying the full HTTP request. The owning pod handles it
+	// locally and returns its own DB + runtime response.
+	options.Options.ChatDebugProxy = func(rw http.ResponseWriter, r *http.Request, replicaID uuid.UUID) {
+		address, ok := resolveReplicaAddress(r.Context(), replicaID)
+		if !ok {
+			httpapi.Write(r.Context(), rw, http.StatusBadGateway, codersdk.Response{
+				Message: fmt.Sprintf("owning replica %s not found", replicaID),
+			})
+			return
+		}
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, address+r.URL.RequestURI(), nil)
+		if err != nil {
+			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "failed to build proxy request",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		req.Header.Set(codersdk.SessionTokenHeader, entchatd.ExtractSessionToken(r.Header))
+		req.Header.Set(coderd.ChatDebugForwardedHeader, "1")
+		resp, err := replicaHTTPClient.Do(req)
+		if err != nil {
+			api.Logger.Error(r.Context(), "failed to reach owning replica for chat debug snapshot",
+				slog.F("replica_id", replicaID),
+				slog.F("address", address),
+				slog.Error(err),
+			)
+			httpapi.Write(r.Context(), rw, http.StatusBadGateway, codersdk.Response{
+				Message: "failed to reach owning replica",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		defer resp.Body.Close()
+		if ct := resp.Header.Get("Content-Type"); ct != "" {
+			rw.Header().Set("Content-Type", ct)
+		}
+		rw.WriteHeader(resp.StatusCode)
+		// Defense-in-depth: the upstream is a sibling replica returning a
+		// bounded JSON snapshot, but cap the copy regardless.
+		_, _ = io.Copy(rw, io.LimitReader(resp.Body, 1<<20))
+	}
 
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)

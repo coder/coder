@@ -430,6 +430,9 @@ type sqlcQuerier interface {
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
+	// Returns row counts for all messages in a chat, including deleted and
+	// model-visibility messages, for use by the debug snapshot endpoint.
+	GetChatMessageStatsByChatID(ctx context.Context, chatID uuid.UUID) (GetChatMessageStatsByChatIDRow, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
 	// ongoing activity in long-running chats is captured each window.

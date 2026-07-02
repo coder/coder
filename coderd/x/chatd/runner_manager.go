@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,9 +49,18 @@ type runnerRecord struct {
 	done     <-chan struct{}
 	stateCh  chan runnerStateUpdate
 
+	// activeTaskKind holds the kind of the currently executing task. It is
+	// written by the runner goroutine and read by the inspection path, so it
+	// uses an atomic to avoid races. Nil means no task is active.
+	activeTaskKind atomic.Pointer[TaskKind]
+
 	mu             sync.Mutex
 	unsubscribe    func()
 	cleanupStarted bool
+}
+
+func (r *runnerRecord) setActiveTaskKind(k *TaskKind) {
+	r.activeTaskKind.Store(k)
 }
 
 func (r *runnerRecord) setUnsubscribe(unsubscribe func()) bool {
@@ -81,6 +91,35 @@ func (r *runnerRecord) startCleanup() {
 		unsubscribe()
 	}
 	r.cancel()
+}
+
+// RunnerSnapshot is a point-in-time view of one active runner, used for
+// debugging.
+type RunnerSnapshot struct {
+	RunnerID       uuid.UUID `json:"runner_id"`
+	WorkerID       uuid.UUID `json:"worker_id"`
+	ActiveTaskKind *TaskKind `json:"active_task_kind"` // nil when no task is executing
+}
+
+// InspectChat returns a snapshot of all runners currently active for the given
+// chat on this pod. It holds the manager lock only briefly and is safe to call
+// from any goroutine.
+func (m *runnerManager) InspectChat(chatID uuid.UUID) []RunnerSnapshot {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	byRunner := m.runnersByChat[chatID]
+	if len(byRunner) == 0 {
+		return nil
+	}
+	snaps := make([]RunnerSnapshot, 0, len(byRunner))
+	for _, rec := range byRunner {
+		snaps = append(snaps, RunnerSnapshot{
+			RunnerID:       rec.key.RunnerID,
+			WorkerID:       rec.workerID,
+			ActiveTaskKind: rec.activeTaskKind.Load(),
+		})
+	}
+	return snaps
 }
 
 type runnerManager struct {

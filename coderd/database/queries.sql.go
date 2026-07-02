@@ -7510,6 +7510,43 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 	return i, err
 }
 
+const getChatMessageStatsByChatID = `-- name: GetChatMessageStatsByChatID :one
+SELECT
+    COUNT(*)::bigint                                                                        AS total,
+    COUNT(*) FILTER (WHERE deleted)::bigint                                                AS deleted,
+    COUNT(*) FILTER (WHERE NOT deleted AND role = 'system')::bigint                       AS system_count,
+    COUNT(*) FILTER (WHERE NOT deleted AND role = 'user')::bigint                         AS user_count,
+    COUNT(*) FILTER (WHERE NOT deleted AND role = 'assistant')::bigint                    AS assistant_count,
+    COUNT(*) FILTER (WHERE NOT deleted AND role = 'tool')::bigint                         AS tool_count
+FROM chat_messages
+WHERE chat_id = $1::uuid
+`
+
+type GetChatMessageStatsByChatIDRow struct {
+	Total          int64 `db:"total" json:"total"`
+	Deleted        int64 `db:"deleted" json:"deleted"`
+	SystemCount    int64 `db:"system_count" json:"system_count"`
+	UserCount      int64 `db:"user_count" json:"user_count"`
+	AssistantCount int64 `db:"assistant_count" json:"assistant_count"`
+	ToolCount      int64 `db:"tool_count" json:"tool_count"`
+}
+
+// Returns row counts for all messages in a chat, including deleted and
+// model-visibility messages, for use by the debug snapshot endpoint.
+func (q *sqlQuerier) GetChatMessageStatsByChatID(ctx context.Context, chatID uuid.UUID) (GetChatMessageStatsByChatIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatMessageStatsByChatID, chatID)
+	var i GetChatMessageStatsByChatIDRow
+	err := row.Scan(
+		&i.Total,
+		&i.Deleted,
+		&i.SystemCount,
+		&i.UserCount,
+		&i.AssistantCount,
+		&i.ToolCount,
+	)
+	return i, err
+}
+
 const getChatMessageSummariesPerChat = `-- name: GetChatMessageSummariesPerChat :many
 SELECT
     cm.chat_id,
