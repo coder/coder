@@ -225,7 +225,8 @@ func TestStreamingInterception_HandlesUpstreamSSEEdgeCases(t *testing.T) {
 			}
 
 			interceptor := NewStreamingInterceptor(uuid.New(), params, cfg, cred, http.Header{}, otel.Tracer("streaming_test"))
-			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 			w := httptest.NewRecorder()
