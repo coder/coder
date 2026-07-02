@@ -46,10 +46,10 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
-	it("normalizes the admin index route to an undefined section", () => {
+	it("keeps legacy admin redirect paths on the settings panel", () => {
 		expect(sidebarViewFromPath("/agents/settings/admin")).toEqual({
-			panel: "settings-admin",
-			section: undefined,
+			panel: "settings",
+			section: "admin",
 		});
 	});
 
@@ -91,12 +91,6 @@ describe("isSettingsView", () => {
 		expect(isSettingsView({ panel: "settings", section: undefined })).toBe(
 			true,
 		);
-	});
-
-	it("returns true for the admin settings panel", () => {
-		expect(
-			isSettingsView({ panel: "settings-admin", section: "providers" }),
-		).toBe(true);
 	});
 
 	it("returns false for chats", () => {

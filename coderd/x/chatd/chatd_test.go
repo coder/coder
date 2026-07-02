@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -81,14 +82,6 @@ func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *at
 	var ptr atomic.Pointer[aibridge.TransportFactory]
 	ptr.Store(&factory)
 	return &ptr
-}
-
-func directChatRoutingDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
-	t.Helper()
-
-	values := coderdtest.DeploymentValues(t)
-	require.NoError(t, values.AI.Chat.AIGatewayRoutingEnabled.Set("false"))
-	return values
 }
 
 func openAIToolName(tool chattest.OpenAITool) string {
@@ -172,6 +165,7 @@ func newWorkspaceToolTestServer(
 	ps dbpubsub.Pubsub,
 	agentID uuid.UUID,
 	planContent string,
+	overrides ...func(cfg *chatd.Config),
 ) *chatd.Server {
 	t.Helper()
 
@@ -190,23 +184,26 @@ func newWorkspaceToolTestServer(
 			return io.NopCloser(strings.NewReader("")), "", nil
 		}).AnyTimes()
 
-	return newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AgentConn = func(_ context.Context, gotAgentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, agentID, gotAgentID)
-			return mockConn, func() {}, nil
-		}
-	})
+	configOverrides := append([]func(cfg *chatd.Config){
+		func(cfg *chatd.Config) {
+			cfg.AgentConn = func(_ context.Context, gotAgentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, agentID, gotAgentID)
+				return mockConn, func() {}, nil
+			}
+		},
+	}, overrides...)
+	return newActiveTestServer(t, db, ps, configOverrides...)
 }
 
 func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -359,11 +356,11 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -526,11 +523,12 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -819,7 +817,9 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -900,7 +900,10 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	exploreChat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -986,7 +989,10 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 		},
 	)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	exploreChat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -1110,7 +1116,10 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	rootChat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -1309,7 +1318,9 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -1754,7 +1765,10 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	err := db.UpsertChatPlanModeInstructions(dbauthz.AsSystemRestricted(ctx), planModeInstructions)
 	require.NoError(t, err)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n")
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n", func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:        user.ID,
@@ -2048,7 +2062,9 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 		}
 	})
 
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		// Disable periodic polling so chained promotions must be driven by
 		// signalWake.
 		cfg.PendingChatAcquireInterval = time.Hour
@@ -2226,7 +2242,9 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		)
 	})
 
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.Clock = clock
 		// Keep periodic polling frozen so request handoff is synchronized
 		// through explicit mock channels.
@@ -2670,7 +2688,8 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
+	openAIURL := chattest.OpenAI(t)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 
 	toolName := "my_dynamic_tool"
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
@@ -2743,7 +2762,10 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		time.Now().Add(-time.Hour), created.Chat.ID)
 	require.NoError(t, err)
 
-	server := newTestServer(t, db, ps, uuid.New())
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	server.Start()
 
 	chatResult := waitForTerminalChat(ctx, t, db, created.Chat.ID)
@@ -2771,7 +2793,8 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	db, ps, rawDB := dbtestutil.NewDBWithSQLDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
+	openAIURL := chattest.OpenAI(t)
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("hello"),
@@ -2813,7 +2836,10 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	require.NoError(t, err)
 
 	newWorkerID := uuid.New()
-	server := newTestServer(t, db, ps, newWorkerID)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newTestServer(t, db, ps, newWorkerID, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	// Start a new replica. It should recover the stale chat on
 	// startup.
 	server.Start()
@@ -3053,7 +3079,9 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 		}, nil).
 		AnyTimes()
 
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -3164,6 +3192,7 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 
 	mockPush := &mockWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := chatd.New(ps, chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -3171,6 +3200,7 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(factory),
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -3307,6 +3337,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -3413,6 +3444,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			}).Times(1)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -3529,7 +3561,9 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			},
 		})
 
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
 		testutil.TryReceive(ctx, t, providerToolStarted)
 		queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -3624,6 +3658,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -3725,7 +3760,9 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 			},
 		})
 
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "think")
 		testutil.TryReceive(ctx, t, reasoningStarted)
 		queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -3779,7 +3816,10 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		dynamicToolsJSON := dynamicToolJSON(t, "my_dynamic_tool")
 
-		server := newActiveTestServer(t, db, ps)
+		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		})
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
@@ -3836,7 +3876,10 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-		server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n")
+		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+		server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n", func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		})
 
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
@@ -3883,7 +3926,10 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-		server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n")
+		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+		server := newWorkspaceToolTestServer(t, db, ps, dbAgent.ID, "# Plan\n", func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		})
 
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
@@ -3959,7 +4005,10 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	// server without an agent connection, so the built-in tools
 	// are never invoked because the only tool call targets our
 	// dynamic tool.
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	// Create a chat with a dynamic tool.
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
@@ -4128,7 +4177,10 @@ func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
 		Name:        "propose_plan",
@@ -4242,7 +4294,10 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	// Create a chat with a dynamic tool.
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
@@ -4382,7 +4437,10 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	// Create a chat with a dynamic tool.
 	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
@@ -4650,11 +4708,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4815,11 +4873,11 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues:         deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -5029,7 +5087,9 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 	}).Do()
 
 	var dialCalls atomic.Int32
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			dialCalls.Add(1)
 			require.Equal(t, dbAgent.ID, agentID)
@@ -5237,16 +5297,22 @@ func newTestServer(
 	db database.Store,
 	ps dbpubsub.Pubsub,
 	replicaID uuid.UUID,
+	overrides ...func(*chatd.Config),
 ) *chatd.Server {
 	t.Helper()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(ps, chatd.Config{
+	cfg := chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		PendingChatAcquireInterval: testutil.WaitLong,
-	})
+		Experiments:                codersdk.ExperimentsKnown,
+	}
+	for _, o := range overrides {
+		o(&cfg)
+	}
+	server := chatd.New(ps, cfg)
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -5284,7 +5350,7 @@ func highUsageReadFileResponse(path string) chattest.AnthropicResponse {
 	return chattest.AnthropicStreamingResponse(chunks...)
 }
 
-func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
+func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -5377,7 +5443,6 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AIGatewayRoutingEnabled = true
 		cfg.AllowBYOK = true
 		cfg.AllowBYOKSet = true
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -5456,6 +5521,7 @@ func TestActiveServer_CompactionRecordsMetric(t *testing.T) {
 		Times(1)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 		cfg.PrometheusRegistry = reg
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -5549,6 +5615,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 			Times(1)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -5619,7 +5686,9 @@ func TestActiveServer_Compaction(t *testing.T) {
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 		model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "finish with high usage")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -5672,6 +5741,7 @@ func TestActiveServer_Compaction(t *testing.T) {
 
 		reg := prometheus.NewRegistry()
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 			cfg.Logger = logSink.Logger()
 			cfg.PrometheusRegistry = reg
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -5812,7 +5882,9 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	model.ContextLimit = 4096
 	model = updateChatModelContextLimit(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertSystemTextMessage(ctx, t, db, chat.ID, "sys-2", model.ID)
@@ -5852,7 +5924,9 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	requireTextPart(t, last, "done")
 
 	requests = newAnthropicRequestRecorder()
-	server = newActiveTestServer(t, db, ps)
+	server = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	planChat := createPlanSubagentChatWithHistory(ctx, t, db, org.ID, user.ID, model.ID)
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        planChat.ID,
@@ -5901,6 +5975,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 		mockConn.EXPECT().WriteFile(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -5953,7 +6028,11 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 		model.Model = "gpt-5.5"
 		model = updateChatModelContextLimit(t, db, model)
 
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) { cfg.AllowBYOKSet = true; cfg.AllowBYOK = false })
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.AllowBYOKSet = true
+			cfg.AllowBYOK = false
+		})
 		result := codersdk.ChatMessageToolResult(
 			"computer-call",
 			"computer",
@@ -6040,6 +6119,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			Times(1)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -6121,6 +6201,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			Times(1)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -6173,6 +6254,7 @@ func TestActiveServer_RecordsGenerationMetrics(t *testing.T) {
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.PrometheusRegistry = reg
 	})
 
@@ -6284,6 +6366,7 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 			tt.setupAgent(mockConn)
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 				cfg.PrometheusRegistry = reg
 				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 					require.Equal(t, dbAgent.ID, agentID)
@@ -6573,7 +6656,9 @@ func TestActiveServer_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	})
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -6606,6 +6691,7 @@ func TestActiveServer_ChatTurnDebugRunRecordsStreamStep(t *testing.T) {
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 		cfg.AlwaysEnableDebugLogs = true
 	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello debug")
@@ -6716,6 +6802,7 @@ func TestActiveServer_ChatTurnDebugRunRecordsMultipleStreamSteps(t *testing.T) {
 		Times(1)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 		cfg.AlwaysEnableDebugLogs = true
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -6804,7 +6891,9 @@ func TestActiveServer_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) 
 	})
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertOrphanProviderToolCall(ctx, t, db, chat.ID, model.ID)
@@ -6854,7 +6943,9 @@ func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 		model = updateChatModelCallConfig(t, db, model, callConfig)
 
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		insertProviderToolPairMessageWithLocalTool(ctx, t, db, chat.ID, model.ID, "ws-allowed")
@@ -6889,7 +6980,9 @@ func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		})
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search and read")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 		insertProviderToolPairMessageWithLocalTool(ctx, t, db, chat.ID, model.ID, "ws-disabled")
@@ -6958,7 +7051,9 @@ func TestActiveServer_AnthropicDropsUnpairedProviderToolBeforePersist(t *testing
 			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 			model = enableAnthropicWebSearchForTest(t, db, model)
 
-			server := newActiveTestServer(t, db, ps)
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+			})
 			chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "run provider tool")
 			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -6989,7 +7084,9 @@ func TestActiveServer_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = enableAnthropicWebSearchForTest(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -7042,7 +7139,9 @@ func TestActiveServer_AnthropicWebSearchFollowUpHasNoSyntheticCancellation(t *te
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = enableAnthropicWebSearchForTest(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -7119,6 +7218,7 @@ func TestActiveServer_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T
 		Times(1)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -7191,6 +7291,7 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -7250,7 +7351,9 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		}})
 		require.NoError(t, err)
 
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
 		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
@@ -7299,7 +7402,9 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "advise only")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -7342,7 +7447,9 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 			},
 		})
 		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		server := newActiveTestServer(t, db, ps)
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search then advise")
 		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -7383,7 +7490,9 @@ func TestActiveServer_ReasoningTimestamps(t *testing.T) {
 		},
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "think")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -7718,7 +7827,6 @@ func updateChatModelCompressionThreshold(t *testing.T, db database.Store, model 
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -7735,7 +7843,6 @@ func updateChatModelContextLimit(t *testing.T, db database.Store, model database
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -7754,7 +7861,6 @@ func updateChatModelCallConfig(t *testing.T, db database.Store, model database.C
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,
@@ -8141,6 +8247,7 @@ func newActiveTestServer(
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Experiments:                codersdk.ExperimentsKnown,
 	}
 	for _, o := range overrides {
 		o(&cfg)
@@ -8186,6 +8293,7 @@ func TestActiveServer_GenerationErrorLogged(t *testing.T) {
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.Logger = sink.Logger()
 	})
 
@@ -8296,6 +8404,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				ReplicaID:                  uuid.New(),
 				PendingChatAcquireInterval: testutil.WaitLong,
 				AlwaysEnableDebugLogs:      tt.alwaysEnableDebugLogs,
+				AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 			})
 			t.Cleanup(func() {
 				require.NoError(t, server.Close())
@@ -8337,6 +8446,8 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 			if tt.wantTitleGenerationRuns > 0 {
 				require.Equal(t, string(codersdk.ChatDebugRunKindTitleGeneration), runs[0].Kind)
 				require.Equal(t, string(tt.wantDebugStatus), runs[0].Status)
+				require.True(t, runs[0].Provider.Valid)
+				require.Equal(t, "openai", runs[0].Provider.String)
 				require.True(t, runs[0].FinishedAt.Valid)
 				require.True(t, runs[0].HistoryTipMessageID.Valid)
 				require.Equal(t, message.ID, runs[0].HistoryTipMessageID.Int64)
@@ -8382,14 +8493,14 @@ func seedChatDependenciesWithProvider(
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	providerConfig := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    provider,
 		DisplayName: provider,
 		BaseUrl:     baseURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  provider,
-		IsDefault: true,
+		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:    true,
 	})
 	return user, org, model
 }
@@ -8427,8 +8538,8 @@ func seedChatDependenciesWithProviderPolicy(
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  provider,
-		IsDefault: true,
+		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:    true,
 	})
 
 	return user, org, providerConfig, model
@@ -8486,13 +8597,32 @@ func insertChatModelConfigWithCallConfig(
 	options, err := json.Marshal(callConfig)
 	require.NoError(t, err)
 
+	// Reuse the newest AI provider of this type (creating a bare one only when
+	// none exists) so the config links the seeded provider carrying the mock
+	// base URL and API key rather than a fresh credential-less one.
+	providers, err := db.GetAIProviders(context.Background(), database.GetAIProvidersParams{IncludeDisabled: true})
+	require.NoError(t, err)
+	var aiProvider database.AIProvider
+	for _, candidate := range providers {
+		if candidate.Type != database.AIProviderType(provider) {
+			continue
+		}
+		if aiProvider.ID == uuid.Nil || candidate.CreatedAt.After(aiProvider.CreatedAt) {
+			aiProvider = candidate
+		}
+	}
+	if aiProvider.ID == uuid.Nil {
+		aiProvider = dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AIProviderType(provider),
+		})
+	}
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    provider,
-		Model:       model,
-		DisplayName: model,
-		CreatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: userID, Valid: true},
-		Options:     options,
+		AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		Model:        model,
+		DisplayName:  model,
+		CreatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
+		Options:      options,
 	})
 }
 
@@ -8646,6 +8776,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -8767,6 +8898,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -8847,12 +8979,14 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	})
 
 	loggerA := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	serverA := chatd.New(ps, chatd.Config{
 		Logger:                     loggerA,
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitLong,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(factory),
 	})
 	serverA.Start()
 	t.Cleanup(func() {
@@ -8898,6 +9032,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitLong,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(factory),
 	})
 	serverB.Start()
 	t.Cleanup(func() {
@@ -8952,6 +9087,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -9013,7 +9149,9 @@ func TestSuccessfulChatPersistsTurnSummaryWithoutWebPush(t *testing.T) {
 		)
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
 
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
@@ -9071,6 +9209,7 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -9131,6 +9270,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
 		WebpushDispatcher:          mockPush,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -9325,9 +9465,6 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		BaseUrl:     anthropicSrv.URL,
 	})
 
-	err := db.UpsertChatDesktopEnabled(ctx, true)
-	require.NoError(t, err)
-
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -9357,6 +9494,18 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		providers, providersErr := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
+		require.NoError(t, providersErr)
+		routes := make(map[string]aibridge.TransportFactory, len(providers))
+		for _, provider := range providers {
+			switch provider.Type {
+			case database.AIProviderTypeOpenaiCompat:
+				routes[provider.Name] = chattest.NewMockAIBridgeTransport(t, openAIURL)
+			case database.AIProviderTypeAnthropic:
+				routes[provider.Name] = chattest.NewMockAIBridgeTransport(t, anthropicSrv.URL)
+			}
+		}
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(providerRoutedTransportFactory{routes: routes})
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -9520,6 +9669,8 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		Experiments:                codersdk.ExperimentsKnown,
+		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -9646,7 +9797,9 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_ = newActiveTestServer(t, db, ps)
+	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
 
 	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
@@ -9677,7 +9830,6 @@ func seedAIGatewayOpenAITestDependencies(
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     string(database.AIProviderTypeOpenai),
 		Model:        "gpt-4o-mini",
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
@@ -9694,7 +9846,7 @@ func seedAIGatewayOpenAITestDependencies(
 	return user, org, provider, model, apiKey
 }
 
-func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
+func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -9731,7 +9883,6 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AIGatewayRoutingEnabled = true
 		cfg.AllowBYOK = true
 		cfg.AllowBYOKSet = true
 	})
@@ -9758,7 +9909,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	}
 }
 
-func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
+func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -9798,7 +9949,6 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 		"/home/coder/project/AGENTS.md", contextText)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AIGatewayRoutingEnabled = true
 		cfg.AllowBYOK = true
 		cfg.AllowBYOKSet = true
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -9921,7 +10071,9 @@ func TestProcessChatPanicRecovery(t *testing.T) {
 
 	// Pass the panic wrapper to the server, but use the real
 	// database for seeding so those operations don't panic.
-	server := newActiveTestServer(t, panicWrapper, ps)
+	server := newActiveTestServer(t, panicWrapper, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -10100,6 +10252,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -10261,7 +10414,9 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 		UpdatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -10387,6 +10542,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 		}).AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -10606,6 +10762,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
 			return mockConn, func() {}, nil
@@ -10720,7 +10877,9 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 
 	require.NoError(t, err)
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -10833,6 +10992,7 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 	require.NoError(t, err)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		// Provide a CreateWorkspace function so the tool reaches
 		// the allowlist check instead of bailing with "not
 		// configured". If the allowlist is enforced correctly
@@ -10990,6 +11150,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.CreateWorkspace = func(
 			context.Context,
 			uuid.UUID,
@@ -11120,6 +11281,7 @@ func TestCreateChatImmediatelyProcessesNewChat(t *testing.T) {
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.PendingChatAcquireInterval = time.Hour
 		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
 	user, org, model := seedChatDependencies(t, db)
@@ -11186,6 +11348,7 @@ func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.PendingChatAcquireInterval = time.Hour
 		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
 	user, org, model := seedChatDependencies(t, db)
@@ -11264,12 +11427,13 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 	))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	deploymentValues := directChatRoutingDeploymentValues(t)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-		DeploymentValues:              deploymentValues,
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:              coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon:      true,
 		ChatdInstructionLookupTimeout: testutil.WaitLong,
 	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -11607,51 +11771,64 @@ func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	require.Equal(t, activeChat.ID, acquired[0].ID)
 }
 
-func TestAdvisorGating_Disabled(t *testing.T) {
+// TestAdvisorGating_ExperimentDisabled verifies that the advisor tool is
+// not attached when the chat-advisor experiment is absent from the
+// experiments list, even if the DB-stored advisor config has Enabled=true.
+func TestAdvisorGating_ExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	var toolsMu sync.Mutex
-	var capturedTools []string
-	var capturedMessages []chattest.OpenAIMessage
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	var firstCallTools []string
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
 
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
+		if streamedCallCount.Add(1) == 1 {
+			names := make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				names = append(names, tool.Function.Name)
+			}
+			streamedCallsMu.Lock()
+			firstCallTools = names
+			streamedCallsMu.Unlock()
 		}
-		toolsMu.Lock()
-		capturedTools = names
-		capturedMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
-		toolsMu.Unlock()
 
 		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("advisor is not available")...,
+			chattest.OpenAITextChunks("done")...,
 		)
 	})
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-		Enabled:         false,
+		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	experiments := slices.DeleteFunc(
+		slices.Clone(codersdk.ExperimentsKnown),
+		func(e codersdk.Experiment) bool { return e == codersdk.ExperimentChatAdvisor },
+	)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Experiments = experiments
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
 		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "advisor-disabled",
+		Title:          "advisor-experiment-disabled",
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
+			codersdk.ChatMessageText("help me plan this"),
 		},
 	})
 	require.NoError(t, err)
@@ -11661,22 +11838,20 @@ func TestAdvisorGating_Disabled(t *testing.T) {
 		if getErr != nil {
 			return false
 		}
-		return got.Status == database.ChatStatusWaiting ||
-			got.Status == database.ChatStatusError
+		if got.Status != database.ChatStatusWaiting &&
+			got.Status != database.ChatStatusError {
+			return false
+		}
+		return streamedCallCount.Load() >= 1
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	toolsMu.Lock()
-	tools := append([]string(nil), capturedTools...)
-	messages := append([]chattest.OpenAIMessage(nil), capturedMessages...)
-	toolsMu.Unlock()
+	streamedCallsMu.Lock()
+	tools := append([]string(nil), firstCallTools...)
+	streamedCallsMu.Unlock()
 
-	require.NotEmpty(t, messages, "expected a streamed LLM request")
+	require.NotEmpty(t, tools, "expected at least one streamed LLM request")
 	require.NotContains(t, tools, "advisor",
-		"advisor tool should not be registered when disabled")
-	for _, msg := range messages {
-		require.NotContains(t, msg.Content, chatadvisor.ParentGuidanceBlock,
-			"advisor guidance should not be injected when disabled")
-	}
+		"advisor tool must not be registered when the chat-advisor experiment is absent")
 }
 
 func TestAdvisorGating_RootChat(t *testing.T) {
@@ -11740,7 +11915,11 @@ func TestAdvisorGating_RootChat(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -11915,7 +12094,11 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newTestServer(t, db, ps, uuid.New())
+	server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12105,7 +12288,11 @@ func TestAdvisorGating_ChildChat(t *testing.T) {
 		Title:             "advisor-root-parent",
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	childChat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12184,7 +12371,11 @@ func TestAdvisorGating_PlanMode(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12264,7 +12455,11 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12413,7 +12608,11 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 16384,
 	})
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(
+			chattest.NewMockAIBridgeTransport(t, openAIURL),
+		)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -12545,21 +12744,30 @@ func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
 	})
 
 	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		DisplayName:  "Model A",
 		Enabled:      true,
 		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
 	})
 	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		DisplayName:  "Model B",
 		Enabled:      true,
 		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
 	})
 
-	server := newActiveTestServer(t, db, ps)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		provA, err := db.GetAIProviderByID(ctx, cpA.ID)
+		require.NoError(t, err)
+		provB, err := db.GetAIProviderByID(ctx, cpB.ID)
+		require.NoError(t, err)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(providerRoutedTransportFactory{
+			routes: map[string]aibridge.TransportFactory{
+				provA.Name: chattest.NewMockAIBridgeTransport(t, serverAURL),
+				provB.Name: chattest.NewMockAIBridgeTransport(t, serverBURL),
+			},
+		})
+	})
 
 	// Given: an initial conversation turn with model A that produces provider-executed
 	// tool call results
@@ -12647,6 +12855,23 @@ func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
 	turn3Body := testutil.TryReceive(ctx, t, chanA)
 	require.Contains(t, turn3Body, peToolCallID,
 		"provider A must receive its own PE tool call when switching back")
+}
+
+// providerRoutedTransportFactory implements aibridge.TransportFactory by
+// dispatching to a different mock transport per AI provider name. It
+// exists for tests that exercise two providers in the same chat (e.g.
+// switching models mid-conversation), where a single
+// chattest.MockAIBridgeTransport's fixed target can't represent both.
+type providerRoutedTransportFactory struct {
+	routes map[string]aibridge.TransportFactory
+}
+
+func (f providerRoutedTransportFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	route, ok := f.routes[providerName]
+	if !ok {
+		return nil, xerrors.Errorf("no mock transport configured for provider %q", providerName)
+	}
+	return route.TransportFor(providerName, source)
 }
 
 func seedAdvisorConfig(

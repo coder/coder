@@ -66,7 +66,6 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
-import { formatProviderLabel } from "../utils/modelOptions";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -192,6 +191,10 @@ interface AgentChatInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	// AI Gateway is disabled deployment-wide, independent of provider/model
+	// configuration. Forces the setup notice regardless of the counts above.
+	aiGatewayDisabled?: boolean;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -394,13 +397,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames = [],
+	aiGatewayDisabled,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const showAgentSetupNotice = canConfigureAgentSetup
-		? providerCount !== undefined &&
-			modelCount !== undefined &&
-			(providerCount === 0 || modelCount === 0)
-		: modelCount !== undefined && modelCount === 0;
+	const showAgentSetupNotice =
+		aiGatewayDisabled ||
+		(canConfigureAgentSetup
+			? providerCount !== undefined &&
+				modelCount !== undefined &&
+				(providerCount === 0 || modelCount === 0)
+			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -1063,19 +1070,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 mb-[-2.5rem]">
-					{canConfigureAgentSetup &&
-					providerCount !== undefined &&
-					modelCount !== undefined ? (
+					{(aiGatewayDisabled ||
+						(providerCount !== undefined && modelCount !== undefined)) &&
+					canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
-							providerCount={providerCount}
-							modelCount={modelCount}
+							providerCount={providerCount ?? 0}
+							modelCount={modelCount ?? 0}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
 						/>
 					) : (
 						<AgentSetupNotice
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
 						/>
 					)}
 				</div>
@@ -1404,10 +1415,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
 								className="md:shrink"
 								dropdownSide="top"
-								dropdownAlign="center"
+								dropdownAlign="start"
 								enableMobileFullWidthDropdown
 							/>
 						)}

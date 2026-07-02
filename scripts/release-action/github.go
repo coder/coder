@@ -4,20 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"golang.org/x/xerrors"
 )
 
 // ghOutput runs a gh CLI command and returns trimmed stdout.
-func ghOutput(args ...string) (string, error) {
-	cmd := exec.Command("gh", args...)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
+func ghOutput(exec CommandExecutor, args ...string) (string, error) {
+	return exec.RunOutput("gh", args...)
 }
 
 // pullRequest holds metadata about a GitHub pull request.
@@ -34,11 +28,11 @@ type pullRequestMap map[int]pullRequest
 
 // ghBuildPullRequestMap builds a map of PR number to metadata by
 // querying the GitHub API via the gh CLI for the given PR numbers.
-func ghBuildPullRequestMap(prNumbers []int) pullRequestMap {
+func ghBuildPullRequestMap(exec CommandExecutor, prNumbers []int) pullRequestMap {
 	m := make(pullRequestMap)
 
 	for _, prNum := range prNumbers {
-		out, err := ghOutput("pr", "view", fmt.Sprintf("%d", prNum),
+		out, err := ghOutput(exec, "pr", "view", fmt.Sprintf("%d", prNum),
 			"--repo", fmt.Sprintf("%s/%s", owner, repo),
 			"--json", "number,labels,author")
 		if err != nil {
@@ -78,8 +72,8 @@ func ghBuildPullRequestMap(prNumbers []int) pullRequestMap {
 // checkOpenPRs verifies that no pull requests are open against the
 // given branch. If any are found, it returns an error listing them
 // with instructions to merge or close before releasing.
-func checkOpenPRs(branch string) error {
-	out, err := ghOutput("pr", "list",
+func checkOpenPRs(exec CommandExecutor, branch string) error {
+	out, err := ghOutput(exec, "pr", "list",
 		"--repo", fmt.Sprintf("%s/%s", owner, repo),
 		"--base", branch,
 		"--state", "open",

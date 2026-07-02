@@ -83,6 +83,7 @@ type Options struct {
 	Telemetry         telemetry.Reporter
 	Logger            slog.Logger
 	HideAITasks       bool
+	AIGatewayEnabled  bool
 }
 
 func New(opts *Options) (*Handler, error) {
@@ -266,9 +267,10 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	TasksTabVisible string
-	Permissions     string
-	Organizations   string
+	TasksTabVisible  string
+	AIGatewayEnabled string
+	Permissions      string
+	Organizations    string
 }
 
 type csrfState struct {
@@ -517,6 +519,12 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(!h.opts.HideAITasks)
 		if err == nil {
 			state.TasksTabVisible = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(h.opts.AIGatewayEnabled)
+		if err == nil {
+			state.AIGatewayEnabled = html.EscapeString(string(data))
 		}
 	})
 	wg.Go(func() {

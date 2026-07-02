@@ -343,6 +343,36 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("does not open the WebSocket when the AI Gateway is disabled", async () => {
+		const chatID = "chat-gateway-disabled";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+					aiGatewayDisabled: true,
+				}),
+			{ wrapper },
+		);
+
+		expect(watchChat).not.toHaveBeenCalled();
+	});
+
 	it("keeps create_workspace durable call without result after preview_reset", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 

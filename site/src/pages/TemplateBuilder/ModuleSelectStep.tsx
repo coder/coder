@@ -70,6 +70,40 @@ const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	);
 };
 
+// Preferred display order for modules. Modules in this list appear first,
+// in this order. Unlisted modules appear after, in their original order.
+const MODULE_PRIORITY: readonly string[] = [
+	"claude-code",
+	"codex",
+	"cursor",
+	"vscode-desktop",
+	"code-server",
+	"jetbrains",
+	"vscode-web",
+	"zed",
+	"antigravity",
+	"windsurf",
+	"git-clone",
+	"dotfiles",
+	"git-config",
+	"personalize",
+	"filebrowser",
+	"kasmvnc",
+];
+
+function sortByPriority<T extends { id: string }>(
+	items: readonly T[],
+	priority: readonly string[],
+): T[] {
+	const indexMap = new Map(priority.map((id, i) => [id, i]));
+	const fallback = priority.length;
+	return [...items].sort((a, b) => {
+		const ai = indexMap.get(a.id) ?? fallback;
+		const bi = indexMap.get(b.id) ?? fallback;
+		return ai - bi;
+	});
+}
+
 export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	baseId,
 	selectedModuleIds,
@@ -78,14 +112,16 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
 	const modules = data?.modules ?? [];
+	const doesBaseTemplateHaveModules = modules.length > 0;
+	const sortedModules = sortByPriority(modules, MODULE_PRIORITY);
 	const categories = [
-		...new Set(modules.map((module) => module.category)),
+		...new Set(sortedModules.map((module) => module.category)),
 	].sort((a, b) => a.localeCompare(b));
 
 	const [selectedFilterTab, setSelectedFilterTab] = useState("All");
 
 	const searchedModules = useFuzzySearch({
-		allItems: modules,
+		allItems: sortedModules,
 		searchText: moduleSearchText,
 		searchProperties: ["display_name", "description"],
 	});
@@ -208,7 +244,8 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				</TabsList>
 			</Tabs>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+			{/* 420px accounts for navbar, page header, card padding, search, tabs, and nav controls */}
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
 				{visibleModules.length ? (
 					visibleModules.map((m) => (
 						<ModuleCard
@@ -225,7 +262,9 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
 						<SearchIcon />
 						<p className="m-0 text-sm font-normal">
-							No module matched your search
+							{doesBaseTemplateHaveModules
+								? "No module matched your search"
+								: "No modules available for this base template"}
 						</p>
 					</div>
 				)}

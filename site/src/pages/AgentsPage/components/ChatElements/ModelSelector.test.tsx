@@ -9,6 +9,14 @@ const mockModelOptions: readonly ModelSelectorOption[] = [
 		model: "gpt-4o-mini",
 		displayName: "GPT-4o mini",
 	},
+	{
+		...MockModelSelectorOption,
+		id: "claude-opus",
+		provider: "anthropic",
+		model: "claude-opus-4-1",
+		displayName: "Claude Opus 4.1",
+		contextLimit: 1_000_000,
+	},
 ];
 
 test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selector trigger", () => {

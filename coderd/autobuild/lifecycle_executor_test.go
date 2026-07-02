@@ -1898,6 +1898,7 @@ func setupTestDBPrebuiltWorkspace(
 // and observe notifications.
 func setupAutostopReminderWorkspace(t *testing.T, timeTilAutostopNotify time.Duration, enq notifications.Enqueuer) (
 	client *codersdk.Client,
+	db database.Store,
 	tickCh chan time.Time,
 	statsCh chan autobuild.Stats,
 	workspace codersdk.Workspace,
@@ -1906,7 +1907,7 @@ func setupAutostopReminderWorkspace(t *testing.T, timeTilAutostopNotify time.Dur
 
 	tickCh = make(chan time.Time)
 	statsCh = make(chan autobuild.Stats)
-	client = coderdtest.New(t, &coderdtest.Options{
+	client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		AutobuildTicker:          tickCh,
 		AutobuildStats:           statsCh,
 		IncludeProvisionerDaemon: true,
@@ -1930,7 +1931,19 @@ func setupAutostopReminderWorkspace(t *testing.T, timeTilAutostopNotify time.Dur
 	// The build must have a non-zero deadline for a reminder to ever fire.
 	require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 	require.NotZero(t, workspace.LatestBuild.Deadline)
-	return client, tickCh, statsCh, workspace
+
+	// Age last_used_at far before every tick so the active-user guard never
+	// trips for the default subtests. A freshly created workspace has a recent
+	// last_used_at, which would otherwise look "active" and suppress the
+	// reminder. Subtests that exercise the active-user guard reset last_used_at
+	// to a recent value via db.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+		ID:         workspace.ID,
+		LastUsedAt: workspace.LatestBuild.Deadline.Time.Add(-365 * 24 * time.Hour),
+	}))
+
+	return client, db, tickCh, statsCh, workspace
 }
 
 // failOnceEnqueuer fails its first Enqueue call and delegates every subsequent
@@ -1964,7 +1977,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 
 		timeTilNotify := 30 * time.Minute
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		go func() {
@@ -1981,11 +1994,94 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		require.Len(t, sent, 1)
 		require.Equal(t, workspace.OwnerID, sent[0].UserID)
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
-		require.Equal(t, deadline.UTC().Format(time.RFC1123), sent[0].Labels["deadline"])
+		require.NotEmpty(t, sent[0].Labels["timeTilShutdown"])
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
 		require.Contains(t, sent[0].Targets, workspace.TemplateID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+	})
+
+	// ActiveWorkspaceNotReminded: a workspace used within the 15-minute active
+	// threshold keeps getting its deadline bumped, so no reminder is sent even
+	// though the tick lands inside the window. This is the active-user guard, the
+	// exact complement of the Sent subtest.
+	t.Run("ActiveWorkspaceNotReminded", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, db, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Tick halfway into the lead window, exactly as the Sent subtest does.
+		tick := deadline.Add(-timeTilNotify / 2)
+
+		// Mark the workspace as recently used: last_used_at within the 15-minute
+		// active threshold of the tick makes currentTick - last_used_at <
+		// autostopReminderActiveThreshold, so the active-user guard suppresses the
+		// reminder (and the SQL pre-filter drops the row).
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: tick.Add(-time.Minute),
+		}))
+
+		go func() {
+			tickCh <- tick
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
+	// ActiveWorkspaceAtMaxDeadlineReminded: an active workspace is still
+	// reminded when the hard max_deadline ceiling sits inside the lead window.
+	// Activity bumps cannot push the stop past max_deadline, so the workspace
+	// will stop regardless of activity and the reminder must fire. This is the
+	// max_deadline override of the active-user guard.
+	t.Run("ActiveWorkspaceAtMaxDeadlineReminded", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, db, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Tick halfway into the lead window, exactly as the Sent subtest does.
+		tick := deadline.Add(-timeTilNotify / 2)
+
+		// Mark the workspace as recently used (active): without the max_deadline
+		// ceiling this would suppress the reminder, see ActiveWorkspaceNotReminded.
+		require.NoError(t, db.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
+			ID:         workspace.ID,
+			LastUsedAt: tick.Add(-time.Minute),
+		}))
+
+		// Pin the build's max_deadline inside the lead window (max_deadline <=
+		// tick + ttl). A bump cannot move the stop past this ceiling, so the
+		// workspace will stop even though the user is active and the reminder
+		// must still fire. The deadline itself is left unchanged.
+		require.NoError(t, db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          workspace.LatestBuild.ID,
+			Deadline:    deadline,
+			MaxDeadline: deadline,
+			UpdatedAt:   tick,
+		}))
+
+		go func() {
+			tickCh <- tick
+			close(tickCh)
+		}()
+
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+
+		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
+		require.Len(t, sent, 1)
+		require.Equal(t, workspace.OwnerID, sent[0].UserID)
 	})
 
 	// NotBeforeWindow: no reminder when the tick precedes the lead window.
@@ -1994,7 +2090,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 
 		timeTilNotify := 30 * time.Minute
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		go func() {
@@ -2013,7 +2109,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		t.Parallel()
 
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, 0, notifyEnq)
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, 0, notifyEnq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		go func() {
@@ -2033,7 +2129,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 
 		timeTilNotify := 30 * time.Minute
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		// First tick: reminder fires. Receiving from statsCh acts as the
@@ -2063,7 +2159,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		timeTilNotify := 30 * time.Minute
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-		client, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		client, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		// First tick: reminder fires for the original deadline.
@@ -2073,7 +2169,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		testutil.TryReceive(ctx, t, statsCh)
 		sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
 		require.Len(t, sent, 1)
-		require.Equal(t, deadline.UTC().Format(time.RFC1123), sent[0].Labels["deadline"])
+		require.NotEmpty(t, sent[0].Labels["timeTilShutdown"])
 
 		// Move the deadline well into the future. The marker now differs from
 		// the build deadline, re-arming the reminder.
@@ -2092,7 +2188,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		testutil.TryReceive(ctx, t, statsCh)
 		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder))
 		require.Len(t, sent, 2)
-		require.Equal(t, newDeadline.UTC().Format(time.RFC1123), sent[1].Labels["deadline"])
+		require.NotEmpty(t, sent[1].Labels["timeTilShutdown"])
 	})
 
 	// ExceedsLifetime: a time_til_autostop_notify larger than the
@@ -2105,7 +2201,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		// includes "now" at build creation.
 		timeTilNotify := 100 * time.Hour
 		notifyEnq := &notificationstest.FakeEnqueuer{}
-		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		// First tick: a single reminder fires.
@@ -2138,7 +2234,7 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		fake := &notificationstest.FakeEnqueuer{}
 		enq := &failOnceEnqueuer{Enqueuer: fake}
 		timeTilNotify := 2 * time.Hour
-		_, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, enq)
+		_, _, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, enq)
 		deadline := workspace.LatestBuild.Deadline.Time
 
 		// Tick 1 inside the window: the enqueue fails. Because the marker is

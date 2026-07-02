@@ -166,6 +166,12 @@ This is in lieu of using Coder's Gateway plugin which automatically performs the
 
 1. Make sure the checkbox for **Parse config file ~/.ssh/config** is checked.
 
+   > [!TIP]
+   > Gateway discovers hosts by parsing `~/.ssh/config`. If your workspaces
+   > do not appear in Gateway's host list, re-run `coder config-ssh
+   > --no-wildcard` to generate an individual `Host` entry per workspace
+   > instead of a wildcard block.
+
 1. Click **Test Connection** to validate these settings.
 
 1. Click **OK**:

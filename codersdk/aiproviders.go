@@ -48,6 +48,32 @@ const (
 	AIProviderTypeCopilot AIProviderType = "copilot"
 )
 
+// AgentsUnsupportedProviderType is an AIProviderType the Coder Agents harness
+// cannot use. Declaring these as an enum exposes the generated
+// AgentsUnsupportedProviderTypes list to the frontend, which labels these
+// providers without a per-provider field on the AIProvider response.
+type AgentsUnsupportedProviderType string
+
+const (
+	// AgentsUnsupportedProviderTypeCopilot is GitHub Copilot: it authenticates
+	// with a per-request token only an official Copilot client can mint, which
+	// the server-side harness is not.
+	AgentsUnsupportedProviderTypeCopilot AgentsUnsupportedProviderType = AgentsUnsupportedProviderType(AIProviderTypeCopilot)
+)
+
+// IsAgentsUnsupportedProviderType reports whether the Coder Agents harness
+// cannot use the provider type. It is the single source of truth, shared by
+// the chatd catalog predicate and, via the generated
+// AgentsUnsupportedProviderTypes list, the frontend.
+func IsAgentsUnsupportedProviderType(t AIProviderType) bool {
+	switch AgentsUnsupportedProviderType(t) {
+	case AgentsUnsupportedProviderTypeCopilot:
+		return true
+	default:
+		return false
+	}
+}
+
 // AIProviderSettings is the discriminated container for type-specific
 // provider settings stored in ai_providers.settings. Providers that
 // need no type-specific configuration (current OpenAI and standard

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -15,7 +14,7 @@ import (
 
 // publishRelease creates a GitHub release with the given assets
 // and generates checksums.
-func publishRelease(versionTag string, stable bool, notesFile string, assets []string) error {
+func publishRelease(exec CommandExecutor, versionTag string, stable bool, notesFile string, assets []string) error {
 	if len(assets) == 0 {
 		return xerrors.New("no assets provided")
 	}
@@ -28,7 +27,7 @@ func publishRelease(versionTag string, stable bool, notesFile string, assets []s
 	}
 
 	// Verify we're checked out on the expected tag.
-	described, err := gitOutput("describe", "--always")
+	described, err := gitOutput(exec, "describe", "--always")
 	if err != nil {
 		return xerrors.Errorf("git describe: %w", err)
 	}
@@ -63,7 +62,7 @@ func publishRelease(versionTag string, stable bool, notesFile string, assets []s
 
 	// Determine target commitish from release branch.
 	targetCommitish := "main"
-	branchRef, err := gitOutput("branch", "--remotes", "--contains", versionTag, "--format", "%(refname)", "*/release/*")
+	branchRef, err := gitOutput(exec, "branch", "--remotes", "--contains", versionTag, "--format", "%(refname)", "*/release/*")
 	if err == nil && branchRef != "" {
 		// refs/remotes/origin/release/2.9 -> release/2.9
 		if idx := strings.Index(branchRef, "release/"); idx >= 0 {
@@ -102,11 +101,7 @@ func publishRelease(versionTag string, stable bool, notesFile string, assets []s
 		ghArgs = append(ghArgs, filepath.Join(tempDir, e.Name()))
 	}
 
-	cmd := exec.Command("gh", ghArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = strings.NewReader("") // prevent interactive prompts
-	if err := cmd.Run(); err != nil {
+	if err := exec.RunMutationStdout(os.Stdout, os.Stderr, "gh", ghArgs...); err != nil {
 		return xerrors.Errorf("gh release create: %w", err)
 	}
 

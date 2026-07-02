@@ -1652,7 +1652,7 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		require.Equal(t, original, updated.Settings.Bedrock.ExternalID, "external ID must be stable across PATCH")
 	})
 
-	t.Run("StableAcrossRoleRemovalAndReadd", func(t *testing.T) {
+	t.Run("StableAcrossRoleRemovalAndReassignment", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)

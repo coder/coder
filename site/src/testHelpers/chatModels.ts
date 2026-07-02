@@ -7,7 +7,7 @@ import { MOCK_TIMESTAMP } from "./chatEntities";
 
 export const MockChatModelConfig: ChatModelConfig = {
 	id: "model-1",
-	provider: "openai",
+	ai_provider_id: "provider-1",
 	model: "gpt-5",
 	display_name: "gpt-5",
 	enabled: true,

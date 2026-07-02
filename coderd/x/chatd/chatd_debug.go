@@ -76,12 +76,19 @@ func (p *Server) scheduleDebugCleanup(
 		return
 	}
 
+	cleanupCtx, stopCleanupCtx := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
-		cleanupCtx := context.WithoutCancel(ctx)
+		defer stopCleanupCtx()
 		for attempt := 0; attempt < debugCleanupAttempts; attempt++ {
 			if attempt > 0 {
 				timer := p.clock.NewTimer(debugCleanupRetryDelay, "chatd", "debug_cleanup")
-				<-timer.C
+				defer timer.Stop()
+				select {
+				case <-timer.C:
+				case <-cleanupCtx.Done():
+					timer.Stop()
+					return
+				}
 			}
 
 			passCtx, cancel := context.WithTimeout(cleanupCtx, debugCleanupTimeout)
@@ -99,6 +106,7 @@ func (p *Server) scheduleDebugCleanup(
 			p.logger.Warn(cleanupCtx, logMessage, logFields...)
 		}
 	}); err != nil {
+		stopCleanupCtx()
 		logFields := append([]slog.Field{slog.F("cleanup", logMessage)}, fields...)
 		logFields = append(logFields, slog.Error(err))
 		p.logger.Error(context.WithoutCancel(ctx), "failed to schedule chat debug cleanup", logFields...)
@@ -108,18 +116,14 @@ func (p *Server) scheduleDebugCleanup(
 func (p *Server) newDebugAwareModel(
 	ctx context.Context,
 	req modelClientRequest,
-	route resolvedModelRoute,
+	route aiGatewayModelRoute,
 	opts modelBuildOptions,
 ) (fantasy.LanguageModel, bool, error) {
-	providerHint, err := route.providerHint()
+	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, route.ModelProviderHint)
 	if err != nil {
 		return nil, false, err
 	}
-	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, providerHint)
-	if err != nil {
-		return nil, false, err
-	}
-	route = route.withProviderHint(provider)
+	route.ModelProviderHint = provider
 	req.ModelName = resolvedModel
 
 	debugSvc := p.debugService()

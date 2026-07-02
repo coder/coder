@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import {
 	Table,
 	TableBody,
@@ -10,6 +10,7 @@ import {
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
+	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
 import { ProviderRow } from "./ProviderRow";
@@ -73,5 +74,31 @@ export const LongText: Story = {
 			base_url:
 				"https://bedrock-runtime.us-east-2.amazonaws.com/very/long/path/segment",
 		},
+	},
+};
+
+// Copilot is unsupported by Agents, so the row shows the label.
+export const NotSupportedInAgents: Story = {
+	args: {
+		provider: MockAIProviderCopilot,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Not supported in Agents"),
+		).toBeInTheDocument();
+	},
+};
+
+export const SupportedHasNoAgentsLabel: Story = {
+	args: {
+		provider: { ...MockAIProviderOpenAI, enabled: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("OpenAI")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Not supported in Agents"),
+		).not.toBeInTheDocument();
 	},
 };

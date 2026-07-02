@@ -10,12 +10,14 @@ import {
 	createChat,
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,
+	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -27,7 +29,8 @@ import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
-	getModelOptionsFromConfigs,
+	getUnsupportedProviderNames,
+	resolveModelSelector,
 } from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
@@ -38,6 +41,7 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const aiGatewayDisabled = !useAIGatewayEnabled();
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -45,6 +49,7 @@ const AgentCreatePage: FC = () => {
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -55,10 +60,12 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
-	const catalogModelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-	);
+	const { options: catalogModelOptions, isModelCatalogLoading } =
+		resolveModelSelector(
+			chatModelConfigsQuery,
+			chatModelsQuery,
+			userProviderConfigsQuery,
+		);
 	const providerCount =
 		permissions.editDeploymentConfig &&
 		chatProviderConfigsQuery.isSuccess &&
@@ -72,6 +79,9 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
 			? catalogModelOptions.length
 			: undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		chatModelsQuery.data,
+	);
 
 	const handleCreateChat = async ({
 		message,
@@ -160,8 +170,10 @@ const AgentCreatePage: FC = () => {
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
 				providerCount={providerCount}
 				modelCount={modelCount}
+				unsupportedProviderNames={unsupportedProviderNames}
+				aiGatewayDisabled={aiGatewayDisabled}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				isModelCatalogLoading={chatModelsQuery.isLoading}
+				isModelCatalogLoading={isModelCatalogLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				rootPersonalModelOverride={rootPersonalModelOverride}
 				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}

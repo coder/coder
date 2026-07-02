@@ -323,7 +323,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// A deadline change (e.g. activity bump) re-arms the reminder; users near
 						// the boundary may receive one reminder per bump. Intentional: one-per-build
 						// would leave stale reminders after a bump.
-						if shouldRemindAutostop(latestBuild, templateSchedule, currentTick) {
+						if shouldRemindAutostop(latestBuild, ws.LastUsedAt, templateSchedule, currentTick) {
 							if err := tx.UpdateWorkspaceBuildNotifiedAutostopDeadline(e.ctx, database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams{
 								ID:                       latestBuild.ID,
 								NotifiedAutostopDeadline: latestBuild.Deadline,
@@ -565,8 +565,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						ws.OwnerID,
 						notifications.TemplateWorkspaceAutostopReminder,
 						map[string]string{
-							"workspace": ws.Name,
-							"deadline":  reminderDeadline.UTC().Format(time.RFC1123),
+							"workspace":       ws.Name,
+							"timeTilShutdown": humanize.Time(reminderDeadline),
 						},
 						"lifecycle_executor",
 						// Associate this notification with all the related entities.
@@ -598,17 +598,30 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
-// shouldRemindAutostop reports whether a reminder notification should be sent
-// for the workspace's latest build at currentTick.
+// autostopReminderActiveThreshold is how recently a workspace must have been
+// used to count as "active" and suppress the autostop reminder. A default
+// deployment refreshes last_used_at within ~90s, but the agent stats interval
+// is configurable up to a few minutes, so we stay conservative. It must remain
+// well below activity_bump (default 1h): an idle user's now-last_used_at is
+// bounded by activity_bump, so a larger threshold would make idle users look
+// active forever and never be reminded. Keep in sync with the INTERVAL '15
+// minutes' literal in GetWorkspacesEligibleForLifecycleAction (workspaces.sql).
+const autostopReminderActiveThreshold = 15 * time.Minute
+
+// shouldRemindAutostop reports whether an autostop reminder should be sent for
+// the build at currentTick. It skips genuinely-active workspaces only when
+// activity can still move the deadline out of the lead window.
 //
-// time_til_autostop_notify has no upper bound. If it exceeds a
-// workspace's remaining lifetime, the notify window already covers "now" at
-// build creation. This is still safe: we require deadline > now (so we never
-// remind once the stop is due) and the marker (NotifiedAutostopDeadline ==
-// Deadline, stamped in the transaction before the send attempt) filters every
-// subsequent tick. The result is exactly one reminder per deadline, never one
-// per tick.
-func shouldRemindAutostop(build database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+// time_til_autostop_notify has no upper bound, so the lead window can already
+// cover "now" at build creation. The result is still exactly one reminder per
+// deadline (never one per tick): we require deadline > now, and the marker
+// (NotifiedAutostopDeadline == Deadline, stamped before the send attempt)
+// filters every subsequent tick.
+//
+// The skip-guard below is the exact complement of the keep-condition in the
+// reminder arm of GetWorkspacesEligibleForLifecycleAction, so a row that passes
+// the SQL pre-filter also passes this re-check (and vice versa).
+func shouldRemindAutostop(build database.WorkspaceBuild, lastUsedAt time.Time, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	if templateSchedule.TimeTilAutostopNotify <= 0 {
 		return false
 	}
@@ -624,6 +637,20 @@ func shouldRemindAutostop(build database.WorkspaceBuild, templateSchedule schedu
 	// "now" must be within the lead window before the deadline, i.e.
 	// deadline <= now + time_til_autostop_notify.
 	if build.Deadline.After(currentTick.Add(templateSchedule.TimeTilAutostopNotify)) {
+		return false
+	}
+
+	// Skip the reminder only for an active user whose deadline can still be
+	// bumped out of the lead window.
+	userActive := currentTick.Sub(lastUsedAt) < autostopReminderActiveThreshold
+	bumpEnabled := templateSchedule.ActivityBump > 0
+	// The hard ceiling traps the workspace inside the window: a non-zero
+	// max_deadline at or before now+ttl means no bump can push the stop out of
+	// the lead window, so it WILL stop regardless of activity.
+	maxDeadlineTraps := !build.MaxDeadline.IsZero() &&
+		!build.MaxDeadline.After(currentTick.Add(templateSchedule.TimeTilAutostopNotify))
+
+	if userActive && bumpEnabled && !maxDeadlineTraps {
 		return false
 	}
 

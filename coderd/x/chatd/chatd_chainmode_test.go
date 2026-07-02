@@ -44,7 +44,10 @@ func TestActiveServer_ChainBrokenRecovery(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model = updateModelForChainMode(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first user")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertProviderResponseID(ctx, t, db, chat.ID, "first assistant", model.ID, previousResponseID)
@@ -93,7 +96,10 @@ func TestActiveServer_ChainBrokenRecoveryAppliesProviderPromptPrep(t *testing.T)
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateModelForChainMode(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertSystemTextMessage(ctx, t, db, chat.ID, "sys-1", model.ID)
@@ -139,7 +145,10 @@ func TestActiveServer_NonChainBrokenRetryPreservesChainMode(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model = updateModelForChainMode(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first user")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertProviderResponseID(ctx, t, db, chat.ID, "first assistant", model.ID, previousResponseID)
@@ -190,7 +199,10 @@ func TestActiveServer_ChainBrokenRecoveryPersistsAcrossGenerationActions(t *test
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model = updateModelForChainMode(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first user")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertProviderResponseID(ctx, t, db, chat.ID, "first assistant", model.ID, previousResponseID)
@@ -230,7 +242,10 @@ func TestActiveServer_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model = updateModelForChainMode(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "only user")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
@@ -258,7 +273,10 @@ func TestActiveServer_ChainBrokenRecoveryDropsOrphanProviderToolCall(t *testing.
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateModelForChainMode(t, db, model)
 
-	server := newActiveTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "first user")
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	insertProviderResponseID(ctx, t, db, chat.ID, "first assistant", model.ID, previousResponseID)
@@ -326,7 +344,6 @@ func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL stri
 	})
 	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: provider.ID})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
 		Model:        "claude-sonnet-4-20250514",
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
@@ -453,7 +470,6 @@ func updateModelForChainMode(t *testing.T, db database.Store, model database.Cha
 		ID:                   model.ID,
 		DisplayName:          model.DisplayName,
 		Model:                model.Model,
-		Provider:             model.Provider,
 		Enabled:              model.Enabled,
 		ContextLimit:         model.ContextLimit,
 		CompressionThreshold: model.CompressionThreshold,

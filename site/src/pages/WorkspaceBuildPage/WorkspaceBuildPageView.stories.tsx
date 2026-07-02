@@ -48,3 +48,16 @@ export const FailedDelete: Story = {
 		activeBuildNumber: failedBuild.build_number,
 	},
 };
+
+export const DeletedWorkspace: Story = {
+	args: {
+		build: undefined,
+		buildError: new Error("Request failed with status code 404"),
+		deletedWorkspaceBanner: {
+			createWorkspaceLink: "/templates/test-template/workspace",
+			templateName: "Test Template",
+		},
+		builds: undefined,
+		activeBuildNumber: 1,
+	},
+};

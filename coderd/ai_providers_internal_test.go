@@ -34,6 +34,10 @@ func TestEnsureBedrockExternalID(t *testing.T) {
 			RoleARN: "arn:aws:iam::123456789012:role/BedrockRole",
 		}}
 		ensureBedrockExternalID(&s)
+		// The bounds are a sanity floor and ceiling, not a correctness
+		// requirement. crypto/rand.Text() currently returns 26 chars, but
+		// its docs allow future Go versions to return longer text. If a Go
+		// upgrade trips these bounds, widen them or use different function.
 		require.GreaterOrEqual(t, len(s.Bedrock.ExternalID), 26)
 		require.LessOrEqual(t, len(s.Bedrock.ExternalID), 52)
 	})

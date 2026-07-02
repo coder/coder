@@ -67,7 +67,10 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, true)
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -152,7 +155,10 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 	firstModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
 	secondModel := insertOpenAIResponsesModelConfig(t, db, user.ID, true, true)
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
@@ -235,7 +241,10 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 		},
 	)
 
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -318,7 +327,10 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 		},
 	)
 
-	server := newOpenAIResponsesTestServer(t, db, ps)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
@@ -394,16 +406,18 @@ func newOpenAIResponsesTestServer(
 	t *testing.T,
 	db database.Store,
 	ps dbpubsub.Pubsub,
+	overrides ...func(*chatd.Config),
 ) *chatd.Server {
 	t.Helper()
-	return newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+	allOverrides := append([]func(*chatd.Config){func(cfg *chatd.Config) {
 		// Let CreateChat and SendMessage publish their pending status
 		// before wake-driven processing starts. The responses tests are
 		// not exercising periodic polling, and PostgreSQL can otherwise
 		// deliver that stale pending notification after processChat
 		// subscribes to control events.
 		cfg.PendingChatAcquireInterval = testutil.WaitLong
-	})
+	}}, overrides...)
+	return newActiveTestServer(t, db, ps, allOverrides...)
 }
 
 func insertOpenAIResponsesModelConfig(

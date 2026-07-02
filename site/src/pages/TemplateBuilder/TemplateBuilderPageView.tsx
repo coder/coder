@@ -1,4 +1,11 @@
-import { type FC, type ReactNode, useReducer, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useCallback,
+	useReducer,
+	useState,
+} from "react";
+
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -14,12 +21,14 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+
 import { docs } from "#/utils/docs";
 import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
 import {
 	BaseTemplateParametersStep,
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
+import { BuildingTemplateLoader } from "./BuildingTemplateLoader";
 import { ModuleSelectStep } from "./ModuleSelectStep";
 import {
 	ModuleSettingsStep,
@@ -33,6 +42,7 @@ import {
 	type StepId,
 	WIZARD_STEPS,
 } from "./steps";
+import { TemplateAlternatives } from "./TemplateAlternatives";
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
@@ -47,6 +57,7 @@ interface TemplateBuilderPageViewProps {
 	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
 	createError: Error | null;
 	isCreating: boolean;
+	onClearCreateError?: () => void;
 }
 
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
@@ -55,6 +66,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	onCreateTemplate,
 	createError,
 	isCreating,
+	onClearCreateError,
 }) => {
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const [stepIndex, setStepIndex] = useState(0);
@@ -66,6 +78,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	const currentIndex = nearestVisible(stepIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
+
 	const nextIndex = findNextVisibleIndex(currentIndex, state);
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
 	const isFirstStep = prevIndex === -1;
@@ -80,6 +93,11 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 
 	const handleBack = () => {
+		if (currentStep.id === "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
+		window.scrollTo(0, 0);
 		setStepIndex(prevIndex);
 	};
 
@@ -88,8 +106,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			onCreateTemplate(state);
 			return;
 		}
+		window.scrollTo(0, 0);
 		setStepIndex(nextIndex);
 	};
+
+	const handleProvisionerStatusChange = useCallback(
+		(value: boolean | undefined) => {
+			dispatch({ type: "SET_HAS_PROVISIONERS", value });
+		},
+		[],
+	);
 
 	const handleDeselectModule = (moduleId: string) => {
 		// If the only module gets deselected, go back to module selection
@@ -102,6 +128,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			meta: state.selectedModules.filter((m) => m.id !== moduleId),
 		});
 	};
+
+	if (isCreating) {
+		return <BuildingTemplateLoader />;
+	}
 
 	return (
 		<Margins className="pb-12">
@@ -124,13 +154,14 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="p-6 border border-solid rounded-lg">
+					<div className="p-6 border border-solid rounded-lg overflow-x-auto">
 						{renderStepContent(
 							currentStep.id,
 							state,
 							dispatch,
 							moduleVarMap,
 							createError,
+							handleProvisionerStatusChange,
 						)}
 					</div>
 
@@ -143,18 +174,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue || isCreating}>
-							{isCreating
-								? "Creating..."
-								: isLastStep
-									? "Create Template"
-									: "Continue"}
+						<Button onClick={handleNext} disabled={!canContinue}>
+							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>
+
+					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
 
-				{/* Sidebar */}
-				<div className="w-64 shrink-0 hidden md:block">
+				{/* Sidebar (top position is 72px so that it can sit below nav) */}
+				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						selectedTemplate={
@@ -184,6 +213,7 @@ function renderStepContent(
 	dispatch: (action: WizardAction) => void,
 	moduleVarMap: Record<string, Record<string, string>>,
 	createError: Error | null,
+	onProvisionerStatusChange: (value: boolean | undefined) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -244,6 +274,7 @@ function renderStepContent(
 								value,
 							})
 						}
+						onProvisionerStatusChange={onProvisionerStatusChange}
 					/>
 				</>
 			);
@@ -275,7 +306,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "";
+			return state.name.trim() !== "" && state.hasProvisioners !== false;
 		default:
 			return true;
 	}

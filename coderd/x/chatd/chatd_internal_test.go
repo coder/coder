@@ -3,6 +3,10 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"io"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -26,6 +30,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -141,33 +146,6 @@ func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 	}
 }
 
-func TestResolveComputerUseModel_OpenAIMissingCredentials(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{}
-	provider := chattool.ComputerUseProviderOpenAI
-	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
-	require.True(t, ok)
-
-	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
-		context.Background(),
-		database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		newDirectModelRoute(modelProvider, chatprovider.ProviderAPIKeys{}),
-		provider,
-		modelProvider,
-		modelName,
-		modelBuildOptions{},
-	)
-	require.Error(t, err)
-	require.Nil(t, model)
-	require.False(t, debugEnabled)
-	require.Empty(t, resolvedProvider)
-	require.Empty(t, resolvedModel)
-	require.Contains(t, err.Error(), `provider "openai" model "gpt-5.5"`)
-	require.Contains(t, err.Error(), "OPENAI_API_KEY is not set")
-	require.NotContains(t, err.Error(), "ANTHROPIC_API_KEY")
-}
-
 func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *testing.T) {
 	t.Parallel()
 
@@ -208,7 +186,7 @@ func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T)
 
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return(nil, nil)
 
-	server := &Server{db: db, aiGatewayRoutingEnabled: true}
+	server := &Server{db: db}
 	_, err := server.resolveModelRouteForProviderType(
 		ctx,
 		uuid.New(),
@@ -792,6 +770,23 @@ func withChatMessageAPIKeyID(message database.ChatMessage, apiKeyID string) data
 	return message
 }
 
+// requireOutgoingRequestModel asserts that the outgoing request body
+// requests wantModel. This is so that mock transports can still
+// verify the outgoing request asked for the expected model.
+func requireOutgoingRequestModel(t testing.TB, req *http.Request, wantModel string) {
+	t.Helper()
+
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(strings.NewReader(string(body)))
+
+	var decoded struct {
+		Model string `json:"model"`
+	}
+	require.NoError(t, json.Unmarshal(body, &decoded))
+	require.Equal(t, wantModel, decoded.Model)
+}
+
 func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	t.Parallel()
 
@@ -821,11 +816,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
 		Title:             fallbackChatTitle(userPrompt),
 	}
+	providerID := uuid.New()
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
-		Provider:     "openai",
 		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
 	updatedChat := chat
 	updatedChat.Title = wantTitle
@@ -846,27 +842,44 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		require.Equal(t, "gpt-4o-mini", req.Model)
-		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
-	})
+	// Title generation routes through the transport factory, so the model
+	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOutgoingRequestModel(t, req, modelConfig.Model)
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 
 	server := &Server{
-		db:          db,
-		logger:      logger,
-		pubsub:      pubsub,
-		configCache: newChatConfigCache(context.Background(), db, clock),
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	providerID := uuid.New()
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
-	}}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil)
+	}, nil).AnyTimes()
+
+	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+		ID:      providerID,
+		Name:    "primary-openai",
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}}, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -971,7 +984,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	ownerID := uuid.New()
 	chatID := uuid.New()
 	modelConfigID := uuid.New()
+	providerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
+	activeAPIKeyID := "key-" + uuid.NewString()
 	wantTitle := "Review PR 23633"
 
 	chat := database.Chat{
@@ -986,9 +1001,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
-		Provider:     "openai",
 		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
 	updatedChat := lockedChat
 	updatedChat.Title = wantTitle
@@ -1012,27 +1027,43 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	require.NoError(t, err)
 	defer cancelSub()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		require.Equal(t, "gpt-4o-mini", req.Model)
-		return chattest.OpenAINonStreamingResponse("{\"title\":\"" + wantTitle + "\"}")
-	})
+	// Title generation routes through the transport factory, so the model
+	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
+	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requireOutgoingRequestModel(t, req, modelConfig.Model)
+		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})}
 
 	server := &Server{
-		db:          db,
-		logger:      logger,
-		pubsub:      pubsub,
-		configCache: newChatConfigCache(context.Background(), db, clock),
+		db:                       db,
+		logger:                   logger,
+		pubsub:                   pubsub,
+		configCache:              newChatConfigCache(context.Background(), db, clock),
+		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	providerID := uuid.New()
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
+		Name:    "primary-openai",
 		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
-		BaseUrl: serverURL,
-	}}, nil)
-	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil)
+	}, nil).AnyTimes()
+	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
+		ID:      providerID,
+		Name:    "primary-openai",
+		Type:    database.AIProviderTypeOpenai,
+		Enabled: true,
+	}}, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(database.ChatUsageLimitConfig{}, sql.ErrNoRows)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -1042,12 +1073,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return([]database.ChatMessage{
-		mustChatMessage(
+		withChatMessageAPIKeyID(mustChatMessage(
 			t,
 			database.ChatMessageRoleUser,
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
-		),
+		), activeAPIKeyID),
 		mustChatMessage(
 			t,
 			database.ChatMessageRoleAssistant,
@@ -3484,4 +3515,109 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 	now := dbtime.Now()
 	require.True(t, updatedBuild.Deadline.After(now.Add(time.Hour-2*time.Minute)))
 	require.True(t, updatedBuild.Deadline.Before(now.Add(time.Hour+2*time.Minute)))
+}
+
+func TestServer_inflightContext(t *testing.T) {
+	t.Parallel()
+
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx}
+
+	type ctxKey string
+	const key ctxKey = "inflight-test"
+	reqCtx, reqCancel := context.WithCancel(context.WithValue(context.Background(), key, "value"))
+	t.Cleanup(reqCancel)
+
+	inflightCtx, stop := server.inflightContext(reqCtx)
+	t.Cleanup(stop)
+
+	// Auth and routing values must carry over from the request.
+	require.Equal(t, "value", inflightCtx.Value(key))
+
+	// Request cancellation must not cancel in-flight work: it has to outlive
+	// the originating request.
+	reqCancel()
+	select {
+	case <-inflightCtx.Done():
+		t.Fatal("inflight context canceled by request cancellation")
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	// Server shutdown must cancel in-flight work so Close does not block
+	// on long-running callees while a provider is unreachable.
+	serverCancel()
+	select {
+	case <-inflightCtx.Done():
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("inflight context not canceled on server shutdown")
+	}
+}
+
+// TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig drives
+// the fallback branch in prepareManualTitleDebugRun: AI-gateway route
+// resolution fails (the BYOK key lookup returns a non-ErrNoRows error) while
+// the linked provider stays enabled, so the debug run records the provider
+// type derived from modelConfig.AIProviderID instead of an empty string.
+func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ownerID := uuid.New()
+	providerID := uuid.New()
+	chat := database.Chat{ID: uuid.New(), OwnerID: ownerID}
+	modelConfig := database.ChatModelConfig{
+		ID:           uuid.New(),
+		Model:        "claude-sonnet-4",
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+	}
+	provider := database.AIProvider{
+		ID:      providerID,
+		Type:    database.AIProviderTypeAnthropic,
+		Name:    "anthropic",
+		Enabled: true,
+	}
+
+	// Resolved twice: once by gatewayProviderForConfig during route resolution,
+	// once by the fallback's own enabledAIProviderByID lookup.
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
+	// A non-ErrNoRows BYOK error fails route resolution while the provider stays
+	// enabled, which is exactly the gap the fallback covers.
+	db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
+		UserID:       ownerID,
+		AIProviderID: providerID,
+	}).Return(database.UserAIProviderKey{}, sql.ErrConnDone)
+
+	var gotProvider sql.NullString
+	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+			gotProvider = params.Provider
+			return database.ChatDebugRun{ChatID: params.ChatID, Provider: params.Provider}, nil
+		},
+	)
+
+	server := &Server{
+		db:        db,
+		logger:    logger,
+		allowBYOK: true,
+	}
+	debugSvc := chatdebug.NewService(db, logger, nil)
+	fallbackModel := &chattest.FakeModel{ProviderName: "stub", ModelName: "stub"}
+
+	server.prepareManualTitleDebugRun(
+		ctx,
+		debugSvc,
+		chat,
+		modelConfig,
+		modelBuildOptions{},
+		nil,
+		fallbackModel,
+	)
+
+	require.True(t, gotProvider.Valid, "debug run provider should be populated from the linked config")
+	require.Equal(t, "anthropic", gotProvider.String)
 }
