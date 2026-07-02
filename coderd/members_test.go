@@ -3,12 +3,14 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -47,6 +49,221 @@ func TestAddMember(t *testing.T) {
 		member, err := owner.OrganizationMember(ctx, first.OrganizationID.String(), codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, member.UserID, first.UserID)
+	})
+}
+
+func TestAddMembers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Create a second organization via dbgen to avoid needing
+		// the enterprise multi-org feature.
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		// Create two new users (they'll be in the default org).
+		_, user1 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Batch-add both to the second org.
+		// nolint:gocritic // must be an owner to add members
+		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user1.ID, user2.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, members, 2)
+
+		memberIDs := make([]uuid.UUID, len(members))
+		for i, m := range members {
+			memberIDs[i] = m.UserID
+		}
+		require.ElementsMatch(t, []uuid.UUID{user1.ID, user2.ID}, memberIDs)
+	})
+
+	t.Run("AlreadyMember", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// user is already a member of first.OrganizationID.
+		// The endpoint should silently skip duplicates and return
+		// an empty list (no new members added).
+		// nolint:gocritic // must be an owner to add members
+		members, err := owner.PostOrganizationMembers(ctx, first.OrganizationID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user.ID},
+		})
+		require.NoError(t, err)
+		require.Empty(t, members, "already-member should be skipped, not inserted")
+	})
+
+	t.Run("UserNotFound", func(t *testing.T) {
+		t.Parallel()
+		owner := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, first.OrganizationID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{uuid.New()},
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "not found")
+	})
+
+	t.Run("SingleUser", func(t *testing.T) {
+		t.Parallel()
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// nolint:gocritic // must be an owner to add members
+		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, members, 1)
+		require.Equal(t, user.ID, members[0].UserID)
+	})
+
+	t.Run("SkipsDuplicates", func(t *testing.T) {
+		t.Parallel()
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, user1 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Pre-add user2 to the second org.
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user2.ID},
+		})
+		require.NoError(t, err)
+
+		// Batch-add both: user1 (new) + user2 (already member).
+		// user2 should be silently skipped; only user1 is returned.
+		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user1.ID, user2.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, members, 1)
+		require.Equal(t, user1.ID, members[0].UserID)
+
+		// Verify both users are now members.
+		allMembers, err := owner.OrganizationMembers(ctx, secondOrg.ID)
+		require.NoError(t, err)
+		ids := make([]uuid.UUID, len(allMembers))
+		for i, m := range allMembers {
+			ids[i] = m.UserID
+		}
+		require.Contains(t, ids, user1.ID)
+		require.Contains(t, ids, user2.ID)
+	})
+
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, deletedUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		_, liveUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Soft-delete the first user so GetUsersByIDs returns them
+		// with Deleted=true.
+		// nolint:gocritic // must be an owner to delete the user
+		require.NoError(t, owner.DeleteUser(ctx, deletedUser.ID))
+
+		// Batch-add the deleted user alongside a live user. The
+		// handler must reject the whole request with 400 because
+		// deleted users cannot be added to an organization.
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{deletedUser.ID, liveUser.ID},
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Deleted users cannot be added")
+
+		// Confirm the live user was not inserted: the rejection
+		// happens before the batch insert runs.
+		allMembers, err := owner.OrganizationMembers(ctx, secondOrg.ID)
+		require.NoError(t, err)
+		for _, m := range allMembers {
+			require.NotEqual(t, liveUser.ID, m.UserID, "live user should not be added when the batch contains a deleted user")
+		}
+	})
+
+	t.Run("AuditLogsOnlyForNewMembers", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, user1 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Pre-add user2 to the second org so the next call is a no-op for it.
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user2.ID},
+		})
+		require.NoError(t, err)
+
+		// Reset audit logs after the setup call so the assertions
+		// below only see entries from the batch under test.
+		auditor.ResetLogs()
+
+		// Batch-add user1 (new) and user2 (already member). Only
+		// user1 should produce an audit log because ON CONFLICT
+		// DO NOTHING skips user2 and the handler emits audits only
+		// for inserted rows.
+		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user1.ID, user2.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, members, 1)
+
+		var memberCreateLogs []database.AuditLog
+		for _, log := range auditor.AuditLogs() {
+			if log.ResourceType == database.ResourceTypeOrganizationMember &&
+				log.Action == database.AuditActionCreate &&
+				log.OrganizationID == secondOrg.ID {
+				memberCreateLogs = append(memberCreateLogs, log)
+			}
+		}
+		require.Len(t, memberCreateLogs, 1, "expected exactly one audit log for the newly-added member")
+		require.Equal(t, user1.ID, memberCreateLogs[0].ResourceID, "audit log should reference the new member, not the existing one")
 	})
 }
 

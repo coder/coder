@@ -111,10 +111,13 @@ export const paginatedOrganizationMembers = (
 	};
 };
 
-export const addOrganizationMember = (queryClient: QueryClient, id: string) => {
+export const addOrganizationMembers = (
+	queryClient: QueryClient,
+	id: string,
+) => {
 	return {
-		mutationFn: (userId: string) => {
-			return API.addOrganizationMember(id, userId);
+		mutationFn: (userIds: string[]) => {
+			return API.addOrganizationMembers(id, { user_ids: userIds });
 		},
 
 		onSuccess: async () => {

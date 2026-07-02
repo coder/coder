@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
-	addOrganizationMember,
+	addOrganizationMembers,
 	paginatedOrganizationMembers,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
@@ -62,8 +62,8 @@ const OrganizationMembersPage: FC = () => {
 		},
 	);
 
-	const addMemberMutation = useMutation(
-		addOrganizationMember(queryClient, organizationName),
+	const addMembersMutation = useMutation(
+		addOrganizationMembers(queryClient, organizationName),
 	);
 
 	const [memberToEditRoles, setMemberToEditRoles] =
@@ -123,7 +123,7 @@ const OrganizationMembersPage: FC = () => {
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
-					addMemberMutation.error ??
+					addMembersMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
@@ -133,13 +133,7 @@ const OrganizationMembersPage: FC = () => {
 				members={members}
 				showAISeatColumn={showAISeatColumn}
 				addMembers={async (users: User[]) => {
-					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
-					// to add all users in a single request instead of N individual calls.
-					// See branch jakehwll/devex-112-organizations-batch-endpoint.
-					await Promise.all(
-						users.map((user) => addMemberMutation.mutateAsync(user.id)),
-					);
-					void membersQuery.refetch();
+					await addMembersMutation.mutateAsync(users.map((user) => user.id));
 				}}
 				onEditMemberRoles={setMemberToEditRoles}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}

@@ -4891,6 +4891,53 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Batch add organization members",
+                "operationId": "batch-add-organization-members",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Add members request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AddOrganizationMembersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.OrganizationMember"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/v2/organizations/{organization}/members/roles": {
@@ -5119,8 +5166,9 @@ const docTemplate = `{
                 "tags": [
                     "Members"
                 ],
-                "summary": "Add organization member",
-                "operationId": "add-organization-member",
+                "summary": "Add organization member (deprecated)",
+                "operationId": "add-organization-member-deprecated",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "string",
@@ -15981,6 +16029,24 @@ const docTemplate = `{
             "properties": {
                 "license": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AddOrganizationMembersRequest": {
+            "type": "object",
+            "required": [
+                "user_ids"
+            ],
+            "properties": {
+                "user_ids": {
+                    "description": "UserIDs is the list of user IDs to add as organization members. The\nslice must contain between 1 and 100 IDs.",
+                    "type": "array",
+                    "maxItems": 100,
+                    "minItems": 1,
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
                 }
             }
         },

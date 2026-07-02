@@ -22,8 +22,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Add organization member
-// @ID add-organization-member
+// @Summary Add organization member (deprecated)
+// @ID add-organization-member-deprecated
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members
@@ -31,6 +31,7 @@ import (
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.OrganizationMember
 // @Router /api/v2/organizations/{organization}/members/{user} [post]
+// @Deprecated use POST /organizations/{organization}/members instead
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -88,6 +89,140 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp[0])
+}
+
+// @Summary Batch add organization members
+// @ID batch-add-organization-members
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Members
+// @Param organization path string true "Organization ID"
+// @Param request body codersdk.AddOrganizationMembersRequest true "Add members request"
+// @Success 201 {array} codersdk.OrganizationMember
+// @Router /api/v2/organizations/{organization}/members [post]
+func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
+		apiKey       = httpmw.APIKey(r)
+		auditor      = api.Auditor.Load()
+	)
+
+	var req codersdk.AddOrganizationMembersRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Resolve all users in a single query. The request context
+	// (not AsSystemRestricted) is used so dbauthz enforces read
+	// permission on each target user.
+	users, err := api.Database.GetUsersByIDs(ctx, req.UserIDs)
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	usersByID := make(map[uuid.UUID]database.User, len(users))
+	for _, u := range users {
+		usersByID[u.ID] = u
+	}
+
+	// Check that every requested user was found and none are
+	// deleted. GetUsersByIDs intentionally includes deleted users
+	// (see query comment), so we reject them explicitly.
+	var missing []uuid.UUID
+	var deleted []uuid.UUID
+	for _, uid := range req.UserIDs {
+		u, ok := usersByID[uid]
+		if !ok {
+			missing = append(missing, uid)
+		} else if u.Deleted {
+			deleted = append(deleted, uid)
+		}
+	}
+	if len(missing) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Users not found: %v", missing),
+		})
+		return
+	}
+	if len(deleted) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Deleted users cannot be added to an organization: %v", deleted),
+		})
+		return
+	}
+
+	// Validate OIDC org-sync constraints for all users. Resolve the feature flag
+	// once outside the loop, and report every offending user together so the
+	// caller can fix the request in a single round-trip.
+	if api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
+		var oidcUsernames []string
+		for _, user := range users {
+			if user.LoginType == database.LoginTypeOIDC {
+				oidcUsernames = append(oidcUsernames, user.Username)
+			}
+		}
+		if len(oidcUsernames) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for these users. Have the users re-login to refresh their organizations.",
+				Detail:  fmt.Sprintf("Users %v are OIDC users and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", oidcUsernames),
+			})
+			return
+		}
+	}
+
+	// Batch-insert new members. ON CONFLICT DO NOTHING silently
+	// skips users who are already members, eliminating the race
+	// between the check and the insert.
+	now := dbtime.Now()
+	allMembers, err := api.Database.InsertOrganizationMembersBatch(ctx, database.InsertOrganizationMembersBatchParams{
+		OrganizationID: organization.ID,
+		UserIds:        req.UserIDs,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		Roles:          []string{},
+	})
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Emit audit events synchronously once the insert succeeds. The response
+	// status is fixed at 201 from this point, so we record it directly instead
+	// of routing through a deferred closure that would otherwise have to
+	// observe the final HTTP status.
+	for _, member := range allMembers {
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			UserID:         apiKey.UserID,
+			OrganizationID: organization.ID,
+			RequestID:      httpmw.RequestID(r),
+			Action:         database.AuditActionCreate,
+			IP:             r.RemoteAddr,
+			Status:         http.StatusCreated,
+			Old:            database.AuditableOrganizationMember{},
+			New:            member.Auditable(usersByID[member.UserID].Username),
+		})
+	}
+
+	resp, err := convertOrganizationMembers(ctx, api.Database, allMembers)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, resp)
 }
 
 // @Summary Remove organization member
@@ -501,8 +636,8 @@ func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWr
 	return true
 }
 
-// convertOrganizationMembers batches the role lookup to make only 1 sql call
-// We
+// convertOrganizationMembers batches the role lookup to make only
+// one SQL call instead of one per member.
 func convertOrganizationMembers(ctx context.Context, db database.Store, mems []database.OrganizationMember) ([]codersdk.OrganizationMember, error) {
 	converted := make([]codersdk.OrganizationMember, 0, len(mems))
 	roleLookup := make([]database.NameOrganizationPair, 0)
