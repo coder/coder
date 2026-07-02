@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -29,6 +30,7 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -881,6 +883,26 @@ func (api *API) Close() error {
 	return api.AGPL.Close()
 }
 
+// configureNATSClusterTLS swaps the real nats_ca CA cache and this replica's
+// relay IP into the NATS pubsub, enabling cluster mTLS. The relay URL host is
+// the IP SAN peers verify, so without an IP-based relay URL the cache is left
+// as the boot-time noop and routes stay plaintext (token auth only). The CA is
+// read lazily by the TLS callbacks on each handshake, so nothing reads it here.
+func (api *API) configureNATSClusterTLS(natsPubsub *nats.Pubsub) {
+	relayURL := api.Options.DeploymentValues.DERP.Server.RelayURL.Value()
+	if relayURL == nil || relayURL.String() == "" {
+		return
+	}
+	ip := net.ParseIP(relayURL.Hostname())
+	if ip == nil {
+		api.Logger.Warn(api.ctx, "nats cluster mTLS disabled: relay URL host is not an IP",
+			slog.F("relay_host", relayURL.Hostname()))
+		return
+	}
+	natsPubsub.SetClusterCA(api.AGPL.NATSCACache, ip)
+	api.Logger.Info(api.ctx, "nats cluster mTLS enabled", slog.F("leaf_ip", ip.String()))
+}
+
 func (api *API) updateEntitlements(ctx context.Context) error {
 	return api.Entitlements.Update(ctx, func(ctx context.Context) (codersdk.Entitlements, error) {
 		replicas := api.replicaManager.AllPrimary()
@@ -1008,6 +1030,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				}
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					// Swap the real nats_ca CA cache in before peers are known
+					// so the first route handshake can negotiate mTLS.
+					api.configureNATSClusterTLS(natsPubsub)
 					natsPubsub.SetPeerFetcher(api.replicaManager)
 					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
 				}
@@ -1040,6 +1065,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
 					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					// Revert to the noop CA cache: new route handshakes can no
+					// longer mint a leaf, so the cluster mesh stops forming.
+					natsPubsub.SetClusterCA(cryptokeys.NoopSigningKeycache{}, nil)
+					api.Logger.Info(api.ctx, "nats cluster mTLS disabled")
 					api.replicaManager.SetCallback("nats", nil)
 				}
 			}

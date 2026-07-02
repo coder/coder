@@ -49,6 +49,20 @@ func (p *Pubsub) SetPeerFetcher(fetcher PeerFetcher) {
 	p.RefreshPeers()
 }
 
+// SetClusterCA swaps the cluster mTLS CA cache and this replica's leaf IP SAN,
+// then triggers a peer refresh so any route blocked by the previous (for
+// example noop) cache is retried. It is a no-op unless the pubsub was started
+// with cluster TLS enabled (Options.ClusterCA set, which installs the TLS
+// callbacks). Passing a noop cache reverts to no mTLS: new route handshakes
+// can no longer mint a leaf and will not form.
+func (p *Pubsub) SetClusterCA(ca ClusterCAKeycache, ip net.IP) {
+	if p.clusterTLS == nil {
+		return
+	}
+	p.clusterTLS.setClusterCA(ca, ip)
+	p.RefreshPeers()
+}
+
 // RefreshPeers signals the peer refresh worker to fetch and apply the latest
 // peer route addresses. Multiple pending refreshes are coalesced.
 func (p *Pubsub) RefreshPeers() {

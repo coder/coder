@@ -305,7 +305,12 @@ type Options struct {
 	AppSigningKeyCache    cryptokeys.SigningKeycache
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
-	Clock                 quartz.Clock
+	// NATSCACache serves the NATS cluster mTLS CA via the generic signing key
+	// cache for the nats_ca feature. SigningKey returns the active CA
+	// (a *NATSCA); VerifyingKey returns a specific CA by sequence. The key
+	// rotator is the sole creator of nats_ca rows, so this cache is read-only.
+	NATSCACache cryptokeys.SigningKeycache
+	Clock       quartz.Clock
 
 	// WebPushDispatcher is a way to send notifications over Web Push.
 	WebPushDispatcher webpush.Dispatcher
@@ -607,10 +612,34 @@ func New(options *Options) *API {
 
 	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
 
+	// The NATS cluster CA is only minted and served when NATS pubsub is in use.
+	// It is experiment-gated, so it is opted into rotation and backed by a real
+	// signing cache only when the experiment is enabled; otherwise the rotator
+	// leaves it alone and the cache is a noop, which still answers requests (the
+	// pubsub treats a missing CA as "mTLS off"). This avoids minting CA private
+	// keys on deployments that never run NATS clustering.
+	rotatedFeatures := cryptokeys.DefaultRotatedFeatures()
+	if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+		rotatedFeatures = append(rotatedFeatures, database.CryptoKeyFeatureNATSCA)
+	}
+
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
-	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database, cryptokeys.WithFeatures(rotatedFeatures))
+
+	// The NATS CA cache is read-only and depends on the rotator having minted
+	// the nats_ca CA, so it must be constructed after StartRotator.
+	if options.NATSCACache == nil {
+		if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+			options.NATSCACache, err = cryptokeys.NewSigningCache(ctx, options.Logger.Named("nats_ca_cache"), &cryptokeys.DBFetcher{DB: options.Database}, codersdk.CryptoKeyFeatureNATSCA)
+			if err != nil {
+				options.Logger.Fatal(ctx, "failed to properly instantiate NATS CA cache", slog.Error(err))
+			}
+		} else {
+			options.NATSCACache = cryptokeys.NoopSigningKeycache{}
+		}
+	}
 
 	// Ensure all system role permissions are current.
 	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
@@ -2394,6 +2423,9 @@ func (api *API) Close() error {
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
+	if api.NATSCACache != nil {
+		_ = api.NATSCACache.Close()
+	}
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()
 
