@@ -232,6 +232,10 @@ RC tags can be created from `main` or from a release branch. The
 `create-release-branch` type creates `release/X.Y` and tags the next RC in one
 step, continuing the RC numbering sequence.
 
+> The automated `create-release-branch` workflow (Tag and Release) is still
+> experimental. Cutting the branch by hand is the current default; see
+> [Cutting a release branch](#cutting-a-release-branch) below.
+
 ```text
 main:  --*--*--*--*--*--*--*--*--*--
               |  rc.0   rc.1  |
@@ -257,6 +261,110 @@ main:  --*--*--*--*--*--*--*--*--*--
 
 The workflow validates that commits are on the expected branch for each release
 type.
+
+### Cutting a release branch
+
+Cutting a `release/X.Y` branch from the commit you want to release is the
+current default way to start a new release. The automated
+`create-release-branch` workflow described in [Workflow](#workflow) above is
+still experimental, so cut the branch by hand using the steps below.
+
+Replace the placeholders in the commands below:
+
+- `<commit-sha>`: the full commit SHA you want to release from.
+- `release/<version>`: the release branch name, following the `release/X.Y`
+  convention (for example, `release/2.35`).
+
+First, check out the commit you want to release from. This puts you in a
+"detached HEAD" state:
+
+```shell
+git checkout <commit-sha>
+```
+
+<details>
+
+<summary>Example output</summary>
+
+```text
+remote: Enumerating objects: 55, done.
+remote: Counting objects: 100% (48/48), done.
+remote: Compressing objects: 100% (48/48), done.
+remote: Total 55 (delta 1), reused 0 (delta 0), pack-reused 7 (from 2)
+Receiving objects: 100% (55/55), 1.11 MiB | 6.45 MiB/s, done.
+Resolving deltas: 100% (1/1), done.
+Note: switching to '<commit-sha>'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+HEAD is now at <short-sha> fix(site): stop click propagation so popover opens inside clickable rows (#26875)
+```
+
+</details>
+
+Next, create the release branch from your current (detached) HEAD:
+
+```shell
+git checkout -b release/<version>
+```
+
+<details>
+
+<summary>Example output</summary>
+
+```text
+Switched to a new branch 'release/<version>'
+coder@lux:~/coder$ git push
+fatal: The current branch release/<version> has no upstream branch.
+To push the current branch and set the remote as upstream, use
+
+    git push --set-upstream origin release/<version>
+
+To have this happen automatically for branches without a tracking
+upstream, see 'push.autoSetupRemote' in 'git help config'.
+```
+
+</details>
+
+A plain `git push` fails because the new branch has no upstream yet. Push the
+branch and set the remote as its upstream:
+
+```shell
+git push --set-upstream origin release/<version>
+```
+
+<details>
+
+<summary>Example output</summary>
+
+```text
+Total 0 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+remote:
+remote: Create a pull request for 'release/<version>' on GitHub by visiting:
+remote:      https://github.com/coder/coder/pull/new/release/<version>
+remote:
+To https://github.com/coder/coder
+ * [new branch]            release/<version> -> release/<version>
+branch 'release/<version>' set up to track 'origin/release/<version>'.
+```
+
+</details>
+
+The release branch now exists on the remote and tracks
+`origin/release/<version>`.
 
 ### Retrying a failed release
 
