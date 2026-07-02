@@ -240,6 +240,30 @@ export const WorkspaceTerminal = ({
 			}),
 		);
 
+		// OSC 52 clipboard support. Programs like tmux send this escape
+		// sequence to copy text to the host's system clipboard.
+		nextTerminal.parser.registerOscHandler(52, (data) => {
+			const separatorIndex = data.indexOf(";");
+			if (separatorIndex === -1) {
+				return false;
+			}
+			const payload = data.slice(separatorIndex + 1);
+			// A "?" payload is a clipboard read query. Responding would
+			// require writing back to the PTY, which is not supported.
+			if (!payload || payload === "?") {
+				return false;
+			}
+			try {
+				const bytes = Uint8Array.from(atob(payload), (c) => c.charCodeAt(0));
+				const decoded = new TextDecoder().decode(bytes);
+				void copyToClipboard(decoded);
+			} catch {
+				// Invalid base64; ignore.
+				return false;
+			}
+			return true;
+		});
+
 		const copySelection = () => {
 			const selection = nextTerminal.getSelection();
 			if (selection) {
