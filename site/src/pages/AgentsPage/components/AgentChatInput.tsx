@@ -645,15 +645,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
 			const visibleViewportTop = viewport?.offsetTop ?? 0;
 			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
-			// Distance from the fixed-position viewport bottom to a point
-			// just above the composer's top edge.
+			// Keep the dropdown's bottom edge above the software keyboard,
+			// which covers the bottom of the layout viewport without moving
+			// fixed-positioned elements.
+			const keyboardInset = viewport
+				? Math.max(
+						0,
+						fixedViewportBottom - (viewport.offsetTop + viewport.height),
+					)
+				: 0;
 			const aboveComposerBottom = Math.max(
 				0,
 				fixedViewportBottom - rect.top + composerGap,
+				keyboardInset + composerGap,
 			);
+			const dropdownBottomEdgeTop = fixedViewportBottom - aboveComposerBottom;
 			const maxHeightCandidates = [
-				rect.top - visibleViewportTop - composerGap - viewportPadding,
-				rect.top - composerGap - viewportPadding,
+				dropdownBottomEdgeTop - visibleViewportTop - viewportPadding,
+				dropdownBottomEdgeTop - viewportPadding,
 			].filter((height) => height > 0);
 			const aboveComposerMaxHeight = Math.max(
 				minimumMenuHeight,
