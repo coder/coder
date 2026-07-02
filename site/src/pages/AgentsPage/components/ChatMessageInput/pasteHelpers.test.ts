@@ -4,6 +4,7 @@ import {
 	createPasteFile,
 	getPasteDataTransfer,
 	getPastedPlainText,
+	hasSVGRootElement,
 	isLargePaste,
 } from "./pasteHelpers";
 
@@ -158,5 +159,100 @@ describe("createPasteFile", () => {
 		const file = createPasteFile(text);
 		const content = await file.text();
 		expect(content).toBe(text);
+	});
+});
+
+describe("hasSVGRootElement", () => {
+	it("returns false for empty text", () => {
+		expect(hasSVGRootElement("")).toBe(false);
+	});
+
+	it("returns false for pure whitespace", () => {
+		expect(hasSVGRootElement("   \n\t ")).toBe(false);
+	});
+
+	it("detects a bare <svg> element", () => {
+		expect(hasSVGRootElement("<svg></svg>")).toBe(true);
+	});
+
+	it("detects a self-closing <svg/> element", () => {
+		expect(hasSVGRootElement("<svg/>")).toBe(true);
+	});
+
+	it("detects <svg> with attributes", () => {
+		expect(
+			hasSVGRootElement(
+				'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+			),
+		).toBe(true);
+	});
+
+	it("is case-insensitive on the tag name", () => {
+		expect(hasSVGRootElement("<SVG></SVG>")).toBe(true);
+		expect(hasSVGRootElement("<SvG></SvG>")).toBe(true);
+	});
+
+	it("detects <svg> after an XML declaration", () => {
+		expect(
+			hasSVGRootElement(
+				'<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"></svg>',
+			),
+		).toBe(true);
+	});
+
+	it("detects <svg> after an XML declaration with whitespace", () => {
+		expect(
+			hasSVGRootElement('<?xml version="1.0" encoding="UTF-8"?>\n<svg></svg>'),
+		).toBe(true);
+	});
+
+	it("detects <svg> after a DOCTYPE directive", () => {
+		expect(
+			hasSVGRootElement(
+				'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n<svg></svg>',
+			),
+		).toBe(true);
+	});
+
+	it("detects <svg> after XML comments", () => {
+		expect(hasSVGRootElement("<!-- created by hand -->\n<svg></svg>")).toBe(
+			true,
+		);
+	});
+
+	it("skips a UTF-8 BOM before <svg>", () => {
+		expect(hasSVGRootElement("\uFEFF<svg></svg>")).toBe(true);
+	});
+
+	it("returns false for HTML documents", () => {
+		expect(hasSVGRootElement("<html><body>not svg</body></html>")).toBe(false);
+	});
+
+	it("returns false for markdown that mentions svg later", () => {
+		expect(hasSVGRootElement('# SVG Example\n<svg width="100">...</svg>')).toBe(
+			false,
+		);
+	});
+
+	it("returns false for CSV rows containing svg fragments", () => {
+		expect(hasSVGRootElement("name,icon\nlogo,<svg><rect/></svg>\n")).toBe(
+			false,
+		);
+	});
+
+	it("returns false for lookalike tag names such as <svgx>", () => {
+		expect(hasSVGRootElement("<svgx></svgx>")).toBe(false);
+	});
+
+	it("returns false for plain text starting with '<'", () => {
+		expect(hasSVGRootElement("< less than sign followed by text")).toBe(false);
+	});
+
+	it("returns false for unterminated XML processing instructions", () => {
+		expect(hasSVGRootElement("<?xml version='1.0'")).toBe(false);
+	});
+
+	it("returns false for unterminated XML comments", () => {
+		expect(hasSVGRootElement("<!-- open comment")).toBe(false);
 	});
 });

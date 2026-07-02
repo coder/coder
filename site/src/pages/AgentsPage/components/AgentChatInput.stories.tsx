@@ -692,6 +692,51 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 	},
 };
 
+// A large SVG source (>= isLargePaste thresholds) that ends up as a single
+// long string when pasted. Long enough to trigger the large-paste heuristic
+// on character count alone.
+const largeSvgPaste = [
+	'<?xml version="1.0" encoding="UTF-8"?>',
+	'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">',
+	Array.from(
+		{ length: 20 },
+		(_, i) =>
+			`  <rect x="${i * 5}" y="${i * 5}" width="20" height="20" fill="hsl(${i * 15}, 80%, 60%)" />`,
+	).join("\n"),
+	"</svg>",
+].join("\n");
+
+export const LargeSVGPasteRemainsInline: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		pixel: { exclude: true },
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		dispatchPasteWithText(target, largeSvgPaste);
+
+		// SVG must land inline in the editor even though it exceeds the
+		// isLargePaste thresholds. The server rejects SVG uploads, so
+		// converting the paste into an attachment would surface
+		// "Unsupported file type." instead of inserting the text.
+		await waitFor(() => {
+			expect(target.textContent).toContain("<svg");
+			expect(target.textContent).toContain("</svg>");
+		});
+
+		expect(args.onAttach).not.toHaveBeenCalled();
+	},
+};
+
 // ── MCP server fixtures ────────────────────────────────────────
 
 const now = "2026-03-19T12:00:00.000Z";

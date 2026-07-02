@@ -32,6 +32,27 @@ export function getPastedPlainText(
 }
 
 /**
+ * Detects whether the pasted text parses as an SVG document with an
+ * `<svg>` root element.
+ *
+ * The server refuses SVG uploads and probes for an SVG root regardless of
+ * the declared MIME type. We can't lean on the clipboard MIME here
+ * because SVG source copied from a text editor arrives as `text/plain`,
+ * so we ask the browser's XML parser to classify the content for us.
+ *
+ * The check is deliberately lenient: a false positive just leaves an
+ * XML-ish paste inline, which is harmless, whereas a false negative
+ * reproduces the "Unsupported file type." bug the server surfaces.
+ */
+export function hasSVGRootElement(text: string): boolean {
+	const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+	if (doc.getElementsByTagName("parsererror").length > 0) {
+		return false;
+	}
+	return doc.documentElement?.tagName.toLowerCase() === "svg";
+}
+
+/**
  * Determines whether a pasted text should be treated as a file
  * attachment rather than inline editor content.
  *

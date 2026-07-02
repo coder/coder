@@ -57,6 +57,7 @@ import {
 	createPasteFile,
 	getPasteDataTransfer,
 	getPastedPlainText,
+	hasSVGRootElement,
 	isLargePaste,
 	type PasteCommandEvent,
 } from "./pasteHelpers";
@@ -211,7 +212,8 @@ const PasteSanitizationPlugin: FC<{
 							!isPlainTextPaste &&
 							allowTextAttachmentPaste &&
 							onFilePaste &&
-							isLargePaste(text)
+							isLargePaste(text) &&
+							!hasSVGRootElement(text)
 						) {
 							event.preventDefault();
 							onFilePaste(createPasteFile(text));
@@ -245,11 +247,16 @@ const PasteSanitizationPlugin: FC<{
 					// Convert large pastes to file attachments, but
 					// only for normal Cmd+V. Cmd+Shift+V is the
 					// user's explicit "paste inline" escape hatch.
+					// SVG XML is excluded because the server rejects
+					// SVG uploads (they can carry active script) and
+					// we would otherwise surface "Unsupported file
+					// type." for pasted SVG source.
 					if (
 						!isPlainTextPaste &&
 						allowTextAttachmentPaste &&
 						onFilePaste &&
-						isLargePaste(text)
+						isLargePaste(text) &&
+						!hasSVGRootElement(text)
 					) {
 						event.preventDefault();
 						onFilePaste(createPasteFile(text));
