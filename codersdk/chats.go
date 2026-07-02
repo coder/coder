@@ -943,16 +943,6 @@ type UpdateUserChatCompactionThresholdRequest struct {
 	ThresholdPercent int32 `json:"threshold_percent" validate:"min=0,max=100"`
 }
 
-// ChatGoalsEnabledResponse is the response for getting the chat goals setting.
-type ChatGoalsEnabledResponse struct {
-	Enabled bool `json:"enabled"`
-}
-
-// UpdateChatGoalsEnabledRequest is the request to update the chat goals setting.
-type UpdateChatGoalsEnabledRequest struct {
-	Enabled bool `json:"enabled"`
-}
-
 // AdvisorConfig is the deployment-wide runtime configuration for the
 // experimental chat advisor.
 //
@@ -2713,33 +2703,6 @@ func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserC
 	}
 	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// GetChatGoalsEnabled returns the deployment-wide chat goals setting.
-func (c *ExperimentalClient) GetChatGoalsEnabled(ctx context.Context) (ChatGoalsEnabledResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/goals", nil)
-	if err != nil {
-		return ChatGoalsEnabledResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatGoalsEnabledResponse{}, ReadBodyAsError(res)
-	}
-	var resp ChatGoalsEnabledResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// UpdateChatGoalsEnabled updates the deployment-wide chat goals setting.
-func (c *ExperimentalClient) UpdateChatGoalsEnabled(ctx context.Context, req UpdateChatGoalsEnabledRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/goals", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // GetChatAdvisorConfig returns the deployment-wide advisor configuration.

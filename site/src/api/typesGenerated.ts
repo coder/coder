@@ -2342,14 +2342,6 @@ export const ChatGoalStatuses: ChatGoalStatus[] = [
 ];
 
 // From codersdk/chats.go
-/**
- * ChatGoalsEnabledResponse is the response for getting the chat goals setting.
- */
-export interface ChatGoalsEnabledResponse {
-	readonly enabled: boolean;
-}
-
-// From codersdk/chats.go
 export interface ChatGroup extends Group {
 	readonly role: ChatRole;
 }
@@ -4684,6 +4676,7 @@ export type Experiment =
 	| "ai-gateway-cost-control"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-goals"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -4698,6 +4691,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-goals",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
@@ -9007,14 +9001,6 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDebugRetentionDaysRequest {
 	readonly debug_retention_days: number;
-}
-
-// From codersdk/chats.go
-/**
- * UpdateChatGoalsEnabledRequest is the request to update the chat goals setting.
- */
-export interface UpdateChatGoalsEnabledRequest {
-	readonly enabled: boolean;
 }
 
 // From codersdk/chats.go

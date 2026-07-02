@@ -2967,21 +2967,6 @@ func (mr *MockStoreMockRecorder) GetChatGoalMessageIDsByChatAndMessageIDs(ctx, a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGoalMessageIDsByChatAndMessageIDs", reflect.TypeOf((*MockStore)(nil).GetChatGoalMessageIDsByChatAndMessageIDs), ctx, arg)
 }
 
-// GetChatGoalsEnabled mocks base method.
-func (m *MockStore) GetChatGoalsEnabled(ctx context.Context) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatGoalsEnabled", ctx)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatGoalsEnabled indicates an expected call of GetChatGoalsEnabled.
-func (mr *MockStoreMockRecorder) GetChatGoalsEnabled(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGoalsEnabled", reflect.TypeOf((*MockStore)(nil).GetChatGoalsEnabled), ctx)
-}
-
 // GetChatHeartbeat mocks base method.
 func (m *MockStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	m.ctrl.T.Helper()
@@ -11715,20 +11700,6 @@ func (m *MockStore) UpsertChatGeneralModelOverride(ctx context.Context, value st
 func (mr *MockStoreMockRecorder) UpsertChatGeneralModelOverride(ctx, value any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatGeneralModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatGeneralModelOverride), ctx, value)
-}
-
-// UpsertChatGoalsEnabled mocks base method.
-func (m *MockStore) UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatGoalsEnabled", ctx, enabled)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertChatGoalsEnabled indicates an expected call of UpsertChatGoalsEnabled.
-func (mr *MockStoreMockRecorder) UpsertChatGoalsEnabled(ctx, enabled any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatGoalsEnabled", reflect.TypeOf((*MockStore)(nil).UpsertChatGoalsEnabled), ctx, enabled)
 }
 
 // UpsertChatHeartbeat mocks base method.

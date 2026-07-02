@@ -841,14 +841,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatDebugLoggingAllowUsers(gomock.Any(), true).Return(nil).AnyTimes()
 		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("GetChatGoalsEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatGoalsEnabled(gomock.Any()).Return(true, nil).AnyTimes()
-		check.Args().Asserts().Returns(true)
-	}))
-	s.Run("UpsertChatGoalsEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatGoalsEnabled(gomock.Any(), true).Return(nil).AnyTimes()
-		check.Args(true).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
 	s.Run("GetChatAdvisorConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil).AnyTimes()
 		check.Args().Asserts().Returns("{}")

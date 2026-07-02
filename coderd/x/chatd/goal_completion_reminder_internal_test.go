@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -134,7 +135,6 @@ func TestInsertGoalCompletionReminderCountsCompactedReminder(t *testing.T) {
 
 func setupGoalReminderTurn(ctx context.Context, t *testing.T, f *workerTestFixture) (database.Chat, chatWorkerTaskStartInput) {
 	t.Helper()
-	require.NoError(t, f.db.UpsertChatGoalsEnabled(dbauthz.AsSystemRestricted(ctx), true))
 	chat := f.createRunningChat(t)
 	workerID := uuid.New()
 	runnerID := uuid.New()
@@ -174,9 +174,10 @@ func newGoalReminderTaskStarter(t *testing.T, f *workerTestFixture) *taskStarter
 	t.Helper()
 	logger := testutil.Logger(t)
 	server := &Server{
-		db:     f.db,
-		pubsub: f.pubsub,
-		logger: logger,
+		db:          f.db,
+		pubsub:      f.pubsub,
+		logger:      logger,
+		experiments: codersdk.Experiments{codersdk.ExperimentChatGoals},
 	}
 	return &taskStarter{
 		server: server,

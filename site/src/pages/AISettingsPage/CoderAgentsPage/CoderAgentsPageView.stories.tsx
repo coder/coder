@@ -119,11 +119,6 @@ const buildArgs = (
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
 	isSaveAdminOverridesError: false,
-	goalsEnabledData: { enabled: false },
-	isLoadingGoalsEnabled: false,
-	onSaveGoalsEnabled: fn(),
-	isSavingGoalsEnabled: false,
-	isSaveGoalsEnabledError: false,
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
@@ -272,24 +267,6 @@ export const PersonalOverridesEnabled: Story = {
 		});
 
 		expect(toggle).toBeChecked();
-	},
-};
-
-export const ChatGoalsEnabled: Story = {
-	args: buildArgs({
-		goalsEnabledData: { enabled: true },
-	}),
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const toggle = await canvas.findByRole("switch", {
-			name: "Enable chat goals",
-		});
-
-		expect(toggle).toBeChecked();
-		await userEvent.click(toggle);
-		await waitFor(() => {
-			expect(args.onSaveGoalsEnabled).toHaveBeenCalledWith({ enabled: false });
-		});
 	},
 };
 

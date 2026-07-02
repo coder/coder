@@ -1283,8 +1283,6 @@ func New(options *Options) *API {
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
 				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
 				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
-				r.Get("/goals", api.getChatGoalsEnabled)
-				r.Put("/goals", api.putChatGoalsEnabled)
 				r.Group(func(r chi.Router) {
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
 					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
@@ -1361,8 +1359,11 @@ func New(options *Options) *API {
 				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
-				r.Get("/goal", api.chatGoal)
-				r.Patch("/goal", api.patchChatGoal)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatGoals))
+					r.Get("/goal", api.chatGoal)
+					r.Patch("/goal", api.patchChatGoal)
+				})
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)

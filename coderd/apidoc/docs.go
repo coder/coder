@@ -145,70 +145,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/experimental/chats/config/goals": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get chat goals setting",
-                "operationId": "get-chat-goals-setting",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatGoalsEnabledResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "put": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat goals setting",
-                "operationId": "update-chat-goals-setting",
-                "parameters": [
-                    {
-                        "description": "Request body",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatGoalsEnabledRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/experimental/chats/config/retention-days": {
             "get": {
                 "produces": [
@@ -17365,14 +17301,6 @@ const docTemplate = `{
                 "ChatGoalStatusReplaced"
             ]
         },
-        "codersdk.ChatGoalsEnabledResponse": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
-                }
-            }
-        },
         "codersdk.ChatGroup": {
             "type": "object",
             "properties": {
@@ -19924,12 +19852,14 @@ const docTemplate = `{
                 "minimum-implicit-member",
                 "ai-gateway-cost-control",
                 "chat-advisor",
-                "chat-virtual-desktop"
+                "chat-virtual-desktop",
+                "chat-goals"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatGoals": "Enables durable goals for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -19952,7 +19882,8 @@ const docTemplate = `{
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
                 "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents."
+                "Enables virtual desktop and computer use provider for agents.",
+                "Enables durable goals for root agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19966,7 +19897,8 @@ const docTemplate = `{
                 "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
-                "ExperimentChatVirtualDesktop"
+                "ExperimentChatVirtualDesktop",
+                "ExperimentChatGoals"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -25196,14 +25128,6 @@ const docTemplate = `{
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.ChatRole"
                     }
-                }
-            }
-        },
-        "codersdk.UpdateChatGoalsEnabledRequest": {
-            "type": "object",
-            "properties": {
-                "enabled": {
-                    "type": "boolean"
                 }
             }
         },

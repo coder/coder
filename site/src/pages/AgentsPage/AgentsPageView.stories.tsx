@@ -169,11 +169,6 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		goalsEnabledData={{ enabled: false }}
-		isLoadingGoalsEnabled={false}
-		onSaveGoalsEnabled={fn()}
-		isSavingGoalsEnabled={false}
-		isSaveGoalsEnabledError={false}
 		exploreModelOverrideData={{
 			context: "explore",
 			model_config_id: "",

@@ -24880,20 +24880,6 @@ func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, e
 	return model_config_id, err
 }
 
-const getChatGoalsEnabled = `-- name: GetChatGoalsEnabled :one
-SELECT
-	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_chat_goals_enabled'), false) :: boolean AS enabled
-`
-
-// GetChatGoalsEnabled returns whether the chat goals experiment is enabled.
-// It defaults to false when unset.
-func (q *sqlQuerier) GetChatGoalsEnabled(ctx context.Context) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getChatGoalsEnabled)
-	var enabled bool
-	err := row.Scan(&enabled)
-	return enabled, err
-}
-
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
 SELECT
     COALESCE(
@@ -25341,29 +25327,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
-	return err
-}
-
-const upsertChatGoalsEnabled = `-- name: UpsertChatGoalsEnabled :exec
-INSERT INTO site_configs (key, value)
-VALUES (
-    'agents_chat_goals_enabled',
-    CASE
-        WHEN $1::bool THEN 'true'
-        ELSE 'false'
-    END
-)
-ON CONFLICT (key) DO UPDATE
-SET value = CASE
-    WHEN $1::bool THEN 'true'
-    ELSE 'false'
-END
-WHERE site_configs.key = 'agents_chat_goals_enabled'
-`
-
-// UpsertChatGoalsEnabled updates whether the chat goals experiment is enabled.
-func (q *sqlQuerier) UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error {
-	_, err := q.db.ExecContext(ctx, upsertChatGoalsEnabled, enabled)
 	return err
 }
 

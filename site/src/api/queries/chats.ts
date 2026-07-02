@@ -1770,23 +1770,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatGoalsEnabledKey = ["chat-goals-enabled"] as const;
-
-export const chatGoalsEnabled = () => ({
-	queryKey: chatGoalsEnabledKey,
-	queryFn: () => API.experimental.getChatGoalsEnabled(),
-});
-
-export const updateChatGoalsEnabled = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatGoalsEnabled,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatGoalsEnabledKey,
-		});
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
-	},
-});
-
 const chatPersonalModelOverridesAdminSettingsKey = [
 	...chatsKey,
 	"admin-personal-model-overrides",

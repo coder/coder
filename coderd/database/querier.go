@@ -426,9 +426,6 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGeneralModelOverride(ctx context.Context) (string, error)
 	GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error)
-	// GetChatGoalsEnabled returns whether the chat goals experiment is enabled.
-	// It defaults to false when unset.
-	GetChatGoalsEnabled(ctx context.Context) (bool, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
 	// Returns model-only user messages (goal completion reminders and
 	// compaction summaries) regardless of compaction boundaries. Used by
@@ -1546,8 +1543,6 @@ type sqlcQuerier interface {
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	UpsertChatExploreModelOverride(ctx context.Context, value string) error
 	UpsertChatGeneralModelOverride(ctx context.Context, value string) error
-	// UpsertChatGoalsEnabled updates whether the chat goals experiment is enabled.
-	UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error

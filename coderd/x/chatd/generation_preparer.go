@@ -14,7 +14,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
@@ -344,13 +343,7 @@ func (server *Server) prepareGeneration(
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
 	var activeGoal *database.ChatGoal
-	//nolint:gocritic // Turn preparation needs daemon-scoped deployment config reads.
-	goalConfigCtx := dbauthz.AsChatd(ctx)
-	chatGoalsEnabled, err := server.db.GetChatGoalsEnabled(goalConfigCtx)
-	if err != nil {
-		cleanup()
-		return generationPrepared{}, xerrors.Errorf("get chat goals setting: %w", err)
-	}
+	chatGoalsEnabled := server.experiments.Enabled(codersdk.ExperimentChatGoals)
 	if chatGoalsEnabled {
 		activeGoal, err = currentChatGoal(ctx, server.db, chatRootID(chat))
 		if err != nil {

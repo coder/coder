@@ -3288,17 +3288,6 @@ func (q *querier) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, 
 	return q.db.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, arg)
 }
 
-func (q *querier) GetChatGoalsEnabled(ctx context.Context) (bool, error) {
-	// The chat-goals flag is a deployment-wide setting read by any
-	// authenticated chat user and by chatd when deciding whether to expose
-	// goal prompt context and tools. We only require an explicit actor so
-	// unauthenticated calls fail closed.
-	if _, ok := ActorFromContext(ctx); !ok {
-		return false, ErrNoActor
-	}
-	return q.db.GetChatGoalsEnabled(ctx)
-}
-
 func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -8746,13 +8735,6 @@ func (q *querier) UpsertChatGeneralModelOverride(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatGeneralModelOverride(ctx, value)
-}
-
-func (q *querier) UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.UpsertChatGoalsEnabled(ctx, enabled)
 }
 
 func (q *querier) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {

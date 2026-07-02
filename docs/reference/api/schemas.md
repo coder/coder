@@ -2735,20 +2735,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------------------------------------|
 | `active`, `cleared`, `complete`, `paused`, `replaced` |
 
-## codersdk.ChatGoalsEnabledResponse
-
-```json
-{
-  "enabled": true
-}
-```
-
-### Properties
-
-| Name      | Type    | Required | Restrictions | Description |
-|-----------|---------|----------|--------------|-------------|
-| `enabled` | boolean | false    |              |             |
-
 ## codersdk.ChatGroup
 
 ```json
@@ -7310,9 +7296,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-goals`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -13384,20 +13370,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 | `user_roles`       | object                                 | false    |              |             |
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
-
-## codersdk.UpdateChatGoalsEnabledRequest
-
-```json
-{
-  "enabled": true
-}
-```
-
-### Properties
-
-| Name      | Type    | Required | Restrictions | Description |
-|-----------|---------|----------|--------------|-------------|
-| `enabled` | boolean | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 

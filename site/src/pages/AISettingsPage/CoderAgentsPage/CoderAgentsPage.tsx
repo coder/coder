@@ -9,13 +9,11 @@ import { API } from "#/api/api";
 import {
 	chatAdvisorConfig,
 	chatComputerUseProvider,
-	chatGoalsEnabled,
 	chatModelConfigs,
 	chatPersonalModelOverridesAdminSettings,
 	chatProviderConfigs,
 	updateChatAdvisorConfig,
 	updateChatComputerUseProvider,
-	updateChatGoalsEnabled,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -90,10 +88,6 @@ const CoderAgentsPage: FC = () => {
 		...chatComputerUseProvider(),
 		enabled: canEditDeploymentConfig && showVirtualDesktopSettings,
 	});
-	const goalsEnabledQuery = useQuery({
-		...chatGoalsEnabled(),
-		enabled: canEditDeploymentConfig,
-	});
 	const providerConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: canEditDeploymentConfig,
@@ -118,9 +112,6 @@ const CoderAgentsPage: FC = () => {
 	);
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
-	);
-	const saveGoalsEnabledMutation = useMutation(
-		updateChatGoalsEnabled(queryClient),
 	);
 
 	const providerTypeByID = providerTypeByIDFromConfigs(
@@ -148,11 +139,6 @@ const CoderAgentsPage: FC = () => {
 				isSaveAdminOverridesError={
 					savePersonalModelOverridesAdminSettingsMutation.isError
 				}
-				goalsEnabledData={goalsEnabledQuery.data}
-				isLoadingGoalsEnabled={goalsEnabledQuery.isLoading}
-				onSaveGoalsEnabled={saveGoalsEnabledMutation.mutate}
-				isSavingGoalsEnabled={saveGoalsEnabledMutation.isPending}
-				isSaveGoalsEnabledError={saveGoalsEnabledMutation.isError}
 				generalModelOverrideData={generalModelOverrideQuery.data}
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}

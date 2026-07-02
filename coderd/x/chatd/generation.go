@@ -15,7 +15,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -513,6 +512,11 @@ func (s *taskStarter) insertGoalCompletionReminder(
 	if prepared.GoalReminder == nil || prepared.GoalReminder.GoalID == uuid.Nil {
 		return false, nil
 	}
+	// Experiments are static per process, so no transactional recheck
+	// is needed.
+	if s.server == nil || !s.server.experiments.Enabled(codersdk.ExperimentChatGoals) {
+		return false, nil
+	}
 	message, err := goalCompletionReminderMessage(
 		prepared.GoalReminder.GoalID,
 		prepared.ModelConfigID,
@@ -536,14 +540,6 @@ func (s *taskStarter) insertGoalCompletionReminder(
 			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 
-		//nolint:gocritic // Generation control checks deployment-level chat config.
-		chatGoalsEnabled, err := store.GetChatGoalsEnabled(dbauthz.AsChatd(ctx))
-		if err != nil {
-			return xerrors.Errorf("get chat goals setting: %w", err)
-		}
-		if !chatGoalsEnabled {
-			return errGoalCompletionReminderSkipped
-		}
 		queued, err := store.CountChatQueuedMessages(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("count queued messages: %w", err)

@@ -1609,14 +1609,6 @@ func (m queryMetricsStore) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatGoalsEnabled(ctx context.Context) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatGoalsEnabled(ctx)
-	m.queryLatencies.WithLabelValues("GetChatGoalsEnabled").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGoalsEnabled").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatHeartbeat(ctx, arg)
@@ -6254,14 +6246,6 @@ func (m queryMetricsStore) UpsertChatGeneralModelOverride(ctx context.Context, v
 	r0 := m.s.UpsertChatGeneralModelOverride(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertChatGeneralModelOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGeneralModelOverride").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertChatGoalsEnabled(ctx context.Context, enabled bool) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatGoalsEnabled(ctx, enabled)
-	m.queryLatencies.WithLabelValues("UpsertChatGoalsEnabled").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGoalsEnabled").Inc()
 	return r0
 }
 

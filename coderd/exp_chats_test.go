@@ -74,6 +74,7 @@ func newChatTestOptions(
 		values.Experiments = serpent.StringArray{
 			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
+			string(codersdk.ExperimentChatGoals),
 		}
 	}
 
@@ -328,13 +329,14 @@ func TestChatGoalsRequireExperiment(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _ := newChatClientWithDatabase(t)
+	// Deploy without the chat-goals experiment.
+	values := coderdtest.DeploymentValues(t)
+	values.Experiments = serpent.StringArray{
+		string(codersdk.ExperimentChatAdvisor),
+	}
+	client := newChatClientWithDeploymentValues(t, values)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	createChatModelConfig(t, client)
-
-	setting, err := client.GetChatGoalsEnabled(ctx)
-	require.NoError(t, err)
-	require.False(t, setting.Enabled)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -372,13 +374,12 @@ func TestChatGoalsRequireExperiment(t *testing.T) {
 	sdkErr = requireSDKError(t, err, http.StatusForbidden)
 	require.Contains(t, sdkErr.Message, "Chat goals are not enabled")
 
-	require.NoError(t, client.UpdateChatGoalsEnabled(ctx, codersdk.UpdateChatGoalsEnabledRequest{Enabled: true}))
-	setting, err = client.GetChatGoalsEnabled(ctx)
-	require.NoError(t, err)
-	require.True(t, setting.Enabled)
-
-	enabledChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: firstUser.OrganizationID,
+	// A deployment with the experiment accepts goal mutations.
+	enabledClient, _ := newChatClientWithDatabase(t)
+	enabledUser := coderdtest.CreateFirstUser(t, enabledClient.Client)
+	createChatModelConfig(t, enabledClient)
+	enabledChat, err := enabledClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: enabledUser.OrganizationID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "start with an enabled goal",
@@ -399,8 +400,6 @@ func TestChatGoalAPI(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	createChatModelConfig(t, client)
-
-	require.NoError(t, client.UpdateChatGoalsEnabled(ctx, codersdk.UpdateChatGoalsEnabledRequest{Enabled: true}))
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: firstUser.OrganizationID,
@@ -572,8 +571,6 @@ func TestPatchChatGoalRequiresOwnerForSharedSiteOwner(t *testing.T) {
 	ownerClient, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
 	createChatModelConfig(t, ownerClient)
-
-	require.NoError(t, ownerClient.UpdateChatGoalsEnabled(ctx, codersdk.UpdateChatGoalsEnabledRequest{Enabled: true}))
 
 	sharedOwnerRaw, sharedOwner := coderdtest.CreateAnotherUser(
 		t,

@@ -7,7 +7,6 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
-import { ChatGoalSettings } from "#/pages/AgentsPage/components/ChatGoalSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import {
 	AdminPersonalModelOverridesSettings,
@@ -31,16 +30,6 @@ export interface CoderAgentsPageViewProps {
 	onSaveAdminOverrides: SavePersonalModelOverridesAdminSetting;
 	isSavingAdminOverrides: boolean;
 	isSaveAdminOverridesError: boolean;
-	goalsEnabledData: TypesGen.ChatGoalsEnabledResponse | undefined;
-	isLoadingGoalsEnabled: boolean;
-	onSaveGoalsEnabled: UseMutateFunction<
-		void,
-		Error,
-		TypesGen.UpdateChatGoalsEnabledRequest,
-		unknown
-	>;
-	isSavingGoalsEnabled: boolean;
-	isSaveGoalsEnabledError: boolean;
 	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
@@ -91,11 +80,6 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveAdminOverrides,
 	isSavingAdminOverrides,
 	isSaveAdminOverridesError,
-	goalsEnabledData,
-	isLoadingGoalsEnabled,
-	onSaveGoalsEnabled,
-	isSavingGoalsEnabled,
-	isSaveGoalsEnabledError,
 	generalModelOverrideData,
 	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
@@ -156,13 +140,6 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					onSaveAdminSetting={onSaveAdminOverrides}
 					isSavingAdminSetting={isSavingAdminOverrides}
 					isSaveAdminSettingError={isSaveAdminOverridesError}
-				/>
-				<ChatGoalSettings
-					goalsEnabledData={goalsEnabledData}
-					isLoadingGoalsEnabled={isLoadingGoalsEnabled}
-					onSaveGoalsEnabled={onSaveGoalsEnabled}
-					isSavingGoalsEnabled={isSavingGoalsEnabled}
-					isSaveGoalsEnabledError={isSaveGoalsEnabledError}
 				/>
 				{showGeneralModelSection && onSaveGeneralModelOverride && (
 					<SubagentModelOverrideSettings
