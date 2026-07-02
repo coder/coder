@@ -1,9 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import {
-	reactRouterOutlet,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import { templateByNameKey } from "#/api/queries/templates";
@@ -19,11 +16,18 @@ const meta = {
 	parameters: {
 		layout: "fullscreen",
 		reactRouter: reactRouterParameters({
-			location: { pathParams: { template: MockTemplate.name } },
-			routing: reactRouterOutlet(
-				{ path: "/templates/:template/settings" },
-				<TemplateSettingsPage />,
-			),
+			location: {
+				path: "/templates/:template/settings",
+				pathParams: { template: MockTemplate.name },
+			},
+			routing: [
+				{
+					path: "/templates/:template/settings",
+					useStoryElement: true,
+					children: [{ index: true, element: <TemplateSettingsPage /> }],
+				},
+				{ path: "/templates/:template", element: <div>Template</div> },
+			],
 		}),
 		queries: [
 			{
