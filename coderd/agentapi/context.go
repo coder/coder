@@ -244,6 +244,12 @@ func validateContextPushRequest(req *agentproto.PushContextStateRequest) error {
 	if req.Version > math.MaxInt64 {
 		return xerrors.Errorf("agentapi: PushContextState version %d exceeds int64 range", req.Version)
 	}
+	// AggregateHash anchors chat dirty-tracking and maps to a NOT NULL
+	// column. An empty hash pins chats that db2sdk then reports as
+	// untracked, and a nil hash violates the column on real Postgres.
+	if len(req.AggregateHash) == 0 {
+		return xerrors.New("agentapi: PushContextState aggregate hash is empty")
+	}
 	if len(req.AggregateHash) > maxContextHashBytes {
 		return xerrors.Errorf("agentapi: PushContextState aggregate hash is %d bytes, exceeds %d byte cap", len(req.AggregateHash), maxContextHashBytes)
 	}

@@ -49,6 +49,29 @@ func TestReadModifyUpdate_RetryOK(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestReadModifyUpdate_RetryDeadlock(t *testing.T) {
+	t.Parallel()
+
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+	// A deadlock (40P01) is transient like a serialization failure: the
+	// first attempt is rolled back and the retry commits cleanly.
+	firstUpdate := mDB.EXPECT().
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		Times(1).
+		Return(&pq.Error{Code: pq.ErrorCode("40P01")})
+	mDB.EXPECT().
+		InTx(gomock.Any(), &database.TxOptions{Isolation: sql.LevelRepeatableRead}).
+		After(firstUpdate).
+		Times(1).
+		Return(nil)
+
+	err := database.ReadModifyUpdate(mDB, func(tx database.Store) error {
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 func TestReadModifyUpdate_HardError(t *testing.T) {
 	t.Parallel()
 

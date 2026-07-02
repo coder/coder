@@ -1,6 +1,7 @@
 package agentapi_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -159,8 +160,9 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, _ := makeAPI(t)
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version: 1,
-				Initial: true,
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
 				Resources: []*agentproto.ContextResource{
 					instructionResource("", "x"),
 				},
@@ -174,8 +176,9 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, _ := makeAPI(t)
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version: 1,
-				Initial: true,
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
 				Resources: []*agentproto.ContextResource{
 					instructionResource("/a", "x"),
 					instructionResource("/a", "y"),
@@ -196,9 +199,10 @@ func TestPushContextState(t *testing.T) {
 		resource := instructionResource("/a", "x")
 		resource.Status = agentproto.ContextResource_STATUS_UNSPECIFIED
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version:   1,
-			Initial:   true,
-			Resources: []*agentproto.ContextResource{resource},
+			AggregateHash: validAggregateHash(),
+			Version:       1,
+			Initial:       true,
+			Resources:     []*agentproto.ContextResource{resource},
 		})
 		require.Error(t, err)
 		require.Nil(t, resp)
@@ -209,8 +213,9 @@ func TestPushContextState(t *testing.T) {
 
 		api, _ := makeAPI(t)
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 1,
-			Initial: true,
+			AggregateHash: validAggregateHash(),
+			Version:       1,
+			Initial:       true,
 			Resources: []*agentproto.ContextResource{
 				{
 					Source:      "/a",
@@ -223,6 +228,57 @@ func TestPushContextState(t *testing.T) {
 		require.Error(t, err)
 		require.Nil(t, resp)
 		require.Contains(t, err.Error(), "missing body")
+	})
+
+	t.Run("AggregateHash", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("RejectsEmpty", func(t *testing.T) {
+			t.Parallel()
+			api, _ := makeAPI(t)
+			// An empty aggregate hash would pin a chat the dashboard then
+			// reports as untracked and violates the snapshot's NOT NULL
+			// column, so it is rejected before the transaction starts.
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version: 1,
+				Initial: true,
+			})
+			require.Error(t, err)
+			require.Nil(t, resp)
+			require.Contains(t, err.Error(), "aggregate hash is empty")
+		})
+
+		t.Run("AcceptsThirtyTwoByteHash", func(t *testing.T) {
+			t.Parallel()
+			api, dbm := makeAPI(t)
+			expectInTx(dbm)
+
+			// A 32-byte SHA-256 digest is the shape the agent produces;
+			// it must be accepted and stored verbatim on the snapshot.
+			dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+				Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+			var gotHash []byte
+			dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
+					gotHash = arg.AggregateHash
+					return database.WorkspaceAgentContextSnapshot{}, nil
+				})
+			dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), database.DeleteStaleWorkspaceAgentContextResourcesParams{
+				WorkspaceAgentID: agentID,
+				ActiveSources:    []string{},
+			}).Return(nil)
+
+			hash := bytes.Repeat([]byte{0x2a}, 32)
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version:       1,
+				Initial:       true,
+				AggregateHash: hash,
+			})
+			require.NoError(t, err)
+			require.True(t, resp.GetAccepted())
+			require.Len(t, gotHash, 32)
+			require.Equal(t, hash, gotHash)
+		})
 	})
 
 	t.Run("StaleVersionDropped", func(t *testing.T) {
@@ -238,8 +294,9 @@ func TestPushContextState(t *testing.T) {
 			Return(database.WorkspaceAgentContextSnapshot{Version: 5}, nil)
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 3,
-			Initial: false,
+			AggregateHash: validAggregateHash(),
+			Version:       3,
+			Initial:       false,
 			Resources: []*agentproto.ContextResource{
 				instructionResource("/a", "stale"),
 			},
@@ -258,8 +315,9 @@ func TestPushContextState(t *testing.T) {
 			Return(database.WorkspaceAgentContextSnapshot{Version: 5}, nil)
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 5,
-			Initial: false,
+			AggregateHash: validAggregateHash(),
+			Version:       5,
+			Initial:       false,
 		})
 		require.NoError(t, err)
 		require.False(t, resp.GetAccepted())
@@ -284,8 +342,9 @@ func TestPushContextState(t *testing.T) {
 			Return(nil)
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 1,
-			Initial: true,
+			AggregateHash: validAggregateHash(),
+			Version:       1,
+			Initial:       true,
 			Resources: []*agentproto.ContextResource{
 				instructionResource("/a", "fresh"),
 			},
@@ -315,8 +374,9 @@ func TestPushContextState(t *testing.T) {
 		}).Return(nil)
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 2,
-			Initial: false,
+			AggregateHash: validAggregateHash(),
+			Version:       2,
+			Initial:       false,
 			Resources: []*agentproto.ContextResource{
 				instructionResource("/a", "still here"),
 			},
@@ -344,8 +404,9 @@ func TestPushContextState(t *testing.T) {
 		}).Return(nil)
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 1,
-			Initial: true,
+			AggregateHash: validAggregateHash(),
+			Version:       1,
+			Initial:       true,
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetAccepted())
@@ -374,8 +435,9 @@ func TestPushContextState(t *testing.T) {
 
 		mcpServer := mcpServerResource("/srv/mcp/echo", "echo", "echo server")
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 1,
-			Initial: true,
+			AggregateHash: validAggregateHash(),
+			Version:       1,
+			Initial:       true,
 			Resources: []*agentproto.ContextResource{
 				instructionResource("/a/AGENTS.md", "hi"),
 				skillResource("/a/.agents/skills/example/SKILL.md", "example", "an example"),
@@ -426,9 +488,10 @@ func TestPushContextState(t *testing.T) {
 		oversized.Error = "file exceeds 64KiB per-resource cap"
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version:   1,
-			Initial:   true,
-			Resources: []*agentproto.ContextResource{oversized},
+			AggregateHash: validAggregateHash(),
+			Version:       1,
+			Initial:       true,
+			Resources:     []*agentproto.ContextResource{oversized},
 		})
 		require.NoError(t, err)
 		require.True(t, resp.GetAccepted())
@@ -477,8 +540,9 @@ func TestPushContextState(t *testing.T) {
 		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
 
 		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-			Version: 6,
-			Initial: false,
+			AggregateHash: validAggregateHash(),
+			Version:       6,
+			Initial:       false,
 			Resources: []*agentproto.ContextResource{
 				instructionResource("/a", "racy"),
 			},
@@ -500,9 +564,10 @@ func TestPushContextState(t *testing.T) {
 				resources = append(resources, instructionResource("/r/"+string(rune('a'+i%26))+"/"+uuid.NewString(), "x"))
 			}
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version:   1,
-				Initial:   true,
-				Resources: resources,
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
+				Resources:     resources,
 			})
 			require.Error(t, err)
 			require.Nil(t, resp)
@@ -513,8 +578,9 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, _ := makeAPI(t)
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version: uint64(math.MaxInt64) + 1,
-				Initial: true,
+				AggregateHash: validAggregateHash(),
+				Version:       uint64(math.MaxInt64) + 1,
+				Initial:       true,
 			})
 			require.Error(t, err)
 			require.Nil(t, resp)
@@ -525,8 +591,9 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, _ := makeAPI(t)
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version: 1,
-				Initial: true,
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
 				Resources: []*agentproto.ContextResource{
 					instructionResource("/"+strings.Repeat("a", 1024), "x"),
 				},
@@ -541,8 +608,9 @@ func TestPushContextState(t *testing.T) {
 			api, _ := makeAPI(t)
 			// 256KiB of content base64-expands past the 256KiB body cap.
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version: 1,
-				Initial: true,
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
 				Resources: []*agentproto.ContextResource{
 					instructionResource("/big", strings.Repeat("x", 256*1024)),
 				},
@@ -563,9 +631,10 @@ func TestPushContextState(t *testing.T) {
 				resources = append(resources, instructionResource("/agg/"+uuid.NewString(), content))
 			}
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version:   1,
-				Initial:   true,
-				Resources: resources,
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
+				Resources:     resources,
 			})
 			require.Error(t, err)
 			require.Nil(t, resp)
@@ -578,9 +647,10 @@ func TestPushContextState(t *testing.T) {
 			resource := instructionResource("/a", "x")
 			resource.ContentHash = make([]byte, 65)
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
-				Version:   1,
-				Initial:   true,
-				Resources: []*agentproto.ContextResource{resource},
+				AggregateHash: validAggregateHash(),
+				Version:       1,
+				Initial:       true,
+				Resources:     []*agentproto.ContextResource{resource},
 			})
 			require.Error(t, err)
 			require.Nil(t, resp)
@@ -591,6 +661,7 @@ func TestPushContextState(t *testing.T) {
 			t.Parallel()
 			api, _ := makeAPI(t)
 			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				AggregateHash: validAggregateHash(),
 				Version:       1,
 				Initial:       true,
 				SnapshotError: strings.Repeat("e", 4097),
@@ -607,6 +678,13 @@ func TestPushContextState(t *testing.T) {
 // pushes vs. updates.
 func errNoRows() error {
 	return sql.ErrNoRows
+}
+
+// validAggregateHash returns a non-empty 32-byte aggregate hash matching the
+// SHA-256 digest the agent computes. PushContextState rejects an empty hash,
+// so fixtures that exercise other behavior supply this stand-in.
+func validAggregateHash() []byte {
+	return bytes.Repeat([]byte{0x2a}, 32)
 }
 
 func instructionResource(source, content string) *agentproto.ContextResource {
