@@ -205,8 +205,8 @@ export interface AIBridgeThread {
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
 	 * ErrorType is the categorized terminal upstream error from the root
-	 * interception. Nil when the interception succeeded. One of bad_request,
-	 * unauthorized, rate_limited, overloaded, server_error, or unknown.
+	 * interception, or nil when the interception succeeded. See the
+	 * aibridge_interception_error_type enum for possible values.
 	 */
 	readonly error_type?: string;
 	/**

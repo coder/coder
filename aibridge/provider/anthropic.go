@@ -39,9 +39,13 @@ var anthropicOpenErrorResponse = func() []byte {
 	return []byte(`{"type":"error","error":{"type":"overloaded_error","message":"circuit breaker is open"}}`)
 }
 
+// statusOverloaded is the non-standard HTTP status Anthropic returns when its
+// API is overloaded. The net/http package does not define a constant for it.
+// https://platform.claude.com/docs/en/api/errors
+const statusOverloaded = 529
+
 var anthropicIsFailure = func(statusCode int) bool {
-	// https://platform.claude.com/docs/en/api/errors
-	if statusCode == 529 {
+	if statusCode == statusOverloaded {
 		return true
 	}
 	return circuitbreaker.DefaultIsFailure(statusCode)
@@ -218,11 +222,13 @@ func (p *Anthropic) APIDumpDir() string {
 	return p.cfg.APIDumpDir
 }
 
-// statusOverloaded is the non-standard HTTP status Anthropic returns when its
-// API is overloaded. The net/http package does not define a constant for it.
-const statusOverloaded = 529
-
 func (*Anthropic) CategorizeError(err error) *recorder.ErrorType {
+	return categorizeAnthropicError(err)
+}
+
+// categorizeAnthropicError categorizes a terminal error from an Anthropic
+// (messages) provider. It returns nil when err is not an Anthropic-shaped error.
+func categorizeAnthropicError(err error) *recorder.ErrorType {
 	var status int
 	var envErr *messages.ResponseError
 	switch {

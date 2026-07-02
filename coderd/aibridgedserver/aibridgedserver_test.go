@@ -1478,7 +1478,7 @@ func TestRecordInterceptionEnded(t *testing.T) {
 				},
 			},
 			{
-				name: "invalid_error_type_is_null",
+				name: "invalid_error_type_is_unknown",
 				request: &proto.RecordInterceptionEndedRequest{
 					Id:        uuid.UUID{1}.String(),
 					EndedAt:   timestamppb.Now(),
@@ -1488,11 +1488,37 @@ func TestRecordInterceptionEnded(t *testing.T) {
 					interceptionID, err := uuid.Parse(req.GetId())
 					assert.NoError(t, err, "parse interception UUID")
 
-					// An unrecognized error type is stored as NULL rather than
-					// rejected, so the ended record is still written.
+					// A non-empty but unrecognized error type is stored as
+					// 'unknown' (not NULL), keeping the error columns consistent.
 					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), database.UpdateAIBridgeInterceptionEndedParams{
 						ID:      interceptionID,
 						EndedAt: req.EndedAt.AsTime(),
+						ErrorType: database.NullAIBridgeInterceptionErrorType{
+							AIBridgeInterceptionErrorType: database.AibridgeInterceptionErrorTypeUnknown,
+							Valid:                         true,
+						},
+					}).Return(database.AIBridgeInterception{ID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "message_without_error_type_stores_neither",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id:           uuid.UUID{1}.String(),
+					EndedAt:      timestamppb.Now(),
+					ErrorMessage: protobufproto.String("orphan message with no type"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					// A message without a type is not a categorized error, so
+					// both columns stay NULL to preserve the both-NULL == success
+					// invariant rather than persisting a half-populated error.
+					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), database.UpdateAIBridgeInterceptionEndedParams{
+						ID:           interceptionID,
+						EndedAt:      req.EndedAt.AsTime(),
+						ErrorType:    database.NullAIBridgeInterceptionErrorType{},
+						ErrorMessage: sql.NullString{},
 					}).Return(database.AIBridgeInterception{ID: interceptionID}, nil)
 				},
 			},

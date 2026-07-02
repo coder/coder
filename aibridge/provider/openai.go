@@ -210,8 +210,8 @@ func (*OpenAI) CategorizeError(err error) *recorder.ErrorType {
 }
 
 // categorizeOpenAIError categorizes a terminal error from an OpenAI-compatible
-// provider (OpenAI and Copilot) using the shared response envelope and SDK
-// error shapes. It returns nil when err is not an OpenAI-shaped error.
+// provider using the OpenAI response envelope and SDK error shapes. It returns
+// nil when err is not an OpenAI-shaped error.
 func categorizeOpenAIError(err error) *recorder.ErrorType {
 	var status int
 	var envErr *intercept.ResponseError
@@ -226,5 +226,11 @@ func categorizeOpenAIError(err error) *recorder.ErrorType {
 		status = apiErr.StatusCode
 	}
 	t := recorder.ErrorTypeFromStatus(status)
+	// OpenAI returns 503 when its engine is overloaded, which is a more
+	// explicit signal than a generic server error.
+	// https://developers.openai.com/api/docs/guides/error-codes#api-errors
+	if status == http.StatusServiceUnavailable {
+		t = recorder.ErrorTypeOverloaded
+	}
 	return &t
 }

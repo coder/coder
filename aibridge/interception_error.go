@@ -1,6 +1,7 @@
 package aibridge
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -34,14 +35,28 @@ func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorT
 	if len(msg) > maxRecordedErrorMessageBytes {
 		msg = strings.ToValidUTF8(msg[:maxRecordedErrorMessageBytes], "")
 	}
-	// The circuit breaker responds with 503 Service Unavailable when open, but
+
+	// Go context errors. These originate in the gateway or the caller, not
+	// upstream, so they are classified before any provider delegation.
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return recorder.ErrorTypeTimeout, msg
+	case errors.Is(err, context.Canceled):
+		// The caller went away before the interception completed. This is not
+		// an upstream failure, but the interception did not succeed either, so
+		// it is recorded as unknown rather than dropped.
+		return recorder.ErrorTypeUnknown, msg
+	}
+
+	// Circuit breaker. It responds with 503 Service Unavailable when open, but
 	// returns a sentinel error that carries no HTTP status of its own.
 	if errors.Is(err, circuitbreaker.ErrCircuitOpen) {
 		return recorder.ErrorTypeServerError, msg
 	}
-	// Centralized key-pool exhaustion. Checked before delegating because the
-	// pool masks the client response (e.g. permanent failures become 502),
-	// which would otherwise hide the cause.
+
+	// Centralized key-pool failover. Checked before delegating because the pool
+	// masks the client response (e.g. permanent failures become 502), which
+	// would otherwise hide the cause.
 	var keyPoolErr *keypool.Error
 	if errors.As(err, &keyPoolErr) {
 		switch keyPoolErr.Kind {
@@ -53,6 +68,9 @@ func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorT
 			return recorder.ErrorTypeUnknown, msg
 		}
 	}
+
+	// Anything provider-specific is delegated to the provider, which owns the
+	// knowledge of its SDK errors and response envelopes.
 	if cat := c.CategorizeError(err); cat != nil {
 		return *cat, msg
 	}

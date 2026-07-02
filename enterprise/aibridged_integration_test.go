@@ -620,25 +620,18 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 	t.Cleanup(func() { _ = srv.Shutdown(ctx) })
 
 	cases := []struct {
-		name  string
-		path  string
-		body  string
-		model string
+		name string
+		path string
+		body string
 	}{
-		{
-			name:  "openai",
-			path:  "/openai/v1/chat/completions",
-			body:  `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4","stream":false}`,
-			model: "gpt-4",
-		},
-		{
-			name:  "anthropic",
-			path:  "/anthropic/v1/messages",
-			body:  `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100,"stream":false}`,
-			model: "claude-3-5-sonnet-20241022",
-		},
+		{"openai_blocking", "/openai/v1/chat/completions", `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4","stream":false}`},
+		{"openai_streaming", "/openai/v1/chat/completions", `{"messages":[{"role":"user","content":"test"}],"model":"gpt-4","stream":true}`},
+		{"anthropic_blocking", "/anthropic/v1/messages", `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100,"stream":false}`},
+		{"anthropic_streaming", "/anthropic/v1/messages", `{"messages":[{"role":"user","content":"test"}],"model":"claude-3-5-sonnet-20241022","max_tokens":100,"stream":true}`},
 	}
 
+	// Requests are fired sequentially: they share the centralized key pool and
+	// database, and the aggregate assertion below depends on all of them.
 	for _, tc := range cases {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tc.path, bytes.NewBufferString(tc.body))
 		require.NoError(t, err)
@@ -651,8 +644,8 @@ func TestIntegrationRecordsUpstreamError(t *testing.T) {
 	}
 
 	// The interception rows should record the unauthorized upstream failure.
-	// Blocking interceptors surface the centralized key-pool permanent
-	// exhaustion, which categorizes as unauthorized.
+	// Both blocking and streaming interceptors surface the centralized key-pool
+	// permanent exhaustion, which categorizes as unauthorized.
 	intcs, err := db.GetAIBridgeInterceptions(ctx)
 	require.NoError(t, err)
 	require.Len(t, intcs, len(cases))

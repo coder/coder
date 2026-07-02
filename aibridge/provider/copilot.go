@@ -123,7 +123,12 @@ func (p *Copilot) APIDumpDir() string {
 }
 
 func (*Copilot) CategorizeError(err error) *recorder.ErrorType {
-	return categorizeOpenAIError(err)
+	// Copilot serves both OpenAI-compatible routes and an Anthropic-style
+	// /v1/messages route, so fall back to the Anthropic shapes.
+	if t := categorizeOpenAIError(err); t != nil {
+		return t
+	}
+	return categorizeAnthropicError(err)
 }
 
 func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tracer trace.Tracer) (_ intercept.Interceptor, outErr error) {
