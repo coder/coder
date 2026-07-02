@@ -182,7 +182,7 @@ To enforce it, add the external ID to the target role's trust policy as an
   "Effect": "Allow",
   "Principal": { "AWS": "<gateway base identity>" },
   "Action": "sts:AssumeRole",
-  "Condition": { "StringEquals": { "sts:ExternalId": "<external ID shown on the provider>" } }
+  "Condition": { "StringEquals": { "sts:ExternalId": "<the provider's External ID>" } }
 }
 ```
 
