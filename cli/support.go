@@ -7,9 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -55,6 +58,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
+  - Workspace log files (if --workspace-log-path is specified)
   - License status
   - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
@@ -69,6 +73,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var coderURLOverride string
 	var workspacesTotalCap64 int64 = 10
 	var templateName string
+	var workspaceLogPaths []string
 	var pprof bool
 	cmd := &serpent.Command{
 		Use:   "bundle [<workspace>] [<agent>]",
@@ -254,6 +259,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				AgentID:            agtID,
 				WorkspacesTotalCap: int(workspacesTotalCap64),
 				TemplateID:         templateID,
+				WorkspaceLogPaths:  workspaceLogPaths,
 				CollectPprof:       pprof,
 			}
 
@@ -301,6 +307,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Env:         "CODER_SUPPORT_BUNDLE_TEMPLATE",
 			Description: "Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.",
 			Value:       serpent.StringOf(&templateName),
+		},
+		{
+			Flag:        "workspace-log-path",
+			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACE_LOG_PATH",
+			Description: "Workspace-side log path or glob to collect from the agent user's home directory. Can be specified multiple times.",
+			Value:       serpent.StringArrayOf(&workspaceLogPaths),
 		},
 		{
 			Flag:        "pprof",
@@ -549,6 +561,10 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
+	if err := writeAgentLogFilesArchive(src.Agent.LogFilesArchive, dest, supportBundleAgentLogFilesMaxBytes); err != nil {
+		return xerrors.Errorf("write agent log files: %w", err)
+	}
+
 	// Write pprof binary data
 	if err := writePprofData(src.Pprof, dest); err != nil {
 		return xerrors.Errorf("write pprof data: %w", err)
@@ -558,6 +574,96 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("close zip file: %w", err)
 	}
 	return nil
+}
+
+// supportBundleAgentLogFilesMaxBytes caps how much of the agent's log files
+// archive is unpacked into the bundle, guarding against a misbehaving agent.
+const supportBundleAgentLogFilesMaxBytes int64 = 110 * 1024 * 1024
+
+// writeAgentLogFilesArchive unpacks the agent's zip archive into the bundle
+// under agent/log_files/. Unsafe entry names are dropped, reads are bounded
+// by the remaining budget rather than trusting declared sizes, and
+// per-entry problems are recorded in collection_errors.txt.
+func writeAgentLogFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) error {
+	if len(src) == 0 {
+		return nil
+	}
+	zr, err := zip.NewReader(bytes.NewReader(src), int64(len(src)))
+	if err != nil {
+		// A malformed archive shouldn't sink the rest of the bundle.
+		return writeAgentLogFilesSkipped(dest, []string{
+			fmt.Sprintf("open agent log files archive: %s", err),
+		})
+	}
+	remaining := maxBytes
+	var skipped []string
+	for _, file := range zr.File {
+		name, ok := safeAgentLogFilesArchiveName(file.Name)
+		if !ok || !file.FileInfo().Mode().IsRegular() {
+			continue
+		}
+		rc, err := file.Open()
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("%s: open: %s", name, err))
+			continue
+		}
+		// Read one byte beyond the remaining budget to detect oversized
+		// entries without trusting the declared entry size.
+		content, err := io.ReadAll(io.LimitReader(rc, remaining+1))
+		_ = rc.Close()
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("%s: read: %s", name, err))
+			continue
+		}
+		if int64(len(content)) > remaining {
+			skipped = append(skipped, fmt.Sprintf("%s: exceeds remaining %d byte budget", name, remaining))
+			continue
+		}
+		remaining -= int64(len(content))
+		// A failed write means the output zip itself is broken, so
+		// propagate it like the rest of writeBundle.
+		f, err := dest.Create(path.Join("agent/log_files", name))
+		if err != nil {
+			return xerrors.Errorf("create agent log files entry %q: %w", name, err)
+		}
+		if _, err := f.Write(content); err != nil {
+			return xerrors.Errorf("write agent log files entry %q: %w", name, err)
+		}
+	}
+	return writeAgentLogFilesSkipped(dest, skipped)
+}
+
+// writeAgentLogFilesSkipped records dropped workspace log entries inside
+// the bundle so the omission stays visible without failing the bundle.
+func writeAgentLogFilesSkipped(dest *zip.Writer, skipped []string) error {
+	if len(skipped) == 0 {
+		return nil
+	}
+	f, err := dest.Create("agent/log_files/collection_errors.txt")
+	if err != nil {
+		return xerrors.Errorf("create agent log files errors: %w", err)
+	}
+	body := "# workspace log entries dropped while assembling the support bundle\n" +
+		strings.Join(skipped, "\n") + "\n"
+	if _, err := f.Write([]byte(body)); err != nil {
+		return xerrors.Errorf("write agent log files errors: %w", err)
+	}
+	return nil
+}
+
+// safeAgentLogFilesArchiveName validates an agent archive entry name and
+// returns it when safe to embed in the bundle: a valid slash-separated
+// relative path within the expected layout (manifest.json or files/...).
+// Backslashes are rejected because some Windows extractors treat them as
+// path separators.
+func safeAgentLogFilesArchiveName(name string) (string, bool) {
+	if strings.Contains(name, `\`) || !fs.ValidPath(name) {
+		return "", false
+	}
+	if name != "manifest.json" && !strings.HasPrefix(name, "files/") {
+		return "", false
+	}
+	return name, true
 }
 
 func writePprofData(pprof support.Pprof, dest *zip.Writer) error {

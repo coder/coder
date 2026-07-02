@@ -60,9 +60,7 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Streaming the combined logs can exceed the server's 20s WriteTimeout,
 	// so extend the deadline for this response.
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(debugLogsWriteTimeout)); err != nil {
-		a.logger.Warn(r.Context(), "extend debug log write deadline", slog.Error(err))
-	}
+	extendDebugLogWriteDeadline(r.Context(), a.logger, w)
 
 	// Open the required active log before the 200 so failures return 500.
 	active, err := root.Open(activeAgentLogName)
@@ -150,6 +148,14 @@ func (a *agent) writeActiveDebugLog(w http.ResponseWriter, r *http.Request, root
 	if err != nil {
 		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
 		return
+	}
+}
+
+// extendDebugLogWriteDeadline gives slow links well over the server's 20s
+// WriteTimeout to stream a debug log response.
+func extendDebugLogWriteDeadline(ctx context.Context, logger slog.Logger, w http.ResponseWriter) {
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(debugLogsWriteTimeout)); err != nil {
+		logger.Warn(ctx, "extend debug log write deadline", slog.Error(err))
 	}
 }
 

@@ -98,6 +98,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
+	DebugLogFiles(ctx context.Context, req DebugLogFilesRequest) ([]byte, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -448,6 +449,30 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/manifest", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	return bs, nil
+}
+
+// DebugLogFilesRequest configures a workspace-side log file collection.
+type DebugLogFilesRequest struct {
+	Paths []string `json:"paths"`
+}
+
+// DebugLogFiles returns a zip archive of explicitly requested workspace logs.
+func (c *agentConn) DebugLogFiles(ctx context.Context, req DebugLogFilesRequest) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/debug/log-files", req)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}

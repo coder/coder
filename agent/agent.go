@@ -2323,6 +2323,7 @@ func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
+	r.Post("/debug/log-files", a.HandleHTTPDebugLogFiles)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)

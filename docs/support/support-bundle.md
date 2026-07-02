@@ -34,6 +34,8 @@ A brief overview of all files contained in the bundle is provided below:
 | `agent/client_magicsock.html`     | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                                           |
 | `agent/listening_ports.json`      | The listening ports detected by the selected agent running in the workspace.                                                      |
 | `agent/logs.txt`                  | Active agent log plus rotated agent logs modified in the last 24 hours, capped at 100 MiB.                                        |
+| `agent/log_files/manifest.json`   | Manifest for workspace-side log files collected with `--workspace-log-path`. Only present when workspace log paths are requested. |
+| `agent/log_files/files/`          | Workspace-side log files collected with `--workspace-log-path`. Only present when workspace log paths are requested.              |
 | `agent/manifest.json`             | The manifest of the selected agent with environment variables stripped.                                                           |
 | `agent/startup_logs.txt`          | Startup logs of the workspace agent.                                                                                              |
 | `agent/prometheus.txt`            | The contents of the agent's Prometheus endpoint.                                                                                  |
@@ -87,6 +89,30 @@ A brief overview of all files contained in the bundle is provided below:
    > [!NOTE]
    > While support bundles can be generated without a running workspace, it is
    > recommended to specify one to maximize troubleshooting information.
+
+   To collect workspace-side editor or service logs, add one
+   `--workspace-log-path` flag for each path or glob. This is explicit opt-in.
+   The CLI sends each value to the workspace agent, so quote globs to prevent
+   your local shell from expanding them:
+
+   ```sh
+   coder support bundle my-workspace \
+     --workspace-log-path '$HOME/.vscode-server/data/logs/**/*.log' \
+     --workspace-log-path '$HOME/.local/share/code-server/coder-logs/**/*.log'
+   ```
+
+   Workspace log paths and globs are evaluated by the workspace agent. The
+   agent collects only files that resolve under the workspace agent user's home
+   directory. Supported path forms include `$HOME/...`, `${HOME}/...`, `~/...`,
+   and absolute paths under the agent user's home directory. Collected files are
+   stored under `agent/log_files/files/`, and collection metadata is stored in
+   `agent/log_files/manifest.json`. Files that exceed the per-file limit are
+   truncated to their last bytes and marked as truncated in the manifest.
+
+   > [!WARNING]
+   > Workspace log files can contain tokens, credentials, source code, or other
+   > sensitive data. Extract and review `agent/log_files/` before sharing the
+   > bundle.
 
 5. (Recommended) Extract the support bundle and review its contents, redacting
    any information you deem necessary.
