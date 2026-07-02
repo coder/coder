@@ -285,7 +285,7 @@ func setupActiveAIGatewayServeSession(ctx context.Context, t *testing.T) activeA
 func requireAIGatewayServeSessionClosed(t *testing.T, s activeAIGatewayServeSession) {
 	t.Helper()
 
-	s.tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
+	s.tick <- time.Now() // trigger gateway key / license check.
 	require.Eventually(t, func() bool {
 		select {
 		case <-s.dc.DRPCConn().Closed():
