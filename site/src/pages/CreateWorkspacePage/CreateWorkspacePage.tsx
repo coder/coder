@@ -253,7 +253,7 @@ const CreateWorkspacePage: FC = () => {
 		externalAuthPollingState,
 		startPollingExternalAuth,
 		isLoadingExternalAuth,
-	} = useExternalAuth(realizedVersionId);
+	} = useExternalAuth(realizedVersionId, owner.id);
 
 	const isLoadingFormData =
 		ws.current?.readyState === WebSocket.CONNECTING ||

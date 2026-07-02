@@ -4,7 +4,10 @@ import { templateVersionExternalAuth } from "#/api/queries/templates";
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
-export const useExternalAuth = (versionId: string | undefined) => {
+export const useExternalAuth = (
+	versionId: string | undefined,
+	userId: string,
+) => {
 	const [pollingState, setPollingState] = useState<
 		Record<string, ExternalAuthPollingState>
 	>({});
@@ -20,7 +23,7 @@ export const useExternalAuth = (versionId: string | undefined) => {
 		isPending: isLoadingExternalAuth,
 		error,
 	} = useQuery({
-		...templateVersionExternalAuth(versionId ?? ""),
+		...templateVersionExternalAuth(versionId ?? "", userId),
 		enabled: Boolean(versionId),
 		refetchInterval: isAnyPolling ? 1000 : false,
 	});

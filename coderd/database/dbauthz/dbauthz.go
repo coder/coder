@@ -793,6 +793,31 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	// subjectExternalAuthChecker reports whether a user has a usable external
+	// auth link for a template's required providers. It can read and refresh a
+	// user's external auth links (personal user data) and nothing else, so it
+	// can validate a workspace owner's external auth without granting broad
+	// system access.
+	subjectExternalAuthChecker = rbac.Subject{
+		Type:         rbac.SubjectTypeExternalAuthChecker,
+		FriendlyName: "External Auth Checker",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "external-auth-checker"},
+				DisplayName: "External Auth Checker",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// ReadPersonal fetches the link; UpdatePersonal lets
+					// RefreshToken persist a refreshed token.
+					rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -927,6 +952,14 @@ func AsAIProviderMetadataReader(ctx context.Context) context.Context {
 // handling the /scim/v2 routes and provisioning users via SCIM.
 func AsSCIMProvisioner(ctx context.Context) context.Context {
 	return As(ctx, subjectSCIM)
+}
+
+// AsExternalAuthChecker returns a context with an actor that can read and
+// refresh a user's external auth links, and nothing else. It is used to report
+// a workspace owner's external auth state to an authorized requester without
+// granting broad system access.
+func AsExternalAuthChecker(ctx context.Context) context.Context {
+	return As(ctx, subjectExternalAuthChecker)
 }
 
 var AsRemoveActor = rbac.Subject{

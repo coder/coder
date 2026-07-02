@@ -2839,9 +2839,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 
 ### Parameters
 
-| Name              | In   | Type         | Required | Description         |
-|-------------------|------|--------------|----------|---------------------|
-| `templateversion` | path | string(uuid) | true     | Template version ID |
+| Name              | In    | Type         | Required | Description                                                               |
+|-------------------|-------|--------------|----------|---------------------------------------------------------------------------|
+| `templateversion` | path  | string(uuid) | true     | Template version ID                                                       |
+| `user_id`         | query | string(uuid) | false    | Owner to report external auth state for. Defaults to the requesting user. |
 
 ### Example responses
 

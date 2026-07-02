@@ -329,6 +329,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
+// @Param user_id query string false "Owner to report external auth state for. Defaults to the requesting user." format(uuid)
 // @Success 200 {array} codersdk.TemplateVersionExternalAuth
 // @Router /api/v2/templateversions/{templateversion}/external-auth [get]
 func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Request) {
@@ -338,7 +339,40 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	providers, err := api.templateVersionExternalAuthForUser(ctx, templateVersion, apiKey.UserID)
+	// The external auth state is reported for the workspace owner. By default
+	// this is the requesting user, but an admin creating a workspace for someone
+	// else passes that user's ID so the form reflects the owner's auth state
+	// instead of the admin's.
+	ownerID := apiKey.UserID
+	if q := r.URL.Query().Get("user_id"); q != "" && q != codersdk.Me {
+		uid, err := uuid.Parse(q)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user_id query parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		ownerID = uid
+	}
+
+	// readCtx looks up the owner's external auth links. For the requesting user
+	// this is the request context. When reporting another user's state the
+	// requester must be allowed to create a workspace on that owner's behalf,
+	// mirroring workspace creation. The links are then read with an elevated
+	// context so the requester does not also need personal read access.
+	readCtx := ctx
+	if ownerID != apiKey.UserID {
+		if !api.Authorize(r, policy.ActionCreate,
+			rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(ownerID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		//nolint:gocritic // Authorized as create-workspace-for-owner above; the checker only reads/refreshes the owner's external auth links.
+		readCtx = dbauthz.AsExternalAuthChecker(ctx)
+	}
+
+	providers, err := api.templateVersionExternalAuthForUser(readCtx, templateVersion, ownerID)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return

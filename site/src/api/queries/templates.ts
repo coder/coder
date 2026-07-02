@@ -206,16 +206,20 @@ export const templaceACLAvailable = (
 	};
 };
 
-const templateVersionExternalAuthKey = (versionId: string) => [
+const templateVersionExternalAuthKey = (versionId: string, userId = "me") => [
 	templateVersionRoot,
 	versionId,
+	userId,
 	"externalAuth",
 ];
 
-export const templateVersionExternalAuth = (versionId: string) => {
+export const templateVersionExternalAuth = (
+	versionId: string,
+	userId = "me",
+) => {
 	return {
-		queryKey: templateVersionExternalAuthKey(versionId),
-		queryFn: () => API.getTemplateVersionExternalAuth(versionId),
+		queryKey: templateVersionExternalAuthKey(versionId, userId),
+		queryFn: () => API.getTemplateVersionExternalAuth(versionId, userId),
 	};
 };
 
