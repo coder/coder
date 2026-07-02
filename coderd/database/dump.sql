@@ -761,6 +761,16 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    AS $$
+    SELECT CASE WHEN jsonb_typeof(content) = 'array' THEN (
+        SELECT string_agg(part->>'text', ' ' ORDER BY ordinality)
+        FROM jsonb_array_elements(content) WITH ORDINALITY AS t(part, ordinality)
+        WHERE part->>'type' = 'text'
+    ) END
+$$;
+
 CREATE FUNCTION check_workspace_agent_name_unique() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
