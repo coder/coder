@@ -6,6 +6,8 @@ import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProvide
 import { formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
+import { NetworkSummary } from "./NetworkActivity/NetworkSummary";
+import type { NetworkActivity } from "./NetworkActivity/types";
 
 const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
@@ -21,6 +23,7 @@ interface SessionSummaryTableProps {
 	threadCount: number;
 	toolCallCount: number;
 	tokenUsageMetadata?: Record<string, unknown>;
+	networkActivity?: NetworkActivity;
 }
 
 export const SessionSummaryTable = ({
@@ -35,6 +38,7 @@ export const SessionSummaryTable = ({
 	threadCount,
 	toolCallCount,
 	tokenUsageMetadata,
+	networkActivity,
 }: SessionSummaryTableProps) => {
 	const durationInMs =
 		endTime !== undefined
@@ -163,6 +167,10 @@ export const SessionSummaryTable = ({
 					<Badge>{toolCallCount}</Badge>
 				</dd>
 			</div>
+
+			<Separator />
+
+			<NetworkSummary networkActivity={networkActivity} />
 		</dl>
 	);
 };

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import { MockSession } from "#/testHelpers/entities";
+import { mockNetworkActivity } from "../NetworkActivity/mocks";
 import { SessionTimeline } from "./SessionTimeline";
 
 // A thread with one thinking block and one tool call.
@@ -141,4 +142,18 @@ export const MultipleThreads: Story = {
 
 export const FetchingNextPage: Story = {
 	args: { hasNextPage: true, isFetchingNextPage: true },
+};
+
+export const WithNetworkActivity: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		networkActivity: mockNetworkActivity("mixed"),
+	},
+};
+
+export const WithNetworkActivityErrorOnly: Story = {
+	args: {
+		threads: [mockThread],
+		networkActivity: mockNetworkActivity("error-only"),
+	},
 };

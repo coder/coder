@@ -20,6 +20,8 @@ import {
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
+import { NetworkActivityButton } from "../NetworkActivity/NetworkActivityButton";
+import type { NetworkActivity } from "../NetworkActivity/types";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { PromptTable } from "./PromptTable";
 import { ToolCallTable } from "./ToolCallTable";
@@ -411,6 +413,7 @@ interface SessionTimelineProps {
 	hasNextPage: boolean;
 	isFetchingNextPage: boolean;
 	onFetchNextPage: () => void;
+	networkActivity?: NetworkActivity;
 }
 
 export const SessionTimeline: FC<SessionTimelineProps> = ({
@@ -419,6 +422,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	hasNextPage,
 	isFetchingNextPage,
 	onFetchNextPage,
+	networkActivity,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -524,6 +528,11 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* left vertical line */}
 				</div>
 				<div className="row-start-5 col-start-2 col-span-4">
+					{networkActivity && networkActivity.events.length > 0 && (
+						<div className="flex items-center mb-2">
+							<NetworkActivityButton networkActivity={networkActivity} />
+						</div>
+					)}
 					{/* threads */}
 					<div className="[&>.thread-gap:last-child]:hidden">
 						{threads.map((thread) => (
