@@ -27,6 +27,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -567,7 +568,9 @@ func TestIsBudgetExceeded(t *testing.T) {
 
 			req := &proto.IsBudgetExceededRequest{UserId: userIDStr}
 			if !tc.omitPeriodStart {
-				req.PeriodStart = timestamppb.New(dbtime.StartOfMonth(dbtime.Now().UTC()))
+				window, err := budget.CurrentPeriod(dbtime.Now(), codersdk.AIBudgetPeriodMonth)
+				require.NoError(t, err)
+				req.PeriodStart = timestamppb.New(window.Start)
 			}
 			resp, err := srv.IsBudgetExceeded(t.Context(), req)
 			if tc.wantErrContains != "" {
