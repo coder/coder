@@ -136,6 +136,11 @@ type ScanRoot struct {
 	// declared, when this root came from a user-added Source.
 	// Empty for built-in roots.
 	UserSource string
+	// Builtin marks the package's built-in/home scan roots (the
+	// ~/.coder and ~/.claude trees). Skills contributed by a
+	// builtin root win same-name conflicts against project roots
+	// in dedupSkillsByName.
+	Builtin bool
 }
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
@@ -257,6 +262,8 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 		}
 		r.discoverIn(root, &resources, seenID)
 	}
+	// Collapse same-name skills to one winner.
+	resources = dedupSkillsByName(resources)
 	return resources, snapErrs
 }
 
@@ -265,22 +272,31 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 // top-level instruction files and .mcp.json plus skills from the
 // fixed container locations under it. The walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]struct{}) {
-	info, err := os.Stat(root.Path)
+	// Stat follows symlinks to decide whether the root is a
+	// directory to walk shallowly, so a symlinked directory source
+	// remains a valid directory root.
+	if info, err := os.Stat(root.Path); err == nil && info.IsDir() {
+		r.discoverTopLevelFiles(root, out, seenID)
+		for _, container := range skillContainersFor(root.Path) {
+			r.emitSkillsFromContainer(container, root, out, seenID)
+		}
+		return
+	}
+	// Lstat (not Stat) so a symlinked file source keeps its symlink
+	// bit and is routed through resolveReadTarget's boundary check
+	// rather than being silently stat-resolved, which would let a
+	// CLAUDE.md -> ~/.ssh/id_rsa style link skip the check. Mirrors
+	// the deliberate Lstat in emitSkillsFromContainer.
+	info, err := os.Lstat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
 		// added a path that does not exist yet or removed it
 		// later; the watcher surfaces re-creation as a change.
 		return
 	}
-	if !info.IsDir() {
-		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
-			appendResource(out, seenID, res)
-		}
-		return
-	}
-	r.discoverTopLevelFiles(root, out, seenID)
-	for _, container := range skillContainersFor(root.Path) {
-		r.emitSkillsFromContainer(container, root, out, seenID)
+	if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
+		res.builtin = root.Builtin
+		appendResource(out, seenID, res)
 	}
 }
 
@@ -620,10 +636,40 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 		return
 	}
 	for _, e := range entries {
-		if !e.IsDir() {
+		skillDir := filepath.Join(container, e.Name())
+		// DirEntry.IsDir is false for a symlink, so resolve the
+		// entry and follow it only if it stays inside the scan
+		// root; otherwise the inner SKILL.md looks like a regular
+		// file and the directory link slips past the boundary
+		// check.
+		if e.Type()&fs.ModeSymlink != 0 {
+			resolved, err := filepath.EvalSymlinks(skillDir)
+			if err != nil {
+				continue
+			}
+			if info, err := os.Stat(resolved); err != nil || !info.IsDir() {
+				continue
+			}
+			if !dirWithinScanRoot(resolved, root.Path) {
+				// Surface the boundary violation as StatusInvalid,
+				// mirroring resolveReadTarget's handling of escaping
+				// file symlinks. The resolver is stateless and has no
+				// logger, so the rejection is returned in the snapshot
+				// rather than logged.
+				appendResource(out, seenID, Resource{
+					ID:         resourceID(KindSkill, skillDir),
+					Kind:       KindSkill,
+					Source:     skillDir,
+					SourcePath: root.UserSource,
+					Status:     StatusInvalid,
+					Error:      fmt.Sprintf("symlinked skill directory target %q escapes scan root %q", resolved, root.Path),
+				})
+				continue
+			}
+		} else if !e.IsDir() {
 			continue
 		}
-		meta := filepath.Join(container, e.Name(), skillMetaFileName)
+		meta := filepath.Join(skillDir, skillMetaFileName)
 		// Lstat (not Stat) so a symlinked SKILL.md is
 		// detected and routed through resolveReadTarget,
 		// which enforces the scan-root boundary.
@@ -635,8 +681,58 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 		if !ok {
 			continue
 		}
+		res.builtin = root.Builtin
 		appendResource(out, seenID, res)
 	}
+}
+
+// dirWithinScanRoot reports whether resolved (an already
+// symlink-resolved directory) is contained by scanRoot. It
+// mirrors resolveReadTarget's symmetric EvalSymlinks handling so
+// a symlinked skill directory cannot escape the contributing
+// scan root through a platform-level symlink in the root prefix.
+func dirWithinScanRoot(resolved, scanRoot string) bool {
+	rootClean := filepath.Clean(scanRoot)
+	if r, err := filepath.EvalSymlinks(rootClean); err == nil {
+		rootClean = r
+	}
+	return pathHasPrefix(resolved, rootClean)
+}
+
+// dedupSkillsByName collapses skills that resolve to the same
+// front-matter Name down to one deterministic winner, ranked by
+// skillResourceOutranks, so the inventory and any name-keyed
+// usable index agree.
+func dedupSkillsByName(resources []Resource) []Resource {
+	winnerIdx := make(map[string]int)
+	for i, res := range resources {
+		if res.Kind != KindSkill || res.Name == "" {
+			continue
+		}
+		if j, ok := winnerIdx[res.Name]; !ok || skillResourceOutranks(res, resources[j]) {
+			winnerIdx[res.Name] = i
+		}
+	}
+	out := make([]Resource, 0, len(resources))
+	for i, res := range resources {
+		if res.Kind == KindSkill && res.Name != "" && winnerIdx[res.Name] != i {
+			continue
+		}
+		out = append(out, res)
+	}
+	return out
+}
+
+// skillResourceOutranks reports whether candidate should replace
+// current as the winner for a shared skill name. Builtin/home
+// roots outrank project roots; otherwise the lexically smaller
+// source path wins so the result is stable regardless of walk
+// order.
+func skillResourceOutranks(candidate, current Resource) bool {
+	if candidate.builtin != current.builtin {
+		return candidate.builtin
+	}
+	return candidate.Source < current.Source
 }
 
 // applyCaps enforces the resource-count cap and aggregate
@@ -939,6 +1035,10 @@ type Resource struct {
 	// Tools is populated for KindMCPServer with the live
 	// server's tool list; empty otherwise.
 	Tools []MCPTool
+	// builtin marks a skill resolved from a builtin/home scan
+	// root. It drives deterministic same-name skill precedence in
+	// dedupSkillsByName and is never sent on the wire.
+	builtin bool
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the
