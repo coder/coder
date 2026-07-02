@@ -55,9 +55,7 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
-// The external ID is server-generated and returned on read when the Bedrock
-// provider assumes a role. It is read-only: the form displays it but never
-// submits it.
+// Server-generated STS external ID; read-only.
 export const bedrockExternalId = (provider: AIProvider): string | undefined => {
 	if (!isBedrockProvider(provider)) {
 		return undefined;
