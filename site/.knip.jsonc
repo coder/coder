@@ -23,7 +23,6 @@
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
-		"@coder/pixel-storybook",
 		"@types/react-virtualized-auto-sizer",
 		"ts-proto"
 	]

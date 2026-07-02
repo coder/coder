@@ -1,4 +1,4 @@
-import isChromatic from "chromatic/isChromatic";
+import { isPixel } from "@coder/pixel-storybook";
 import {
 	ArrowLeftIcon,
 	PauseIcon,
@@ -487,7 +487,7 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 }) => {
 	// Scroll to the bottom on mount since snapshot logs are static.
 	const scrollToBottom = useCallback((el: HTMLDivElement | null) => {
-		if (!isChromatic() && el) {
+		if (!isPixel() && el) {
 			el.scrollIntoView({ block: "end" });
 		}
 	}, []);

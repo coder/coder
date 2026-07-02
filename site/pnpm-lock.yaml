@@ -292,8 +292,8 @@ importers:
         specifier: 5.0.1
         version: 5.0.1(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
       '@coder/pixel-storybook':
-        specifier: 0.1.3
-        version: 0.1.3(playwright-core@1.55.1)
+        specifier: 0.1.3-canary.20260629.d99bfaa
+        version: 0.1.3-canary.20260629.d99bfaa(playwright-core@1.55.1)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))
       '@octokit/types':
         specifier: 12.6.0
         version: 12.6.0
@@ -402,9 +402,6 @@ importers:
       babel-plugin-react-compiler:
         specifier: 1.0.0
         version: 1.0.0
-      chromatic:
-        specifier: 11.29.0
-        version: 11.29.0
       dpdm:
         specifier: 3.15.1
         version: 3.15.1
@@ -691,12 +688,13 @@ packages:
     peerDependencies:
       storybook: ^0.0.0-0 || ^10.1.0 || ^10.1.0-0 || ^10.2.0-0 || ^10.3.0-0
 
-  '@coder/pixel-storybook@0.1.3':
-    resolution: {integrity: sha512-vNBha7mU1PDFwauWcw2JV0hni980qu71meBOuhneaGbL4BL+06L4PEG6wYElhqJcs6pVPaUypj+bF+089ohZyw==, tarball: https://registry.npmjs.org/@coder/pixel-storybook/-/pixel-storybook-0.1.3.tgz}
+  '@coder/pixel-storybook@0.1.3-canary.20260629.d99bfaa':
+    resolution: {integrity: sha512-wLRsYiP95eH5DRIvzGLXhhW74+soBO0wHKsXi9bW2miol2/BtSmc1mNv5MY4d4t7IAr25u7/tVawFKhW2WUE8w==, tarball: https://registry.npmjs.org/@coder/pixel-storybook/-/pixel-storybook-0.1.3-canary.20260629.d99bfaa.tgz}
     engines: {node: '>=22'}
     hasBin: true
     peerDependencies:
       playwright-core: '>=1.47.2'
+      storybook: '>=8.0.0'
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==, tarball: https://registry.npmjs.org/@csstools/color-helpers/-/color-helpers-5.1.0.tgz}
@@ -3325,18 +3323,6 @@ packages:
 
   chroma-js@2.6.0:
     resolution: {integrity: sha512-BLHvCB9s8Z1EV4ethr6xnkl/P2YRFOGqfgvuMG/MyCbZPrTA+NeiByY6XvgF0zP4/2deU2CXnWyMa3zu1LqQ3A==, tarball: https://registry.npmjs.org/chroma-js/-/chroma-js-2.6.0.tgz}
-
-  chromatic@11.29.0:
-    resolution: {integrity: sha512-yisBlntp9hHVj19lIQdpTlcYIXuU9H/DbFuu6tyWHmj6hWT2EtukCCcxYXL78XdQt1vm2GfIrtgtKpj/Rzmo4A==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-11.29.0.tgz}
-    hasBin: true
-    peerDependencies:
-      '@chromatic-com/cypress': ^0.*.* || ^1.0.0
-      '@chromatic-com/playwright': ^0.*.* || ^1.0.0
-    peerDependenciesMeta:
-      '@chromatic-com/cypress':
-        optional: true
-      '@chromatic-com/playwright':
-        optional: true
 
   chromatic@13.3.4:
     resolution: {integrity: sha512-TR5rvyH0ESXobBB3bV8jc87AEAFQC7/n+Eb4XWhJz6hW3YNxIQPVjcbgLv+a4oKHEl1dUBueWSoIQsOVGTd+RQ==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-13.3.4.tgz}
@@ -6832,7 +6818,7 @@ snapshots:
       - '@chromatic-com/cypress'
       - '@chromatic-com/playwright'
 
-  '@coder/pixel-storybook@0.1.3(playwright-core@1.55.1)':
+  '@coder/pixel-storybook@0.1.3-canary.20260629.d99bfaa(playwright-core@1.55.1)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6))':
     dependencies:
       get-port-please: 3.1.2
       odiff-bin: 2.6.1
@@ -6840,6 +6826,7 @@ snapshots:
       playwright-core: 1.55.1
       pngjs: 7.0.0
       serve-handler: 6.1.7
+      storybook: 10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       tsx: 4.22.4
       zod: 3.23.8
 
@@ -9569,8 +9556,6 @@ snapshots:
       readdirp: 4.1.2
 
   chroma-js@2.6.0: {}
-
-  chromatic@11.29.0: {}
 
   chromatic@13.3.4: {}
 
