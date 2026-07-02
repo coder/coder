@@ -62,8 +62,6 @@ const AgentChatPageLayout: FC = () => {
 							requestUnpinAgent: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
-							onRegenerateTitle: () => {},
-							regeneratingTitleChatIds: [],
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},

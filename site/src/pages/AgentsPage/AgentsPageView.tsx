@@ -28,10 +28,8 @@ export interface AgentsOutletContext {
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
-	onRegenerateTitle?: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
-	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -70,10 +68,8 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => Promise<string>;
 	onProposeTitle: (chatId: string) => Promise<string>;
 	onRenameTitle: (chatId: string, title: string) => Promise<void>;
-	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAgentsAdmin: boolean;
@@ -111,10 +107,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestPinAgent,
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
-	onRegenerateTitle,
 	onProposeTitle,
 	onRenameTitle,
-	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
 	isPersonalModelOverridesEnabled,
 	isAgentsAdmin,
@@ -160,11 +154,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestReorderPinnedAgent,
 		isArchiving,
 		archivingChatId,
-		onRegenerateTitle: (chatId: string) => {
-			onRegenerateTitle(chatId).catch(() => {});
-		},
 		onOpenRenameDialog: setChatPendingRename,
-		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
@@ -205,7 +195,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onProposeTitle={onProposeTitle}
 					chatPendingRename={chatPendingRename}
 					onChatPendingRenameChange={setChatPendingRename}
-					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isSearchDialogOpen={isSearchDialogOpen}
 					onSearchDialogOpenChange={onSearchDialogOpenChange}

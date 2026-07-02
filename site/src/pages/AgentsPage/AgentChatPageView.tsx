@@ -197,7 +197,6 @@ interface AgentChatPageViewProps {
 	isPinned?: boolean;
 	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
-	isRegeneratingTitle?: boolean;
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -370,7 +369,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isPinned,
 	isChildChat,
 	isArchivingThisChat,
-	isRegeneratingTitle,
 	scrollContainerRef,
 	scrollToBottomRef,
 	hasMoreMessages,
@@ -842,7 +840,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isPinned={isPinned}
 								isChildChat={isChildChat}
 								isArchiving={isArchivingThisChat}
-								isRegeneratingTitle={isRegeneratingTitle}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}

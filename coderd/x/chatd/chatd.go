@@ -1093,6 +1093,11 @@ var (
 	// accept modifications (messages, edits, promotions, or
 	// tool-result submissions).
 	ErrChatArchived = xerrors.New("chat is archived")
+	// ErrNoDefaultChatModelConfig indicates no default chat model config
+	// exists, so chatd cannot resolve a model for the request.
+	ErrNoDefaultChatModelConfig = xerrors.New(
+		"no default chat model config is available",
+	)
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -1559,7 +1564,7 @@ func resolveFallbackModelConfigID(
 	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return uuid.Nil, xerrors.New("no default chat model config is available")
+			return uuid.Nil, ErrNoDefaultChatModelConfig
 		}
 		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
 	}
@@ -2105,10 +2110,6 @@ func (p *Server) ReconcileInvalidStateChat(
 
 const manualTitleMessageWindowLimit = 50
 
-var ErrManualTitleRegenerationInProgress = xerrors.New(
-	"manual title regeneration already in progress",
-)
-
 type manualTitleCandidateResult struct {
 	title          string
 	modelConfig    database.ChatModelConfig
@@ -2165,117 +2166,6 @@ func (e *manualTitleGenerationError) Unwrap() error {
 	return e.cause
 }
 
-var manualTitleLockWorkerID = uuid.MustParse(
-	"00000000-0000-0000-0000-000000000001",
-)
-
-const manualTitleLockStaleAfter = time.Minute
-
-func isFreshManualTitleLock(chat database.Chat, now time.Time) bool {
-	if !chat.WorkerID.Valid || chat.WorkerID.UUID != manualTitleLockWorkerID {
-		return false
-	}
-	leaseAt := chat.HeartbeatAt
-	if !leaseAt.Valid {
-		leaseAt = chat.StartedAt
-	}
-	return leaseAt.Valid && leaseAt.Time.After(now.Add(-manualTitleLockStaleAfter))
-}
-
-// updateChatStatusPreserveUpdatedAt applies internal lock transitions without
-// changing chat recency, because chat list ordering uses updated_at.
-func updateChatStatusPreserveUpdatedAt(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	workerID uuid.NullUUID,
-	startedAt sql.NullTime,
-	heartbeatAt sql.NullTime,
-) (database.Chat, error) {
-	return store.UpdateChatStatusPreserveUpdatedAt(
-		ctx,
-		database.UpdateChatStatusPreserveUpdatedAtParams{
-			ID:          chat.ID,
-			Status:      chat.Status,
-			WorkerID:    workerID,
-			StartedAt:   startedAt,
-			HeartbeatAt: heartbeatAt,
-			LastError:   chat.LastError,
-			UpdatedAt:   chat.UpdatedAt,
-		},
-	)
-}
-
-func (p *Server) acquireManualTitleLock(ctx context.Context, chatID uuid.UUID) error {
-	now := time.Now()
-	return p.db.InTx(func(tx database.Store) error {
-		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
-		}
-		// Only a fresh manual lock or a chat without a real worker should
-		// block title regeneration. Running chats with a real worker may
-		// regenerate their title concurrently, and last write wins.
-		hasRealWorker := lockedChat.Status == database.ChatStatusRunning &&
-			lockedChat.WorkerID.Valid &&
-			lockedChat.WorkerID.UUID != manualTitleLockWorkerID
-		if lockedChat.Status == database.ChatStatusPending ||
-			(lockedChat.Status == database.ChatStatusRunning && !hasRealWorker) ||
-			isFreshManualTitleLock(lockedChat, now) {
-			return ErrManualTitleRegenerationInProgress
-		}
-		if hasRealWorker {
-			return nil
-		}
-
-		_, err = updateChatStatusPreserveUpdatedAt(
-			ctx,
-			tx,
-			lockedChat,
-			uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true},
-			sql.NullTime{Time: now, Valid: true},
-			sql.NullTime{},
-		)
-		if err != nil {
-			return xerrors.Errorf("mark chat for manual title regeneration: %w", err)
-		}
-		return nil
-	}, database.DefaultTXOptions().WithID("chat_title_regenerate_lock"))
-}
-
-func (p *Server) releaseManualTitleLock(ctx context.Context, chatID uuid.UUID) {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-
-	err := p.db.InTx(func(tx database.Store) error {
-		lockedChat, err := tx.GetChatByIDForUpdate(cleanupCtx, chatID)
-		if err != nil {
-			return xerrors.Errorf("lock chat to release manual title regeneration: %w", err)
-		}
-		if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != manualTitleLockWorkerID {
-			return nil
-		}
-		_, err = updateChatStatusPreserveUpdatedAt(
-			cleanupCtx,
-			tx,
-			lockedChat,
-			uuid.NullUUID{},
-			sql.NullTime{},
-			sql.NullTime{},
-		)
-		if err != nil {
-			return xerrors.Errorf("clear manual title regeneration marker: %w", err)
-		}
-		return nil
-	}, database.DefaultTXOptions().WithID("chat_title_regenerate_unlock"))
-	if err != nil {
-		p.logger.Warn(cleanupCtx, "failed to release manual title regeneration marker",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-	}
-}
-
 // RegenerateChatTitle regenerates a chat title from the chat's visible
 // messages, persists it when it changes, and broadcasts the update.
 func (p *Server) RegenerateChatTitle(
@@ -2286,11 +2176,6 @@ func (p *Server) RegenerateChatTitle(
 	// keeping chat ownership authorization at the HTTP layer.
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
-		return database.Chat{}, err
-	}
-	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
-
 	updatedChat, err := p.regenerateChatTitleWithStore(
 		chatdCtx,
 		p.db,
@@ -2308,13 +2193,6 @@ func (p *Server) RenameChatTitle(
 	chat database.Chat,
 	newTitle string,
 ) (updated database.Chat, wrote bool, err error) {
-	//nolint:gocritic // Lock release needs chatd-scoped writes.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
-		return database.Chat{}, false, err
-	}
-	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
-
 	currentChat, err := p.db.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		return database.Chat{}, false, xerrors.Errorf("get chat for rename: %w", err)
@@ -2338,18 +2216,14 @@ func (p *Server) PublishTitleChange(chat database.Chat) {
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
-// ProposeChatTitle generates a title suggestion from the chat's visible messages without persisting it.
+// ProposeChatTitle generates a title suggestion from the chat's
+// visible messages without persisting it.
 func (p *Server) ProposeChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	if err := p.acquireManualTitleLock(ctx, chat.ID); err != nil {
-		return "", err
-	}
-	defer p.releaseManualTitleLock(chatdCtx, chat.ID)
-
 	title, err := p.proposeChatTitleWithStore(chatdCtx, p.db, chat)
 	if err != nil {
 		return "", p.recordManualTitleGenerationFailure(ctx, chat, err)
@@ -4422,9 +4296,7 @@ func (p *Server) resolveModelConfig(
 	defaultConfig, err := p.configCache.DefaultModelConfig(ctx)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
-			return database.ChatModelConfig{}, xerrors.New(
-				"no default chat model config is available",
-			)
+			return database.ChatModelConfig{}, ErrNoDefaultChatModelConfig
 		}
 		return database.ChatModelConfig{}, xerrors.Errorf(
 			"get default chat model config: %w", err,

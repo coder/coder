@@ -8,7 +8,7 @@ import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -104,7 +104,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		isSearchDialogOpen: false,
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
-		regeneratingTitleChatIds: [],
 		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
@@ -945,66 +944,6 @@ export const SearchDialogKeyboardShortcutHandlesRenameInput: Story = {
 	},
 };
 
-export const RenameChatAvailableDuringRegeneration: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "regenerating-chat",
-				title: "Regenerating agent",
-				updated_at: recentTimestamp,
-			}),
-			buildChat({
-				id: "idle-chat",
-				title: "Idle agent",
-				updated_at: recentTimestamp,
-			}),
-		],
-		regeneratingTitleChatIds: ["regenerating-chat"],
-		onProposeTitle: fn(async () => "Proposed replacement"),
-		onRenameTitle: fn(async () => {}),
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
-
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: "Open actions for Regenerating agent",
-			}),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Rename chat" }),
-		).toBeInTheDocument();
-
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(
-				body.queryByRole("menuitem", { name: "Rename chat" }),
-			).not.toBeInTheDocument();
-		});
-
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: "Open actions for Idle agent",
-			}),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Rename chat" }),
-		).toBeInTheDocument();
-	},
-};
-
 export const RenameChatSubmitsNewTitle: Story = {
 	args: {
 		chats: [
@@ -1212,6 +1151,115 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 		const alert = await body.findByRole("alert");
 		expect(alert).toHaveTextContent(
 			"Proposal provider is temporarily unavailable.",
+		);
+		// Plain errors have no API detail, so no developer-console hint or
+		// second line may leak into the alert.
+		expect(alert).not.toHaveTextContent("developer console");
+		await waitFor(() => {
+			expect(input).toHaveAttribute("aria-invalid", "true");
+		});
+		expect(input).toHaveValue("Original title");
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+	},
+};
+
+export const RenameChatGenerateApiErrorWithoutDetailHidesHint: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-api-error-no-detail",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw mockApiError({
+				message: "No default chat model config is configured.",
+			});
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent(
+			"No default chat model config is configured.",
+		);
+		// An API error without a detail field must not surface the generic
+		// developer-console hint as a second line.
+		expect(alert).not.toHaveTextContent("developer console");
+	},
+};
+
+export const RenameChatGenerateApiErrorShowsDetail: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-api-error",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw mockApiError({
+				message: "Failed to generate chat title.",
+				detail: "No default chat model config is configured.",
+			});
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent("Failed to generate chat title.");
+		expect(alert).toHaveTextContent(
+			"No default chat model config is configured.",
 		);
 		await waitFor(() => {
 			expect(input).toHaveAttribute("aria-invalid", "true");

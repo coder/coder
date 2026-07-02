@@ -7,7 +7,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -53,9 +53,10 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	const [isRenamingChat, setIsRenamingChat] = useState(false);
 	const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
 	const [isTypingGeneratedTitle, setIsTypingGeneratedTitle] = useState(false);
-	const [generateTitleError, setGenerateTitleError] = useState<string | null>(
-		null,
-	);
+	const [generateTitleError, setGenerateTitleError] = useState<{
+		message: string;
+		detail?: string;
+	} | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const generatedTitleTypingFrameRef = useRef<number | null>(null);
 	const synchronizedChatIdRef = useRef<string | null | undefined>(undefined);
@@ -196,9 +197,15 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 			startGeneratedTitleTyping(newTitle, requestedSession);
 		} catch (error) {
 			if (sessionRef.current !== requestedSession) return;
-			setGenerateTitleError(
-				getErrorMessage(error, "Failed to generate a new title."),
-			);
+			setGenerateTitleError({
+				message: getErrorMessage(error, "Failed to generate a new title."),
+				// Read the response detail directly; getErrorDetail falls
+				// back to a generic developer-console hint for errors
+				// without a detail field.
+				detail: isApiError(error)
+					? error.response.data.detail || undefined
+					: undefined,
+			});
 			setIsGeneratingTitle(false);
 		}
 	};
@@ -300,13 +307,18 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							aria-describedby={generateTitleError ? errorId : undefined}
 						/>
 						{generateTitleError && (
-							<p
+							<div
 								id={errorId}
 								role="alert"
-								className="m-0 text-xs text-content-destructive"
+								className="m-0 space-y-0.5 text-xs text-content-destructive"
 							>
-								{generateTitleError}
-							</p>
+								<p className="m-0">{generateTitleError.message}</p>
+								{generateTitleError.detail && (
+									<p className="m-0 text-content-secondary">
+										{generateTitleError.detail}
+									</p>
+								)}
+							</div>
 						)}
 					</div>
 					<DialogFooter className="gap-2 sm:space-x-0">
