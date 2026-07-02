@@ -2140,6 +2140,33 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		require.Equal(t, "clean text", decoded[0].Text)
 		require.Equal(t, "has\x00nul", decoded[1].Text)
 	})
+
+	// ProviderMetadata with NUL (the primary field missed by the
+	// original implementation, causing Gemini failures).
+	t.Run("ProviderMetadataWithNul", func(t *testing.T) {
+		t.Parallel()
+
+		providerMeta := json.RawMessage(`{"key":"value\u0000here"}`)
+		parts := []codersdk.ChatMessagePart{
+			{
+				Type:             codersdk.ChatMessagePartTypeText,
+				Text:             "hello",
+				ProviderMetadata: providerMeta,
+			},
+		}
+
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\u0000`,
+			"encoded JSON must not contain \\u0000")
+
+		msg := testMsgV1(codersdk.ChatMessageRoleAssistant, encoded)
+		decoded, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		require.Len(t, decoded, 1)
+		require.Equal(t, "hello", decoded[0].Text)
+		assert.JSONEq(t, string(providerMeta), string(decoded[0].ProviderMetadata))
+	})
 }
 
 func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T) {
