@@ -500,6 +500,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
             "display_apps": [
               "vscode"
             ],
+            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -746,6 +747,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
             "display_apps": [
               "vscode"
             ],
+            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"

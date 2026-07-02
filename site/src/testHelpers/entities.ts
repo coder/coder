@@ -1045,6 +1045,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
 	environment_variables: {},
 	id: "test-workspace-agent",
 	parent_id: null,
+	display_order: 0,
 	name: "a-workspace-agent",
 	operating_system: "linux",
 	resource_id: "",

@@ -4,11 +4,11 @@ import * as Mocks from "#/testHelpers/entities";
 import {
 	agentVersionStatus,
 	defaultWorkspaceExtension,
+	findChatAgent,
 	findWorkspaceAgent,
 	getDisplayVersionStatus,
 	getDisplayWorkspaceBuildInitiatedBy,
 	getDisplayWorkspaceTemplateName,
-	getFirstRootAgent,
 	getMatchingAgentOrFirst,
 	getWorkspaceAgents,
 	isWorkspaceOn,
@@ -204,29 +204,151 @@ describe("util > workspace", () => {
 		});
 	});
 
-	describe("getFirstRootAgent", () => {
-		it("skips sub-agents and returns the first root agent", () => {
-			const workspace = buildWorkspace([
-				[buildAgent("sub-agent", "root-agent")],
-				[buildAgent("root-agent")],
-			]);
-
-			expect(getFirstRootAgent(workspace)?.id).toBe("root-agent");
+	// Scenarios mirror coderd/x/chatd/agentselect/agentselect_test.go where
+	// practical.
+	describe("findChatAgent", () => {
+		const agentWithId = (
+			id: string,
+			name: string,
+			displayOrder = 0,
+			parentId: string | null = null,
+		): TypesGen.WorkspaceAgent => ({
+			...Mocks.MockWorkspaceAgent,
+			id,
+			name,
+			display_order: displayOrder,
+			parent_id: parentId,
 		});
 
-		it("falls back to the first agent when all agents are sub-agents", () => {
+		const agent = (
+			name: string,
+			displayOrder = 0,
+			parentId: string | null = null,
+		): TypesGen.WorkspaceAgent =>
+			agentWithId(crypto.randomUUID(), name, displayOrder, parentId);
+
+		it("returns the single agent matching the chat suffix", () => {
 			const workspace = buildWorkspace([
-				[buildAgent("sub-agent-1", "missing")],
-				[buildAgent("sub-agent-2", "missing")],
+				[agent("alpha"), agent("dev-coderd-chat"), agent("zeta")],
 			]);
 
-			expect(getFirstRootAgent(workspace)?.id).toBe("sub-agent-1");
+			expect(findChatAgent(workspace)?.name).toBe("dev-coderd-chat");
+		});
+
+		it("matches the chat suffix case-insensitively", () => {
+			const workspace = buildWorkspace([
+				[agent("alpha"), agent("Dev-Coderd-Chat"), agent("zeta")],
+			]);
+
+			expect(findChatAgent(workspace)?.name).toBe("Dev-Coderd-Chat");
+		});
+
+		it("falls back to the lowest display order when no suffix matches", () => {
+			const workspace = buildWorkspace([
+				[agent("zeta", 2), agent("bravo", 1), agent("alpha", 1)],
+			]);
+
+			expect(findChatAgent(workspace)?.name).toBe("alpha");
+		});
+
+		it("falls back to the first root agent by case-insensitive name", () => {
+			const workspace = buildWorkspace([
+				[agent("Bravo", 3), agent("alpha", 3), agent("charlie", 3)],
+			]);
+
+			expect(findChatAgent(workspace)?.name).toBe("alpha");
+		});
+
+		it("prefers a lower display order over name ordering", () => {
+			const workspace = buildWorkspace([[agent("zeta", 0), agent("alpha", 1)]]);
+
+			expect(findChatAgent(workspace)?.name).toBe("zeta");
+		});
+
+		it("breaks case-only name ties by case-sensitive name", () => {
+			const workspace = buildWorkspace([[agent("dev"), agent("Dev")]]);
+
+			expect(findChatAgent(workspace)?.name).toBe("Dev");
+		});
+
+		it("breaks exact name ties by ID", () => {
+			const workspace = buildWorkspace([
+				[
+					agentWithId("00000000-0000-0000-0000-000000000002", "dev"),
+					agentWithId("00000000-0000-0000-0000-000000000001", "dev"),
+				],
+			]);
+
+			expect(findChatAgent(workspace)?.id).toBe(
+				"00000000-0000-0000-0000-000000000001",
+			);
+		});
+
+		it("returns undefined when multiple root agents match the suffix", () => {
+			const workspace = buildWorkspace([
+				[agent("alpha-coderd-chat"), agent("beta-coderd-chat"), agent("gamma")],
+			]);
+
+			expect(findChatAgent(workspace)).toBeUndefined();
+		});
+
+		it("ignores sub-agents matching the suffix", () => {
+			const workspace = buildWorkspace([
+				[
+					agent("alpha", 1),
+					agent("child-coderd-chat", 0, "some-parent"),
+					agent("bravo", 0),
+				],
+			]);
+
+			expect(findChatAgent(workspace)?.name).toBe("bravo");
+		});
+
+		it("prefers a root suffix match over a sub-agent suffix match", () => {
+			const workspace = buildWorkspace([
+				[
+					agent("alpha"),
+					agent("child-coderd-chat", 1, "some-parent"),
+					agent("root-coderd-chat", 2),
+				],
+			]);
+
+			expect(findChatAgent(workspace)?.name).toBe("root-coderd-chat");
 		});
 
 		it("returns undefined when there are no agents", () => {
 			const workspace = buildWorkspace([[]]);
 
-			expect(getFirstRootAgent(workspace)).toBeUndefined();
+			expect(findChatAgent(workspace)).toBeUndefined();
+		});
+
+		it("returns undefined when only sub-agents exist", () => {
+			const workspace = buildWorkspace([
+				[
+					agent("alpha", 0, "some-parent"),
+					agent("beta-coderd-chat", 1, "some-parent"),
+				],
+			]);
+
+			expect(findChatAgent(workspace)).toBeUndefined();
+		});
+
+		it("returns a single root agent", () => {
+			const workspace = buildWorkspace([[agent("solo", 5)]]);
+
+			expect(findChatAgent(workspace)?.name).toBe("solo");
+		});
+
+		it("picks the suffix agent regardless of sort position", () => {
+			const workspace = buildWorkspace([
+				[
+					agent("alpha", 0),
+					agent("zeta", 1),
+					agent("preferred-coderd-chat", 99),
+				],
+			]);
+
+			expect(findChatAgent(workspace)?.name).toBe("preferred-coderd-chat");
 		});
 	});
 

@@ -137,30 +137,33 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID               `json:"id" format:"uuid"`
-	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
-	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	StartedAt            *time.Time              `json:"started_at,omitempty" format:"date-time"`
-	ReadyAt              *time.Time              `json:"ready_at,omitempty" format:"date-time"`
-	Status               WorkspaceAgentStatus    `json:"status"`
-	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name                 string                  `json:"name"`
-	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID           string                  `json:"instance_id,omitempty"`
-	Architecture         string                  `json:"architecture"`
-	EnvironmentVariables map[string]string       `json:"environment_variables"`
-	OperatingSystem      string                  `json:"operating_system"`
-	LogsLength           int32                   `json:"logs_length"`
-	LogsOverflowed       bool                    `json:"logs_overflowed"`
-	Directory            string                  `json:"directory,omitempty"`
-	ExpandedDirectory    string                  `json:"expanded_directory,omitempty"`
-	Version              string                  `json:"version"`
-	APIVersion           string                  `json:"api_version"`
-	Apps                 []WorkspaceApp          `json:"apps"`
+	ID               uuid.UUID               `json:"id" format:"uuid"`
+	ParentID         uuid.NullUUID           `json:"parent_id" format:"uuid"`
+	CreatedAt        time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time               `json:"updated_at" format:"date-time"`
+	FirstConnectedAt *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt  *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt   *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
+	StartedAt        *time.Time              `json:"started_at,omitempty" format:"date-time"`
+	ReadyAt          *time.Time              `json:"ready_at,omitempty" format:"date-time"`
+	Status           WorkspaceAgentStatus    `json:"status"`
+	LifecycleState   WorkspaceAgentLifecycle `json:"lifecycle_state"`
+	Name             string                  `json:"name"`
+	// DisplayOrder controls the relative ordering of agents when
+	// displayed in user interfaces. Lower values sort first.
+	DisplayOrder         int32             `json:"display_order"`
+	ResourceID           uuid.UUID         `json:"resource_id" format:"uuid"`
+	InstanceID           string            `json:"instance_id,omitempty"`
+	Architecture         string            `json:"architecture"`
+	EnvironmentVariables map[string]string `json:"environment_variables"`
+	OperatingSystem      string            `json:"operating_system"`
+	LogsLength           int32             `json:"logs_length"`
+	LogsOverflowed       bool              `json:"logs_overflowed"`
+	Directory            string            `json:"directory,omitempty"`
+	ExpandedDirectory    string            `json:"expanded_directory,omitempty"`
+	Version              string            `json:"version"`
+	APIVersion           string            `json:"api_version"`
+	Apps                 []WorkspaceApp    `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds"`

@@ -10017,6 +10017,11 @@ export interface WorkspaceAgent {
 	readonly status: WorkspaceAgentStatus;
 	readonly lifecycle_state: WorkspaceAgentLifecycle;
 	readonly name: string;
+	/**
+	 * DisplayOrder controls the relative ordering of agents when
+	 * displayed in user interfaces. Lower values sort first.
+	 */
+	readonly display_order: number;
 	readonly resource_id: string;
 	readonly instance_id?: string;
 	readonly architecture: string;

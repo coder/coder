@@ -135,6 +135,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "display_apps": [
             "vscode"
           ],
+          "display_order": 0,
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -378,6 +379,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "display_apps": [
             "vscode"
           ],
+          "display_order": 0,
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -739,6 +741,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "display_apps": [
           "vscode"
         ],
+        "display_order": 0,
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -881,6 +884,7 @@ Status Code **200**
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» display_order`              | integer                                                                                                | false    |              | Display order controls the relative ordering of agents when displayed in user interfaces. Lower values sort first.                                                                                                                             |
 | `»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1093,6 +1097,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "display_apps": [
             "vscode"
           ],
+          "display_order": 0,
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -1447,6 +1452,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "display_apps": [
               "vscode"
             ],
+            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1652,6 +1658,7 @@ Status Code **200**
 | `»»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_order`              | integer                                                                                                | false    |              | Display order controls the relative ordering of agents when displayed in user interfaces. Lower values sort first.                                                                                                                             |
 | `»»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1905,6 +1912,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "display_apps": [
             "vscode"
           ],
+          "display_order": 0,
           "environment_variables": {
             "property1": "string",
             "property2": "string"

@@ -2457,6 +2457,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "display_apps": [
           "vscode"
         ],
+        "display_order": 0,
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -2599,6 +2600,7 @@ Status Code **200**
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» display_order`              | integer                                                                                                | false    |              | Display order controls the relative ordering of agents when displayed in user interfaces. Lower values sort first.                                                                                                                             |
 | `»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -3127,6 +3129,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "display_apps": [
           "vscode"
         ],
+        "display_order": 0,
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -3269,6 +3272,7 @@ Status Code **200**
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» display_order`              | integer                                                                                                | false    |              | Display order controls the relative ordering of agents when displayed in user interfaces. Lower values sort first.                                                                                                                             |
 | `»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |

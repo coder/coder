@@ -587,6 +587,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "display_apps": [
     "vscode"
   ],
+  "display_order": 0,
   "environment_variables": {
     "property1": "string",
     "property2": "string"

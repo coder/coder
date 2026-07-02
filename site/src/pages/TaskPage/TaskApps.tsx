@@ -25,7 +25,7 @@ import {
 } from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
-import { getFirstRootAgent } from "#/utils/workspace";
+import { findChatAgent } from "#/utils/workspace";
 
 type TaskAppsProps = {
 	task: Task;
@@ -45,10 +45,13 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 	const hasAvailableAppsToDisplay =
 		embeddedApps.length > 0 || externalApps.length > 0;
-	// Target a root agent for the terminal. Sub-agents (e.g. dev container
-	// agents) can sort first in the flattened app list, but their terminal is
-	// not the workspace's primary terminal.
-	const taskAgent = getFirstRootAgent(workspace);
+	// Target the chat-selected root agent for the terminal, matching the
+	// backend selector (coderd/x/chatd/agentselect). Sub-agents (e.g. dev
+	// container agents) are never picked. When the selector cannot choose an
+	// agent (no root agents, or multiple chat-suffixed agents), taskAgent is
+	// undefined and the terminal href omits the agent segment rather than
+	// silently picking a sub-agent.
+	const taskAgent = findChatAgent(workspace);
 	const terminalHref = getTerminalHref({
 		username: task.owner_name,
 		workspace: task.workspace_name,

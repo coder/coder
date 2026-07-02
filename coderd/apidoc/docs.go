@@ -26185,6 +26185,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.DisplayApp"
                     }
                 },
+                "display_order": {
+                    "description": "DisplayOrder controls the relative ordering of agents when\ndisplayed in user interfaces. Lower values sort first.",
+                    "type": "integer"
+                },
                 "environment_variables": {
                     "type": "object",
                     "additionalProperties": {

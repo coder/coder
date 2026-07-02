@@ -661,6 +661,7 @@ type _UncoveredAgentFields = Omit<
 	// frequently (stats, metadata) or are objects/arrays that would
 	// require deep comparison, and the UI does not read them.
 	| "parent_id"
+	| "display_order"
 	| "created_at"
 	| "updated_at"
 	| "first_connected_at"
