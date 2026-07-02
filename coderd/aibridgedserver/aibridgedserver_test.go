@@ -391,14 +391,14 @@ func TestAuthorization_Delegated(t *testing.T) {
 	}
 }
 
-func TestGetUserAISpendStatus(t *testing.T) {
+func TestIsBudgetExceeded(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name            string
 		userIDStr       string
 		omitPeriodStart bool
-		setupMocks      func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse
+		setupMocks      func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse
 		wantErrContains string
 	}{
 		{
@@ -414,27 +414,23 @@ func TestGetUserAISpendStatus(t *testing.T) {
 			wantErrContains: "period_start is required",
 		},
 		{
-			// No override and no group budget resolves: pass-through. All
-			// spend/limit fields are zero-valued.
+			// No override and no group budget resolves: pass-through.
 			name: "no budget configured returns not exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
 					Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
-				return &proto.GetUserAISpendStatusResponse{
-					Exceeded:           false,
-					UserId:             userID.String(),
-					EffectiveGroupId:   "",
-					SpendLimitMicros:   0,
-					CurrentSpendMicros: 0,
+				return &proto.IsBudgetExceededResponse{
+					Exceeded:         false,
+					SpendLimitMicros: nil,
 				}
 			},
 		},
 		{
 			// Group budget resolves, spend below limit (spend 500 < limit 1000).
 			name: "under limit returns not exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -442,19 +438,16 @@ func TestGetUserAISpendStatus(t *testing.T) {
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 500}, nil)
-				return &proto.GetUserAISpendStatusResponse{
-					Exceeded:           false,
-					UserId:             userID.String(),
-					EffectiveGroupId:   groupID.String(),
-					SpendLimitMicros:   1_000,
-					CurrentSpendMicros: 500,
+				return &proto.IsBudgetExceededResponse{
+					Exceeded:         false,
+					SpendLimitMicros: ptr.Ref(int64(1_000)),
 				}
 			},
 		},
 		{
 			// spend == limit is treated as exceeded (spend 1000 >= limit 1000).
 			name: "at limit returns exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -462,12 +455,9 @@ func TestGetUserAISpendStatus(t *testing.T) {
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_000}, nil)
-				return &proto.GetUserAISpendStatusResponse{
-					Exceeded:           true,
-					UserId:             userID.String(),
-					EffectiveGroupId:   groupID.String(),
-					SpendLimitMicros:   1_000,
-					CurrentSpendMicros: 1_000,
+				return &proto.IsBudgetExceededResponse{
+					Exceeded:         true,
+					SpendLimitMicros: ptr.Ref(int64(1_000)),
 				}
 			},
 		},
@@ -476,7 +466,7 @@ func TestGetUserAISpendStatus(t *testing.T) {
 			// from "no budget configured". The >= comparison means spend of 0
 			// against a limit of 0 is exceeded.
 			name: "zero limit blocks all requests",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -484,19 +474,17 @@ func TestGetUserAISpendStatus(t *testing.T) {
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 0}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 0}, nil)
-				return &proto.GetUserAISpendStatusResponse{
-					Exceeded:           true,
-					UserId:             userID.String(),
-					EffectiveGroupId:   groupID.String(),
-					SpendLimitMicros:   0,
-					CurrentSpendMicros: 0,
+				// Blocked user: SpendLimitMicros is explicitly set to 0.
+				return &proto.IsBudgetExceededResponse{
+					Exceeded:         true,
+					SpendLimitMicros: ptr.Ref(int64(0)),
 				}
 			},
 		},
 		{
 			// Spend above limit (spend 1500 > limit 1000).
 			name: "over limit returns exceeded",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				groupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
@@ -504,12 +492,9 @@ func TestGetUserAISpendStatus(t *testing.T) {
 					Return(database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000}, nil)
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Any()).
 					Return(database.GetUserAISpendSinceRow{SpendMicros: 1_500}, nil)
-				return &proto.GetUserAISpendStatusResponse{
-					Exceeded:           true,
-					UserId:             userID.String(),
-					EffectiveGroupId:   groupID.String(),
-					SpendLimitMicros:   1_000,
-					CurrentSpendMicros: 1_500,
+				return &proto.IsBudgetExceededResponse{
+					Exceeded:         true,
+					SpendLimitMicros: ptr.Ref(int64(1_000)),
 				}
 			},
 		},
@@ -517,7 +502,7 @@ func TestGetUserAISpendStatus(t *testing.T) {
 			// User override wins: group lookup is skipped, spend is aggregated
 			// against the override's group (spend 600 > limit 500).
 			name: "user override wins over group budget",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				overrideGroupID := uuid.New()
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{
@@ -528,19 +513,16 @@ func TestGetUserAISpendStatus(t *testing.T) {
 				db.EXPECT().GetUserAISpendSince(gomock.Any(), gomock.Cond(func(p database.GetUserAISpendSinceParams) bool {
 					return assert.Equal(t, overrideGroupID, p.EffectiveGroupID, "spend aggregated against override group")
 				})).Return(database.GetUserAISpendSinceRow{SpendMicros: 600}, nil)
-				return &proto.GetUserAISpendStatusResponse{
-					Exceeded:           true,
-					UserId:             userID.String(),
-					EffectiveGroupId:   overrideGroupID.String(),
-					SpendLimitMicros:   500,
-					CurrentSpendMicros: 600,
+				return &proto.IsBudgetExceededResponse{
+					Exceeded:         true,
+					SpendLimitMicros: ptr.Ref(int64(500)),
 				}
 			},
 		},
 		{
 			// Unexpected error from budget override lookup propagates.
 			name: "budget resolution error propagates",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrConnDone)
 				return nil
@@ -550,7 +532,7 @@ func TestGetUserAISpendStatus(t *testing.T) {
 		{
 			// Error from spend aggregation propagates (fail-closed).
 			name: "spend aggregation error propagates",
-			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.GetUserAISpendStatusResponse {
+			setupMocks: func(db *dbmock.MockStore, userID uuid.UUID) *proto.IsBudgetExceededResponse {
 				db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), userID).
 					Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 				db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), userID).
@@ -577,7 +559,7 @@ func TestGetUserAISpendStatus(t *testing.T) {
 				userIDStr = userID.String()
 			}
 
-			var wantResp *proto.GetUserAISpendStatusResponse
+			var wantResp *proto.IsBudgetExceededResponse
 			if tc.setupMocks != nil {
 				wantResp = tc.setupMocks(db, userID)
 			}
@@ -585,11 +567,11 @@ func TestGetUserAISpendStatus(t *testing.T) {
 			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 
-			req := &proto.GetUserAISpendStatusRequest{UserId: userIDStr}
+			req := &proto.IsBudgetExceededRequest{UserId: userIDStr}
 			if !tc.omitPeriodStart {
 				req.PeriodStart = timestamppb.New(dbtime.StartOfMonth(dbtime.Now().UTC()))
 			}
-			resp, err := srv.GetUserAISpendStatus(t.Context(), req)
+			resp, err := srv.IsBudgetExceeded(t.Context(), req)
 			if tc.wantErrContains != "" {
 				require.Error(t, err)
 				require.Nil(t, resp)
@@ -599,17 +581,14 @@ func TestGetUserAISpendStatus(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.Equal(t, wantResp.GetExceeded(), resp.GetExceeded(), "exceeded")
-			require.Equal(t, wantResp.GetUserId(), resp.GetUserId(), "user_id")
-			require.Equal(t, wantResp.GetEffectiveGroupId(), resp.GetEffectiveGroupId(), "effective_group_id")
-			require.Equal(t, wantResp.GetSpendLimitMicros(), resp.GetSpendLimitMicros(), "spend_limit_micros")
-			require.Equal(t, wantResp.GetCurrentSpendMicros(), resp.GetCurrentSpendMicros(), "current_spend_micros")
+			require.Equal(t, wantResp.SpendLimitMicros, resp.SpendLimitMicros, "spend_limit_micros")
 		})
 	}
 }
 
-// TestGetUserAISpendStatus_Enforcement exercises real-DB scenarios that drive
+// TestIsBudgetExceeded_Enforcement exercises real-DB scenarios that drive
 // enforcement decisions.
-func TestGetUserAISpendStatus_Enforcement(t *testing.T) {
+func TestIsBudgetExceeded_Enforcement(t *testing.T) {
 	t.Parallel()
 
 	const groupLimitMicros = 1_000_000
@@ -659,23 +638,21 @@ func TestGetUserAISpendStatus_Enforcement(t *testing.T) {
 		require.NoError(t, err)
 
 		// Query with period_start 2026-01-01: includes the 2026-01-15 spend, user exceeded.
-		prevMonthResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+		prevMonthResp, err := srv.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 			UserId:      user.ID.String(),
 			PeriodStart: timestamppb.New(prevMonth),
 		})
 		require.NoError(t, err)
 		require.True(t, prevMonthResp.GetExceeded())
-		require.Equal(t, int64(1_500_000), prevMonthResp.GetCurrentSpendMicros())
 		require.Equal(t, int64(groupLimitMicros), prevMonthResp.GetSpendLimitMicros())
 
 		// Query with period_start 2026-02-01: excludes the 2026-01-15 spend, user not exceeded.
-		newMonthResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+		newMonthResp, err := srv.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 			UserId:      user.ID.String(),
 			PeriodStart: timestamppb.New(newMonth),
 		})
 		require.NoError(t, err)
 		require.False(t, newMonthResp.GetExceeded())
-		require.Equal(t, int64(0), newMonthResp.GetCurrentSpendMicros())
 		require.Equal(t, int64(groupLimitMicros), newMonthResp.GetSpendLimitMicros())
 	})
 
@@ -695,14 +672,13 @@ func TestGetUserAISpendStatus_Enforcement(t *testing.T) {
 		require.NoError(t, err)
 
 		// User's spend exceeds the group limit.
-		beforeResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+		beforeResp, err := srv.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 			UserId:      user.ID.String(),
 			PeriodStart: timestamppb.New(periodStart),
 		})
 		require.NoError(t, err)
 		require.True(t, beforeResp.GetExceeded())
 		require.Equal(t, int64(groupLimitMicros), beforeResp.GetSpendLimitMicros())
-		require.Equal(t, int64(1_500_000), beforeResp.GetCurrentSpendMicros())
 
 		// Add user override with a higher limit on the same group. The override
 		// wins, so the user's spend is now under the effective limit.
@@ -714,14 +690,13 @@ func TestGetUserAISpendStatus_Enforcement(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		afterResp, err := srv.GetUserAISpendStatus(ctx, &proto.GetUserAISpendStatusRequest{
+		afterResp, err := srv.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
 			UserId:      user.ID.String(),
 			PeriodStart: timestamppb.New(periodStart),
 		})
 		require.NoError(t, err)
 		require.False(t, afterResp.GetExceeded())
 		require.Equal(t, int64(overrideLimitMicros), afterResp.GetSpendLimitMicros())
-		require.Equal(t, int64(1_500_000), afterResp.GetCurrentSpendMicros())
 	})
 }
 

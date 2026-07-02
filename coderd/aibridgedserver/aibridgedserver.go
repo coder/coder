@@ -730,9 +730,9 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
-// GetUserAISpendStatus returns the user's AI spend status aggregated over
-// [PeriodStart, now].
-func (s *Server) GetUserAISpendStatus(ctx context.Context, in *proto.GetUserAISpendStatusRequest) (*proto.GetUserAISpendStatusResponse, error) {
+// IsBudgetExceeded reports whether the user's AI spend has reached their
+// effective limit over [PeriodStart, now].
+func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -751,25 +751,19 @@ func (s *Server) GetUserAISpendStatus(ctx context.Context, in *proto.GetUserAISp
 	if err != nil {
 		return nil, err
 	}
-	resp := &proto.GetUserAISpendStatusResponse{
-		Exceeded:           status.Exceeded,
-		UserId:             userID.String(),
-		SpendLimitMicros:   status.SpendLimitMicros,
-		CurrentSpendMicros: status.CurrentSpendMicros,
-	}
-	if status.EffectiveGroupID != uuid.Nil {
-		resp.EffectiveGroupId = status.EffectiveGroupID.String()
-	}
-	return resp, nil
+	return &proto.IsBudgetExceededResponse{
+		Exceeded:         status.Exceeded,
+		SpendLimitMicros: status.SpendLimitMicros,
+	}, nil
 }
 
 // userAISpendStatus is a snapshot of a user's AI spend against their effective
 // budget over [PeriodStart, now]. When no budget is configured for the user,
-// all fields are zero-valued.
+// SpendLimitMicros is nil and the other fields are zero-valued.
 type userAISpendStatus struct {
 	EffectiveGroupID   uuid.UUID
 	PeriodStart        time.Time
-	SpendLimitMicros   int64
+	SpendLimitMicros   *int64
 	CurrentSpendMicros int64
 	Exceeded           bool
 }
@@ -784,6 +778,8 @@ type userAISpendStatus struct {
 //   - Cost is only known after the LLM API returns.
 //   - Overage is bounded by request cost × concurrency; once the accumulated
 //     spend crosses the limit, subsequent requests are blocked.
+//   - Cost accounting is advisory, not strict. The goal is to prevent
+//     overages, not build an accounting system.
 //   - Fail-open is acceptable for this case.
 func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID, periodStart time.Time) (userAISpendStatus, error) {
 	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, userID, s.budgetPolicy)
@@ -807,7 +803,7 @@ func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID,
 	status := userAISpendStatus{
 		EffectiveGroupID:   effectiveBudget.GroupID,
 		PeriodStart:        periodStart,
-		SpendLimitMicros:   effectiveBudget.SpendLimitMicros,
+		SpendLimitMicros:   ptr.Ref(effectiveBudget.SpendLimitMicros),
 		CurrentSpendMicros: spend.SpendMicros,
 		Exceeded:           spend.SpendMicros >= effectiveBudget.SpendLimitMicros,
 	}
@@ -817,7 +813,7 @@ func (s *Server) resolveUserAISpendStatus(ctx context.Context, userID uuid.UUID,
 		slog.F("effective_group_id", status.EffectiveGroupID),
 		slog.F("period_start", status.PeriodStart),
 		slog.F("current_spend_micros", status.CurrentSpendMicros),
-		slog.F("spend_limit_micros", status.SpendLimitMicros),
+		slog.F("spend_limit_micros", *status.SpendLimitMicros),
 		slog.F("exceeded", status.Exceeded),
 	)
 	logger.Debug(ctx, "user AI spend status")

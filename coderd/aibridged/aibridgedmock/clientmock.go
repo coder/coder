@@ -101,19 +101,19 @@ func (mr *MockDRPCClientMockRecorder) GetMCPServerConfigs(ctx, in any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigs", reflect.TypeOf((*MockDRPCClient)(nil).GetMCPServerConfigs), ctx, in)
 }
 
-// GetUserAISpendStatus mocks base method.
-func (m *MockDRPCClient) GetUserAISpendStatus(ctx context.Context, in *proto.GetUserAISpendStatusRequest) (*proto.GetUserAISpendStatusResponse, error) {
+// IsBudgetExceeded mocks base method.
+func (m *MockDRPCClient) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserAISpendStatus", ctx, in)
-	ret0, _ := ret[0].(*proto.GetUserAISpendStatusResponse)
+	ret := m.ctrl.Call(m, "IsBudgetExceeded", ctx, in)
+	ret0, _ := ret[0].(*proto.IsBudgetExceededResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetUserAISpendStatus indicates an expected call of GetUserAISpendStatus.
-func (mr *MockDRPCClientMockRecorder) GetUserAISpendStatus(ctx, in any) *gomock.Call {
+// IsBudgetExceeded indicates an expected call of IsBudgetExceeded.
+func (mr *MockDRPCClientMockRecorder) IsBudgetExceeded(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAISpendStatus", reflect.TypeOf((*MockDRPCClient)(nil).GetUserAISpendStatus), ctx, in)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBudgetExceeded", reflect.TypeOf((*MockDRPCClient)(nil).IsBudgetExceeded), ctx, in)
 }
 
 // IsAuthorized mocks base method.
