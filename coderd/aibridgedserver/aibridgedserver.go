@@ -254,6 +254,8 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		ID:             intcID,
 		EndedAt:        in.EndedAt.AsTime(),
 		CredentialHint: in.CredentialHint,
+		ErrorType:      interceptionErrorType(in.GetErrorType()),
+		ErrorMessage:   sql.NullString{String: truncateErrorMessage(in.GetErrorMessage()), Valid: in.GetErrorMessage() != ""},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -809,6 +811,38 @@ func credentialKindOrDefault(kind string) database.CredentialKind {
 		return database.CredentialKindCentralized
 	}
 	return ck
+}
+
+// maxErrorMessageBytes caps the interception error message stored in the
+// database, enforced at this trust boundary regardless of caller behavior.
+const maxErrorMessageBytes = 1024
+
+// truncateErrorMessage caps msg to maxErrorMessageBytes, dropping any partial
+// trailing rune so the stored value stays valid UTF-8.
+func truncateErrorMessage(msg string) string {
+	if len(msg) <= maxErrorMessageBytes {
+		return msg
+	}
+	return strings.ToValidUTF8(msg[:maxErrorMessageBytes], "")
+}
+
+// interceptionErrorType maps the wire error type onto the nullable DB enum. An
+// empty value yields NULL (a successful interception). A non-empty but
+// unrecognized value (e.g. version skew where the client knows an enum the DB
+// migration does not yet) is stored as 'unknown' rather than NULL, so the row's
+// error columns stay consistent with a recorded error_message.
+func interceptionErrorType(errType string) database.NullAIBridgeInterceptionErrorType {
+	if errType == "" {
+		return database.NullAIBridgeInterceptionErrorType{}
+	}
+	et := database.AIBridgeInterceptionErrorType(errType)
+	if !et.Valid() {
+		et = database.AibridgeInterceptionErrorTypeUnknown
+	}
+	return database.NullAIBridgeInterceptionErrorType{
+		AIBridgeInterceptionErrorType: et,
+		Valid:                         true,
+	}
 }
 
 func metadataToMap(in map[string]*anypb.Any) map[string]any {

@@ -695,6 +695,8 @@
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "error_message": "string",
+      "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
       "prompt": "string",
@@ -834,6 +836,8 @@
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
+  "error_message": "string",
+  "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
   "prompt": "string",
@@ -862,6 +866,8 @@
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `error_message`                  | string                                                                                 | false    |              | Error message is the raw terminal upstream error message from the root interception. Nil when the interception succeeded.                                                                                                                 |
+| `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |

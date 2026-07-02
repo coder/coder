@@ -355,12 +355,13 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// For a centralized pool, the hint now reflects the last key the
 		// failover loop attempted.
 		credCtx := intercept.WithCredentialInfo(ctx, cred)
+		errType, errMsg := categorizeInterceptionError(p, execErr)
 		if execErr != nil {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
-			log.Warn(credCtx, "interception failed", slog.Error(execErr))
+			log.Warn(credCtx, "interception failed", slog.Error(execErr), slog.F("error_type", string(errType)))
 		} else {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
@@ -371,6 +372,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
 			ID:             interceptor.ID().String(),
 			CredentialHint: cred.Hint(),
+			ErrorType:      errType,
+			ErrorMessage:   errMsg,
 		})
 
 		// Ensure all recording have completed before completing request.

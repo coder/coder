@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/quartz"
 )
 
@@ -51,6 +52,8 @@ func (*MockProvider) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig 
 }
 func (*MockProvider) CircuitBreakerConfig() *config.CircuitBreaker { return nil }
 func (*MockProvider) APIDumpDir() string                           { return "" }
+func (*MockProvider) CategorizeError(error) *recorder.ErrorType    { return nil }
+
 func (m *MockProvider) CreateInterceptor(w http.ResponseWriter, r *http.Request, tracer trace.Tracer) (intercept.Interceptor, error) {
 	if m.InterceptorFunc != nil {
 		return m.InterceptorFunc(w, r, tracer)

@@ -34,6 +34,7 @@ type (
 	ModelThoughtRecord      = recorder.ModelThoughtRecord
 	Recorder                = recorder.Recorder
 	Metadata                = recorder.Metadata
+	ErrorType               = recorder.ErrorType
 
 	AnthropicConfig  = config.Anthropic
 	AWSBedrockConfig = config.AWSBedrock

@@ -240,6 +240,8 @@ Alias: also available at /api/v2/aibridge/sessions/{session_id} for backward com
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "error_message": "string",
+      "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
       "prompt": "string",

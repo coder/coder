@@ -183,7 +183,10 @@ newStream:
 				// client: as an SSE event if events have already been sent,
 				// or by direct write otherwise.
 				respErr := ResponseErrorFromKeyPool(keyPoolErr)
-				interceptionErr = respErr
+				// Record the underlying key-pool error (not the masked 502
+				// envelope) so the recorder can categorize by its kind. The
+				// client still receives respErr below.
+				interceptionErr = xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				if events.IsStreaming() {
 					payload, mErr := i.marshal(respErr)
 					if mErr != nil {
@@ -618,7 +621,7 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 			// We can't reflect an error back if there's a connection error or the request context was canceled.
 			return nil
 		}
-		if antErr := responseErrorFromAPIError(streamErr); antErr != nil {
+		if antErr := ResponseErrorFromAPIError(streamErr); antErr != nil {
 			logger.Warn(ctx, "anthropic stream error", slog.Error(streamErr))
 			return antErr
 		}
