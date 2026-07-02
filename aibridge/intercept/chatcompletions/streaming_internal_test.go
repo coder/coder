@@ -1,8 +1,10 @@
 package chatcompletions
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -104,6 +106,145 @@ func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
 			// Verify error body contains expected error info
 			body := w.Body.String()
 			assert.Contains(t, body, tc.expectedBody, "expected error type in response body")
+			assert.NotContains(t, body, "data: [DONE]", "direct JSON error response must not include SSE data")
+		})
+	}
+}
+
+// OpenAI-shaped SSE body for a successful streaming response.
+const streamingSuccessBody = `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+
+data: [DONE]
+
+`
+
+func TestStreamingInterception_HandlesUpstreamSSEEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	validChunkWithoutDone := `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}
+
+`
+	largeContent := strings.Repeat("a", 70*1024)
+	largeChunk := `data: {"id":"chatcmpl-01","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"` + largeContent + `"},"finish_reason":null}]}` + "\n\n"
+
+	tests := []struct {
+		name               string
+		body               string
+		expectErr          bool
+		expectedStatusCode int
+		expectedBody       string
+		unexpectedBody     string
+	}{
+		{
+			name:               "empty body",
+			body:               "",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+			unexpectedBody:     "unexpected end of JSON input",
+		},
+		{
+			name:               "comment only event",
+			body:               ": OPENROUTER PROCESSING\n\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+			unexpectedBody:     "unexpected end of JSON input",
+		},
+		{
+			name:               "comment only without final blank line",
+			body:               ": OPENROUTER PROCESSING\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+			unexpectedBody:     "unexpected end of JSON input",
+		},
+		{
+			name:               "done marker only",
+			body:               "data: [DONE]\n\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamEmptyStreamMessage,
+		},
+		{
+			name:               "malformed data event",
+			body:               "data: {not-json}\n\n",
+			expectErr:          true,
+			expectedStatusCode: http.StatusBadGateway,
+			expectedBody:       upstreamMalformedStreamMessage,
+		},
+		{
+			name:               "valid chunk without done",
+			body:               validChunkWithoutDone,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       "Hello",
+		},
+		{
+			name:               "large data event",
+			body:               largeChunk,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       largeContent,
+		},
+		{
+			name:               "comments before valid chunks",
+			body:               ": OPENROUTER PROCESSING\n\n" + streamingSuccessBody,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       "Hello",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(upstream.Close)
+
+			cfg := intercept.Config{
+				BaseURL: upstream.URL,
+			}
+			cred := intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization}
+
+			params := &ChatCompletionNewParamsWrapper{
+				ChatCompletionNewParams: openai.ChatCompletionNewParams{
+					Model: "gpt-4",
+					Messages: []openai.ChatCompletionMessageParamUnion{
+						openai.UserMessage("hello"),
+					},
+				},
+				Stream: true,
+			}
+
+			interceptor := NewStreamingInterceptor(uuid.New(), params, cfg, cred, http.Header{}, otel.Tracer("streaming_test"))
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
+
+			req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			w := httptest.NewRecorder()
+			err := interceptor.ProcessRequest(w, req)
+			if tc.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			body := w.Body.String()
+			assert.Equal(t, tc.expectedStatusCode, w.Code, "response status code")
+			assert.Contains(t, body, tc.expectedBody, "response body")
+			if tc.expectErr {
+				assert.NotContains(t, body, "data: [DONE]", "direct JSON error response must not include SSE data")
+			}
+			if tc.unexpectedBody != "" {
+				assert.NotContains(t, body, tc.unexpectedBody, "response body")
+			}
 		})
 	}
 }
