@@ -1,0 +1,36 @@
+-- response.json --
+{
+  "execution_state": "R0",
+  "database": {
+    "status": "running",
+    "archived": false,
+    "generation_attempt": 0,
+    "snapshot_version": 2,
+    "history_version": 2,
+    "worker_id": null,
+    "runner_id": null,
+    "last_error": null,
+    "retry_state": null,
+    "requires_action_deadline_at": null,
+    "created_at": "0001-01-01T00:00:00Z",
+    "updated_at": "0001-01-01T00:00:00Z",
+    "queue_depth": 0,
+    "heartbeat": null,
+    "message_stats": {
+      "total": 6,
+      "deleted": 0,
+      "by_role": {
+        "assistant": 2,
+        "system": 2,
+        "tool": 1,
+        "user": 1
+      }
+    }
+  },
+  "runtime": {
+    "local_worker_id": "00000000-0000-0000-0000-000000000000",
+    "worker_id_matches_local": false,
+    "runners": null,
+    "message_buffers": []
+  }
+}

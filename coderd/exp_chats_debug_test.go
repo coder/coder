@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -13,8 +12,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/txtar"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -25,8 +27,66 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
+
+// The types below mirror the (unexported) response type for
+// GET /api/experimental/chats/{chat}/debug/snapshot, i.e. chatDebugSnapshot
+// and friends in exp_chats.go. They are redeclared here because this file
+// lives in the external coderd_test package and the production types are
+// unexported; keep the JSON tags in sync with exp_chats.go.
+type debugSnapshot struct {
+	ExecutionState string                `json:"execution_state"`
+	Database       debugSnapshotDatabase `json:"database"`
+	Runtime        debugSnapshotRuntime  `json:"runtime"`
+}
+
+type debugSnapshotDatabase struct {
+	Status                   string                    `json:"status"`
+	Archived                 bool                      `json:"archived"`
+	GenerationAttempt        int64                     `json:"generation_attempt"`
+	SnapshotVersion          int64                     `json:"snapshot_version"`
+	HistoryVersion           int64                     `json:"history_version"`
+	WorkerID                 *uuid.UUID                `json:"worker_id"`
+	RunnerID                 *uuid.UUID                `json:"runner_id"`
+	LastError                json.RawMessage           `json:"last_error"`
+	RetryState               json.RawMessage           `json:"retry_state"`
+	RequiresActionDeadlineAt *time.Time                `json:"requires_action_deadline_at"`
+	CreatedAt                time.Time                 `json:"created_at"`
+	UpdatedAt                time.Time                 `json:"updated_at"`
+	QueueDepth               int64                     `json:"queue_depth"`
+	Heartbeat                *debugSnapshotHeartbeat   `json:"heartbeat"`
+	MessageStats             debugSnapshotMessageStats `json:"message_stats"`
+}
+
+type debugSnapshotHeartbeat struct {
+	RunnerID    uuid.UUID `json:"runner_id"`
+	HeartbeatAt time.Time `json:"heartbeat_at"`
+	AgeSeconds  float64   `json:"age_seconds"`
+	IsStale     bool      `json:"is_stale"`
+	Error       string    `json:"error,omitempty"`
+}
+
+type debugSnapshotMessageStats struct {
+	Total   int64            `json:"total"`
+	Deleted int64            `json:"deleted"`
+	ByRole  map[string]int64 `json:"by_role"`
+}
+
+type debugSnapshotRuntime struct {
+	LocalWorkerID        uuid.UUID                    `json:"local_worker_id"`
+	WorkerIDMatchesLocal bool                         `json:"worker_id_matches_local"`
+	Runners              []chatd.RunnerSnapshot       `json:"runners"`
+	MessageBuffers       []debugSnapshotBufferEpisode `json:"message_buffers"`
+}
+
+type debugSnapshotBufferEpisode struct {
+	HistoryVersion    int64 `json:"history_version"`
+	GenerationAttempt int64 `json:"generation_attempt"`
+	PartsBuffered     int   `json:"parts_buffered"`
+	BytesBuffered     int64 `json:"bytes_buffered"`
+	SubscriberCount   int   `json:"subscriber_count"`
+	IsClosed          bool  `json:"is_closed"`
+}
 
 // driveChatToError transitions the chat from running to error state.
 func driveChatToError(ctx context.Context, t *testing.T, api *coderd.API, chatID uuid.UUID, msg string) {
@@ -65,8 +125,8 @@ func addQueuedMessage(ctx context.Context, t *testing.T, api *coderd.API, chat c
 	}))
 }
 
-// getDebugSnapshot fetches the debug snapshot for a chat and returns the decoded map.
-func getDebugSnapshot(t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) map[string]any {
+// getDebugSnapshot fetches and decodes the debug snapshot for a chat.
+func getDebugSnapshot(t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) debugSnapshot {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	resp, err := client.Request(ctx, http.MethodGet,
@@ -74,85 +134,33 @@ func getDebugSnapshot(t *testing.T, client *codersdk.ExperimentalClient, chatID 
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	var out map[string]any
+	var out debugSnapshot
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
 	return out
 }
 
-func dbSnap(snap map[string]any) map[string]any { return snap["database"].(map[string]any) }
-
-// debugSnapshotRedactKeys are response fields whose values are never
-// deterministic (timestamps, durations) and are always replaced with a
-// fixed placeholder before comparison against a golden file.
-var debugSnapshotRedactKeys = map[string]struct{}{
-	"created_at":                  {},
-	"updated_at":                  {},
-	"heartbeat_at":                {},
-	"age_seconds":                 {},
-	"requires_action_deadline_at": {},
-	// local_worker_id is randomly generated per chatd.Server instance and
-	// has no bearing on the assertions golden tests care about.
-	"local_worker_id": {},
-}
-
-// normalizeDebugSnapshot returns a deep copy of snap with well-known
-// non-deterministic fields redacted, and any string value matching a key in
-// subs (e.g. a chat/runner/worker UUID) replaced with its placeholder. This
-// lets golden files stay stable across test runs despite random IDs and
-// wall-clock timestamps.
-func normalizeDebugSnapshot(snap map[string]any, subs map[string]string) map[string]any {
-	var walk func(v any) any
-	walk = func(v any) any {
-		switch val := v.(type) {
-		case map[string]any:
-			out := make(map[string]any, len(val))
-			for k, vv := range val {
-				if _, redact := debugSnapshotRedactKeys[k]; redact && vv != nil {
-					out[k] = "<redacted>"
-					continue
-				}
-				out[k] = walk(vv)
-			}
-			return out
-		case []any:
-			out := make([]any, len(val))
-			for i, vv := range val {
-				out[i] = walk(vv)
-			}
-			return out
-		case string:
-			if replacement, ok := subs[val]; ok {
-				return replacement
-			}
-			return val
-		default:
-			return val
-		}
-	}
-	return walk(snap).(map[string]any)
-}
-
-// assertDebugSnapshotGolden normalizes snap (redacting non-deterministic
-// fields and substituting known dynamic UUIDs via subs) and compares it
-// against the golden txtar fixture testdata/chatdebugsnapshot/<name>.txtar.
-// Run with -update to regenerate the fixture.
-func assertDebugSnapshotGolden(t *testing.T, name string, subs map[string]string, snap map[string]any) {
+// assertDebugSnapshotGolden compares snap against the golden txtar fixture
+// at testdata/chatdebugsnapshot/<name>.txtar, following the same pattern as
+// the golden file tests in insights_test.go: non-deterministic fields
+// (timestamps, the per-instance local worker ID) are reset to their zero
+// value directly on the typed struct, and the comparison is done with
+// cmp.Diff on the decoded struct rather than on raw JSON text. Any
+// dynamically-generated UUIDs that appear elsewhere in the payload (e.g.
+// runner/worker IDs) should be arranged by the caller to be deterministic
+// fixture values instead of uuid.New(), matching the convention used for
+// insights golden files. Run with -update to regenerate the fixture.
+func assertDebugSnapshotGolden(t *testing.T, name string, snap debugSnapshot) {
 	t.Helper()
 
-	normalized := normalizeDebugSnapshot(snap, subs)
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	require.NoError(t, enc.Encode(normalized))
-	gotJSON := buf.Bytes()
+	normalizeDebugSnapshot(&snap)
 
-	goldenPath := filepath.Join("testdata", "chatdebugsnapshot", name+".txtar")
+	goldenPath := filepath.Join("testdata", "chatdebugsnapshot", name+".json.golden")
 	if *updateGoldenFiles {
 		require.NoError(t, os.MkdirAll(filepath.Dir(goldenPath), 0o755), "want no error creating golden file directory")
-		ar := &txtar.Archive{
-			Files: []txtar.File{{Name: "response.json", Data: gotJSON}},
-		}
+		data, err := json.MarshalIndent(snap, "", "  ")
+		require.NoError(t, err)
+		data = append(data, '\n')
+		ar := &txtar.Archive{Files: []txtar.File{{Name: "response.json", Data: data}}}
 		require.NoError(t, os.WriteFile(goldenPath, txtar.Format(ar), 0o644), "want no error writing golden file")
 		return
 	}
@@ -161,10 +169,30 @@ func assertDebugSnapshotGolden(t *testing.T, name string, subs map[string]string
 	require.NoError(t, err, "open golden file, run \"go test ./coderd/ -run TestGetChatDebugSnapshot -update\" and commit the changes")
 	ar := txtar.Parse(raw)
 	require.Len(t, ar.Files, 1, "golden file %s should contain exactly one file", goldenPath)
-	want := string(ar.Files[0].Data)
 
-	require.Empty(t, cmp.Diff(want, string(gotJSON)),
+	var want debugSnapshot
+	require.NoError(t, json.Unmarshal(ar.Files[0].Data, &want), "want no error decoding golden file")
+
+	cmpOpts := []cmp.Option{
+		// Ensure readable UUIDs in diff, matching insights_test.go.
+		cmp.Transformer("UUID", func(id uuid.UUID) string { return id.String() }),
+	}
+	assert.Empty(t, cmp.Diff(want, snap, cmpOpts...),
 		"golden file mismatch (-want +got): %s, run \"go test ./coderd/ -run TestGetChatDebugSnapshot -update\" and commit the changes", goldenPath)
+}
+
+// normalizeDebugSnapshot zeroes fields that are never deterministic across
+// test runs (wall-clock timestamps, durations derived from them, and the
+// per-chatd.Server random worker ID) so golden comparisons are stable.
+func normalizeDebugSnapshot(snap *debugSnapshot) {
+	snap.Database.CreatedAt = time.Time{}
+	snap.Database.UpdatedAt = time.Time{}
+	snap.Database.RequiresActionDeadlineAt = nil
+	if snap.Database.Heartbeat != nil {
+		snap.Database.Heartbeat.HeartbeatAt = time.Time{}
+		snap.Database.Heartbeat.AgeSeconds = 0
+	}
+	snap.Runtime.LocalWorkerID = uuid.Nil
 }
 
 // createDebugChat creates a chat with the minimum required fields for debug
@@ -192,7 +220,7 @@ func TestGetChatDebugSnapshot_ExecutionState(t *testing.T) {
 		drive      func(ctx context.Context, t *testing.T, api *coderd.API, chat codersdk.Chat)
 		wantState  string
 		wantStatus string
-		wantQueue  float64
+		wantQueue  int64
 	}{
 		{name: "R0", wantState: "R0", wantStatus: "running"},
 		{
@@ -231,15 +259,16 @@ func TestGetChatDebugSnapshot_ExecutionState(t *testing.T) {
 			}
 
 			snap := getDebugSnapshot(t, client, chat.ID)
-			require.Equal(t, tc.wantState, snap["execution_state"])
-			db := dbSnap(snap)
-			require.Equal(t, tc.wantStatus, db["status"])
-			require.Equal(t, tc.wantQueue, db["queue_depth"])
+			require.Equal(t, tc.wantState, snap.ExecutionState)
+			require.Equal(t, tc.wantStatus, snap.Database.Status)
+			require.Equal(t, tc.wantQueue, snap.Database.QueueDepth)
 			if tc.name == "E0" {
 				// last_error is a JSON object; verify it contains the expected message.
-				lastErrObj, ok := db["last_error"].(map[string]any)
-				require.True(t, ok, "last_error should be a JSON object")
-				require.Equal(t, "test error", lastErrObj["message"])
+				var lastErr struct {
+					Message string `json:"message"`
+				}
+				require.NoError(t, json.Unmarshal(snap.Database.LastError, &lastErr), "last_error should be a JSON object")
+				require.Equal(t, "test error", lastErr.Message)
 			}
 		})
 	}
@@ -271,7 +300,7 @@ func TestGetChatDebugSnapshot_MessageStats(t *testing.T) {
 	}))
 
 	snap := getDebugSnapshot(t, client, chat.ID)
-	assertDebugSnapshotGolden(t, "message_stats", nil, snap)
+	assertDebugSnapshotGolden(t, "message_stats", snap)
 }
 
 // TestGetChatDebugSnapshot_Heartbeat verifies heartbeat presence and staleness.
@@ -289,7 +318,7 @@ func TestGetChatDebugSnapshot_Heartbeat(t *testing.T) {
 
 	// No heartbeat initially.
 	snap := getDebugSnapshot(t, client, chat.ID)
-	require.Nil(t, dbSnap(snap)["heartbeat"])
+	require.Nil(t, snap.Database.Heartbeat)
 
 	// Acquire ownership (sets worker_id + runner_id) then upsert a heartbeat.
 	runnerID := uuid.New()
@@ -314,19 +343,21 @@ func TestGetChatDebugSnapshot_Heartbeat(t *testing.T) {
 	mClock.Set(time.Now())
 
 	snap = getDebugSnapshot(t, client, chat.ID)
-	hb := dbSnap(snap)["heartbeat"].(map[string]any)
-	require.Equal(t, runnerID.String(), hb["runner_id"])
-	require.GreaterOrEqual(t, hb["age_seconds"].(float64), float64(0))
-	require.False(t, hb["is_stale"].(bool))
+	hb := snap.Database.Heartbeat
+	require.NotNil(t, hb)
+	require.Equal(t, runnerID, hb.RunnerID)
+	require.GreaterOrEqual(t, hb.AgeSeconds, float64(0))
+	require.False(t, hb.IsStale)
 
 	// Advance the clock past the staleness threshold and verify is_stale flips.
 	mClock.Advance((chatstate.HeartbeatStaleSeconds + 1) * time.Second)
 
 	snap = getDebugSnapshot(t, client, chat.ID)
-	hb = dbSnap(snap)["heartbeat"].(map[string]any)
-	require.Equal(t, runnerID.String(), hb["runner_id"])
-	require.Greater(t, hb["age_seconds"].(float64), float64(chatstate.HeartbeatStaleSeconds))
-	require.True(t, hb["is_stale"].(bool))
+	hb = snap.Database.Heartbeat
+	require.NotNil(t, hb)
+	require.Equal(t, runnerID, hb.RunnerID)
+	require.Greater(t, hb.AgeSeconds, float64(chatstate.HeartbeatStaleSeconds))
+	require.True(t, hb.IsStale)
 }
 
 // TestGetChatDebugSnapshot_Runtime_Unowned verifies the runtime section when
@@ -340,7 +371,7 @@ func TestGetChatDebugSnapshot_Runtime_Unowned(t *testing.T) {
 	chat := createDebugChat(ctx, t, client, firstUser.OrganizationID)
 
 	snap := getDebugSnapshot(t, client, chat.ID)
-	assertDebugSnapshotGolden(t, "runtime_unowned", nil, snap)
+	assertDebugSnapshotGolden(t, "runtime_unowned", snap)
 }
 
 // TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner verifies that when the
@@ -350,8 +381,11 @@ func TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mockRunnerID := uuid.New()
-	mockWorkerID := uuid.New()
+	// Fixed, deterministic IDs (rather than uuid.New()) so the mocked
+	// response can be compared directly against a golden fixture, matching
+	// the fixture convention used elsewhere (e.g. coderd/insights_test.go).
+	mockRunnerID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	mockWorkerID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 	mockKind := string(chatd.TaskKindGeneration)
 
 	var capturedReplicaID uuid.UUID
@@ -368,17 +402,16 @@ func TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner(t *testing.T) {
 				// Write a minimal snapshot response as if from the owning pod.
 				rw.Header().Set("Content-Type", "application/json")
 				rw.WriteHeader(http.StatusOK)
-				_ = json.NewEncoder(rw).Encode(map[string]any{
-					"execution_state": "R0",
-					"database":        map[string]any{},
-					"runtime": map[string]any{
-						"local_worker_id":         mockWorkerID.String(),
-						"worker_id_matches_local": true,
-						"runners": []any{
-							map[string]any{
-								"runner_id":        mockRunnerID.String(),
-								"worker_id":        mockWorkerID.String(),
-								"active_task_kind": mockKind,
+				_ = json.NewEncoder(rw).Encode(debugSnapshot{
+					ExecutionState: "R0",
+					Runtime: debugSnapshotRuntime{
+						LocalWorkerID:        mockWorkerID,
+						WorkerIDMatchesLocal: true,
+						Runners: []chatd.RunnerSnapshot{
+							{
+								RunnerID:       mockRunnerID,
+								WorkerID:       mockWorkerID,
+								ActiveTaskKind: (*chatd.TaskKind)(&mockKind),
 							},
 						},
 					},
@@ -411,10 +444,7 @@ func TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner(t *testing.T) {
 	}
 	require.Equal(t, foreignWorkerID, capturedReplicaID)
 
-	assertDebugSnapshotGolden(t, "multi_replica_proxies_to_owner", map[string]string{
-		mockRunnerID.String(): "<runner_id>",
-		mockWorkerID.String(): "<worker_id>",
-	}, snap)
+	assertDebugSnapshotGolden(t, "multi_replica_proxies_to_owner", snap)
 }
 
 // TestGetChatDebugSnapshot_MultiReplica_ProxyError verifies that when the proxy
