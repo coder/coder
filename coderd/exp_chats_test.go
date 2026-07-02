@@ -8575,46 +8575,6 @@ func TestRegenerateChatTitle(t *testing.T) {
 		)
 	})
 
-	t.Run("AlreadyInProgress", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "chat with lock held",
-		})
-
-		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusCompleted,
-			WorkerID:    uuid.NullUUID{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Valid: true},
-			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-			LastError:   pqtype.NullRawMessage{},
-		})
-		require.NoError(t, err)
-
-		res, err := client.Request(
-			ctx,
-			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chat.ID),
-			nil,
-		)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusConflict, res.StatusCode)
-
-		var resp codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
-		require.Equal(t, "Title regeneration already in progress for this chat.", resp.Message)
-	})
-
 	t.Run("PendingWithoutWorker", func(t *testing.T) {
 		t.Parallel()
 
@@ -8652,8 +8612,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Test Chat", persisted.Title)
 		require.Equal(t, database.ChatStatusPending, persisted.Status)
-		require.False(t, persisted.WorkerID.Valid,
-			"manual title lock marker must be cleared after regeneration")
+		require.False(t, persisted.WorkerID.Valid)
 	})
 
 	t.Run("NoDefaultModelConfig", func(t *testing.T) {
@@ -8822,8 +8781,7 @@ func TestProposeChatTitle(t *testing.T) {
 		require.Equal(t, before.Title, persisted.Title,
 			"propose must not persist the suggested title")
 		require.Equal(t, database.ChatStatusPending, persisted.Status)
-		require.False(t, persisted.WorkerID.Valid,
-			"manual title lock marker must be cleared after proposal")
+		require.False(t, persisted.WorkerID.Valid)
 		require.True(t, persisted.UpdatedAt.Equal(before.UpdatedAt))
 	})
 

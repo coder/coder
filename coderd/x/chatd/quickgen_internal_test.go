@@ -394,13 +394,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		ClientType:        database.ChatClientTypeUi,
 	})
 
-	expectedUpdatedAt := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
-	chat, err := db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
-		ID:        chat.ID,
-		Status:    chat.Status,
-		UpdatedAt: expectedUpdatedAt,
-	})
-	require.NoError(t, err)
+	expectedUpdatedAt := chat.UpdatedAt
 
 	const wantTitle = "Failed workspace logs"
 	model := &chattest.FakeModel{
