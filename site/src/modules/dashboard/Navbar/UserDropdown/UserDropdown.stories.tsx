@@ -252,4 +252,11 @@ export const AISpendHiddenOnInvalidData: Story = {
 	},
 };
 
+export const WithOrganizations: Story = {
+	args: {
+		canViewOrganizations: true,
+	},
+	play: Example.play,
+};
+
 export { Example as UserDropdown };

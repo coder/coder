@@ -632,6 +632,7 @@ describe("WorkspacePage", () => {
 						organizations: [MockOrganization],
 						showOrganizations: true,
 						canViewOrganizationSettings: true,
+						canManageOrganizationSettings: true,
 					}}
 				>
 					{children}

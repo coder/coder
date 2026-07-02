@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
+	MockAuditorRole,
 	MockBuildInfo,
 	MockTasks,
 	MockUserMember,
@@ -35,6 +36,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewHealth: true,
 		canViewAISettings: true,
 		canViewOrganizations: true,
+		canManageOrganizations: true,
 		canCreateChat: true,
 		supportLinks: [],
 	},
@@ -55,12 +57,16 @@ export const ForAdmin: Story = {
 
 export const ForAuditor: Story = {
 	args: {
-		user: MockUserMember,
+		user: {
+			...MockUserMember,
+			roles: [MockAuditorRole],
+		},
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewAISettings: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -78,6 +84,7 @@ export const ForOrgAdmin: Story = {
 		canViewHealth: false,
 		canViewAISettings: false,
 		canViewOrganizations: true,
+		canManageOrganizations: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -91,6 +98,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 	args: {
 		canViewAuditLog: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
 		canViewConnectionLog: false,
 		canViewAIBridge: false,
 		canViewAISettings: false,
@@ -111,6 +119,7 @@ export const ForMember: Story = {
 		canViewHealth: false,
 		canViewAISettings: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
 		canCreateChat: false,
 	},
 };
@@ -123,7 +132,66 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewHealth: false,
 		canViewAISettings: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
 		canCreateChat: true,
+	},
+};
+
+export const ForOrganizationMember: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewAISettings: false,
+		canViewOrganizations: true,
+		canManageOrganizations: false,
+		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.queryByRole("button", { name: "Admin settings" }),
+		).not.toBeInTheDocument();
+
+		const buttons = canvas.getAllByRole("button");
+		const userMenuButton = buttons[buttons.length - 1];
+		if (!userMenuButton) {
+			throw new Error("User menu button not found");
+		}
+
+		await userEvent.click(userMenuButton);
+		expect(await screen.findByText("Organizations")).toBeInTheDocument();
+	},
+};
+
+export const ForRegularMemberWithAdminSurfacePermissions: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: true,
+		canViewDeployment: true,
+		canViewHealth: true,
+		canViewAISettings: true,
+		canViewOrganizations: true,
+		canManageOrganizations: false,
+		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.queryByRole("button", { name: "Admin settings" }),
+		).not.toBeInTheDocument();
+
+		const buttons = canvas.getAllByRole("button");
+		const userMenuButton = buttons[buttons.length - 1];
+		if (!userMenuButton) {
+			throw new Error("User menu button not found");
+		}
+
+		await userEvent.click(userMenuButton);
+		expect(await screen.findByText("Organizations")).toBeInTheDocument();
 	},
 };
 
@@ -146,6 +214,7 @@ export const SupportLinks: Story = {
 		canViewHealth: false,
 		canViewAISettings: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
 		supportLinks: [
 			{
 				name: "This is a bug",
@@ -187,6 +256,7 @@ export const DefaultSupportLinks: Story = {
 		canViewHealth: false,
 		canViewAISettings: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },
 			{ icon: "bug", name: "Report a bug", target: "" },

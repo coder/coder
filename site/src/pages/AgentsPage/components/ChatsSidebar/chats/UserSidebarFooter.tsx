@@ -12,7 +12,12 @@ import { UsageIndicator } from "../../UsageIndicator";
 
 export const UserSidebarFooter: FC = () => {
 	const { user, signOut } = useAuthenticated();
-	const { appearance, buildInfo } = useDashboard();
+	const {
+		appearance,
+		buildInfo,
+		canManageOrganizationSettings,
+		canViewOrganizationSettings,
+	} = useDashboard();
 
 	return (
 		<div className="hidden border-0 border-t border-solid sm:block">
@@ -43,6 +48,9 @@ export const UserSidebarFooter: FC = () => {
 								appearance.support_links?.filter(
 									(link) => link.location !== "navbar",
 								) ?? []
+							}
+							canViewOrganizations={
+								canViewOrganizationSettings && !canManageOrganizationSettings
 							}
 							onSignOut={signOut}
 						/>

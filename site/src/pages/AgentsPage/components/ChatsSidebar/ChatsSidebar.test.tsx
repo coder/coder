@@ -73,6 +73,7 @@ const dashboardValue = {
 	organizations: [MockDefaultOrganization],
 	showOrganizations: false,
 	canViewOrganizationSettings: false,
+	canManageOrganizationSettings: false,
 };
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {

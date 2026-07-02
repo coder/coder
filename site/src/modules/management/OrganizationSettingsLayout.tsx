@@ -47,7 +47,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 };
 
 const OrganizationSettingsLayout: FC = () => {
-	const { organizations } = useDashboard();
+	const { canManageOrganizationSettings, organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};
@@ -95,7 +95,11 @@ const OrganizationSettingsLayout: FC = () => {
 				<Breadcrumb>
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<BreadcrumbPage>Admin Settings</BreadcrumbPage>
+							<BreadcrumbPage>
+								{canManageOrganizationSettings
+									? "Admin Settings"
+									: "Account Settings"}
+							</BreadcrumbPage>
 						</BreadcrumbItem>
 						<BreadcrumbSeparator />
 						<BreadcrumbItem>

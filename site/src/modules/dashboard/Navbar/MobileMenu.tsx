@@ -37,6 +37,8 @@ const itemStyles = {
 type MobileMenuPermissions = {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
+	canManageOrganizations: boolean;
+	canViewAdminSettings: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
@@ -59,7 +61,13 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	...permissions
 }) => {
 	const [open, setOpen] = useState(isDefaultOpen);
-	const hasSomePermission = Object.values(permissions).some((p) => p);
+	const hasSomeAdminPermission =
+		permissions.canViewAdminSettings &&
+		(permissions.canViewDeployment ||
+			permissions.canManageOrganizations ||
+			permissions.canViewAuditLog ||
+			permissions.canViewConnectionLog ||
+			permissions.canViewHealth);
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -91,7 +99,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 
-				{hasSomePermission && (
+				{hasSomeAdminPermission && (
 					<>
 						<DropdownMenuSeparator />
 						<AdminSettingsSub {...permissions} />
@@ -102,6 +110,10 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 					user={user}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
+					canViewOrganizations={
+						permissions.canViewOrganizations &&
+						!permissions.canManageOrganizations
+					}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -208,6 +220,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 
 const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewDeployment,
+	canManageOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewHealth,
@@ -239,12 +252,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
-				<DropdownMenuItem
-					asChild
-					className={cn(itemStyles.default, itemStyles.sub)}
-				>
-					<Link to="/organizations">Organizations</Link>
-				</DropdownMenuItem>
+				{canManageOrganizations && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/organizations">Organizations</Link>
+					</DropdownMenuItem>
+				)}
 				{canViewAuditLog && (
 					<DropdownMenuItem
 						asChild
@@ -277,12 +292,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 type UserSettingsSubProps = {
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
+	canViewOrganizations: boolean;
 	onSignOut: () => void;
 };
 
 const UserSettingsSub: FC<UserSettingsSubProps> = ({
 	user,
 	supportLinks,
+	canViewOrganizations,
 	onSignOut,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -314,6 +331,14 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 				>
 					<Link to="/settings/account">Account</Link>
 				</DropdownMenuItem>
+				{canViewOrganizations && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/organizations">Organizations</Link>
+					</DropdownMenuItem>
+				)}
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
 					onClick={onSignOut}

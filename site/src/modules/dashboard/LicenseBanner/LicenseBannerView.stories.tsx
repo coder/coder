@@ -214,6 +214,7 @@ const renderLicenseBannerWithAIGovernance = ({
 		organizations: [MockDefaultOrganization],
 		showOrganizations: false,
 		canViewOrganizationSettings: false,
+		canManageOrganizationSettings: false,
 	};
 
 	return (

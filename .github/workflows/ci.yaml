@@ -1085,7 +1085,13 @@ jobs:
         working-directory: site/
         name: Install Chromium
 
-      - run: pnpm pixel-storybook
+      - run: |
+          if [ -z "${PIXEL_KEY}" ]; then
+            echo "PIXEL_KEY is not available; skipping Lost Pixel snapshot."
+            exit 0
+          fi
+
+          pnpm pixel-storybook
         working-directory: site/
         name: Snapshot
         env:

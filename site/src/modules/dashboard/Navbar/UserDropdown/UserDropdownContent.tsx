@@ -1,4 +1,5 @@
 import {
+	Building2Icon,
 	CircleUserIcon,
 	CopyIcon,
 	LogOutIcon,
@@ -28,6 +29,7 @@ interface UserDropdownContentProps {
 	 * (e.g. AI spend). The consumer supplies its own separator if needed. */
 	profileExtra?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
+	canViewOrganizations?: boolean;
 	onSignOut: () => void;
 }
 
@@ -36,6 +38,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	buildInfo,
 	profileExtra,
 	supportLinks,
+	canViewOrganizations = false,
 	onSignOut,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
@@ -64,6 +67,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<span>Account</span>
 				</Link>
 			</DropdownMenuItem>
+			{canViewOrganizations && (
+				<DropdownMenuItem asChild>
+					<Link to="/organizations">
+						<Building2Icon />
+						<span>Organizations</span>
+					</Link>
+				</DropdownMenuItem>
+			)}
 			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
 				<span>Sign Out</span>

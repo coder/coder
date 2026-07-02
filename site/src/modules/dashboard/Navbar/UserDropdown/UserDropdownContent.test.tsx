@@ -10,6 +10,7 @@ import { render, waitForLoaderToBeRemoved } from "#/testHelpers/renderHelpers";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 const renderUserDropdownContent = (props: {
+	canViewOrganizations?: boolean;
 	onSignOut: () => void;
 	profileExtra?: ReactNode;
 }) => {
@@ -19,6 +20,7 @@ const renderUserDropdownContent = (props: {
 			<DropdownMenuContent>
 				<UserDropdownContent
 					user={MockUserOwner}
+					canViewOrganizations={props.canViewOrganizations}
 					onSignOut={props.onSignOut}
 					profileExtra={props.profileExtra}
 					supportLinks={[]}
@@ -47,6 +49,21 @@ describe("UserDropdownContent", () => {
 		await waitForLoaderToBeRemoved();
 		screen.getByText("Sign Out").click();
 		expect(onSignOut).toBeCalledTimes(1);
+	});
+
+	it("can show the organizations item", async () => {
+		renderUserDropdownContent({
+			canViewOrganizations: true,
+			onSignOut: vi.fn(),
+		});
+		await waitForLoaderToBeRemoved();
+
+		const link = screen.getByText("Organizations").closest("a");
+		if (!link) {
+			throw new Error("Anchor tag not found for the organizations menu item");
+		}
+
+		expect(link.getAttribute("href")).toBe("/organizations");
 	});
 
 	it("renders the profile extra content when provided", async () => {

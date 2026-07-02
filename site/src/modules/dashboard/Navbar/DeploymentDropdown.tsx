@@ -72,6 +72,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewAIBridge,
 	canViewAISettings,
 	canViewHealth,
+	canViewOrganizations,
 }) => {
 	return (
 		<nav>
@@ -80,9 +81,11 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
-			<DropdownMenuItem asChild>
-				<Link to="/organizations">Organizations</Link>
-			</DropdownMenuItem>
+			{canViewOrganizations && (
+				<DropdownMenuItem asChild>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
+			)}
 			{canViewAISettings && (
 				<DropdownMenuItem asChild>
 					<Link to="/ai/settings">AI</Link>

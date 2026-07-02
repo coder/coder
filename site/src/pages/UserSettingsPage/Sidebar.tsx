@@ -15,7 +15,13 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
-	const { entitlements, experiments, buildInfo } = useDashboard();
+	const {
+		canManageOrganizationSettings,
+		canViewOrganizationSettings,
+		entitlements,
+		experiments,
+		buildInfo,
+	} = useDashboard();
 	const showSchedulePage =
 		entitlements.features.advanced_template_scheduling.enabled;
 	const showOAuth2Page =
@@ -30,6 +36,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			/>
 			<div className="flex flex-col gap-1">
 				<SettingsSidebarNavItem href="account">Account</SettingsSidebarNavItem>
+				{canViewOrganizationSettings && !canManageOrganizationSettings && (
+					<SettingsSidebarNavItem href="/organizations">
+						Organizations
+					</SettingsSidebarNavItem>
+				)}
 				<SettingsSidebarNavItem href="appearance">
 					Appearance
 				</SettingsSidebarNavItem>

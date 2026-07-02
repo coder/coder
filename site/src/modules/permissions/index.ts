@@ -47,3 +47,16 @@ export const canViewAnyOrganization = (
 			permissions.editAnySettings)
 	);
 };
+
+export const canManageAnyOrganization = (
+	permissions: Permissions | undefined,
+): permissions is Permissions => {
+	return (
+		permissions !== undefined &&
+		(permissions.createOrganization ||
+			permissions.editAnyGroups ||
+			permissions.assignAnyRoles ||
+			permissions.viewAnyIdpSyncSettings ||
+			permissions.editAnySettings)
+	);
+};

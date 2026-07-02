@@ -29,6 +29,7 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
+	canManageOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
@@ -51,6 +52,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	canViewDeployment,
 	canViewOrganizations,
+	canManageOrganizations,
 	canViewHealth,
 	canViewAuditLog,
 	canViewConnectionLog,
@@ -60,6 +62,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
+	const canViewAdminSettings = user.roles.length > 0 || canManageOrganizations;
 
 	return (
 		<div
@@ -127,13 +130,13 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 				<div className="hidden md:block">
 					<DeploymentDropdown
-						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
-						canViewDeployment={canViewDeployment}
-						canViewConnectionLog={canViewConnectionLog}
-						canViewAIBridge={canViewAIBridge}
-						canViewAISettings={canViewAISettings}
-						canViewHealth={canViewHealth}
+						canViewAuditLog={canViewAdminSettings && canViewAuditLog}
+						canViewOrganizations={canManageOrganizations}
+						canViewDeployment={canViewAdminSettings && canViewDeployment}
+						canViewConnectionLog={canViewAdminSettings && canViewConnectionLog}
+						canViewAIBridge={canViewAdminSettings && canViewAIBridge}
+						canViewAISettings={canViewAdminSettings && canViewAISettings}
+						canViewHealth={canViewAdminSettings && canViewHealth}
 					/>
 				</div>
 
@@ -153,6 +156,9 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
+						canViewOrganizations={
+							canViewOrganizations && !canManageOrganizations
+						}
 					/>
 				</div>
 
@@ -165,6 +171,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewAuditLog={canViewAuditLog}
 						canViewConnectionLog={canViewConnectionLog}
 						canViewOrganizations={canViewOrganizations}
+						canManageOrganizations={canManageOrganizations}
+						canViewAdminSettings={canViewAdminSettings}
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 					/>

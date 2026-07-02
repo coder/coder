@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
-import { fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
+	MockAuditorRole,
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
 	MockSupportLinks,
@@ -44,6 +45,8 @@ const meta: Meta<typeof MobileMenu> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canManageOrganizations: true,
+		canViewAdminSettings: true,
 	},
 	decorators: [withNavbarMock],
 };
@@ -63,11 +66,16 @@ export const Admin: Story = {
 
 export const Auditor: Story = {
 	args: {
-		user: MockUserMember,
+		user: {
+			...MockUserMember,
+			roles: [MockAuditorRole],
+		},
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
+		canViewAdminSettings: true,
 	},
 	play: openAdminSettings,
 };
@@ -79,6 +87,8 @@ export const OrgAdmin: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: true,
+		canManageOrganizations: true,
+		canViewAdminSettings: true,
 	},
 	play: openAdminSettings,
 };
@@ -90,6 +100,66 @@ export const Member: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canManageOrganizations: false,
+		canViewAdminSettings: false,
+	},
+};
+
+export const OrganizationMember: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: true,
+		canManageOrganizations: false,
+		canViewAdminSettings: false,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+
+		expect(
+			body.queryByRole("menuitem", { name: /admin settings/i }),
+		).not.toBeInTheDocument();
+
+		const userSettings = await body.findByRole("menuitem", {
+			name: /user settings/i,
+		});
+		await user.click(userSettings);
+
+		expect(
+			await body.findByRole("menuitem", { name: "Organizations" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const RegularMemberWithAdminSurfacePermissions: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: true,
+		canViewDeployment: true,
+		canViewHealth: true,
+		canViewOrganizations: true,
+		canManageOrganizations: false,
+		canViewAdminSettings: false,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+
+		expect(
+			body.queryByRole("menuitem", { name: /admin settings/i }),
+		).not.toBeInTheDocument();
+
+		const userSettings = await body.findByRole("menuitem", {
+			name: /user settings/i,
+		});
+		await user.click(userSettings);
+
+		expect(
+			await body.findByRole("menuitem", { name: "Organizations" }),
+		).toBeInTheDocument();
 	},
 };
 
