@@ -136,10 +136,20 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				align={dropdownAlign}
 				className={cn(
 					enableMobileFullWidthDropdown &&
-						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
+						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
 					"w-72 overflow-hidden border-border-default p-0",
 					contentClassName,
 				)}
+				onOpenAutoFocus={(event) => {
+					// On touch devices, auto-focusing the search input pops the
+					// software keyboard as soon as the picker opens, hiding the
+					// model list behind it. Only keep the WAI-ARIA combobox
+					// focus-into-input behavior for fine pointers (keyboard and
+					// mouse users on desktop).
+					if (matchMedia("(pointer: coarse)").matches) {
+						event.preventDefault();
+					}
+				}}
 			>
 				<Command
 					shouldFilter={false}
