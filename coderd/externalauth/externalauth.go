@@ -190,6 +190,22 @@ func IsInvalidTokenError(err error) bool {
 
 // RefreshToken automatically refreshes the token if expired and permitted.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
+	// Prevent parallel refreshes by waiting for the result of any already
+	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
+	// refresh token error as they can only be used once.
+	key := externalAuthLink.OAuthAccessToken
+	link, err := c.Group().Do(key, func() (any, error) {
+		return c.innerRefreshToken(ctx, db, externalAuthLink)
+	})
+	if newlink, ok := link.(database.ExternalAuthLink); ok {
+		return newlink, err
+	} else if err == nil {
+		err = xerrors.Errorf("got invalid type from token refresh: %T", link)
+	}
+	return externalAuthLink, err
+}
+
+func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if c.NoRefresh &&
@@ -236,21 +252,17 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		//
 		// The error message is saved for debugging purposes.
 		if isFailedRefresh(existingToken, err) {
-			// Before caching the failure, re-read the external auth link
-			// from the database. A concurrent request may have already
-			// refreshed the token successfully, consuming the single-use
-			// refresh token (e.g., GitHub App tokens). In that case our
-			// "bad_refresh_token" error is a false positive from losing
-			// the race, and we should use the winner's updated token
-			// instead of poisoning the database with a cached failure.
+			// Before caching the failure, re-read the external auth link from the
+			// database. A nearly-concurrent request may have already refreshed the
+			// token successfully, consuming the single-use refresh token (e.g.,
+			// GitHub App tokens). In that case our "bad_refresh_token" error is a
+			// false positive from losing the race, and we should use the winner's
+			// updated token instead of poisoning the database with a cached failure.
 			currentLink, readErr := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: externalAuthLink.ProviderID,
 				UserID:     externalAuthLink.UserID,
 			})
 			if readErr == nil && currentLink.OAuthRefreshToken != externalAuthLink.OAuthRefreshToken {
-				// Another caller won the refresh race and stored a new
-				// refresh token. Return their updated link instead of
-				// caching a failure.
 				return currentLink, nil
 			}
 
