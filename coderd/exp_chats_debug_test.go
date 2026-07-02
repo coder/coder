@@ -1,15 +1,20 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/tools/txtar"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -75,7 +80,92 @@ func getDebugSnapshot(t *testing.T, client *codersdk.ExperimentalClient, chatID 
 }
 
 func dbSnap(snap map[string]any) map[string]any { return snap["database"].(map[string]any) }
-func rtSnap(snap map[string]any) map[string]any { return snap["runtime"].(map[string]any) }
+
+// debugSnapshotRedactKeys are response fields whose values are never
+// deterministic (timestamps, durations) and are always replaced with a
+// fixed placeholder before comparison against a golden file.
+var debugSnapshotRedactKeys = map[string]struct{}{
+	"created_at":                  {},
+	"updated_at":                  {},
+	"heartbeat_at":                {},
+	"age_seconds":                 {},
+	"requires_action_deadline_at": {},
+	// local_worker_id is randomly generated per chatd.Server instance and
+	// has no bearing on the assertions golden tests care about.
+	"local_worker_id": {},
+}
+
+// normalizeDebugSnapshot returns a deep copy of snap with well-known
+// non-deterministic fields redacted, and any string value matching a key in
+// subs (e.g. a chat/runner/worker UUID) replaced with its placeholder. This
+// lets golden files stay stable across test runs despite random IDs and
+// wall-clock timestamps.
+func normalizeDebugSnapshot(snap map[string]any, subs map[string]string) map[string]any {
+	var walk func(v any) any
+	walk = func(v any) any {
+		switch val := v.(type) {
+		case map[string]any:
+			out := make(map[string]any, len(val))
+			for k, vv := range val {
+				if _, redact := debugSnapshotRedactKeys[k]; redact && vv != nil {
+					out[k] = "<redacted>"
+					continue
+				}
+				out[k] = walk(vv)
+			}
+			return out
+		case []any:
+			out := make([]any, len(val))
+			for i, vv := range val {
+				out[i] = walk(vv)
+			}
+			return out
+		case string:
+			if replacement, ok := subs[val]; ok {
+				return replacement
+			}
+			return val
+		default:
+			return val
+		}
+	}
+	return walk(snap).(map[string]any)
+}
+
+// assertDebugSnapshotGolden normalizes snap (redacting non-deterministic
+// fields and substituting known dynamic UUIDs via subs) and compares it
+// against the golden txtar fixture testdata/chatdebugsnapshot/<name>.txtar.
+// Run with -update to regenerate the fixture.
+func assertDebugSnapshotGolden(t *testing.T, name string, subs map[string]string, snap map[string]any) {
+	t.Helper()
+
+	normalized := normalizeDebugSnapshot(snap, subs)
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	require.NoError(t, enc.Encode(normalized))
+	gotJSON := buf.Bytes()
+
+	goldenPath := filepath.Join("testdata", "chatdebugsnapshot", name+".txtar")
+	if *updateGoldenFiles {
+		require.NoError(t, os.MkdirAll(filepath.Dir(goldenPath), 0o755), "want no error creating golden file directory")
+		ar := &txtar.Archive{
+			Files: []txtar.File{{Name: "response.json", Data: gotJSON}},
+		}
+		require.NoError(t, os.WriteFile(goldenPath, txtar.Format(ar), 0o644), "want no error writing golden file")
+		return
+	}
+
+	raw, err := os.ReadFile(goldenPath)
+	require.NoError(t, err, "open golden file, run \"go test ./coderd/ -run TestGetChatDebugSnapshot -update\" and commit the changes")
+	ar := txtar.Parse(raw)
+	require.Len(t, ar.Files, 1, "golden file %s should contain exactly one file", goldenPath)
+	want := string(ar.Files[0].Data)
+
+	require.Empty(t, cmp.Diff(want, string(gotJSON)),
+		"golden file mismatch (-want +got): %s, run \"go test ./coderd/ -run TestGetChatDebugSnapshot -update\" and commit the changes", goldenPath)
+}
 
 // createDebugChat creates a chat with the minimum required fields for debug
 // snapshot tests. It also sets up the model config prerequisite.
@@ -181,14 +271,7 @@ func TestGetChatDebugSnapshot_MessageStats(t *testing.T) {
 	}))
 
 	snap := getDebugSnapshot(t, client, chat.ID)
-	stats := dbSnap(snap)["message_stats"].(map[string]any)
-	byRole := stats["by_role"].(map[string]any)
-	// chatd inserts system + user messages on creation; CommitStep adds 2 assistant + 1 tool.
-	// Assert total is non-zero and deleted is zero; verify the roles we explicitly inserted.
-	require.Greater(t, stats["total"].(float64), float64(0))
-	require.EqualValues(t, 0, stats["deleted"])
-	require.EqualValues(t, 2, byRole["assistant"])
-	require.EqualValues(t, 1, byRole["tool"])
+	assertDebugSnapshotGolden(t, "message_stats", nil, snap)
 }
 
 // TestGetChatDebugSnapshot_Heartbeat verifies heartbeat presence and staleness.
@@ -257,9 +340,7 @@ func TestGetChatDebugSnapshot_Runtime_Unowned(t *testing.T) {
 	chat := createDebugChat(ctx, t, client, firstUser.OrganizationID)
 
 	snap := getDebugSnapshot(t, client, chat.ID)
-	rt := rtSnap(snap)
-	require.False(t, rt["worker_id_matches_local"].(bool))
-	require.Empty(t, rt["runners"])
+	assertDebugSnapshotGolden(t, "runtime_unowned", nil, snap)
 }
 
 // TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner verifies that when the
@@ -330,12 +411,10 @@ func TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner(t *testing.T) {
 	}
 	require.Equal(t, foreignWorkerID, capturedReplicaID)
 
-	rt := rtSnap(snap)
-	runners := rt["runners"].([]any)
-	require.Len(t, runners, 1)
-	r0 := runners[0].(map[string]any)
-	require.Equal(t, mockRunnerID.String(), r0["runner_id"])
-	require.Equal(t, mockKind, r0["active_task_kind"])
+	assertDebugSnapshotGolden(t, "multi_replica_proxies_to_owner", map[string]string{
+		mockRunnerID.String(): "<runner_id>",
+		mockWorkerID.String(): "<worker_id>",
+	}, snap)
 }
 
 // TestGetChatDebugSnapshot_MultiReplica_ProxyError verifies that when the proxy

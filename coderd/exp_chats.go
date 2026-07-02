@@ -8070,7 +8070,7 @@ func (api *API) getChatDebugSnapshot(rw http.ResponseWriter, r *http.Request) {
 	// Read runtime state from local in-memory state. The proxy check above
 	// ensures we only reach this point when we are the owning replica (or
 	// the chat is unowned, or no proxy is configured).
-	rtSnap := api.chatDaemon.SnapshotRuntime(chat.ID)
+	rtSnap := api.chatDaemon.Snapshot(chat.ID)
 	rtSection := chatDebugRuntime{
 		LocalWorkerID:        rtSnap.LocalWorkerID,
 		WorkerIDMatchesLocal: chat.WorkerID.Valid && chat.WorkerID.UUID == rtSnap.LocalWorkerID,

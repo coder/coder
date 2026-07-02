@@ -158,7 +158,7 @@ type Options struct {
 	// worker. Used in tests.
 	ChatWorkerDisabled bool
 	// ChatDebugProxy injects a custom proxy for the debug snapshot endpoint.
-	// Used in tests to simulate multi-replica forwarding without a real second replica.
+	// Used in tests to simulate multi-replica forwarding.
 	ChatDebugProxy              func(rw http.ResponseWriter, r *http.Request, replicaID uuid.UUID)
 	ProvisionerDaemonVersion    string
 	ProvisionerDaemonTags       map[string]string

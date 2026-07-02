@@ -245,6 +245,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		req.Header.Set(coderd.ChatDebugForwardedHeader, "1")
 		resp, err := replicaHTTPClient.Do(req)
 		if err != nil {
+			api.Logger.Error(r.Context(), "failed to reach owning replica for chat debug snapshot",
+				slog.F("replica_id", replicaID),
+				slog.F("address", address),
+				slog.Error(err),
+			)
 			httpapi.Write(r.Context(), rw, http.StatusBadGateway, codersdk.Response{
 				Message: "failed to reach owning replica",
 				Detail:  err.Error(),
