@@ -132,7 +132,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 		<div>
 			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				Copy your one-time code:&nbsp;
-				<div className="inline-flex items-center">
+				<span className="inline-flex items-center">
 					<span className="font-bold text-content-primary">
 						{externalAuthDevice.user_code}
 					</span>
@@ -141,7 +141,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 						text={externalAuthDevice.user_code}
 						label="Copy user code"
 					/>
-				</div>
+				</span>
 				<br />
 				Then open the link below and paste it:
 			</p>
