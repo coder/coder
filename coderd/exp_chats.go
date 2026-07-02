@@ -516,7 +516,7 @@ func validateChatResponseFormat(
 	if verr != nil {
 		return nil, &codersdk.Response{
 			Message:     "Invalid response_format.",
-			Validations: []codersdk.ValidationError{{Field: verr.Field, Detail: verr.Detail}},
+			Validations: []codersdk.ValidationError{*verr},
 		}
 	}
 	if structuredReq == nil {

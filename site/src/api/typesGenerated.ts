@@ -2139,6 +2139,7 @@ export type ChatErrorKind =
 	| "provider_disabled"
 	| "rate_limit"
 	| "stream_silence_timeout"
+	| "structured_output"
 	| "timeout"
 	| "usage_limit";
 
@@ -2151,6 +2152,7 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"provider_disabled",
 	"rate_limit",
 	"stream_silence_timeout",
+	"structured_output",
 	"timeout",
 	"usage_limit",
 ];
@@ -2899,6 +2901,10 @@ export interface ChatResponseFormatJSONSchema {
 	 * does not change the tool the server uses to collect output.
 	 */
 	readonly name: string;
+	/**
+	 * Description tells the model what the output is for. It is
+	 * appended to the server's finalizer tool description.
+	 */
 	readonly description?: string;
 	/**
 	 * Schema is a JSON Schema object. The root must have
@@ -2918,15 +2924,12 @@ export interface ChatResponseFormatJSONSchema {
 export interface ChatResponseFormatPart {
 	readonly type: "response-format";
 	/**
-	 * ResponseFormat is the structured output request that applies
-	 * to the assistant turn triggered by the user message carrying
-	 * this part. Server-created from the request-level
-	 * response_format field; never accepted as direct user input.
-	 * It stays visible in API responses so clients can correlate a
-	 * structured output request with the tool result that satisfies
-	 * it. It is never sent to the model.
+	 * ResponseFormat is the structured output request for the turn
+	 * triggered by the user message carrying this part.
+	 * Server-created; visible in API responses but never sent to
+	 * the model.
 	 */
-	readonly response_format: ChatResponseFormat | null;
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/chats.go

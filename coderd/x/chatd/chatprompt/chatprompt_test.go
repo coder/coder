@@ -2140,6 +2140,63 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		require.Equal(t, "clean text", decoded[0].Text)
 		require.Equal(t, "has\x00nul", decoded[1].Text)
 	})
+
+	// Response-format parts carry caller-controlled strings and raw
+	// schema JSON that must survive jsonb storage like every other
+	// part field.
+	t.Run("ResponseFormatWithNul", func(t *testing.T) {
+		t.Parallel()
+
+		format := codersdk.ChatResponseFormat{
+			Type: codersdk.ChatResponseFormatTypeJSONSchema,
+			JSONSchema: &codersdk.ChatResponseFormatJSONSchema{
+				Name:        "answer_report",
+				Description: "report\x00with nul",
+				Schema:      json.RawMessage(`{"type":"object","description":"schema:\u0000desc"}`),
+			},
+		}
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("structured please"),
+			codersdk.ChatMessageResponseFormat(format),
+		}
+
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\u0000`,
+			"encoded JSON must not contain \\u0000")
+
+		msg := testMsgV1(codersdk.ChatMessageRoleUser, encoded)
+		decoded, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		require.Len(t, decoded, 2)
+		got := decoded[1].ResponseFormat
+		require.NotNil(t, got)
+		require.NotNil(t, got.JSONSchema)
+		require.Equal(t, "report\x00with nul", got.JSONSchema.Description)
+		assert.JSONEq(t, string(format.JSONSchema.Schema), string(got.JSONSchema.Schema))
+
+		// The caller's struct must not be mutated by the NUL
+		// encoding pass.
+		require.Equal(t, "report\x00with nul", format.JSONSchema.Description)
+
+		// Full DB round-trip: NUL-bearing response-format parts
+		// must survive PostgreSQL jsonb storage.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:         chat.ID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           database.ChatMessageRoleUser,
+			Content:        encoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
+		readBack, err := db.GetChatMessageByID(ctx, dbMsg.ID)
+		require.NoError(t, err)
+		dbDecoded, err := chatprompt.ParseContent(readBack)
+		require.NoError(t, err)
+		require.Len(t, dbDecoded, 2)
+		require.Equal(t, "report\x00with nul", dbDecoded[1].ResponseFormat.JSONSchema.Description)
+	})
 }
 
 func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T) {

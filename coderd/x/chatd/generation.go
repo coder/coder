@@ -60,9 +60,8 @@ type generationPrepared struct {
 	DynamicToolNames   map[string]bool
 	StopAfterTools     map[string]struct{}
 	ExclusiveToolNames map[string]bool
-	// StructuredOutputRequired is true when the active turn
-	// requested a server-validated structured final output. It gates
-	// required tool choice and turn-completion semantics.
+	// StructuredOutputRequired gates required tool choice and
+	// turn-completion semantics for structured output turns.
 	StructuredOutputRequired bool
 	BuiltinToolNames         map[string]bool
 	ToolNameToConfigID       map[string]uuid.UUID
@@ -184,13 +183,14 @@ type generationDecisionInput struct {
 }
 
 // errStructuredOutputNotProduced finishes a structured output turn
-// with a terminal error when the step budget runs out before the
-// model produces a validated finalizer result.
+// with a terminal error when no validated finalizer result exists
+// and the turn cannot continue: either the step budget ran out or
+// the model returned an empty response.
 var errStructuredOutputNotProduced = chaterror.WithClassification(
 	xerrors.New("structured_output_not_produced"),
 	chaterror.ClassifiedError{
-		Message: "The model did not produce the requested structured output before the step limit was reached.",
-		Kind:    codersdk.ChatErrorKindGeneric,
+		Message: "The model did not produce the requested structured output. Retry the request, simplify the schema, or verify the model supports required tool choice.",
+		Kind:    codersdk.ChatErrorKindStructuredOutput,
 	},
 )
 

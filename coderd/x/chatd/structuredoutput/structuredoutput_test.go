@@ -234,6 +234,24 @@ func TestTool(t *testing.T) {
 		var want map[string]any
 		require.NoError(t, json.Unmarshal([]byte(validSchema), &want))
 		require.Equal(t, want, outputSchema)
+
+		// Each Info call returns a deep copy: mutations by consumers
+		// (e.g. chatloop's schema.Normalize) must not leak into
+		// later calls.
+		outputSchema["type"] = "mutated"
+		fresh, ok := tool.Info().Parameters["output"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "object", fresh["type"])
+	})
+
+	t.Run("InfoIncludesDescription", func(t *testing.T) {
+		t.Parallel()
+		format := jsonSchemaFormat(validSchema)
+		format.JSONSchema.Description = "a quarterly report"
+		req, verr := structuredoutput.NewRequest(format)
+		require.Nil(t, verr)
+		info := structuredoutput.Tool(req).Info()
+		require.Contains(t, info.Description, "Output description: a quarterly report")
 	})
 
 	t.Run("RunValidCanonicalizes", func(t *testing.T) {
@@ -343,7 +361,8 @@ func TestTool(t *testing.T) {
 		require.Error(t, err, "normalized schema must reject what the original rejects")
 
 		// The Normalize mutation above must not corrupt the tool's
-		// own validation (Info returns an independent copy).
+		// own validation: Run validates against the compiled
+		// schema, and each Info call deep-copies the parameter map.
 		resp, runErr := tool.Run(t.Context(), fantasy.ToolCall{Input: validArgs})
 		require.NoError(t, runErr)
 		require.False(t, resp.IsError)

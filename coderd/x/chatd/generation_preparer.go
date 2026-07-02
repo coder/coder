@@ -482,8 +482,11 @@ func (server *Server) prepareGeneration(
 				if tool.Info().Name != structuredoutput.ToolName {
 					return false
 				}
-				logger.Warn(ctx, "mcp tool shadows the reserved structured output tool name; dropping it",
-					slog.F("tool_name", structuredoutput.ToolName))
+				fields := []slog.Field{slog.F("tool_name", structuredoutput.ToolName)}
+				if mcpTool, ok := tool.(mcpclient.MCPToolIdentifier); ok {
+					fields = append(fields, slog.F("mcp_server_config_id", mcpTool.MCPServerConfigID()))
+				}
+				logger.Warn(ctx, "mcp tool shadows the reserved structured output tool name; dropping it", fields...)
 				return true
 			})
 		}

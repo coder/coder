@@ -340,7 +340,9 @@ type ChatResponseFormat struct {
 type ChatResponseFormatJSONSchema struct {
 	// Name identifies the schema for the client. Metadata only; it
 	// does not change the tool the server uses to collect output.
-	Name        string `json:"name"`
+	Name string `json:"name"`
+	// Description tells the model what the output is for. It is
+	// appended to the server's finalizer tool description.
 	Description string `json:"description,omitempty"`
 	// Schema is a JSON Schema object. The root must have
 	// "type":"object"; wrap arrays or primitives in an object
@@ -470,14 +472,11 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
-	// ResponseFormat is the structured output request that applies
-	// to the assistant turn triggered by the user message carrying
-	// this part. Server-created from the request-level
-	// response_format field; never accepted as direct user input.
-	// It stays visible in API responses so clients can correlate a
-	// structured output request with the tool result that satisfies
-	// it. It is never sent to the model.
-	ResponseFormat *ChatResponseFormat `json:"response_format" variants:"response-format"`
+	// ResponseFormat is the structured output request for the turn
+	// triggered by the user message carrying this part.
+	// Server-created; visible in API responses but never sent to
+	// the model.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty" variants:"response-format?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -1696,6 +1695,9 @@ const (
 	ChatErrorKindUsageLimit           ChatErrorKind = "usage_limit"
 	ChatErrorKindMissingKey           ChatErrorKind = "missing_key"
 	ChatErrorKindProviderDisabled     ChatErrorKind = "provider_disabled"
+	// ChatErrorKindStructuredOutput indicates a structured output
+	// turn ended without a validated result (see response_format).
+	ChatErrorKindStructuredOutput ChatErrorKind = "structured_output"
 )
 
 // AllChatErrorKinds contains every ChatErrorKind value.
@@ -1711,6 +1713,7 @@ var AllChatErrorKinds = []ChatErrorKind{
 	ChatErrorKindUsageLimit,
 	ChatErrorKindMissingKey,
 	ChatErrorKindProviderDisabled,
+	ChatErrorKindStructuredOutput,
 }
 
 // ChatError represents a terminal chat error in persisted chat state or the

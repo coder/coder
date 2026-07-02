@@ -13,9 +13,11 @@
 package structuredoutput
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -43,17 +45,6 @@ const outputProperty = "output"
 
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
-// ValidationError describes a request-time response_format
-// rejection. Field is the JSON path of the offending request field.
-type ValidationError struct {
-	Field  string
-	Detail string
-}
-
-func (e *ValidationError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Field, e.Detail)
-}
-
 // Request is a normalized, validated structured output request
 // active for one assistant turn.
 type Request struct {
@@ -69,8 +60,9 @@ type Request struct {
 
 // Validate checks a request-level response_format. A nil format is
 // valid (structured output not requested). It returns a
-// *ValidationError so HTTP handlers can produce field-specific 400s.
-func Validate(format *codersdk.ChatResponseFormat) *ValidationError {
+// *codersdk.ValidationError so HTTP handlers can produce
+// field-specific 400s.
+func Validate(format *codersdk.ChatResponseFormat) *codersdk.ValidationError {
 	_, err := NewRequest(format)
 	return err
 }
@@ -78,14 +70,14 @@ func Validate(format *codersdk.ChatResponseFormat) *ValidationError {
 // NewRequest validates format and compiles its schema. It returns
 // (nil, nil) when format is nil or explicitly "text" with no schema
 // payload, i.e. when the turn has no structured output request.
-func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError) {
+func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *codersdk.ValidationError) {
 	if format == nil {
 		return nil, nil
 	}
 	switch format.Type {
 	case codersdk.ChatResponseFormatTypeText:
 		if format.JSONSchema != nil {
-			return nil, &ValidationError{
+			return nil, &codersdk.ValidationError{
 				Field:  "response_format.json_schema",
 				Detail: `must not be set when type is "text".`,
 			}
@@ -94,12 +86,12 @@ func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError
 	case codersdk.ChatResponseFormatTypeJSONSchema:
 		// Validated below.
 	case "":
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.type",
 			Detail: `is required; must be "text" or "json_schema".`,
 		}
 	default:
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.type",
 			Detail: fmt.Sprintf(`unsupported value %q; must be "text" or "json_schema".`, format.Type),
 		}
@@ -107,31 +99,31 @@ func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError
 
 	js := format.JSONSchema
 	if js == nil {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema",
 			Detail: `is required when type is "json_schema".`,
 		}
 	}
 	if !namePattern.MatchString(js.Name) {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.name",
 			Detail: "must match ^[A-Za-z0-9_-]{1,64}$.",
 		}
 	}
 	if js.Strict != nil && !*js.Strict {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.strict",
 			Detail: "strict=false is not supported yet; omit strict or set it to true.",
 		}
 	}
 	if len(js.Schema) == 0 {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.schema",
 			Detail: "is required.",
 		}
 	}
 	if len(js.Schema) > MaxSchemaBytes {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.schema",
 			Detail: fmt.Sprintf("exceeds the maximum size of %d bytes.", MaxSchemaBytes),
 		}
@@ -139,13 +131,13 @@ func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError
 
 	var root map[string]any
 	if err := json.Unmarshal(js.Schema, &root); err != nil {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.schema",
 			Detail: "must be a JSON object.",
 		}
 	}
 	if rootType, _ := root["type"].(string); rootType != "object" {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.schema",
 			Detail: `root must declare "type":"object"; wrap arrays or primitives in an object property.`,
 		}
@@ -156,7 +148,7 @@ func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError
 
 	compiled, err := compileSchema(js.Schema)
 	if err != nil {
-		return nil, &ValidationError{
+		return nil, &codersdk.ValidationError{
 			Field:  "response_format.json_schema.schema",
 			Detail: fmt.Sprintf("failed to compile: %v.", err),
 		}
@@ -176,9 +168,7 @@ func NewRequest(format *codersdk.ChatResponseFormat) (*Request, *ValidationError
 // before compilation; stripping the loaders is defense in depth.
 func compileSchema(schemaBytes []byte) (*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
-	for scheme := range compiler.Loaders {
-		delete(compiler.Loaders, scheme)
-	}
+	clear(compiler.Loaders)
 	return compiler.Compile(schemaBytes)
 }
 
@@ -194,14 +184,14 @@ var refKeywords = map[string]struct{}{
 // reference value that does not start with "#". This keeps schema
 // resolution local to the submitted document so no network or file
 // lookups can be triggered.
-func validateFragmentOnlyRefs(node any) *ValidationError {
+func validateFragmentOnlyRefs(node any) *codersdk.ValidationError {
 	switch v := node.(type) {
 	case map[string]any:
 		for key, child := range v {
 			if _, isRef := refKeywords[key]; isRef {
 				ref, ok := child.(string)
 				if !ok || !strings.HasPrefix(ref, "#") {
-					return &ValidationError{
+					return &codersdk.ValidationError{
 						Field:  "response_format.json_schema.schema",
 						Detail: fmt.Sprintf(`%s values must be fragment-local (start with "#"); got %v.`, key, child),
 					}
@@ -243,9 +233,38 @@ func (t *finalizerTool) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{
 		Name:        ToolName,
 		Description: description,
-		Parameters:  map[string]any{outputProperty: t.req.schemaMap},
-		Required:    []string{outputProperty},
-		Parallel:    false,
+		// Deep-copied because chatloop's buildToolDefinitions runs
+		// schema.Normalize on tool parameters, which mutates nested
+		// maps in place. Sharing schemaMap would leak that mutation
+		// into every later Info call on multi-step turns.
+		Parameters: map[string]any{outputProperty: copyJSONObject(t.req.schemaMap)},
+		Required:   []string{outputProperty},
+		Parallel:   false,
+	}
+}
+
+// copyJSONObject deep-copies a decoded JSON object (nested maps,
+// slices, and scalars produced by encoding/json).
+func copyJSONObject(obj map[string]any) map[string]any {
+	copied := make(map[string]any, len(obj))
+	for key, child := range obj {
+		copied[key] = copyJSONAny(child)
+	}
+	return copied
+}
+
+func copyJSONAny(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		return copyJSONObject(v)
+	case []any:
+		copied := make([]any, len(v))
+		for i, child := range v {
+			copied[i] = copyJSONAny(child)
+		}
+		return copied
+	default:
+		return v
 	}
 }
 
@@ -313,16 +332,8 @@ func formatValidationErrors(result *jsonschema.EvaluationResult) string {
 }
 
 func appendErrors(sb *strings.Builder, list jsonschema.List) {
-	location := list.InstanceLocation
-	if location == "" {
-		location = "(root)"
-	}
-	keys := make([]string, 0, len(list.Errors))
-	for key := range list.Errors {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	for _, key := range keys {
+	location := cmp.Or(list.InstanceLocation, "(root)")
+	for _, key := range slices.Sorted(maps.Keys(list.Errors)) {
 		if sb.Len() > 0 {
 			_, _ = sb.WriteString("; ")
 		}

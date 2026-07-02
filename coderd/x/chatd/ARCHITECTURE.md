@@ -1244,7 +1244,7 @@ Omitting the field preserves normal free-form behavior exactly.
 ## Request flow
 
 1. The HTTP layer validates the format with
-   `structuredoutput.Validate` (name pattern, 16 KiB schema cap,
+   `structuredoutput.NewRequest` (name pattern, 16 KiB schema cap,
    compilable JSON schema, root `"type":"object"`, fragment-local
    `$ref` only, `strict=false` rejected) and rejects
    `response_format` on plan-mode turns because plan mode has its own

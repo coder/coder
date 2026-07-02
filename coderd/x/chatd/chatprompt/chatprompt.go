@@ -1501,6 +1501,11 @@ func partsToMessageParts(
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
 		switch part.Type {
+		// Response-format parts are structured output request
+		// metadata for chatd; they must never reach the provider
+		// prompt.
+		case codersdk.ChatMessagePartTypeResponseFormat:
+			continue
 		case codersdk.ChatMessagePartTypeText:
 			// Anthropic rejects empty text content blocks with
 			// "text content blocks must be non-empty". Empty parts
@@ -1813,6 +1818,7 @@ func encodeNulInParts(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePa
 		p.ArgsDelta = encodeNulInString(p.ArgsDelta)
 		p.Result = encodeNulInJSON(p.Result)
 		p.ResultDelta = encodeNulInString(p.ResultDelta)
+		p.ResponseFormat = mapNulInResponseFormat(p.ResponseFormat, encodeNulInString, encodeNulInJSON)
 	}
 	return encoded
 }
@@ -1827,5 +1833,27 @@ func decodeNulInParts(parts []codersdk.ChatMessagePart) {
 		p.ArgsDelta = decodeNulInString(p.ArgsDelta)
 		p.Result = decodeNulInJSON(p.Result)
 		p.ResultDelta = decodeNulInString(p.ResultDelta)
+		p.ResponseFormat = mapNulInResponseFormat(p.ResponseFormat, decodeNulInString, decodeNulInJSON)
 	}
+}
+
+// mapNulInResponseFormat applies NUL string/JSON mapping to the
+// caller-controlled fields of a response-format part. It returns a
+// deep copy so the caller's struct is never mutated (the part copy
+// in encodeNulInParts is shallow and shares the pointer).
+func mapNulInResponseFormat(
+	format *codersdk.ChatResponseFormat,
+	mapString func(string) string,
+	mapJSON func(json.RawMessage) json.RawMessage,
+) *codersdk.ChatResponseFormat {
+	if format == nil || format.JSONSchema == nil {
+		return format
+	}
+	mapped := *format
+	schema := *format.JSONSchema
+	schema.Name = mapString(schema.Name)
+	schema.Description = mapString(schema.Description)
+	schema.Schema = mapJSON(schema.Schema)
+	mapped.JSONSchema = &schema
+	return &mapped
 }

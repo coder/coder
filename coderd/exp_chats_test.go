@@ -14547,24 +14547,26 @@ func TestChatResponseFormat(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, tc := range cases {
-			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: user.OrganizationID,
-				Content:        textInput("should fail"),
-				ResponseFormat: tc.format,
-			})
-			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-			require.Equal(t, "Invalid response_format.", sdkErr.Message, "create case %s", tc.name)
-			require.Len(t, sdkErr.Validations, 1, "create case %s", tc.name)
-			require.Equal(t, tc.wantField, sdkErr.Validations[0].Field, "create case %s", tc.name)
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+					OrganizationID: user.OrganizationID,
+					Content:        textInput("should fail"),
+					ResponseFormat: tc.format,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid response_format.", sdkErr.Message)
+				require.Len(t, sdkErr.Validations, 1)
+				require.Equal(t, tc.wantField, sdkErr.Validations[0].Field)
 
-			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-				Content:        textInput("should fail"),
-				ResponseFormat: tc.format,
+				_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+					Content:        textInput("should fail"),
+					ResponseFormat: tc.format,
+				})
+				sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid response_format.", sdkErr.Message)
+				require.Len(t, sdkErr.Validations, 1)
+				require.Equal(t, tc.wantField, sdkErr.Validations[0].Field)
 			})
-			sdkErr = requireSDKError(t, err, http.StatusBadRequest)
-			require.Equal(t, "Invalid response_format.", sdkErr.Message, "message case %s", tc.name)
-			require.Len(t, sdkErr.Validations, 1, "message case %s", tc.name)
-			require.Equal(t, tc.wantField, sdkErr.Validations[0].Field, "message case %s", tc.name)
 		}
 	})
 

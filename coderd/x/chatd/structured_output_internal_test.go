@@ -52,7 +52,7 @@ func userMessageWithFormat(t *testing.T, id int64, text string, format *codersdk
 	return chatMessageWithParts(t, id, database.ChatMessageRoleUser, parts)
 }
 
-func soAssistantMessage(t *testing.T, id int64, text string) database.ChatMessage {
+func textAssistantMessage(t *testing.T, id int64, text string) database.ChatMessage {
 	t.Helper()
 	return chatMessageWithParts(t, id, database.ChatMessageRoleAssistant, []codersdk.ChatMessagePart{
 		codersdk.ChatMessageText(text),
@@ -88,7 +88,7 @@ func TestActiveTurnResponseFormat(t *testing.T) {
 		t.Parallel()
 		messages := []database.ChatMessage{
 			userMessageWithFormat(t, 1, "structured please", &format),
-			soAssistantMessage(t, 2, "done"),
+			textAssistantMessage(t, 2, "done"),
 			userMessageWithFormat(t, 3, "now plain text", nil),
 		}
 		require.Nil(t, activeTurnResponseFormat(ctx, logger, messages))
@@ -98,9 +98,9 @@ func TestActiveTurnResponseFormat(t *testing.T) {
 		t.Parallel()
 		messages := []database.ChatMessage{
 			userMessageWithFormat(t, 1, "plain", nil),
-			soAssistantMessage(t, 2, "ok"),
+			textAssistantMessage(t, 2, "ok"),
 			userMessageWithFormat(t, 3, "structured", &format),
-			soAssistantMessage(t, 4, "working on it"),
+			textAssistantMessage(t, 4, "working on it"),
 		}
 		req := activeTurnResponseFormat(ctx, logger, messages)
 		require.NotNil(t, req)
@@ -116,10 +116,10 @@ func TestActiveTurnResponseFormat(t *testing.T) {
 		compressedSummary.Compressed = true
 		messages := []database.ChatMessage{
 			userMessageWithFormat(t, 1, "old", nil),
-			soAssistantMessage(t, 2, "old answer"),
+			textAssistantMessage(t, 2, "old answer"),
 			compressedSummary,
 			userMessageWithFormat(t, 4, "structured", &format),
-			soAssistantMessage(t, 5, "step one"),
+			textAssistantMessage(t, 5, "step one"),
 		}
 		req := activeTurnResponseFormat(ctx, logger, messages)
 		require.NotNil(t, req)
@@ -214,7 +214,7 @@ func TestExtractStructuredOutputValue(t *testing.T) {
 			finalizerCall(2, "call_1"),
 			finalizerResult(3, "call_1", `{"answer":"old"}`, false),
 			userMessageWithFormat(t, 4, "again", &format),
-			soAssistantMessage(t, 5, "working"),
+			textAssistantMessage(t, 5, "working"),
 		}
 		_, ok, err := ExtractStructuredOutputValue(messages)
 		require.NoError(t, err)
@@ -232,7 +232,7 @@ func TestDecideGenerationActionStructuredOutput(t *testing.T) {
 		t.Parallel()
 		messages := []database.ChatMessage{
 			userMessageWithFormat(t, 1, "structured", &format),
-			soAssistantMessage(t, 2, "here is your answer as text"),
+			textAssistantMessage(t, 2, "here is your answer as text"),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
 			messages:                 messages,
@@ -248,7 +248,7 @@ func TestDecideGenerationActionStructuredOutput(t *testing.T) {
 		t.Parallel()
 		messages := []database.ChatMessage{
 			userMessageWithFormat(t, 1, "plain", nil),
-			soAssistantMessage(t, 2, "answer"),
+			textAssistantMessage(t, 2, "answer"),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
 			messages: messages,
@@ -306,8 +306,8 @@ func TestDecideGenerationActionStructuredOutput(t *testing.T) {
 		t.Parallel()
 		messages := []database.ChatMessage{
 			userMessageWithFormat(t, 1, "structured", &format),
-			soAssistantMessage(t, 2, "text one"),
-			soAssistantMessage(t, 3, "text two"),
+			textAssistantMessage(t, 2, "text one"),
+			textAssistantMessage(t, 3, "text two"),
 		}
 		_, err := decideGenerationAction(generationDecisionInput{
 			messages:                 messages,

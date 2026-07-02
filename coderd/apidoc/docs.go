@@ -17052,7 +17052,8 @@ const docTemplate = `{
                 "config",
                 "usage_limit",
                 "missing_key",
-                "provider_disabled"
+                "provider_disabled",
+                "structured_output"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
@@ -17064,7 +17065,8 @@ const docTemplate = `{
                 "ChatErrorKindConfig",
                 "ChatErrorKindUsageLimit",
                 "ChatErrorKindMissingKey",
-                "ChatErrorKindProviderDisabled"
+                "ChatErrorKindProviderDisabled",
+                "ChatErrorKindStructuredOutput"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -17348,7 +17350,7 @@ const docTemplate = `{
                     }
                 },
                 "response_format": {
-                    "description": "ResponseFormat is the structured output request that applies\nto the assistant turn triggered by the user message carrying\nthis part. Server-created from the request-level\nresponse_format field; never accepted as direct user input.\nIt stays visible in API responses so clients can correlate a\nstructured output request with the tool result that satisfies\nit. It is never sent to the model.",
+                    "description": "ResponseFormat is the structured output request for the turn\ntriggered by the user message carrying this part.\nServer-created; visible in API responses but never sent to\nthe model.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatResponseFormat"
@@ -17644,6 +17646,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "description": {
+                    "description": "Description tells the model what the output is for. It is\nappended to the server's finalizer tool description.",
                     "type": "string"
                 },
                 "name": {

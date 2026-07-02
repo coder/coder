@@ -14,8 +14,7 @@ import (
 )
 
 // structuredOutputOverlayPrompt instructs the model how to finish a
-// structured output turn. Injected only when a structured output
-// request is active.
+// structured output turn.
 const structuredOutputOverlayPrompt = `<structured_output>
 This turn requires a structured final answer.
 - Use your normal tools first as needed to gather information and complete the task.
@@ -56,14 +55,11 @@ func ExtractStructuredOutputValue(messages []database.ChatMessage) (json.RawMess
 	return nil, false, nil
 }
 
-// activeTurnResponseFormat returns the structured output request for
-// the active turn, if any. It walks backward over the full
-// generation-state message list (not compaction-filtered prompt
-// rows) to the latest non-deleted, non-compressed user message and
-// parses its response-format part. Compaction rows are all
-// Compressed=true, so the trigger user message stays discoverable
-// after compaction. When a message somehow carries multiple
-// response-format parts, the last one wins.
+// activeTurnResponseFormat returns the active turn's structured
+// output request from the latest visible user message. It must
+// receive the full message list (not compaction-filtered prompt
+// rows) so the trigger message survives compaction. The last
+// response-format part wins.
 func activeTurnResponseFormat(
 	ctx context.Context,
 	logger slog.Logger,
