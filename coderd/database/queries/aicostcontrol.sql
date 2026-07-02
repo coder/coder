@@ -79,3 +79,25 @@ ORDER BY
 	-- (groups are unique on (organization_id, name), not name alone).
 	gaib.group_id ASC
 LIMIT 1;
+
+-- name: IncrementUserAIDailySpend :one
+-- Adds cost_micros to the spend for (user_id, effective_group_id, day).
+-- The day parameter is normalized to its UTC calendar day before storage.
+INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
+VALUES (@user_id, @effective_group_id, ((@day::timestamptz) AT TIME ZONE 'UTC')::date, @cost_micros)
+ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
+	spend_micros = ai_user_daily_spend.spend_micros + EXCLUDED.spend_micros
+RETURNING *;
+
+-- name: GetUserAISpendSince :one
+-- Total spend for (user_id, effective_group_id) on or after period_start until NOW.
+-- The period_start parameter is normalized to its UTC calendar day.
+SELECT
+	@user_id::uuid AS user_id,
+	@effective_group_id::uuid AS effective_group_id,
+	((@period_start::timestamptz) AT TIME ZONE 'UTC')::date AS period_start,
+	COALESCE(SUM(spend_micros), 0)::BIGINT AS spend_micros
+FROM ai_user_daily_spend
+WHERE user_id = @user_id
+	AND effective_group_id = @effective_group_id
+	AND day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date;

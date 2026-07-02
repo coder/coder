@@ -429,6 +429,7 @@ type DRPCAuthorizerClient interface {
 	DRPCConn() drpc.Conn
 
 	IsAuthorized(ctx context.Context, in *IsAuthorizedRequest) (*IsAuthorizedResponse, error)
+	IsBudgetExceeded(ctx context.Context, in *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error)
 }
 
 type drpcAuthorizerClient struct {
@@ -450,8 +451,18 @@ func (c *drpcAuthorizerClient) IsAuthorized(ctx context.Context, in *IsAuthorize
 	return out, nil
 }
 
+func (c *drpcAuthorizerClient) IsBudgetExceeded(ctx context.Context, in *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error) {
+	out := new(IsBudgetExceededResponse)
+	err := c.cc.Invoke(ctx, "/proto.Authorizer/IsBudgetExceeded", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAuthorizerServer interface {
 	IsAuthorized(context.Context, *IsAuthorizedRequest) (*IsAuthorizedResponse, error)
+	IsBudgetExceeded(context.Context, *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error)
 }
 
 type DRPCAuthorizerUnimplementedServer struct{}
@@ -460,9 +471,13 @@ func (s *DRPCAuthorizerUnimplementedServer) IsAuthorized(context.Context, *IsAut
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAuthorizerUnimplementedServer) IsBudgetExceeded(context.Context, *IsBudgetExceededRequest) (*IsBudgetExceededResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAuthorizerDescription struct{}
 
-func (DRPCAuthorizerDescription) NumMethods() int { return 1 }
+func (DRPCAuthorizerDescription) NumMethods() int { return 2 }
 
 func (DRPCAuthorizerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -475,6 +490,15 @@ func (DRPCAuthorizerDescription) Method(n int) (string, drpc.Encoding, drpc.Rece
 						in1.(*IsAuthorizedRequest),
 					)
 			}, DRPCAuthorizerServer.IsAuthorized, true
+	case 1:
+		return "/proto.Authorizer/IsBudgetExceeded", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAuthorizerServer).
+					IsBudgetExceeded(
+						ctx,
+						in1.(*IsBudgetExceededRequest),
+					)
+			}, DRPCAuthorizerServer.IsBudgetExceeded, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -494,6 +518,22 @@ type drpcAuthorizer_IsAuthorizedStream struct {
 }
 
 func (x *drpcAuthorizer_IsAuthorizedStream) SendAndClose(m *IsAuthorizedResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAuthorizer_IsBudgetExceededStream interface {
+	drpc.Stream
+	SendAndClose(*IsBudgetExceededResponse) error
+}
+
+type drpcAuthorizer_IsBudgetExceededStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAuthorizer_IsBudgetExceededStream) SendAndClose(m *IsBudgetExceededResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

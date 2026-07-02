@@ -23,6 +23,7 @@ import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
 import {
 	aiProviderToFormValues,
+	bedrockExternalId,
 	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
@@ -196,6 +197,7 @@ const UpdateProviderPageView: React.FC = () => {
 						bedrockSavedAccessCredentials={hasBedrockStoredCredentials(
 							provider,
 						)}
+						bedrockExternalId={bedrockExternalId(provider)}
 						openAiAnthropicSavedApiKey={openAiAnthropicSavedApiKey}
 						openAiAnthropicMaskedApiKey={openAiAnthropicMaskedApiKey}
 						initialValues={aiProviderToFormValues(provider)}

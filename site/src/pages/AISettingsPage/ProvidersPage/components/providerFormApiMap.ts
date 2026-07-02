@@ -55,6 +55,15 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
+// Server-generated STS external ID; read-only.
+export const bedrockExternalId = (provider: AIProvider): string | undefined => {
+	if (!isBedrockProvider(provider)) {
+		return undefined;
+	}
+	const s = provider.settings as SettingsWire | null;
+	return s?.external_id || undefined;
+};
+
 export const hasBedrockStoredCredentials = (provider: AIProvider): boolean => {
 	if (!isBedrockProvider(provider)) {
 		return false;
