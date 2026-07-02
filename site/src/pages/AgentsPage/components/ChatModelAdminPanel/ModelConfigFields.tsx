@@ -246,6 +246,9 @@ const SelectField: FC<
 		label: string;
 		description?: string;
 		options: readonly string[];
+		// Label shown for the unset choice and as the placeholder.
+		// Defaults to "Default", meaning "use the provider default".
+		unsetLabel?: string;
 	}
 > = ({
 	form,
@@ -256,6 +259,7 @@ const SelectField: FC<
 	label,
 	description,
 	options,
+	unsetLabel = "Default",
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
@@ -279,10 +283,10 @@ const SelectField: FC<
 					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
-					<SelectValue placeholder="Default" />
+					<SelectValue placeholder={unsetLabel} />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value={unsetSelectValue}>Default</SelectItem>
+					<SelectItem value={unsetSelectValue}>{unsetLabel}</SelectItem>
 					{options.map((option) => (
 						<SelectItem key={option} value={option}>
 							{capitalize(option)}
@@ -662,15 +666,14 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /**
- * General model config fields (max output tokens, temperature,
- * top P, etc.) intended to be shown under an "Advanced" section.
- *
- * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`. The reasoning effort bounds render as
- * selects limited to the selected provider's supported effort set and
- * are hidden for providers without reasoning effort support.
+ * Default/Max reasoning effort selects, schema-driven from the
+ * general `reasoning_effort.default` / `reasoning_effort.max` fields.
+ * Options are limited to the selected provider's supported effort
+ * set; renders nothing for providers without reasoning effort
+ * support. Kept out of the Advanced section so admins can configure
+ * effort bounds without expanding anything.
  */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
@@ -680,10 +683,57 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	const supportedEfforts = getSupportedReasoningEfforts(
 		normalizeProvider(provider),
 	);
+	if (supportedEfforts.length === 0) {
+		return null;
+	}
+	const fields = getVisibleGeneralFields().filter(({ json_name }) =>
+		isReasoningEffortField(json_name),
+	);
+
+	return (
+		<>
+			{fields.map((field) => {
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
+				const fieldKey = `config.${camelName}`;
+				return (
+					<SelectField
+						key={fieldKey}
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={camelName}
+						label={snakeToPrettyLabel(field)}
+						description={field.description}
+						unsetLabel="Not set"
+						options={(field.enum ?? []).filter((value) =>
+							supportedEfforts.includes(value),
+						)}
+					/>
+				);
+			})}
+		</>
+	);
+};
+
+/**
+ * General model config fields (max output tokens, temperature,
+ * top P, etc.) intended to be shown under an "Advanced" section.
+ *
+ * Fields are driven by the auto-generated schema in
+ * `api/chatModelOptions`. The reasoning effort bounds are excluded
+ * here; they render prominently via ReasoningEffortConfigFields.
+ */
+export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 	const fields = getVisibleGeneralFields().filter(
 		({ json_name }) =>
-			!pricingFieldNames.has(json_name) &&
-			(!isReasoningEffortField(json_name) || supportedEfforts.length > 0),
+			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
 	);
 
 	return (
@@ -697,22 +747,6 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					.join(".");
 				const fieldKey = `config.${camelName}`;
 				const label = snakeToPrettyLabel(field);
-
-				if (isReasoningEffortField(field.json_name)) {
-					return (
-						<SelectField
-							key={fieldKey}
-							{...ctx}
-							fieldKey={fieldKey}
-							errorKey={camelName}
-							label={label}
-							description={field.description}
-							options={(field.enum ?? []).filter((value) =>
-								supportedEfforts.includes(value),
-							)}
-						/>
-					);
-				}
 
 				return (
 					<InputField
