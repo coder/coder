@@ -64,6 +64,14 @@ func (p *recordingPubsub) Publish(channel string, payload []byte) error {
 	return p.inner.Publish(channel, payload)
 }
 
+func (p *recordingPubsub) Close() error {
+	return p.inner.Close()
+}
+
+func (p *recordingPubsub) Subscribe(channel string, listener dbpubsub.Listener) (func(), error) {
+	return p.inner.Subscribe(channel, listener)
+}
+
 func (p *recordingPubsub) SubscribeWithErr(channel string, listener dbpubsub.ListenerWithErr) (func(), error) {
 	return p.inner.SubscribeWithErr(channel, listener)
 }

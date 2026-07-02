@@ -2066,6 +2066,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -2158,6 +2174,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -2209,6 +2241,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `diff_status`          | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
+| `goal`                 | [codersdk.ChatGoal](#codersdkchatgoal)                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `has_unread`           | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `labels`               | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2579,6 +2612,129 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `organization_id` | string | false    |              |             |
 | `owner_id`        | string | false    |              |             |
 
+## codersdk.ChatGoal
+
+```json
+{
+  "cleared_at": "2019-08-24T14:15:22Z",
+  "completed_at": "2019-08-24T14:15:22Z",
+  "completed_by_agent": true,
+  "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+  "completion_summary": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+  "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "objective": "string",
+  "replaced_at": "2019-08-24T14:15:22Z",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "status": "active",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                   | Type                                               | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------|----------|--------------|-------------|
+| `cleared_at`           | string                                             | false    |              |             |
+| `completed_at`         | string                                             | false    |              |             |
+| `completed_by_agent`   | boolean                                            | false    |              |             |
+| `completed_by_user_id` | string                                             | false    |              |             |
+| `completion_summary`   | string                                             | false    |              |             |
+| `created_at`           | string                                             | false    |              |             |
+| `created_by_user_id`   | string                                             | false    |              |             |
+| `created_from_chat_id` | string                                             | false    |              |             |
+| `id`                   | string                                             | false    |              |             |
+| `objective`            | string                                             | false    |              |             |
+| `replaced_at`          | string                                             | false    |              |             |
+| `root_chat_id`         | string                                             | false    |              |             |
+| `status`               | [codersdk.ChatGoalStatus](#codersdkchatgoalstatus) | false    |              |             |
+| `updated_at`           | string                                             | false    |              |             |
+
+## codersdk.ChatGoalMutation
+
+```json
+{
+  "action": "set",
+  "completion_summary": "string",
+  "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+  "objective": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                               | Required | Restrictions | Description |
+|----------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `action`             | [codersdk.ChatGoalMutationAction](#codersdkchatgoalmutationaction) | false    |              |             |
+| `completion_summary` | string                                                             | false    |              |             |
+| `goal_id`            | string                                                             | false    |              |             |
+| `objective`          | string                                                             | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                      |
+|----------|-----------------------------------------------|
+| `action` | `clear`, `complete`, `pause`, `resume`, `set` |
+
+## codersdk.ChatGoalMutationAction
+
+```json
+"set"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                      |
+|-----------------------------------------------|
+| `clear`, `complete`, `pause`, `resume`, `set` |
+
+## codersdk.ChatGoalResponse
+
+```json
+{
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name   | Type                                   | Required | Restrictions | Description |
+|--------|----------------------------------------|----------|--------------|-------------|
+| `goal` | [codersdk.ChatGoal](#codersdkchatgoal) | false    |              |             |
+
+## codersdk.ChatGoalStatus
+
+```json
+"active"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                              |
+|-------------------------------------------------------|
+| `active`, `cleared`, `complete`, `paused`, `replaced` |
+
 ## codersdk.ChatGroup
 
 ```json
@@ -2750,6 +2906,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "id": 0,
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "role": "system",
+  "sent_as_goal": true,
   "usage": {
     "cache_creation_tokens": 0,
     "cache_read_tokens": 0,
@@ -2773,6 +2930,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`              | integer                                                       | false    |              |             |
 | `model_config_id` | string                                                        | false    |              |             |
 | `role`            | [codersdk.ChatMessageRole](#codersdkchatmessagerole)          | false    |              |             |
+| `sent_as_goal`    | boolean                                                       | false    |              |             |
 | `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
 
 ## codersdk.ChatMessagePart
@@ -3017,6 +3175,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "system",
+      "sent_as_goal": true,
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -3496,6 +3655,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "sent_as_goal": true,
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -3941,6 +4101,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
+    "goal": {
+      "cleared_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "completed_by_agent": true,
+      "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+      "completion_summary": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+      "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "objective": "string",
+      "replaced_at": "2019-08-24T14:15:22Z",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "status": "active",
+      "updated_at": "2019-08-24T14:15:22Z"
+    },
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "labels": {
@@ -4006,9 +4182,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                          |
-|-----------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                         |
+|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `goal_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ClusterConfig
 
@@ -4361,6 +4537,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text"
     }
   ],
+  "goal_mutation": {
+    "action": "set",
+    "completion_summary": "string",
+    "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+    "objective": "string"
+  },
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -4375,6 +4557,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
 | `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
 | `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
+| `goal_mutation`   | [codersdk.ChatGoalMutation](#codersdkchatgoalmutation)    | false    |              |                                                                                                              |
 | `mcp_server_ids`  | array of string                                           | false    |              |                                                                                                              |
 | `model_config_id` | string                                                    | false    |              |                                                                                                              |
 | `plan_mode`       | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
@@ -4389,6 +4572,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -4460,6 +4659,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "sent_as_goal": true,
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -4551,6 +4751,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name             | Type                                                     | Required | Restrictions | Description |
 |------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `goal`           | [codersdk.ChatGoal](#codersdkchatgoal)                   | false    |              |             |
 | `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued`         | boolean                                                  | false    |              |             |
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
@@ -4572,6 +4773,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text"
     }
   ],
+  "goal_mutation": {
+    "action": "set",
+    "completion_summary": "string",
+    "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+    "objective": "string"
+  },
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -4602,6 +4809,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                            |
 | `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                            |
+| `goal_mutation`        | [codersdk.ChatGoalMutation](#codersdkchatgoalmutation)    | false    |              |                                                                                                                                            |
 | `labels`               | object                                                    | false    |              |                                                                                                                                            |
 | » `[any property]`     | string                                                    | false    |              |                                                                                                                                            |
 | `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                            |
@@ -6986,6 +7194,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "sent_as_goal": true,
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -7087,9 +7296,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                   |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai-gateway-cost-control`, `auto-fill-parameters`, `chat-advisor`, `chat-goals`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

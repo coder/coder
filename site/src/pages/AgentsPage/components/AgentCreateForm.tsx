@@ -24,7 +24,10 @@ import {
 	formatUsageLimitMessage,
 	isChatUsageLimitExceededResponse,
 } from "../utils/usageLimitMessage";
-import { AgentChatInput } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type AgentChatInputSendOptions,
+} from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
@@ -49,6 +52,7 @@ export type CreateChatOptions = {
 	model?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	goalMutation?: TypesGen.ChatGoalMutation;
 	planMode?: TypesGen.ChatPlanMode;
 };
 
@@ -134,6 +138,7 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
+	showPursueGoal?: boolean;
 	isPersonalModelOverridesLoading?: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
@@ -160,6 +165,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	rootPersonalModelOverride,
+	showPursueGoal = false,
 	isPersonalModelOverridesLoading = false,
 	mcpServers,
 	onMCPAuthComplete,
@@ -360,7 +366,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? selectedWorkspaceId
 			: null;
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
+	const handleSend = async (
+		message: string,
+		fileIDs?: string[],
+		options?: AgentChatInputSendOptions,
+	) => {
 		submitDraft();
 		await onCreateChat({
 			message,
@@ -368,6 +378,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			organizationId,
+			goalMutation: options?.goalMutation,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -392,7 +403,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
 
-	const handleSendWithAttachments = async (message: string) => {
+	const handleSendWithAttachments = async (
+		message: string,
+		options?: AgentChatInputSendOptions,
+	) => {
 		const fileIds: string[] = [];
 		let skippedErrors = 0;
 		for (const file of attachments) {
@@ -411,12 +425,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			);
 		}
 		const fileArg = fileIds.length > 0 ? fileIds : undefined;
-		try {
-			await handleSend(message, fileArg);
-			resetAttachments();
-		} catch {
-			// Attachments preserved for retry on failure.
-		}
+		await handleSend(message, fileArg, options);
+		resetAttachments();
 	};
 
 	const permittedOrgsQuery = useQuery({
@@ -532,6 +542,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
+						showPursueGoal={showPursueGoal}
+						canPursueGoal={showPursueGoal}
 						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
 						onAttach={handleAttach}

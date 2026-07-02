@@ -1582,6 +1582,7 @@ export interface Chat {
 	readonly last_error?: ChatError;
 	readonly last_turn_summary: string | null;
 	readonly diff_status?: ChatDiffStatus;
+	readonly goal?: ChatGoal;
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
@@ -2269,6 +2270,78 @@ export const ChatGitWatchWorkspaceNoAgentsMessage =
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
 
 // From codersdk/chats.go
+/**
+ * ChatGoal is a durable objective associated with a root chat.
+ */
+export interface ChatGoal {
+	readonly id: string;
+	readonly root_chat_id: string;
+	readonly created_from_chat_id?: string;
+	readonly objective: string;
+	readonly status: ChatGoalStatus;
+	readonly completion_summary?: string;
+	readonly created_by_user_id: string;
+	readonly completed_by_user_id?: string;
+	readonly completed_by_agent: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly completed_at?: string;
+	readonly cleared_at?: string;
+	readonly replaced_at?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatGoalMutation requests a goal lifecycle change.
+ */
+export interface ChatGoalMutation {
+	readonly action: ChatGoalMutationAction;
+	readonly goal_id?: string;
+	readonly objective?: string;
+	readonly completion_summary?: string;
+}
+
+// From codersdk/chats.go
+export type ChatGoalMutationAction =
+	| "clear"
+	| "complete"
+	| "pause"
+	| "resume"
+	| "set";
+
+export const ChatGoalMutationActions: ChatGoalMutationAction[] = [
+	"clear",
+	"complete",
+	"pause",
+	"resume",
+	"set",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatGoalResponse is returned by chat goal lifecycle endpoints.
+ */
+export interface ChatGoalResponse {
+	readonly goal?: ChatGoal;
+}
+
+// From codersdk/chats.go
+export type ChatGoalStatus =
+	| "active"
+	| "cleared"
+	| "complete"
+	| "paused"
+	| "replaced";
+
+export const ChatGoalStatuses: ChatGoalStatus[] = [
+	"active",
+	"cleared",
+	"complete",
+	"paused",
+	"replaced",
+];
+
+// From codersdk/chats.go
 export interface ChatGroup extends Group {
 	readonly role: ChatRole;
 }
@@ -2323,6 +2396,7 @@ export interface ChatMessage {
 	readonly created_at: string;
 	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
+	readonly sent_as_goal?: boolean;
 	readonly usage?: ChatMessageUsage;
 }
 
@@ -3275,6 +3349,7 @@ export type ChatWatchEventKind =
 	| "created"
 	| "deleted"
 	| "diff_status_change"
+	| "goal_change"
 	| "status_change"
 	| "summary_change"
 	| "title_change";
@@ -3285,6 +3360,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"created",
 	"deleted",
 	"diff_status_change",
+	"goal_change",
 	"status_change",
 	"summary_change",
 	"title_change",
@@ -3503,6 +3579,7 @@ export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
+	readonly goal_mutation?: ChatGoalMutation;
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -3519,6 +3596,7 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
+	readonly goal?: ChatGoal;
 	readonly warnings?: readonly string[];
 }
 
@@ -3564,6 +3642,7 @@ export interface CreateChatRequest {
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
+	readonly goal_mutation?: ChatGoalMutation;
 	/**
 	 * UnsafeDynamicTools declares client-executed tools that the
 	 * LLM can invoke. This API is highly experimental and highly
@@ -4597,6 +4676,7 @@ export type Experiment =
 	| "ai-gateway-cost-control"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-goals"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -4611,6 +4691,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-goals",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",
@@ -5508,6 +5589,24 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/chats.go
+/**
+ * MaxChatGoalCompletionSummaryBytes limits goal completion summaries accepted by chat goal mutations.
+ */
+export const MaxChatGoalCompletionSummaryBytes = 4096;
+
+// From codersdk/chats.go
+/**
+ * MaxChatGoalObjectiveBytes limits goal objective text accepted by chat goal mutations.
+ */
+export const MaxChatGoalObjectiveBytes = 4096;
+
+// From codersdk/chats.go
+/**
+ * MaxChatGoalTextPayloadBytes limits combined goal text sent in watch events.
+ */
+export const MaxChatGoalTextPayloadBytes = 6144;
 
 // From codersdk/usersecretvalidation.go
 /**

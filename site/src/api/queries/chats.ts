@@ -11,6 +11,7 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { currentChatGoal } from "./chatGoal";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -22,6 +23,9 @@ export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
+
+export const chatGoalKey = (chatId: string) =>
+	["chats", chatId, "goal"] as const;
 
 export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
@@ -422,6 +426,7 @@ export const mergeWatchedChatSummary = (
 	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
+	const isGoalEvent = eventKind === "goal_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -460,6 +465,9 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough || isSummaryEvent
 			? watchedChat.last_turn_summary
 			: cachedChat.last_turn_summary;
+	const nextGoal = isGoalEvent
+		? currentChatGoal(watchedChat.goal)
+		: cachedChat.goal;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -478,6 +486,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextGoal === cachedChat.goal &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context
@@ -493,6 +502,7 @@ export const mergeWatchedChatSummary = (
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
+		goal: nextGoal,
 		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
@@ -537,6 +547,9 @@ export const mergeWatchedChatIntoCaches = (
 			return mergeCachedChat(cachedChat);
 		},
 	);
+	if (options.eventKind === "goal_change") {
+		setCachedChatGoal(queryClient, watchedChat.id, watchedChat.goal);
+	}
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
@@ -586,6 +599,27 @@ const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
 	const segment = key[1];
 	return segment === undefined || typeof segment === "object";
 };
+
+const isChat = (data: unknown): data is TypesGen.Chat =>
+	typeof data === "object" && data !== null && "id" in data && "title" in data;
+
+const isChatDetailQuery = (query: {
+	queryKey: readonly unknown[];
+	state?: { data: unknown };
+}): boolean => {
+	const key = query.queryKey;
+	return (
+		key.length === 2 && typeof key[1] === "string" && isChat(query.state?.data)
+	);
+};
+
+const isChatGoalQuery = (query: { queryKey: readonly unknown[] }): boolean => {
+	const key = query.queryKey;
+	return key.length === 3 && typeof key[1] === "string" && key[2] === "goal";
+};
+
+const chatRootId = (chat: TypesGen.Chat): string =>
+	chat.root_chat_id ?? chat.parent_chat_id ?? chat.id;
 
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
@@ -729,6 +763,11 @@ export const chatSearch = (q: string) =>
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
+});
+
+export const chatGoal = (chatId: string) => ({
+	queryKey: chatGoalKey(chatId),
+	queryFn: () => API.experimental.getChatGoal(chatId),
 });
 
 export const chatACL = (chatId: string) => ({
@@ -955,6 +994,156 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			),
 		);
 		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+	},
+});
+
+type UpdateChatGoalVariables = {
+	chatId: string;
+	mutation: TypesGen.ChatGoalMutation;
+};
+
+export const setCachedChatGoal = (
+	queryClient: QueryClient,
+	chatId: string,
+	goal: TypesGen.ChatGoal | undefined,
+) => {
+	const cachedChatFamilyIDs = new Map<string, string>();
+	const rememberChatFamily = (chat: TypesGen.Chat) => {
+		cachedChatFamilyIDs.set(chat.id, chatRootId(chat));
+		for (const child of chat.children ?? []) {
+			cachedChatFamilyIDs.set(child.id, chatRootId(child));
+		}
+	};
+
+	const detailQueries = queryClient.getQueriesData<TypesGen.Chat>({
+		queryKey: chatsKey,
+		predicate: isChatDetailQuery,
+	});
+	for (const [, chat] of detailQueries) {
+		if (chat) {
+			rememberChatFamily(chat);
+		}
+	}
+
+	const listQueries = queryClient.getQueriesData<
+		TypesGen.Chat[] | { pages: TypesGen.Chat[][]; pageParams: unknown[] }
+	>({ queryKey: chatsKey, predicate: isChatListQuery });
+	for (const [, data] of listQueries) {
+		if (!data) {
+			continue;
+		}
+		const pages = Array.isArray(data) ? [data] : data.pages;
+		for (const page of pages) {
+			for (const chat of page) {
+				rememberChatFamily(chat);
+			}
+		}
+	}
+
+	const cachedGoal = currentChatGoal(goal);
+	const familyId =
+		goal?.root_chat_id ?? cachedChatFamilyIDs.get(chatId) ?? chatId;
+	const cachedFamilyChatIDs = new Set<string>([chatId, familyId]);
+	for (const [cachedChatID, cachedFamilyID] of cachedChatFamilyIDs) {
+		if (cachedFamilyID === familyId) {
+			cachedFamilyChatIDs.add(cachedChatID);
+		}
+	}
+	const isFamilyChat = (chat: TypesGen.Chat) => chatRootId(chat) === familyId;
+	const applyGoal = (chat: TypesGen.Chat) =>
+		chat.goal === cachedGoal ? chat : { ...chat, goal: cachedGoal };
+	const applyGoalToFamily = (chat: TypesGen.Chat) =>
+		isFamilyChat(chat) ? applyGoal(chat) : chat;
+	const applyGoalToTree = (chat: TypesGen.Chat) => {
+		const nextChat = applyGoalToFamily(chat);
+		if (!chat.children?.length) {
+			return nextChat;
+		}
+
+		let didUpdateChild = false;
+		const nextChildren = chat.children.map((child) => {
+			const nextChild = applyGoalToFamily(child);
+			if (nextChild !== child) {
+				didUpdateChild = true;
+			}
+			return nextChild;
+		});
+		return didUpdateChild ? { ...nextChat, children: nextChildren } : nextChat;
+	};
+
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let didUpdate = false;
+		const nextChats = chats.map((chat) => {
+			const nextChat = applyGoalToTree(chat);
+			if (nextChat !== chat) {
+				didUpdate = true;
+			}
+			return nextChat;
+		});
+		return didUpdate ? nextChats : chats;
+	});
+	queryClient.setQueriesData<TypesGen.Chat>(
+		{ queryKey: chatsKey, predicate: isChatDetailQuery },
+		(previousChat) =>
+			previousChat ? applyGoalToTree(previousChat) : previousChat,
+	);
+	queryClient.setQueriesData<TypesGen.ChatGoalResponse>(
+		{
+			queryKey: chatsKey,
+			predicate: (query) => {
+				if (!isChatGoalQuery(query)) {
+					return false;
+				}
+				const keyChatId = query.queryKey[1];
+				if (keyChatId === chatId) {
+					return false;
+				}
+				return (
+					typeof keyChatId === "string" && cachedFamilyChatIDs.has(keyChatId)
+				);
+			},
+		},
+		() => ({ goal: cachedGoal }),
+	);
+	queryClient.setQueryData<TypesGen.ChatGoalResponse>(chatGoalKey(chatId), {
+		goal: cachedGoal,
+	});
+};
+
+export const updateChatGoal = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, mutation }: UpdateChatGoalVariables) =>
+		API.experimental.updateChatGoal(chatId, mutation),
+	onMutate: async ({ chatId }: UpdateChatGoalVariables) => {
+		// Cancel in-flight reads so a stale response that started before
+		// the mutation cannot overwrite the fresh goal state.
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: isChatListQuery,
+		});
+		await queryClient.cancelQueries({ queryKey: chatKey(chatId), exact: true });
+		await queryClient.cancelQueries({
+			queryKey: chatGoalKey(chatId),
+			exact: true,
+		});
+	},
+	onSuccess: (
+		response: TypesGen.ChatGoalResponse,
+		{ chatId }: UpdateChatGoalVariables,
+	) => {
+		setCachedChatGoal(queryClient, chatId, response.goal);
+	},
+	onSettled: (
+		_response: TypesGen.ChatGoalResponse | undefined,
+		_error: unknown,
+		{ chatId }: UpdateChatGoalVariables,
+	) => {
+		// Refetch so the caches converge on server state even if a
+		// concurrent update won a race with the optimistic cache writes.
+		queryClient.invalidateQueries({ queryKey: chatKey(chatId), exact: true });
+		queryClient.invalidateQueries({
+			queryKey: chatGoalKey(chatId),
+			exact: true,
+		});
 	},
 });
 

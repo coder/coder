@@ -339,7 +339,7 @@ func currentTurnStepCount(messages []database.ChatMessage) int {
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
+		if msg.Role == database.ChatMessageRoleUser && !isGoalCompletionReminderMessageBestEffort(msg) {
 			latestUser = i
 		}
 	}
@@ -479,7 +479,14 @@ func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterToo
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
-		if msg.Role == database.ChatMessageRoleUser {
+		if msg.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		reminder, err := isGoalCompletionReminderMessage(msg)
+		if err != nil {
+			return false, err
+		}
+		if !reminder {
 			start = i + 1
 		}
 	}

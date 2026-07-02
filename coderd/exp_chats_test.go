@@ -74,6 +74,7 @@ func newChatTestOptions(
 		values.Experiments = serpent.StringArray{
 			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
+			string(codersdk.ExperimentChatGoals),
 		}
 	}
 
@@ -322,6 +323,307 @@ func insertAssistantCostMessage(
 		Content:         assistantContent,
 		TotalCostMicros: sql.NullInt64{Int64: totalCostMicros, Valid: true},
 	})
+}
+
+func TestChatGoalsRequireExperiment(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// Deploy without the chat-goals experiment.
+	values := coderdtest.DeploymentValues(t)
+	values.Experiments = serpent.StringArray{
+		string(codersdk.ExperimentChatAdvisor),
+	}
+	client := newChatClientWithDeploymentValues(t, values)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "start without a goal",
+		}},
+	})
+	require.NoError(t, err)
+	require.Nil(t, chat.Goal)
+
+	_, err = client.GetChatGoal(ctx, chat.ID)
+	sdkErr := requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, "Chat goals are not enabled")
+
+	goalID := uuid.New()
+	_, err = client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionPause,
+		GoalID: &goalID,
+	})
+	sdkErr = requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, "Chat goals are not enabled")
+
+	_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "start with a disabled goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "disabled objective",
+		},
+	})
+	sdkErr = requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, "Chat goals are not enabled")
+
+	// A deployment with the experiment accepts goal mutations.
+	enabledClient, _ := newChatClientWithDatabase(t)
+	enabledUser := coderdtest.CreateFirstUser(t, enabledClient.Client)
+	createChatModelConfig(t, enabledClient)
+	enabledChat, err := enabledClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: enabledUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "start with an enabled goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "enabled objective",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, enabledChat.Goal)
+}
+
+func TestChatGoalAPI(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "start with a goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "  ship the API  ",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, chat.Goal)
+	require.Equal(t, "ship the API", chat.Goal.Objective)
+	require.Equal(t, codersdk.ChatGoalStatusActive, chat.Goal.Status)
+
+	sentAsGoalMessages := func(t *testing.T) []codersdk.ChatMessage {
+		t.Helper()
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var out []codersdk.ChatMessage
+		for _, message := range messages.Messages {
+			if message.SentAsGoal {
+				out = append(out, message)
+			}
+		}
+		return out
+	}
+
+	sentAsGoal := sentAsGoalMessages(t)
+	require.Len(t, sentAsGoal, 1)
+	require.Equal(t, codersdk.ChatMessageRoleUser, sentAsGoal[0].Role)
+
+	goalResp, err := client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, goalResp.Goal)
+	require.Equal(t, chat.Goal.ID, goalResp.Goal.ID)
+
+	paused, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionPause,
+		GoalID: &chat.Goal.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, paused.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusPaused, paused.Goal.Status)
+	gotChat, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotChat.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusPaused, gotChat.Goal.Status)
+
+	resumed, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionResume,
+		GoalID: &chat.Goal.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resumed.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusActive, resumed.Goal.Status)
+
+	completed, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionComplete,
+		GoalID: &chat.Goal.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, completed.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusComplete, completed.Goal.Status)
+	require.NotNil(t, completed.Goal.CompletionSummary)
+	require.Equal(t, "Marked complete by user.", *completed.Goal.CompletionSummary)
+
+	current, err := client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, current.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusComplete, current.Goal.Status)
+
+	gotChat, err = client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotChat.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusComplete, gotChat.Goal.Status)
+
+	cleared, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionClear,
+		GoalID: &chat.Goal.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, cleared.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusCleared, cleared.Goal.Status)
+
+	current, err = client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Nil(t, current.Goal)
+
+	gotChat, err = client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Nil(t, gotChat.Goal)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	messageResponse, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "send a new goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "ship the message response marker",
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, messageResponse.Queued)
+	require.NotNil(t, messageResponse.Message)
+	require.True(t, messageResponse.Message.SentAsGoal)
+	require.NotNil(t, messageResponse.Goal)
+
+	sentAsGoal = sentAsGoalMessages(t)
+	require.Len(t, sentAsGoal, 2)
+
+	// A stale goal ID must not clear a historical completed goal after
+	// a newer goal became current.
+	staleGoal := messageResponse.Goal
+	_, err = client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionComplete,
+		GoalID: &staleGoal.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	newerResponse, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "send a replacement goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "ship the replacement goal",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, newerResponse.Goal)
+
+	_, err = client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionClear,
+		GoalID: &staleGoal.ID,
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+	// The stale completed goal keeps its completion metadata.
+	current, err = client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, current.Goal)
+	require.Equal(t, newerResponse.Goal.ID, current.Goal.ID)
+}
+
+func TestPatchChatGoalRequiresOwnerForSharedSiteOwner(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ownerClient, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient.Client)
+	createChatModelConfig(t, ownerClient)
+
+	sharedOwnerRaw, sharedOwner := coderdtest.CreateAnotherUser(
+		t,
+		ownerClient.Client,
+		firstUser.OrganizationID,
+		rbac.RoleOwner(),
+		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
+	)
+	sharedOwnerClient := codersdk.NewExperimentalClient(sharedOwnerRaw)
+
+	chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "start with an owner goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "protect goal updates",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, chat.Goal)
+
+	err = db.UpdateChatACLByID(dbauthz.As(ctx, rbac.Subject{
+		ID:    firstUser.UserID.String(),
+		Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Scope: rbac.ScopeAll,
+	}), database.UpdateChatACLByIDParams{
+		ID: chat.ID,
+		UserACL: database.ChatACL{
+			sharedOwner.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+
+	gotGoal, err := sharedOwnerClient.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotGoal.Goal)
+	require.Equal(t, chat.Goal.ID, gotGoal.Goal.ID)
+
+	_, err = sharedOwnerClient.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionPause,
+		GoalID: &chat.Goal.ID,
+	})
+	sdkErr := requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, "Only the chat owner")
+
+	current, err := ownerClient.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, current.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusActive, current.Goal.Status)
 }
 
 func TestPostChats(t *testing.T) {

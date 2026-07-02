@@ -577,6 +577,94 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/goal": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get current chat goal",
+                "operationId": "get-current-chat-goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat goal",
+                "operationId": "update-chat-goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat goal mutation",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalMutation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/interrupt": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -16659,6 +16747,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatFileMetadata"
                     }
                 },
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                },
                 "has_unread": {
                     "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect.",
                     "type": "boolean"
@@ -17082,6 +17173,134 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatGoal": {
+            "type": "object",
+            "properties": {
+                "cleared_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "completed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "completed_by_agent": {
+                    "type": "boolean"
+                },
+                "completed_by_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "completion_summary": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by_user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "created_from_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "objective": {
+                    "type": "string"
+                },
+                "replaced_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "root_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.ChatGoalStatus"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatGoalMutation": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "enum": [
+                        "set",
+                        "clear",
+                        "pause",
+                        "resume",
+                        "complete"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatGoalMutationAction"
+                        }
+                    ]
+                },
+                "completion_summary": {
+                    "type": "string"
+                },
+                "goal_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "objective": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatGoalMutationAction": {
+            "type": "string",
+            "enum": [
+                "set",
+                "clear",
+                "pause",
+                "resume",
+                "complete"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalMutationActionSet",
+                "ChatGoalMutationActionClear",
+                "ChatGoalMutationActionPause",
+                "ChatGoalMutationActionResume",
+                "ChatGoalMutationActionComplete"
+            ]
+        },
+        "codersdk.ChatGoalResponse": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                }
+            }
+        },
+        "codersdk.ChatGoalStatus": {
+            "type": "string",
+            "enum": [
+                "active",
+                "paused",
+                "complete",
+                "cleared",
+                "replaced"
+            ],
+            "x-enum-varnames": [
+                "ChatGoalStatusActive",
+                "ChatGoalStatusPaused",
+                "ChatGoalStatusComplete",
+                "ChatGoalStatusCleared",
+                "ChatGoalStatusReplaced"
+            ]
+        },
         "codersdk.ChatGroup": {
             "type": "object",
             "properties": {
@@ -17209,6 +17428,9 @@ const docTemplate = `{
                 },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
+                },
+                "sent_as_goal": {
+                    "type": "boolean"
                 },
                 "usage": {
                     "$ref": "#/definitions/codersdk.ChatMessageUsage"
@@ -17863,6 +18085,7 @@ const docTemplate = `{
                 "title_change",
                 "created",
                 "deleted",
+                "goal_change",
                 "diff_status_change",
                 "action_required",
                 "context_dirty"
@@ -17873,6 +18096,7 @@ const docTemplate = `{
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
+                "ChatWatchEventKindGoalChange",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"
@@ -18137,6 +18361,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "goal_mutation": {
+                    "$ref": "#/definitions/codersdk.ChatGoalMutation"
+                },
                 "mcp_server_ids": {
                     "type": "array",
                     "items": {
@@ -18161,6 +18388,9 @@ const docTemplate = `{
         "codersdk.CreateChatMessageResponse": {
             "type": "object",
             "properties": {
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
@@ -18189,6 +18419,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
+                },
+                "goal_mutation": {
+                    "$ref": "#/definitions/codersdk.ChatGoalMutation"
                 },
                 "labels": {
                     "type": "object",
@@ -19619,12 +19852,14 @@ const docTemplate = `{
                 "minimum-implicit-member",
                 "ai-gateway-cost-control",
                 "chat-advisor",
-                "chat-virtual-desktop"
+                "chat-virtual-desktop",
+                "chat-goals"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatGoals": "Enables durable goals for root agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -19647,7 +19882,8 @@ const docTemplate = `{
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
                 "Enables AI Gateway cost control functionality.",
                 "Enables the advisor tool for root agent chats.",
-                "Enables virtual desktop and computer use provider for agents."
+                "Enables virtual desktop and computer use provider for agents.",
+                "Enables durable goals for root agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19661,7 +19897,8 @@ const docTemplate = `{
                 "ExperimentMinimumImplicitMember",
                 "ExperimentAIGatewayCostControl",
                 "ExperimentChatAdvisor",
-                "ExperimentChatVirtualDesktop"
+                "ExperimentChatVirtualDesktop",
+                "ExperimentChatGoals"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

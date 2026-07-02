@@ -413,6 +413,15 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
+-- name: GetChatGoalMessageIDsByChatAndMessageIDs :many
+SELECT DISTINCT
+    created_from_message_id::bigint AS message_id
+FROM
+    chat_goals
+WHERE
+    created_from_chat_id = @chat_id::uuid
+    AND created_from_message_id = ANY(@message_ids::bigint[]);
+
 -- name: GetChatUserPromptsByChatID :many
 -- Returns the concatenated text of each user-visible user prompt in a
 -- chat, newest first. Used by the composer to populate the up/down
@@ -501,6 +510,23 @@ WHERE
     )
 ORDER BY
     created_at ASC,
+    id ASC;
+
+-- name: GetChatHiddenUserMessagesByChatID :many
+-- Returns model-only user messages (goal completion reminders and
+-- compaction summaries) regardless of compaction boundaries. Used by
+-- chatd so goal reminder accounting stays stable when a compaction
+-- summary hides earlier rows from the prompt window.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND role = 'user'
+    AND visibility = 'model'
+    AND deleted = false
+ORDER BY
     id ASC;
 
 -- name: GetChats :many
@@ -2029,6 +2055,7 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
+
 -- name: GetChatByIDForShare :one
 WITH shared_chat AS (
     SELECT *
@@ -2088,6 +2115,136 @@ chats_expanded AS (
 )
 SELECT *
 FROM chats_expanded;
+
+
+-- name: GetCurrentChatGoalByRootChatID :one
+SELECT
+    chat_goals.*
+FROM
+    chat_goals
+WHERE
+    id = (
+        SELECT
+            id
+        FROM
+            chat_goals
+        WHERE
+            root_chat_id = @root_chat_id::uuid
+        ORDER BY
+            created_at DESC,
+            goal_order DESC
+        LIMIT 1
+    )
+    AND status IN ('active', 'paused', 'complete');
+
+-- name: GetCurrentChatGoalsByRootChatIDs :many
+WITH latest_goal_ids AS (
+    SELECT DISTINCT ON (root_chat_id)
+        id
+    FROM
+        chat_goals
+    WHERE
+        root_chat_id = ANY(@root_chat_ids::uuid[])
+    ORDER BY
+        root_chat_id,
+        created_at DESC,
+        goal_order DESC
+)
+SELECT
+    chat_goals.*
+FROM
+    chat_goals
+JOIN latest_goal_ids ON latest_goal_ids.id = chat_goals.id
+WHERE
+    chat_goals.status IN ('active', 'paused', 'complete');
+
+-- name: MarkCurrentChatGoalReplacedByRootChatID :many
+UPDATE
+    chat_goals
+SET
+    status = 'replaced',
+    updated_at = NOW(),
+    replaced_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND status IN ('active', 'paused')
+RETURNING *;
+
+-- name: InsertActiveChatGoal :one
+INSERT INTO chat_goals (
+    root_chat_id,
+    created_from_chat_id,
+    created_from_message_id,
+    objective,
+    status,
+    created_by_user_id
+) VALUES (
+    @root_chat_id::uuid,
+    sqlc.narg('created_from_chat_id')::uuid,
+    sqlc.narg('created_from_message_id')::bigint,
+    @objective::text,
+    'active',
+    @created_by_user_id::uuid
+)
+RETURNING *;
+
+-- name: PauseChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'paused',
+    updated_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'active'
+RETURNING *;
+
+-- name: ResumeChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'active',
+    updated_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'paused'
+RETURNING *;
+
+-- name: ClearChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'cleared',
+    completion_summary = NULL,
+    completed_by_user_id = NULL,
+    completed_by_agent = FALSE,
+    completed_at = NULL,
+    updated_at = NOW(),
+    cleared_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status IN ('active', 'paused', 'complete')
+RETURNING *;
+
+-- name: CompleteChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'complete',
+    completion_summary = sqlc.narg('completion_summary')::text,
+    completed_by_user_id = sqlc.narg('completed_by_user_id')::uuid,
+    completed_by_agent = @completed_by_agent::bool,
+    updated_at = NOW(),
+    completed_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'active'
+RETURNING *;
+
 
 -- name: GetChatsByChatFileID :many
 SELECT

@@ -204,8 +204,13 @@ export const AllOverridesUnset: Story = {
 		).toBeVisible();
 
 		expect(canvas.getByText("Allow personal model overrides")).toBeVisible();
+		expect(canvas.getByText("Chat goals")).toBeVisible();
+		expect(
+			canvas.getByRole("switch", { name: "Enable chat goals" }),
+		).not.toBeChecked();
 		const headings = await canvas.findAllByRole("heading", { level: 3 });
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
+			"Chat goals",
 			"General model",
 			"Title generation model",
 			"Explore subagent model",

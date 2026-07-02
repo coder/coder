@@ -10,6 +10,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TargetIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -92,8 +93,15 @@ export {
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
+export type AgentChatInputSendOptions = {
+	goalMutation?: TypesGen.ChatGoalMutation;
+};
+
 interface AgentChatInputProps {
-	onSend: (message: string) => void;
+	onSend: (
+		message: string,
+		options?: AgentChatInputSendOptions,
+	) => Promise<void> | void;
 	sendShortcut?: AgentChatSendShortcut;
 	placeholder?: string;
 	isDisabled: boolean;
@@ -121,6 +129,8 @@ interface AgentChatInputProps {
 	hasModelOptions: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	showPursueGoal?: boolean;
+	canPursueGoal?: boolean;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -356,6 +366,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	hasModelOptions,
 	planModeEnabled = false,
 	onPlanModeToggle,
+	showPursueGoal = false,
+	canPursueGoal = false,
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -423,6 +435,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
 	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
+	const [pursueGoalEnabled, setPursueGoalEnabled] = useState(false);
 	const mcpPopupRef = useRef<Window | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
@@ -604,12 +617,41 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
 
+	const isGoalModeUnavailable =
+		!showPursueGoal ||
+		!canPursueGoal ||
+		editingQueuedMessageID !== null ||
+		isEditingHistoryMessage;
+
+	useEffect(() => {
+		if (pursueGoalEnabled && isGoalModeUnavailable) {
+			setPursueGoalEnabled(false);
+		}
+	}, [pursueGoalEnabled, isGoalModeUnavailable]);
+
 	const handlePlanModeToggle = () => {
-		onPlanModeToggle?.(!planModeEnabled);
+		const nextEnabled = !planModeEnabled;
+		if (nextEnabled) {
+			setPursueGoalEnabled(false);
+		}
+		onPlanModeToggle?.(nextEnabled);
+		setPlusMenuOpen(false);
+	};
+
+	const handleGoalModeToggle = () => {
+		if (isDisabled || isGoalModeUnavailable) {
+			return;
+		}
+		const nextEnabled = !pursueGoalEnabled;
+		setPursueGoalEnabled(nextEnabled);
+		if (nextEnabled && planModeEnabled) {
+			onPlanModeToggle?.(false);
+		}
 		setPlusMenuOpen(false);
 	};
 
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+	const handleDisableGoalMode = () => setPursueGoalEnabled(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -868,15 +910,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasDraftContext =
 		hasContent || attachments.length > 0 || hasFileReferences;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
-	const hasSendableContent =
-		hasContent || hasUploadedAttachments || hasFileReferences;
+	const hasSendableContent = pursueGoalEnabled
+		? hasContent
+		: hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
 		// If the input is empty and there are queued messages,
@@ -905,7 +948,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		if (pursueGoalEnabled && !text) {
+			return;
+		}
+
+		const sendOptions: AgentChatInputSendOptions | undefined = pursueGoalEnabled
+			? { goalMutation: { action: "set", objective: text } }
+			: undefined;
+		try {
+			await onSend(text, sendOptions);
+		} catch {
+			return;
+		}
+		if (pursueGoalEnabled) {
+			setPursueGoalEnabled(false);
+		}
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
@@ -1175,7 +1232,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					remountKey={remountKey}
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
-					onEnter={handleSubmit}
+					onEnter={() => {
+						void handleSubmit();
+					}}
 					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
 					autoFocus
@@ -1287,12 +1346,28 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												role="menuitemcheckbox"
 												aria-checked={planModeEnabled}
 												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
+												disabled={isDisabled || pursueGoalEnabled}
 												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 											>
 												<PencilIcon className="size-3.5 shrink-0" />
 												<span>Plan first</span>
 												{planModeEnabled && (
+													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+												)}
+											</button>
+										)}
+										{showPursueGoal && (
+											<button
+												type="button"
+												role="menuitemcheckbox"
+												aria-checked={pursueGoalEnabled}
+												onClick={handleGoalModeToggle}
+												disabled={isDisabled || isGoalModeUnavailable}
+												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												<TargetIcon className="size-3.5 shrink-0" />
+												<span>Pursue goal</span>
+												{pursueGoalEnabled && (
 													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 												)}
 											</button>
@@ -1446,6 +1521,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
+						{pursueGoalEnabled && (
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
+								<TargetIcon className="size-3" />
+								Pursuing goal
+								<BadgeDismissButton
+									onClick={handleDisableGoalMode}
+									ariaLabel="Disable goal mode"
+									isDisabled={isDisabled}
+								/>
+							</span>
+						)}
 						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
@@ -1589,7 +1675,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										variant="default"
 										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
 										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
+											speech.isRecording
+												? handleAcceptRecording
+												: () => {
+														void handleSubmit();
+													}
 										}
 										disabled={speech.isRecording ? false : !canSend}
 										aria-keyshortcuts={sendButtonKeyShortcuts}

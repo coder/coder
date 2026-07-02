@@ -21,6 +21,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk/chatgoal"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -1521,6 +1522,25 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	return msg
 }
 
+// ChatMessageWithSentAsGoal converts a database chat message and sets the
+// durable goal-origin marker.
+func ChatMessageWithSentAsGoal(m database.ChatMessage, sentAsGoal bool) codersdk.ChatMessage {
+	msg := ChatMessage(m)
+	msg.SentAsGoal = sentAsGoal
+	return msg
+}
+
+// ChatMessagesWithSentAsGoalIDs converts database chat messages and marks
+// those whose IDs appear in sentAsGoalIDs.
+func ChatMessagesWithSentAsGoalIDs(messages []database.ChatMessage, sentAsGoalIDs map[int64]struct{}) []codersdk.ChatMessage {
+	out := make([]codersdk.ChatMessage, 0, len(messages))
+	for _, message := range messages {
+		_, sentAsGoal := sentAsGoalIDs[message.ID]
+		out = append(out, ChatMessageWithSentAsGoal(message, sentAsGoal))
+	}
+	return out
+}
+
 // chatMessageUsage builds a ChatMessageUsage from the database row,
 // returning nil when no token fields are populated.
 func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
@@ -1661,6 +1681,11 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 		payload.Message = fallbackChatLastErrorMessage
 	}
 	return &payload
+}
+
+// ChatGoal converts a database.ChatGoal to a codersdk.ChatGoal.
+func ChatGoal(goal database.ChatGoal) codersdk.ChatGoal {
+	return chatgoal.ToSDK(goal)
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces

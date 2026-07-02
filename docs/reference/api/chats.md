@@ -92,6 +92,22 @@ Experimental: this endpoint is subject to change.
         "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
+    "goal": {
+      "cleared_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "completed_by_agent": true,
+      "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+      "completion_summary": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+      "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "objective": "string",
+      "replaced_at": "2019-08-24T14:15:22Z",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "status": "active",
+      "updated_at": "2019-08-24T14:15:22Z"
+    },
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "labels": {
@@ -141,85 +157,100 @@ Experimental: this endpoint is subject to change.
 
 Status Code **200**
 
-| Name                     | Type                                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|--------------------------|------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`           | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `» agent_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» archived`             | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `» build_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» children`             | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `» client_type`          | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» context`              | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
-| `»» dirty`               | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
-| `»» dirty_since`         | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
-| `»» error`               | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
-| `»» resources`           | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                 |
-| `»»» error`              | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
-| `»»» kind`               | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» size_bytes`         | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
-| `»»» skill_description`  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» skill_name`         | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `»»» source`             | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
-| `»»» status`             | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
-| `»»» tools`              | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
-| `»»»» description`       | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
-| `»»»» name`              | string                                                                             | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
-| `» created_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» diff_status`          | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» additions`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» approved`            | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» author_avatar_url`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» author_login`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» base_branch`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» changed_files`       | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» changes_requested`   | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» chat_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» commits`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» deletions`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» head_branch`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pr_number`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_draft`  | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_state`  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_title`  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» refreshed_at`        | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» reviewer_count`      | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» stale_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» url`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» files`                | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» created_at`          | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» id`                  | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» mime_type`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» name`                | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» organization_id`     | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» owner_id`            | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» has_unread`           | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `» id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» labels`               | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» [any property]`      | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_error`           | [codersdk.ChatError](schemas.md#codersdkchaterror)                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» detail`              | string                                                                             | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
-| `»» kind`                | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                         | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
-| `»» message`             | string                                                                             | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
-| `»» provider`            | string                                                                             | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
-| `»» retryable`           | boolean                                                                            | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
-| `»» status_code`         | integer                                                                            | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                  |
-| `» last_model_config_id` | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_turn_summary`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» mcp_server_ids`       | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `» organization_id`      | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_name`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_username`       | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» parent_chat_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» pin_order`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `» plan_mode`            | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» root_chat_id`         | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
-| `» shared`               | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `» status`               | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
-| `» title`                | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
-| `» updated_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» warnings`             | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
-| `» workspace_id`         | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                      | Type                                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|---------------------------|------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» agent_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» archived`              | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» build_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» children`              | [codersdk.Chat](schemas.md#codersdkchat)                                           | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `» client_type`           | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» context`               | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                             | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `»» dirty`                | boolean                                                                            | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                   |
+| `»» dirty_since`          | string(date-time)                                                                  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                          |
+| `»» error`                | string                                                                             | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                    |
+| `»» resources`            | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                 |
+| `»»» error`               | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
+| `»»» kind`                | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `»»» size_bytes`          | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
+| `»»» skill_description`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»»» skill_name`          | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
+| `»»» source`              | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `»»» status`              | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
+| `»»» tools`               | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+| `»»»» description`        | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                            |
+| `»»»» name`               | string                                                                             | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                          |
+| `» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» diff_status`           | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» additions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» approved`             | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_avatar_url`    | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» author_login`         | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» base_branch`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changed_files`        | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» changes_requested`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» chat_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» commits`              | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» deletions`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» head_branch`          | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pr_number`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_draft`   | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_state`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» pull_request_title`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» refreshed_at`         | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» reviewer_count`       | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» stale_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» url`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» files`                 | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» created_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» mime_type`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» name`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» organization_id`      | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» owner_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» goal`                  | [codersdk.ChatGoal](schemas.md#codersdkchatgoal)                                   | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» cleared_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» completed_at`         | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» completed_by_agent`   | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» completed_by_user_id` | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» completion_summary`   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» created_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» created_by_user_id`   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» created_from_chat_id` | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» id`                   | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» objective`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» replaced_at`          | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» root_chat_id`         | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» status`               | [codersdk.ChatGoalStatus](schemas.md#codersdkchatgoalstatus)                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» updated_at`           | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» has_unread`            | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» labels`                | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» [any property]`       | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_error`            | [codersdk.ChatError](schemas.md#codersdkchaterror)                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» detail`               | string                                                                             | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
+| `»» kind`                 | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                         | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
+| `»» message`              | string                                                                             | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
+| `»» provider`             | string                                                                             | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
+| `»» retryable`            | boolean                                                                            | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
+| `»» status_code`          | integer                                                                            | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                  |
+| `» last_model_config_id`  | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» last_turn_summary`     | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» mcp_server_ids`        | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» organization_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_name`            | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» owner_username`        | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» parent_chat_id`        | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» pin_order`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `» plan_mode`             | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
+| `» title`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» updated_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `» warnings`              | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
+| `» workspace_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 
 #### Enumerated Values
 
@@ -227,7 +258,7 @@ Status Code **200**
 |---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `client_type` | `api`, `ui`                                                                                                                                                                                              |
 | `kind`        | `auth`, `config`, `generic`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `completed`, `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `pending`, `requires_action`, `running`, `unreadable`, `waiting`                                                |
+| `status`      | `active`, `cleared`, `complete`, `completed`, `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `paused`, `pending`, `replaced`, `requires_action`, `running`, `unreadable`, `waiting`   |
 | `plan_mode`   | `plan`                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -264,6 +295,12 @@ Experimental: this endpoint is subject to change.
       "type": "text"
     }
   ],
+  "goal_mutation": {
+    "action": "set",
+    "completion_summary": "string",
+    "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+    "objective": "string"
+  },
   "labels": {
     "property1": "string",
     "property2": "string"
@@ -364,6 +401,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -456,6 +509,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -705,6 +774,22 @@ Experimental: this endpoint is subject to change.
         "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
+    "goal": {
+      "cleared_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "completed_by_agent": true,
+      "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+      "completion_summary": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+      "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "objective": "string",
+      "replaced_at": "2019-08-24T14:15:22Z",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "status": "active",
+      "updated_at": "2019-08-24T14:15:22Z"
+    },
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "labels": {
@@ -851,6 +936,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -943,6 +1044,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -1126,6 +1243,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -1218,6 +1351,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -1399,6 +1548,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -1491,6 +1656,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -1640,6 +1821,7 @@ Experimental: this endpoint is subject to change.
       "id": 0,
       "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "system",
+      "sent_as_goal": true,
       "usage": {
         "cache_creation_tokens": 0,
         "cache_read_tokens": 0,
@@ -1766,6 +1948,12 @@ Experimental: this endpoint is subject to change.
       "type": "text"
     }
   ],
+  "goal_mutation": {
+    "action": "set",
+    "completion_summary": "string",
+    "goal_id": "3854d9ad-4bca-4a70-a63e-7c6bc2f12aee",
+    "objective": "string"
+  },
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
@@ -1787,6 +1975,22 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -1858,6 +2062,7 @@ Experimental: this endpoint is subject to change.
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "sent_as_goal": true,
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -2073,6 +2278,7 @@ Experimental: this endpoint is subject to change.
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "sent_as_goal": true,
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -2239,6 +2445,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -2331,6 +2553,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {
@@ -2493,6 +2731,7 @@ Experimental: this endpoint is subject to change.
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
     "role": "system",
+    "sent_as_goal": true,
     "usage": {
       "cache_creation_tokens": 0,
       "cache_read_tokens": 0,
@@ -2837,6 +3076,22 @@ Experimental: this endpoint is subject to change.
           "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
+      "goal": {
+        "cleared_at": "2019-08-24T14:15:22Z",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "completed_by_agent": true,
+        "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+        "completion_summary": "string",
+        "created_at": "2019-08-24T14:15:22Z",
+        "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+        "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "objective": "string",
+        "replaced_at": "2019-08-24T14:15:22Z",
+        "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+        "status": "active",
+        "updated_at": "2019-08-24T14:15:22Z"
+      },
       "has_unread": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "labels": {
@@ -2929,6 +3184,22 @@ Experimental: this endpoint is subject to change.
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "has_unread": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "labels": {

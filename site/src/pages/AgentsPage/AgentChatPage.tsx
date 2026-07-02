@@ -16,6 +16,10 @@ import {
 } from "#/api/api";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
+import {
+	type ChatGoalAction,
+	chatGoalActionAllowed,
+} from "#/api/queries/chatGoal";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
@@ -30,6 +34,8 @@ import {
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	setCachedChatGoal,
+	updateChatGoal,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -63,7 +69,10 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
-import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import type {
+	AgentChatInputSendOptions,
+	ChatMessageInputRef,
+} from "./components/AgentChatInput";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
@@ -214,6 +223,50 @@ export const runPromoteQueuedMessage = async (params: {
 	}
 };
 
+/** @internal Exported for testing. */
+export const runGoalAction = async (params: {
+	agentId: string | undefined;
+	goal: TypesGen.ChatGoal | undefined;
+	action: ChatGoalAction;
+	completionSummary?: string;
+	updateGoal: (variables: {
+		chatId: string;
+		mutation: TypesGen.ChatGoalMutation;
+	}) => Promise<unknown>;
+	liveChatStatus?: TypesGen.ChatStatus | null;
+	onMissingGoal?: () => void;
+	onPausedRunningGoal?: () => void;
+}): Promise<void> => {
+	const {
+		agentId,
+		goal,
+		action,
+		completionSummary,
+		updateGoal,
+		liveChatStatus,
+		onMissingGoal,
+		onPausedRunningGoal,
+	} = params;
+	if (!agentId) {
+		return;
+	}
+	if (!goal?.id || !chatGoalActionAllowed(goal, action)) {
+		onMissingGoal?.();
+		return;
+	}
+	await updateGoal({
+		chatId: agentId,
+		mutation: {
+			action,
+			goal_id: goal.id,
+			completion_summary: completionSummary,
+		},
+	});
+	if (action === "pause" && liveChatStatus === "running") {
+		onPausedRunningGoal?.();
+	}
+};
+
 export async function submitEditAndScroll({
 	editMessage,
 	editArgs,
@@ -320,6 +373,7 @@ export function useConversationEditingState(deps: {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
+		options?: AgentChatInputSendOptions,
 	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
@@ -517,11 +571,12 @@ export function useConversationEditingState(deps: {
 	const handleSendFromInput = async (
 		message: string,
 		attachments?: readonly PendingAttachment[],
+		options?: AgentChatInputSendOptions,
 	) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const sendPromise = onSend(message, attachments, editedMessageID, options);
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.
@@ -549,7 +604,7 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
-		// history or queued message — the original draft (possibly
+		// history or queued message, the original draft (possibly
 		// containing file-reference chips) is saved in React state
 		// and should survive a cancel.
 		if (editingMessageId !== null || editingQueuedMessageID !== null) {
@@ -562,7 +617,7 @@ export function useConversationEditingState(deps: {
 				try {
 					localStorage.setItem(draftStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError — silently discard the draft.
+					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(draftStorageKey);
@@ -788,6 +843,7 @@ const AgentChatPage: FC = () => {
 		workspace,
 		currentUser.id,
 	);
+	const areChatGoalsEnabled = experiments.includes("chat-goals");
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -1020,6 +1076,17 @@ const AgentChatPage: FC = () => {
 		},
 	});
 
+	const updateChatGoalBase = updateChatGoal(queryClient);
+	const {
+		isPending: isUpdateChatGoalPending,
+		mutateAsync: updateChatGoalAsync,
+	} = useMutation({
+		...updateChatGoalBase,
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to update goal."));
+		},
+	});
+
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
 	const {
 		isPending: isUpdateChatPlanModePending,
@@ -1160,7 +1227,9 @@ const AgentChatPage: FC = () => {
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+		isUpdateChatPlanModePending ||
+		isUpdateChatWorkspacePending ||
+		isUpdateChatGoalPending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -1168,6 +1237,8 @@ const AgentChatPage: FC = () => {
 		isViewerNotOwner ||
 		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
+	const canMutateGoal = areChatGoalsEnabled && isRootChat && !isViewerNotOwner;
+	const isGoalActionDisabled = isArchived || isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1183,6 +1254,30 @@ const AgentChatPage: FC = () => {
 			}),
 			pendingPlanModeSyncRef,
 		);
+	};
+
+	const handleGoalAction = async (
+		action: ChatGoalAction,
+		completionSummary?: string,
+	) => {
+		if (!canMutateGoal) {
+			toast.warning("Goals can only be changed from the root chat.");
+			return;
+		}
+		await runGoalAction({
+			agentId,
+			goal: chatQuery.data?.goal,
+			action,
+			completionSummary,
+			updateGoal: updateChatGoalAsync,
+			liveChatStatus,
+			onMissingGoal: () => {
+				toast.info("No current goal.");
+			},
+			onPausedRunningGoal: () => {
+				toast.info("Goal paused. Use Stop to halt the current turn.");
+			},
+		}).catch(() => undefined);
 	};
 
 	const handleUsageLimitError = (error: unknown): void => {
@@ -1417,12 +1512,14 @@ const AgentChatPage: FC = () => {
 		editedMessageID,
 		useComposerContent = true,
 		planModeSwitch,
+		goalMutation,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
 		planModeSwitch?: PlanModeSwitch;
+		goalMutation?: TypesGen.ChatGoalMutation;
 	}) {
 		const { content, hasContent } = buildChatInputContent({
 			message,
@@ -1503,6 +1600,7 @@ const AgentChatPage: FC = () => {
 		const request: CreateChatMessageRequestWithClearablePlanMode = {
 			content,
 			model_config_id: selectedModelConfigID,
+			goal_mutation: goalMutation,
 			mcp_server_ids:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -1549,6 +1647,9 @@ const AgentChatPage: FC = () => {
 				upsertCacheMessages([response.message]);
 			}
 		}
+		if ("goal" in response) {
+			setCachedChatGoal(queryClient, agentId, response.goal);
+		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
 		} else {
@@ -1566,11 +1667,16 @@ const AgentChatPage: FC = () => {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
+		options?: AgentChatInputSendOptions,
 	) {
 		await submitChatTurn({
 			message,
 			attachments,
 			editedMessageID,
+			goalMutation:
+				editedMessageID === undefined && canMutateGoal && !isGoalActionDisabled
+					? options?.goalMutation
+					: undefined,
 		});
 	}
 
@@ -1683,6 +1789,12 @@ const AgentChatPage: FC = () => {
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}
+			goal={areChatGoalsEnabled ? chatQuery.data?.goal : undefined}
+			showPursueGoal={areChatGoalsEnabled}
+			canMutateGoal={canMutateGoal}
+			isGoalActionPending={isUpdateChatGoalPending}
+			isGoalActionDisabled={isGoalActionDisabled}
+			onGoalAction={handleGoalAction}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -1722,7 +1834,7 @@ const AgentChatPage: FC = () => {
 
 // Keyed wrapper so that navigating between agents (changing the
 // :agentId param) fully remounts the component, resetting all
-// internal state — drafts, editing, queries — cleanly.
+// internal state, drafts, editing, and queries, cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	return <AgentChatPage key={agentId} />;

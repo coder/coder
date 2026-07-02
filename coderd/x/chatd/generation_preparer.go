@@ -342,6 +342,25 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
+	var activeGoal *database.ChatGoal
+	chatGoalsEnabled := server.experiments.Enabled(codersdk.ExperimentChatGoals)
+	if chatGoalsEnabled {
+		activeGoal, err = currentChatGoal(ctx, server.db, chatRootID(chat))
+		if err != nil {
+			cleanup()
+			return generationPrepared{}, err
+		}
+		if activeGoal != nil && activeGoal.Status != database.ChatGoalStatusActive {
+			activeGoal = nil
+		}
+	}
+	goalBehaviorTurn := chatGoalsEnabled && isRootChat && !isPlanModeTurn && !isExploreSubagent
+	canCompleteGoal := goalBehaviorTurn && activeGoal != nil
+	var goalReminder *generationGoalReminder
+	if canCompleteGoal {
+		goalReminder = &generationGoalReminder{GoalID: activeGoal.ID}
+	}
+
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -349,10 +368,12 @@ func (server *Server) prepareGeneration(
 		initialResolvedSkills,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
+			planMode:                  currentPlanMode,
+			chatMode:                  chat.Mode,
+			planModeInstructions:      planModeInstructions,
+			activeGoal:                activeGoal,
+			isRootChat:                isRootChat,
+			completeGoalToolAvailable: canCompleteGoal,
 		},
 	)
 	if advisorRuntime != nil {
@@ -382,6 +403,33 @@ func (server *Server) prepareGeneration(
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+	}
+	if chatGoalsEnabled {
+		rootChatID := chatRootID(chat)
+		tools = append(tools, chattool.GetGoal(server.db, chattool.GoalToolOptions{
+			ChatID:     chat.ID,
+			RootChatID: rootChatID,
+			IsRootChat: isRootChat,
+		}))
+		if canCompleteGoal {
+			var fence *chattool.GoalToolFence
+			if chat.WorkerID.Valid && chat.RunnerID.Valid {
+				fence = &chattool.GoalToolFence{
+					WorkerID:       chat.WorkerID.UUID,
+					RunnerID:       chat.RunnerID.UUID,
+					HistoryVersion: chat.HistoryVersion,
+				}
+			}
+			tools = append(tools, chattool.CompleteGoal(server.db, chattool.GoalToolOptions{
+				ChatID:     chat.ID,
+				RootChatID: rootChatID,
+				IsRootChat: true,
+				Fence:      fence,
+				OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, goal database.ChatGoal) {
+					server.publishChatGoalChange(updatedChat, &goal)
+				},
+			}))
+		}
 	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
@@ -622,11 +670,14 @@ func (server *Server) prepareGeneration(
 		ProviderOptions:      providerOptions,
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		ExclusiveToolNames:   exclusiveToolNames,
-		BuiltinToolNames:     builtinToolNames,
-		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
+		StopAfterTools: stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID, stopAfterBehaviorToolOptions{
+			stopAfterCompleteGoal: goalBehaviorTurn,
+		}),
+		GoalReminder:       goalReminder,
+		ExclusiveToolNames: exclusiveToolNames,
+		BuiltinToolNames:   builtinToolNames,
+		ToolNameToConfigID: toolNameToConfigID,
+		MaxSteps:           maxChatSteps,
 		Compaction: &generationCompaction{
 			Required: compactionNeeded,
 			Options:  compactionOptions,

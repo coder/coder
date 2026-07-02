@@ -522,6 +522,24 @@ When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up
 
 No other input states are supported.
 
+### `PATCH /api/experimental/chats/{chat}/goal`
+
+This endpoint applies goal lifecycle mutations without inserting a chat
+message. Most actions only mutate the current goal row and publish a
+`goal_change` watch event.
+
+For `complete`, a running root chat also uses `Interrupt(goal_complete)` so
+an active agent turn is canceled through the normal interruption path:
+
+- `R0 -> complete goal + Interrupt(goal_complete) -> I0`
+- `R1 -> complete goal + Interrupt(goal_complete) -> I1`
+
+When the transition lands in `I0` or `I1`, the chat is later picked up by a
+`ChatRunner` to apply `FinishInterruption(partial?)`, preserving any partial
+assistant output and queued backlog.
+
+Other input states do not get an execution-state transition from this endpoint.
+
 ### `POST /api/experimental/chats/{chat}/tool-results`
 
 This endpoint uses `CompleteRequiresAction(results)`:
@@ -823,7 +841,18 @@ The generation goroutine supports:
 - respecting model configuration
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
+- chat goals (see below)
 - and other things
+
+##### Chat goals
+
+When the deployment-wide chat goals setting is enabled and the root chat has an active goal, the generation goroutine augments the turn:
+
+- The system prompt carries the active goal. Root, non-plan, non-explore turns get the `complete_goal` tool; all turns get the read-only `get_goal` tool.
+- A successful `complete_goal` tool result is a stop-after tool: the next decision pass finishes the turn instead of generating another response. `complete_goal` verifies a fence (worker ID, runner ID, running status, history version) inside its transaction so a stale generation cannot complete the goal after an interrupt or worker takeover.
+- If the decision logic finds the current history complete while the active goal is still active, it inserts one hidden goal-completion reminder: a model-only user message committed via `CommitStep`, which keeps the chat in `R0`/`R1` so another generation pass runs. Before inserting, the goroutine rechecks (in the same transaction) that goals are still enabled, the chat is still owned by the task, no queued user message exists, and the same goal is still active.
+- At most one reminder is inserted per user turn. Reminder accounting loads model-only user messages independently of the compaction prompt window, so a compaction summary cannot hide an earlier reminder and cause a duplicate. If the model ignores the reminder and completes again, the turn finishes normally with a warning log and the goal stays active.
+- Reminder messages are excluded from user-turn boundaries for step counting and stop-after detection, so they extend the current turn instead of starting a new one.
 
 #### Interrupt goroutine
 

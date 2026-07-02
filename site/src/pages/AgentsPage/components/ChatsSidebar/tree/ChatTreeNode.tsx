@@ -2,6 +2,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
+	TargetIcon,
 	UsersIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
@@ -81,6 +82,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	const activeGoalObjective =
+		!isChildNode && chat.goal?.status === "active"
+			? asNonEmptyString(chat.goal.objective)
+			: undefined;
+	const displayTitle = activeGoalObjective ?? chat.title;
 	const isStreaming = chat.status === "running" || chat.status === "pending";
 	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
 	const staleTurnSummaryReleaseMs = 10_000;
@@ -223,6 +229,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							{({ isActive }) => (
 								<div className="min-w-0 flex-1 overflow-hidden text-left">
 									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+										{activeGoalObjective && (
+											<TargetIcon
+												className="size-3.5 shrink-0 text-content-secondary"
+												aria-label="Active goal"
+												data-testid={`agents-tree-active-goal-${chat.id}`}
+											/>
+										)}
 										<span
 											aria-busy={isRegeneratingThisChat}
 											className={cn(
@@ -231,7 +244,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												isRegeneratingThisChat && "animate-pulse",
 											)}
 										>
-											{chat.title}
+											{displayTitle}
 										</span>
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>

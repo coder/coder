@@ -18,6 +18,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	AgentCreateForm,
 	type CreateChatOptions,
@@ -41,6 +42,7 @@ const AgentCreatePage: FC = () => {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 
 	const chatModelsQuery = useQuery(chatModels());
@@ -90,6 +92,7 @@ const AgentCreatePage: FC = () => {
 		model,
 		mcpServerIds,
 		organizationId,
+		goalMutation,
 		planMode,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -107,6 +110,7 @@ const AgentCreatePage: FC = () => {
 			workspace_id: workspaceId,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+			goal_mutation: goalMutation,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
@@ -176,6 +180,7 @@ const AgentCreatePage: FC = () => {
 				isModelCatalogLoading={isModelCatalogLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				rootPersonalModelOverride={rootPersonalModelOverride}
+				showPursueGoal={experiments.includes("chat-goals")}
 				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
