@@ -92,9 +92,9 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			dialer := aibridged.NewWebsocketDialer(serverURL, transport, key)
-			daemonCtx, daemonCancel := context.WithCancel(context.Background())
-			defer daemonCancel()
-			srv, err := aibridged.New(daemonCtx, pool, dialer, logger.Named("aibridged"), tracer)
+			aibridgedCtx, aibridgedCancel := context.WithCancel(context.Background())
+			defer aibridgedCancel()
+			srv, err := aibridged.New(aibridgedCtx, pool, dialer, logger.Named("aibridged"), tracer)
 			if err != nil {
 				return xerrors.Errorf("start AI Gateway daemon: %w", err)
 			}
@@ -109,7 +109,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 			providerLogger := logger.Named("aibridge.providers")
 			reloader := agpl.NewPoolRPCReloader(pool, clientFn, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
-			if err := loadProviders(signalCtx, reloader, providerLogger); err != nil {
+			if err := loadProviders(signalCtx, reloader, providerLogger, srv.Done()); err != nil {
 				if signalCtx.Err() != nil {
 					logger.Info(signalCtx, "shutting down standalone AI Gateway")
 					return nil
@@ -154,9 +154,12 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				}
 			}()
 
+			var aibridgedErr error
 			select {
 			case <-signalCtx.Done():
 				logger.Info(signalCtx, "shutting down standalone AI Gateway")
+			case <-srv.Done():
+				aibridgedErr = srv.Err()
 			case err := <-serveErr:
 				if err != nil && !errors.Is(err, http.ErrServerClosed) {
 					return xerrors.Errorf("serve: %w", err)
@@ -167,6 +170,9 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			defer shutdownCancel()
 			if err := httpServer.Shutdown(shutdownCtx); err != nil {
 				return xerrors.Errorf("shutdown http server: %w", err)
+			}
+			if aibridgedErr != nil {
+				return xerrors.Errorf("AI Gateway daemon exited: %w", aibridgedErr)
 			}
 			return nil
 		},
@@ -249,14 +255,22 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 // TODO(AIGOV-465): the standalone gateway has no provider-change refresh
 // trigger yet, so this runs once on startup; provider add/enable will not
 // propagate to a running standalone gateway.
-func loadProviders(ctx context.Context, reloader aibridged.ProviderReloader, logger slog.Logger) error {
+func loadProviders(ctx context.Context, reloader aibridged.ProviderReloader, logger slog.Logger, aibridgedDone <-chan struct{}) error {
 	for r := retry.New(50*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 		if err := reloader.Reload(ctx); err != nil {
+			select {
+			case <-aibridgedDone:
+				return err
+			default:
+			}
 			logger.Warn(ctx, "failed to load ai providers, will retry", slog.Error(err))
 			continue
 		}
 		logger.Info(ctx, "loaded ai providers from coderd")
 		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
 	}
 	return ctx.Err()
 }
