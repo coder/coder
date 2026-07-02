@@ -142,6 +142,13 @@ type Config struct {
 	// defaultRefreshRetryTimeout. A negative value disables transient-failure
 	// retries entirely, so exactly one refresh attempt is made.
 	RefreshRetryTimeout time.Duration
+
+	// Scopes mirrors *oauth2.Config.Scopes so the refresh path can echo them
+	// on the token-endpoint request. Without this, Entra v1's token issuer
+	// silently narrows refreshed tokens to the user's default consent set
+	// (golang.org/x/oauth2's TokenSource omits the scope parameter on
+	// refresh; Entra v1 treats absence of scope as "use default consent").
+	Scopes []string
 }
 
 // Git returns a Provider for this config if the provider type is a
@@ -216,10 +223,6 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}
 
-	// Note: The TokenSource(...) method will make no remote HTTP requests if the
-	// token is expired and no refresh token is set. This is important to prevent
-	// spamming the API, consuming rate limits, when the token is known to fail.
-	//
 	// External providers (GitHub in particular) intermittently fail token
 	// refreshes with transient errors such as 5xx responses, network timeouts,
 	// and rate-limited 429s. Retry with exponential backoff before surfacing
@@ -229,9 +232,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// will never succeed and retrying wastes the refresh quota.
 	token, err := c.refreshTokenWithRetry(ctx, existingToken)
 	if err != nil {
-		// TokenSource can fail for numerous reasons. If it fails because of
-		// a bad refresh token, then the refresh token is invalid, and we should
-		// get rid of it. Keeping it around will cause additional refresh
+		// A refresh attempt can fail for numerous reasons. If it fails because
+		// of a bad refresh token, then the refresh token is invalid, and we
+		// should get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
 		//
 		// The error message is saved for debugging purposes.
@@ -305,8 +308,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 		}
 
-		// TokenSource(...).Token() will always return the current token if the token is not expired.
-		// So this error is only returned if a refresh of the token failed.
+		// Non-expired tokens are short-circuited above; reaching here means refresh failed.
 		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
@@ -394,9 +396,18 @@ validate:
 // refresh token is set, and a negative RefreshRetryTimeout all bypass the
 // retry loop so a doomed or unwanted refresh is not repeatedly attempted.
 func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth2.Token) (*oauth2.Token, error) {
+	// TokenSource used to short-circuit non-expired tokens internally; the
+	// direct Exchange path in refreshTokenOnce does not, so replicate the
+	// check here. Return the existing token so the caller still runs its
+	// extra-token-key generation and ValidateToken step.
+	if existingToken.Valid() {
+		return existingToken, nil
+	}
+
 	// Without a refresh token the oauth2 library short-circuits with
 	// "token expired and refresh token is not set". No retry can recover
-	// from that, so make a single attempt and return.
+	// from that, so delegate to TokenSource for a single attempt (test
+	// doubles also rely on this path being TokenSource-backed).
 	if existingToken.RefreshToken == "" {
 		return c.TokenSource(ctx, existingToken).Token()
 	}
@@ -429,7 +440,7 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		err   error
 	)
 	for {
-		token, err = c.TokenSource(ctx, existingToken).Token()
+		token, err = c.refreshTokenOnce(ctx, existingToken.RefreshToken)
 		if err == nil || isFailedRefresh(existingToken, err) {
 			return token, err
 		}
@@ -445,6 +456,38 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 			return token, err
 		}
 	}
+}
+
+// refreshTokenOnce performs a single OAuth refresh via direct Exchange,
+// carrying explicit grant_type/refresh_token/scope params. Bypasses the
+// golang.org/x/oauth2 TokenSource path because it omits `scope` on refresh,
+// which causes Entra v1 to silently narrow refreshed tokens to the user's
+// default consent set.
+//
+// Exchange dispatches through InstrumentedOAuth2Config, which for some
+// providers wraps the underlying oauth2.Config:
+//   - entraV1Oauth (Azure DevOps + Entra v1): appends resource=<app-id>,
+//     which is also required on refresh for v1 tokens — correct for us.
+//   - jwtConfig (Azure DevOps non-Entra): overrides grant_type with
+//     urn:ietf:params:oauth:grant-type:jwt-bearer. JWT configs don't issue
+//     refresh tokens in practice, so we never reach this path with
+//     refreshToken != "" for jwtConfig.
+func (c *Config) refreshTokenOnce(ctx context.Context, refreshToken string) (*oauth2.Token, error) {
+	refreshOpts := []oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("grant_type", "refresh_token"),
+		oauth2.SetAuthURLParam("refresh_token", refreshToken),
+	}
+	if len(c.Scopes) > 0 {
+		refreshOpts = append(refreshOpts, oauth2.SetAuthURLParam("scope", strings.Join(c.Scopes, " ")))
+	}
+	token, err := c.Exchange(ctx, "", refreshOpts...)
+	// Per RFC 6749 §6, the AS MAY return a new refresh token and SHOULD treat
+	// the existing one as still valid otherwise. Preserve it so the next
+	// refresh has something to send.
+	if err == nil && token != nil && token.RefreshToken == "" {
+		token.RefreshToken = refreshToken
+	}
+	return token, err
 }
 
 // ValidateToken checks if the Git token provided is valid.
@@ -907,6 +950,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			ID:                            entry.ID,
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
+			Scopes:                        entry.Scopes,
 			Regex:                         regex,
 			APIBaseURL:                    entry.APIBaseURL,
 			Type:                          entry.Type,
@@ -1427,7 +1471,7 @@ func isRateLimited(resp *http.Response) bool {
 	return false
 }
 
-// isFailedRefresh returns true if the error returned by the TokenSource.Token()
+// isFailedRefresh returns true if the error returned by the refresh attempt
 // is due to a failed refresh. The failure being the refresh token itself.
 // If this returns true, no amount of retries will fix the issue.
 //
