@@ -175,7 +175,7 @@ const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 	return (
 		<Button asChild variant="outline" size="sm">
 			<a
-				href={link.href}
+				href={link.href ?? undefined}
 				onClick={link.onClick}
 				target="_blank"
 				rel="noreferrer"

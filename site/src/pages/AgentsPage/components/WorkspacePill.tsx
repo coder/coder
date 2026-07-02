@@ -344,7 +344,7 @@ const AppMenuItem: FC<{
 	return (
 		<DropdownMenuItem asChild disabled={!canClick || !isRunning}>
 			<a
-				href={canClick && isRunning ? link.href : undefined}
+				href={canClick && isRunning && link.href ? link.href : undefined}
 				onClick={link.onClick}
 				target="_blank"
 				rel="noreferrer"

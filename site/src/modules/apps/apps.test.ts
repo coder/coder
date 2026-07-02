@@ -65,6 +65,21 @@ describe("getVSCodeHref", () => {
 });
 
 describe("getAppHref", () => {
+	it("returns null when external app has an invalid URL", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: "my-repo",
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+		});
+		expect(href).toBeNull();
+	});
+
 	it("returns the URL without changes when external app has regular URL", () => {
 		const externalApp = {
 			...MockWorkspaceApp,

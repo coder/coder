@@ -243,3 +243,20 @@ export const SlimWindowPopupBlocked: Story = {
 		expect(toastMessage).toBeInTheDocument();
 	},
 };
+
+export const InvalidUrl: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			url: "my-repo",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("link");
+		expect(button).not.toHaveAttribute("href");
+	},
+};
