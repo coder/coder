@@ -5,7 +5,6 @@ import {
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -20,7 +19,6 @@ import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
 	title: "components/LicenseBannerView",
-	parameters: { chromatic },
 	component: LicenseBannerView,
 };
 

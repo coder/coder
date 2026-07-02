@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockFailedProvisionerJob,
 	MockRunningProvisionerJob,
@@ -24,7 +23,6 @@ const meta: Meta<typeof TemplateVersionEditor> = {
 	component: TemplateVersionEditor,
 	decorators: [withDashboardProvider],
 	parameters: {
-		chromatic,
 		layout: "fullscreen",
 	},
 	args: {

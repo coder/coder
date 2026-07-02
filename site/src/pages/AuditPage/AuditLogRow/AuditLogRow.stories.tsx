@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
-import { chromatic } from "#/testHelpers/chromatic";
 import {
 	MockAuditLog,
 	MockAuditLog2,
@@ -40,7 +39,6 @@ export const NoDiff: Story = {
 };
 
 export const WithDiff: Story = {
-	parameters: { chromatic },
 	args: {
 		auditLog: MockAuditLog2,
 		defaultIsDiffOpen: true,
@@ -48,7 +46,6 @@ export const WithDiff: Story = {
 };
 
 export const WithLongDiffRow: Story = {
-	parameters: { chromatic },
 	args: {
 		auditLog: {
 			...MockAuditLog2,
@@ -201,7 +198,6 @@ const MockChatAuditLog: AuditLog = {
 };
 
 export const WithChatACLDiff: Story = {
-	parameters: { chromatic },
 	args: {
 		auditLog: {
 			...MockChatAuditLog,

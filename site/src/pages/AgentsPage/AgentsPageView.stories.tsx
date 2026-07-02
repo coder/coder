@@ -713,6 +713,8 @@ export const WideSidebarPreservesChatPaneWidth: Story = {
 	],
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-wide-sidebar" },
@@ -864,6 +866,8 @@ export const WithToolbarEndContent: Story = {
 export const EmptyStateZoom200Desktop: Story = {
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -905,6 +909,8 @@ export const CollapsedSidebarZoom200Desktop: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -931,6 +937,8 @@ export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-1" },

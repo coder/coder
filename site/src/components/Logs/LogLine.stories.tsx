@@ -1,10 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { chromatic } from "#/testHelpers/chromatic";
 import { LogLine, LogLinePrefix } from "./LogLine";
 
 const meta: Meta<typeof LogLine> = {
 	title: "components/Logs/LogLine",
-	parameters: { chromatic },
 	component: LogLine,
 	args: {
 		level: "info",

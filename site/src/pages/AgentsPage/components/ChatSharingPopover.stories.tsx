@@ -209,7 +209,7 @@ export const PopulatedACL: Story = {
 export const MobilePopulatedACL: Story = {
 	decorators: [MobileFrame],
 	parameters: {
-		chromatic: { viewports: [390] },
+		pixel: { matrix: { viewports: ["mobile"] } },
 	},
 	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
 	play: async ({ canvasElement }) => {
