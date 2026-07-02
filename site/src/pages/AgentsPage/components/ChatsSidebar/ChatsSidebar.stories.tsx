@@ -8,7 +8,7 @@ import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -1212,6 +1212,64 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 		const alert = await body.findByRole("alert");
 		expect(alert).toHaveTextContent(
 			"Proposal provider is temporarily unavailable.",
+		);
+		// Plain errors have no API detail, so no developer-console hint or
+		// second line may leak into the alert.
+		expect(alert).not.toHaveTextContent("developer console");
+		await waitFor(() => {
+			expect(input).toHaveAttribute("aria-invalid", "true");
+		});
+		expect(input).toHaveValue("Original title");
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+	},
+};
+
+export const RenameChatGenerateApiErrorShowsDetail: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-api-error",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw mockApiError({
+				message: "Failed to generate chat title.",
+				detail: "No default chat model config is configured.",
+			});
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent("Failed to generate chat title.");
+		expect(alert).toHaveTextContent(
+			"No default chat model config is configured.",
 		);
 		await waitFor(() => {
 			expect(input).toHaveAttribute("aria-invalid", "true");
