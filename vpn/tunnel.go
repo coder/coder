@@ -164,6 +164,12 @@ func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 				ErrorMessage: errStr,
 			},
 		}
+	case *ManagerMessage_Wake:
+		t.logger.Info(t.ctx, "handling system wake")
+		t.updater.rebind()
+		resp.Msg = &TunnelMessage_Wake{
+			Wake: &WakeResponse{Success: true},
+		}
 	default:
 		t.logger.Warn(t.ctx, "unhandled manager request", slog.F("request", msg))
 	}
@@ -549,6 +555,16 @@ func (u *updater) stop() error {
 	u.cancel()
 	u.conn = nil
 	return err
+}
+
+func (u *updater) rebind() {
+	u.mu.Lock()
+	conn := u.conn
+	u.mu.Unlock()
+
+	if conn != nil {
+		conn.Rebind()
+	}
 }
 
 // sendAgentUpdate sends a peer update message to the manager with the current
