@@ -1551,8 +1551,9 @@ communicating directly.`,
 			YAML: "client",
 		}
 		deploymentGroupConfig = serpent.Group{
-			Name:        "Config",
-			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
+			Name: "Config",
+			Description: "Use a YAML configuration file to manage server settings as code. " +
+				"Use `coder server --write-config` to generate a fully commented file from current settings.",
 		}
 		deploymentGroupEmail = serpent.Group{
 			Name:        "Email",
