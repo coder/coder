@@ -8621,10 +8621,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-		// The openai provider type routes structured title generation
-		// through the Responses API, which the chattest fake answers
-		// with {"title": "Test Chat"}.
-		modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+		modelConfig := createTitleGenerationModelConfig(t, client)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -8646,8 +8643,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.NoError(t, err)
 
 		// Legacy pending rows are never acquired by workers, so manual
-		// title regeneration must proceed instead of returning a
-		// permanent 409.
+		// title regeneration must still proceed.
 		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, "Test Chat", updated.Title)
@@ -8666,22 +8662,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-
-		// The config exists only to satisfy the chats foreign key.
-		// Soft-deleting it leaves the deployment without any usable
-		// model config.
-		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "chat without model config",
-		})
-		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-		require.NoError(t, db.DeleteChatModelConfigByID(
-			dbauthz.AsSystemRestricted(ctx),
-			modelConfig.ID,
-		))
+		chat := seedChatWithDeletedModelConfig(ctx, t, db, user)
 
 		_, err := client.RegenerateChatTitle(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -8806,10 +8787,7 @@ func TestProposeChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-		// The openai provider type routes structured title generation
-		// through the Responses API, which the chattest fake answers
-		// with {"title": "Test Chat"}.
-		modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+		modelConfig := createTitleGenerationModelConfig(t, client)
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -8834,7 +8812,7 @@ func TestProposeChatTitle(t *testing.T) {
 		require.NoError(t, err)
 
 		// Legacy pending rows are never acquired by workers, so title
-		// proposal must proceed instead of returning a permanent 409.
+		// proposal must still proceed.
 		resp, err := client.ProposeChatTitle(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, "Test Chat", resp.Title)
@@ -8855,22 +8833,7 @@ func TestProposeChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-
-		// The config exists only to satisfy the chats foreign key.
-		// Soft-deleting it leaves the deployment without any usable
-		// model config.
-		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "chat without model config",
-		})
-		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-		require.NoError(t, db.DeleteChatModelConfigByID(
-			dbauthz.AsSystemRestricted(ctx),
-			modelConfig.ID,
-		))
+		chat := seedChatWithDeletedModelConfig(ctx, t, db, user)
 
 		_, err := client.ProposeChatTitle(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -8883,10 +8846,7 @@ func TestProposeChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
-		// The openai provider type routes structured title generation
-		// through the Responses API, which the chattest fake answers
-		// with {"title": "Test Chat"}.
-		modelConfig := createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+		modelConfig := createTitleGenerationModelConfig(t, client)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
@@ -11066,6 +11026,43 @@ func seedManualTitleSourceMessage(
 		Visibility:    database.ChatMessageVisibilityBoth,
 		Content:       content,
 	})
+}
+
+// createTitleGenerationModelConfig provisions a model config on the openai
+// provider type, which routes structured title generation through the
+// Responses API. The chattest fake answers it with {"title": "Test Chat"}.
+func createTitleGenerationModelConfig(
+	t *testing.T,
+	client *codersdk.ExperimentalClient,
+) codersdk.ChatModelConfig {
+	t.Helper()
+	return createAdditionalChatModelConfig(t, client, "openai", "gpt-4.1")
+}
+
+// seedChatWithDeletedModelConfig creates a chat whose only model config is
+// soft-deleted, leaving the deployment without a usable model config. The
+// config exists only to satisfy the chats foreign key.
+func seedChatWithDeletedModelConfig(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	user codersdk.CreateFirstUserResponse,
+) database.Chat {
+	t.Helper()
+
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "chat without model config",
+	})
+	seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
+	require.NoError(t, db.DeleteChatModelConfigByID(
+		dbauthz.AsSystemRestricted(ctx),
+		modelConfig.ID,
+	))
+	return chat
 }
 
 func createChatModelConfig(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {

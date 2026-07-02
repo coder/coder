@@ -2227,7 +2227,6 @@ func (p *Server) acquireManualTitleLock(
 ) (acquired bool, err error) {
 	now := time.Now()
 	err = p.db.InTx(func(tx database.Store) error {
-		acquired = false
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title regeneration: %w", err)
