@@ -7965,6 +7965,9 @@ const ChatDebugForwardedHeader = "X-Coder-Debug-Forwarded"
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugSnapshot(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
 	chat := httpmw.ChatParam(r)
 
 	// If the chat is owned by a different replica and we have a proxy configured,
@@ -8076,6 +8079,11 @@ func (api *API) getChatDebugSnapshot(rw http.ResponseWriter, r *http.Request) {
 		WorkerIDMatchesLocal: chat.WorkerID.Valid && chat.WorkerID.UUID == rtSnap.LocalWorkerID,
 		Runners:              rtSnap.Runners,
 		MessageBuffers:       make([]chatDebugBufferEpisode, 0, len(rtSnap.Episodes)),
+	}
+	if rtSection.Runners == nil {
+		// Match MessageBuffers above: serialize as "[]" rather than "null"
+		// for a consistent empty-collection representation.
+		rtSection.Runners = []chatd.RunnerSnapshot{}
 	}
 	for _, ep := range rtSnap.Episodes {
 		rtSection.MessageBuffers = append(rtSection.MessageBuffers, chatDebugBufferEpisode{

@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -363,6 +364,40 @@ func TestGetChatDebugSnapshot_Heartbeat(t *testing.T) {
 	require.Equal(t, runnerID, hb.RunnerID)
 	require.Greater(t, hb.AgeSeconds, float64(chatstate.HeartbeatStaleSeconds))
 	require.True(t, hb.IsStale)
+}
+
+// TestGetChatDebugSnapshot_ChatDaemonDisabled verifies the endpoint returns
+// 503 (instead of panicking on a nil chatDaemon) when the AI Gateway is
+// disabled, matching every other chatDaemon-dependent handler in this file.
+func TestGetChatDebugSnapshot_ChatDaemonDisabled(t *testing.T) {
+	t.Parallel()
+
+	values := coderdtest.DeploymentValues(t, func(v *codersdk.DeploymentValues) {
+		v.AI.BridgeConfig.Enabled = false
+	})
+	opts := newChatTestOptions(t, values)
+	client, closer, api := coderdtest.NewWithAPI(t, opts)
+	defer closer.Close()
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	// Insert a chat directly via the database, bypassing the create-chat
+	// HTTP handler (which itself requires the chat daemon).
+	provider := dbgen.ChatProvider(t, api.Database, database.ChatProvider{})
+	modelConfig := dbgen.ChatModelConfig(t, api.Database, database.ChatModelConfig{
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	})
+	chat := dbgen.Chat(t, api.Database, database.Chat{
+		OwnerID:           firstUser.UserID,
+		OrganizationID:    firstUser.OrganizationID,
+		LastModelConfigID: modelConfig.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	resp, err := client.Request(ctx, http.MethodGet,
+		"/api/experimental/chats/"+chat.ID.String()+"/debug/snapshot", nil)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
 
 // TestGetChatDebugSnapshot_Runtime_Unowned_Golden verifies the runtime section when

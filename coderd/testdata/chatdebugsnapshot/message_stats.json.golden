@@ -30,7 +30,7 @@
   "runtime": {
     "local_worker_id": "00000000-0000-0000-0000-000000000000",
     "worker_id_matches_local": false,
-    "runners": null,
+    "runners": [],
     "message_buffers": []
   }
 }
