@@ -641,16 +641,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelCount={modelCount}
 						unsupportedProviderNames={unsupportedProviderNames}
 						aiGatewayDisabled={aiGatewayDisabled}
+						showUrlPromptWarning={showUrlPromptWarning}
 					/>
-					{showUrlPromptWarning && (
-						<Alert severity="warning" prominent>
-							<AlertDescription>
-								Use caution before running this prompt. Malicious content could
-								trick Coder Agents into attempting harmful actions or sharing
-								your data.
-							</AlertDescription>
-						</Alert>
-					)}
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">
 							{modelSelectorHelp}
