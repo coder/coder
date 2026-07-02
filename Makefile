@@ -530,8 +530,9 @@ $(CODER_MAIN_IMAGE): $(CODER_ARCH_IMAGES_PUSHED)
 
 # Push a Docker image.
 $(CODER_ARCH_IMAGES_PUSHED): push/%: %
+	source ./scripts/lib.sh
 	image_tag="$$(cat "$<")"
-	docker push "$$image_tag"
+	retry 3 10 -- docker push "$$image_tag"
 .PHONY: $(CODER_ARCH_IMAGES_PUSHED)
 
 # Push the multi-arch Docker manifest.
