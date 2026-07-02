@@ -31,6 +31,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
+import { getSupportedReasoningEfforts } from "../../utils/reasoningEffort";
 import {
 	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,
@@ -49,6 +50,11 @@ const booleanFieldOptions = [
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
+
+/** General fields configuring the per-model reasoning effort bounds. */
+const isReasoningEffortField = (jsonName: string): boolean =>
+	jsonName === "reasoning_effort.default" ||
+	jsonName === "reasoning_effort.max";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -656,11 +662,102 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /**
+ * Default/Max reasoning effort selects, schema-driven from the
+ * general `reasoning_effort.default` / `reasoning_effort.max` fields.
+ * Options are limited to the selected provider's supported effort
+ * set; renders nothing for providers without reasoning effort
+ * support. Kept out of the Advanced section so admins can configure
+ * effort bounds without expanding anything.
+ */
+export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	const supportedEfforts = getSupportedReasoningEfforts(
+		normalizeProvider(provider),
+	);
+	if (supportedEfforts.length === 0) {
+		return null;
+	}
+	const fields = getVisibleGeneralFields().filter(({ json_name }) =>
+		isReasoningEffortField(json_name),
+	);
+
+	return (
+		<>
+			{fields.map((field) => {
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
+				const fieldKey = `config.${camelName}`;
+				const errorId = `${fieldKey}-error`;
+				const fieldError = fieldErrors[camelName];
+				const currentValue = (getIn(form.values, fieldKey) as string) || "";
+				// Rendered inline rather than through SelectField so the
+				// unset choice can read "Not set": next to a field named
+				// "Default Reasoning Effort", the generic "Default" label
+				// would be ambiguous.
+				return (
+					<div key={fieldKey} className="flex min-w-0 flex-col gap-1.5">
+						<FieldLabel
+							htmlFor={fieldKey}
+							label={snakeToPrettyLabel(field)}
+							description={field.description}
+						/>
+						<Select
+							value={currentValue || unsetSelectValue}
+							onValueChange={(value) =>
+								void form.setFieldValue(
+									fieldKey,
+									value === unsetSelectValue ? "" : value,
+								)
+							}
+							disabled={disabled}
+						>
+							<SelectTrigger
+								id={fieldKey}
+								className={cn(
+									"min-w-0",
+									fieldError && "border-content-destructive",
+								)}
+								aria-invalid={Boolean(fieldError)}
+								aria-describedby={fieldError ? errorId : undefined}
+							>
+								<SelectValue placeholder="Not set" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value={unsetSelectValue}>Not set</SelectItem>
+								{(field.enum ?? [])
+									.filter((value) => supportedEfforts.includes(value))
+									.map((option) => (
+										<SelectItem key={option} value={option}>
+											{capitalize(option)}
+										</SelectItem>
+									))}
+							</SelectContent>
+						</Select>
+						{fieldError && (
+							<p id={errorId} className="m-0 text-xs text-content-destructive">
+								{fieldError}
+							</p>
+						)}
+					</div>
+				);
+			})}
+		</>
+	);
+};
+
+/**
  * General model config fields (max output tokens, temperature,
  * top P, etc.) intended to be shown under an "Advanced" section.
  *
  * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
+ * `api/chatModelOptions`. The reasoning effort bounds are excluded
+ * here; they render prominently via ReasoningEffortConfigFields.
  */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	form,
@@ -669,7 +766,8 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 	const fields = getVisibleGeneralFields().filter(
-		({ json_name }) => !pricingFieldNames.has(json_name),
+		({ json_name }) =>
+			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
 	);
 
 	return (
