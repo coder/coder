@@ -565,8 +565,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						ws.OwnerID,
 						notifications.TemplateWorkspaceAutostopReminder,
 						map[string]string{
-							"workspace": ws.Name,
-							"deadline":  reminderDeadline.UTC().Format(time.RFC1123),
+							"workspace":       ws.Name,
+							"timeTilShutdown": humanize.Time(reminderDeadline),
 						},
 						"lifecycle_executor",
 						// Associate this notification with all the related entities.

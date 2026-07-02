@@ -24,7 +24,24 @@ func main() {
 		prevVersionStr string
 		notesFile      string
 		stable         bool
+		dryRun         bool
 	)
+
+	dryRunOption := serpent.Option{
+		Name:        "dry-run",
+		Flag:        "dry-run",
+		Description: "Print mutating commands instead of executing them.",
+		Value:       serpent.BoolOf(&dryRun),
+	}
+
+	// newExecutor returns the appropriate CommandExecutor based on
+	// the --dry-run flag.
+	newExecutor := func() CommandExecutor {
+		if dryRun {
+			return newDryRunExecutor(os.Stderr)
+		}
+		return realExecutor{}
+	}
 
 	cmd := &serpent.Command{
 		Use:   "release-action <subcommand>",
@@ -54,9 +71,45 @@ func main() {
 						Description: "Commit SHA to tag (defaults to HEAD of --ref if empty).",
 						Value:       serpent.StringOf(&commitSHA),
 					},
+					dryRunOption,
 				},
 				Handler: func(inv *serpent.Invocation) error {
-					result, err := calculateNextVersion(releaseType, ref, commitSHA)
+					result, err := calculateNextVersion(newExecutor(), releaseType, ref, commitSHA)
+					if err != nil {
+						return err
+					}
+					_, _ = fmt.Fprintln(inv.Stdout, result.String())
+					return nil
+				},
+			},
+			{
+				Use:   "prepare-release",
+				Short: "Calculate version, create and push tag (and optionally release branch).",
+				Options: serpent.OptionSet{
+					{
+						Name:        "type",
+						Flag:        "type",
+						Description: "Release type: rc, release, or create-release-branch.",
+						Value:       serpent.StringOf(&releaseType),
+						Required:    true,
+					},
+					{
+						Name:        "ref",
+						Flag:        "ref",
+						Description: "Git ref (branch name) the workflow is running on.",
+						Value:       serpent.StringOf(&ref),
+						Required:    true,
+					},
+					{
+						Name:        "commit",
+						Flag:        "commit",
+						Description: "Commit SHA to tag (defaults to HEAD of --ref if empty).",
+						Value:       serpent.StringOf(&commitSHA),
+					},
+					dryRunOption,
+				},
+				Handler: func(inv *serpent.Invocation) error {
+					result, err := prepareRelease(newExecutor(), releaseType, ref, commitSHA)
 					if err != nil {
 						return err
 					}
@@ -82,6 +135,7 @@ func main() {
 						Value:       serpent.StringOf(&prevVersionStr),
 						Required:    true,
 					},
+					dryRunOption,
 				},
 				Handler: func(inv *serpent.Invocation) error {
 					newVer, err := parseVersion(versionStr)
@@ -92,7 +146,7 @@ func main() {
 					if err != nil {
 						return xerrors.Errorf("parse --previous-version: %w", err)
 					}
-					notes, err := generateReleaseNotes(newVer, prevVer)
+					notes, err := generateReleaseNotes(newExecutor(), newVer, prevVer)
 					if err != nil {
 						return err
 					}
@@ -124,13 +178,14 @@ func main() {
 						Value:       serpent.StringOf(&notesFile),
 						Required:    true,
 					},
+					dryRunOption,
 				},
 				Handler: func(inv *serpent.Invocation) error {
 					assets := inv.Args
 					if len(assets) == 0 {
 						return xerrors.New("no asset files provided as arguments")
 					}
-					return publishRelease(versionStr, stable, notesFile, assets)
+					return publishRelease(newExecutor(), versionStr, stable, notesFile, assets)
 				},
 			},
 		},

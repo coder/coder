@@ -79,6 +79,9 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 	if cfg.RoleARN != "" {
 		credsProvider = stscreds.NewAssumeRoleProvider(sts.NewFromConfig(base), cfg.RoleARN, func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = bedrockSessionName
+			if cfg.ExternalID != "" {
+				o.ExternalID = aws.String(cfg.ExternalID)
+			}
 		})
 		credsProvider = aws.NewCredentialsCache(credsProvider)
 	}

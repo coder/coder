@@ -16,7 +16,7 @@
       }
     ],
     "labels": {
-      "deadline": "2024-03-15 14:00 UTC",
+      "timeTilShutdown": "1 hour from now",
       "workspace": "bobby-workspace"
     },
     "data": null,
@@ -24,6 +24,6 @@
   },
   "title": "Your workspace \"bobby-workspace\" will stop soon",
   "title_markdown": "Your workspace \"bobby-workspace\" will stop soon",
-  "body": "Your workspace bobby-workspace is scheduled to automatically stop at 2024-03-15 14:00 UTC.\n\nConnect to it or extend the deadline to keep it running.",
-  "body_markdown": "Your workspace **bobby-workspace** is scheduled to automatically stop at 2024-03-15 14:00 UTC.\n\nConnect to it or extend the deadline to keep it running."
+  "body": "Your workspace bobby-workspace will automatically stop 1 hour from now.\n\nConnect to it or extend the deadline to keep it running.",
+  "body_markdown": "Your workspace **bobby-workspace** will automatically stop 1 hour from now.\n\nConnect to it or extend the deadline to keep it running."
 }

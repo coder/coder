@@ -335,6 +335,13 @@ export interface AIProviderBedrockSettings {
 	 * call, and the resulting temporary credentials sign Bedrock requests.
 	 */
 	readonly role_arn?: string;
+	/**
+	 * ExternalID is the STS external ID sent on the AssumeRole call when
+	 * RoleARN is set. The server generates and owns it: create and update
+	 * reject any client-supplied value that differs from the stored one (an
+	 * update may echo the stored value back).
+	 */
+	readonly external_id?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go

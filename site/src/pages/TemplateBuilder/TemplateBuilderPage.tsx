@@ -62,6 +62,7 @@ const TemplateBuilderPage: FC = () => {
 				onCreateTemplate={handleCreate}
 				createError={createMutation.error}
 				isCreating={createMutation.isPending}
+				onClearCreateError={() => createMutation.reset()}
 			/>
 		</>
 	);
