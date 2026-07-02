@@ -12,7 +12,7 @@ Second person is direct, scales across audiences, and avoids the ambiguity of "t
 
 **Do**:
 
-> You can connect to a workspace over SSH after you have installed the Coder CLI.
+> You can connect to a workspace over SSH after you've installed the Coder CLI.
 
 **Don't**:
 
@@ -94,7 +94,7 @@ Imprecise rules like `Google.Passive` and `write-good.Passive` fire on every pas
 ## Present tense by default
 
 Describe how the product works in the present tense.
-Future tense ("will") implies an event that has not happened yet at read time.
+Future tense ("will") implies an event that hasn't happened yet at read time.
 Reserve future tense for:
 
 - Genuine future events, like scheduled rollouts or deprecations with a known date.
@@ -119,11 +119,78 @@ Use plain present tense for behavior the product already exhibits.
 *Documentation-only.
 No Vale rule.*
 
+## Contractions are the default
+
+Contractions match how a reader's internal voice sounds.
+Prefer them in body prose for the same reason the docs use second person and present tense.
+Expand a contraction only when one of the following exceptions applies.
+
+**Do**:
+
+> Coder doesn't restart workspaces on minor template updates.
+>
+> If you're using PostgreSQL, set the connection string before starting `coder server`.
+
+**Don't**:
+
+> Coder does not restart workspaces on minor template updates.
+>
+> If you are using PostgreSQL, set the connection string before starting `coder server`.
+
+**Auxiliary contractions need a complement.** `you'd`, `there's`, `it's`, `we'd`, and `they're` carry an unspoken verb form, participle, or adjective.
+They can't end a sentence because the elided word goes missing with them.
+Negation contractions like `don't`, `won't`, and `can't` end sentences fine because the elided `not` is itself the complement.
+
+**Do**:
+
+> Restart the workspace if you want.
+>
+> The agent reattaches whenever a workspace exists.
+
+**Don't**:
+
+> Restart the workspace if you'd.
+>
+> The agent reattaches whenever there's.
+
+**One contraction joins exactly two words.** Triple-word contractions like `you'd've`, `wouldn't've`, and `shouldn't've` cram three words into one apostrophe-laden form.
+Expand one of the two contractions, keeping whichever reads more naturally in context.
+
+**Do**:
+
+> If you would've finished the upgrade earlier, the migration wouldn't have failed.
+>
+> If you'd have finished the upgrade earlier, the migration wouldn't have failed.
+
+**Don't**:
+
+> If you'd've finished the upgrade earlier, the migration wouldn't've failed.
+
+**Spell out for emphasis and high-stakes operations.** Data loss, security warnings, and irreversible operations like deletions deserve the full visual weight of `do not`, `cannot`, and `will not`.
+The contracted forms read fast and let a busy reader skip past the warning.
+
+**Do**:
+
+> Do not delete the workspace before backing up its state.
+> Coder cannot restore a deleted workspace.
+>
+> You cannot undo `coder delete`.
+
+**Don't**:
+
+> Don't delete the workspace before backing up its state.
+> Coder can't restore a deleted workspace.
+>
+> You can't undo `coder delete`.
+
+*Documentation-only.
+No Vale rule.*
+
 ## Trailing prepositions are a judgment call
 
 A sentence that ends with a preposition (`with`, `to`, `from`, `for`, `on`, `of`, `at`, `by`, `into`, `over`, `under`, `about`) can leave its object implicit, which adds a small comprehension cost.
 Avoiding the trailing preposition, though, can produce a more awkward sentence.
-There is no one-size-fits-all rule.
+There's no one-size-fits-all rule.
 Read both versions and keep the one that reads more naturally.
 
 Lean toward rewriting when the trailing preposition is redundant, or when the reordered version is still easy to read:

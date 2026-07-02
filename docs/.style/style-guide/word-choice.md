@@ -74,7 +74,7 @@ The open standard at [containers.dev](https://containers.dev/) uses two forms in
 The Coder docs follow the same conventions.
 
 `envbuilder` is the implementation tool Coder uses to build dev containers.
-It is not itself the concept, so it stays in backticks as a tool name.
+It isn't itself the concept, so it stays in backticks as a tool name.
 
 > [!NOTE] The Coder feature that integrates the open standard with Coder workspaces is named `Dev Containers` in product context.
 > The capitalization there comes from the [Coder product and feature names](#coder-product-and-feature-names) rule for Coder features, not from the underlying concept.
@@ -159,7 +159,7 @@ When the prose points the reader at another page, section, or external resource,
 
 Do not use **see** as a navigational verb.
 Reserve **see** for the rare case where the prose describes what a reader observes in the product UI ("You see a list of templates on the Templates page").
-The plain-language alternatives carry register information that "see" does not, and reserving "see" for its observational meaning improves clarity for every reader.
+The plain-language alternatives carry register information that "see" doesn't, and reserving "see" for its observational meaning improves clarity for every reader.
 
 The same reservation covers "see" used to mean "understand" or "find out".
 In a list of outcomes, "learn why the build fails" or "find out why the build fails" names what the reader gains.
@@ -173,7 +173,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 >
 > Visit the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
-> Add a Ruby option, then learn why the option alone does not install the toolchain.
+> Add a Ruby option, then learn why the option alone doesn't install the toolchain.
 
 **Don't**:
 
@@ -183,7 +183,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 >
 > See the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
-> Add a Ruby option, then see why the option alone does not install the toolchain.
+> Add a Ruby option, then see why the option alone doesn't install the toolchain.
 
 *Enforced by `Coder.SeeAlternatives` (planned).*
 
@@ -195,8 +195,8 @@ Two rationales apply:
 - **Sequencing**: "Next steps" implies the reader must follow a specific sequence.
   "Learn more" frames the section as optional related reading, which matches the Diátaxis distinction between a tutorial (sequenced) and a how-to or reference (independent).
 - **Inclusive language**: "steps" reads as a physical-mobility metaphor.
-  Readers who cannot walk through steps still consume technical documentation.
-  Neutral alternatives like "Learn more" do not encode that assumption.
+  Readers who can't walk through steps still consume technical documentation.
+  Neutral alternatives like "Learn more" don't encode that assumption.
 
 **Do**:
 
@@ -222,7 +222,7 @@ Two rationales apply:
 
 `Tutorial` is the standard term in technical documentation and matches the Diátaxis category.
 `Walkthrough` is colloquial, and the metaphor assumes the reader can walk.
-Neutral alternatives like "tutorial" do not encode that assumption.
+Neutral alternatives like "tutorial" don't encode that assumption.
 
 **Do**:
 
@@ -284,7 +284,7 @@ Both patterns predict the reader's reaction instead of describing the work.
 Vague attributions ("many believe", "some say", "experts agree", "studies show", "it is widely accepted that", "most people") let the prose claim something without naming a source.
 Either name the source or remove the claim.
 
-Vague qualifiers ("often", "usually", "sometimes", "in most cases") tell the reader the statement is sometimes false but do not say when.
+Vague qualifiers ("often", "usually", "sometimes", "in most cases") tell the reader the statement is sometimes false but don't say when.
 Replace with the specific condition, or remove the qualifier and accept the statement as a default.
 
 **Do**:
@@ -308,7 +308,7 @@ Replace with the specific condition, or remove the qualifier and accept the stat
 ## Stop, not kill; turn off, not disable
 
 In product-facing prose, prefer "stop" over "kill" and "turn off" over "disable".
-The plain-language forms read better for a non-technical audience and do not carry violent or ableist connotations.
+The plain-language forms read better for a non-technical audience and don't carry violent or ableist connotations.
 
 The rule has scoped exceptions for unavoidable industry-specific terms.
 When the prose names a specific technical command or a real state label, the original term is the only correct one.
@@ -354,7 +354,7 @@ A dedicated rule for `run` is out of scope for this revision.
 
 The published documentation, including the contribution guides, is public.
 Every reader and every contributor, whether a community contributor or a Coder employee, must be able to open every resource linked from the docs.
-A link that only employees can open excludes community contributors, so it does not belong on a published page.
+A link that only employees can open excludes community contributors, so it doesn't belong on a published page.
 
 Keep these out of published pages:
 

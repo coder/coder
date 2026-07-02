@@ -80,7 +80,7 @@ The non-breaking-space rule applies to prose only.
 ## Date format
 
 Write dates as `Month Day, Year` with a full month name and a comma between day and year.
-The format is unambiguous across locales, which the all-numeric forms (`07/31/2026` versus `31/07/2026`) are not.
+The format is unambiguous across locales, which the all-numeric forms (`07/31/2026` versus `31/07/2026`) aren't.
 
 **Do**:
 
@@ -121,7 +121,8 @@ The 12-hour rule is for prose only.
 ## Ordinals
 
 Spell out ordinals `first` through `ninth`.
-Use digits with a suffix for `10th` and up. This is the one place the digits-everywhere rule yields, because ordinals spelled out read more naturally in prose at low counts.
+Use digits with a suffix for `10th` and higher.
+This is the one place the digits-everywhere rule yields, because ordinals spelled out read more naturally in prose at low counts.
 
 **Do**:
 
