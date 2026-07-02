@@ -27,6 +27,16 @@ CREATE TYPE ai_seat_usage_reason AS ENUM (
     'task'
 );
 
+CREATE TYPE aibridge_interception_error_type AS ENUM (
+    'bad_request',
+    'unauthorized',
+    'rate_limited',
+    'overloaded',
+    'server_error',
+    'timeout',
+    'unknown'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -1559,7 +1569,9 @@ CREATE TABLE aibridge_interceptions (
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
     credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
     agent_firewall_session_id uuid,
-    agent_firewall_sequence_number integer
+    agent_firewall_sequence_number integer,
+    error_type aibridge_interception_error_type,
+    error_message character varying(1024)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1583,6 +1595,10 @@ COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential i
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.';
 
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
+
+COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,

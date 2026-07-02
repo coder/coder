@@ -16,6 +16,79 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AIBridgeInterceptionErrorType string
+
+const (
+	AibridgeInterceptionErrorTypeBadRequest   AIBridgeInterceptionErrorType = "bad_request"
+	AibridgeInterceptionErrorTypeUnauthorized AIBridgeInterceptionErrorType = "unauthorized"
+	AibridgeInterceptionErrorTypeRateLimited  AIBridgeInterceptionErrorType = "rate_limited"
+	AibridgeInterceptionErrorTypeOverloaded   AIBridgeInterceptionErrorType = "overloaded"
+	AibridgeInterceptionErrorTypeServerError  AIBridgeInterceptionErrorType = "server_error"
+	AibridgeInterceptionErrorTypeTimeout      AIBridgeInterceptionErrorType = "timeout"
+	AibridgeInterceptionErrorTypeUnknown      AIBridgeInterceptionErrorType = "unknown"
+)
+
+func (e *AIBridgeInterceptionErrorType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIBridgeInterceptionErrorType(s)
+	case string:
+		*e = AIBridgeInterceptionErrorType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIBridgeInterceptionErrorType: %T", src)
+	}
+	return nil
+}
+
+type NullAIBridgeInterceptionErrorType struct {
+	AIBridgeInterceptionErrorType AIBridgeInterceptionErrorType `json:"aibridge_interception_error_type"`
+	Valid                         bool                          `json:"valid"` // Valid is true if AIBridgeInterceptionErrorType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIBridgeInterceptionErrorType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIBridgeInterceptionErrorType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIBridgeInterceptionErrorType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIBridgeInterceptionErrorType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIBridgeInterceptionErrorType), nil
+}
+
+func (e AIBridgeInterceptionErrorType) Valid() bool {
+	switch e {
+	case AibridgeInterceptionErrorTypeBadRequest,
+		AibridgeInterceptionErrorTypeUnauthorized,
+		AibridgeInterceptionErrorTypeRateLimited,
+		AibridgeInterceptionErrorTypeOverloaded,
+		AibridgeInterceptionErrorTypeServerError,
+		AibridgeInterceptionErrorTypeTimeout,
+		AibridgeInterceptionErrorTypeUnknown:
+		return true
+	}
+	return false
+}
+
+func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
+	return []AIBridgeInterceptionErrorType{
+		AibridgeInterceptionErrorTypeBadRequest,
+		AibridgeInterceptionErrorTypeUnauthorized,
+		AibridgeInterceptionErrorTypeRateLimited,
+		AibridgeInterceptionErrorTypeOverloaded,
+		AibridgeInterceptionErrorTypeServerError,
+		AibridgeInterceptionErrorTypeTimeout,
+		AibridgeInterceptionErrorTypeUnknown,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -4570,6 +4643,10 @@ type AIBridgeInterception struct {
 	AgentFirewallSessionID uuid.NullUUID `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
 	// The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.
 	AgentFirewallSequenceNumber sql.NullInt32 `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
+	// Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.
+	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
+	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
+	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
