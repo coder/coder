@@ -563,23 +563,31 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 					{/* bottom right rounded corner */}
 				</div>
 
-				{/* row 7: sized intentionally to create the visual space below the timeline border */}
-				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
-					{/* vertical line */}
-				</div>
+				{/* rows 7-8: session end marker. Only rendered once every thread
+				    has loaded so "Session completed" cannot appear below
+				    still-loading threads and be mistaken for the end of the
+				    session. */}
+				{!hasNextPage && !isFetchingNextPage && (
+					<>
+						{/* row 7: sized intentionally to create the visual space below the timeline border */}
+						<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid h-4">
+							{/* vertical line */}
+						</div>
 
-				{/* row 8: session completed */}
-				<div className="row-start-8 col-start-2 relative">
-					<StatusIndicatorDot
-						variant="success"
-						className="absolute right-0 translate-x-1/2 translate-y-1/2"
-					/>
-				</div>
-				<div className="row-start-8 col-start-4 flex items-center">
-					<span className="text-content-success font-normal ml-4 text-sm py-1">
-						Session completed
-					</span>
-				</div>
+						{/* row 8: session completed */}
+						<div className="row-start-8 col-start-2 relative">
+							<StatusIndicatorDot
+								variant="success"
+								className="absolute right-0 translate-x-1/2 translate-y-1/2"
+							/>
+						</div>
+						<div className="row-start-8 col-start-4 flex items-center">
+							<span className="text-content-success font-normal ml-4 text-sm py-1">
+								Session completed
+							</span>
+						</div>
+					</>
+				)}
 			</div>
 		</div>
 	);

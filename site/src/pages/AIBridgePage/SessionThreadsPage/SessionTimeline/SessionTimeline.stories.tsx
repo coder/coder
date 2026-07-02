@@ -142,3 +142,13 @@ export const MultipleThreads: Story = {
 export const FetchingNextPage: Story = {
 	args: { hasNextPage: true, isFetchingNextPage: true },
 };
+
+// The "Session completed" marker should stay hidden while more threads
+// remain to be loaded so it cannot be misread as the end of the session.
+export const HasMoreThreadsToLoad: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		hasNextPage: true,
+		isFetchingNextPage: false,
+	},
+};
