@@ -15,7 +15,6 @@ export interface ChatTreeContextValue {
 	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
-	readonly regeneratingTitleChatIds: readonly string[];
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;

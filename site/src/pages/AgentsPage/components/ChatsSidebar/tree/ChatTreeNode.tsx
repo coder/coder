@@ -53,7 +53,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		activeChatId,
 		isArchiving,
 		archivingChatId,
-		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,
@@ -137,7 +136,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const sharedMenuItemProps = {
@@ -224,22 +222,15 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								<div className="min-w-0 flex-1 overflow-hidden text-left">
 									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 										<span
-											aria-busy={isRegeneratingThisChat}
 											className={cn(
 												"block flex-1 truncate text-[13px] text-content-primary",
 												isActive && "font-medium",
-												isRegeneratingThisChat && "animate-pulse",
 											)}
 										>
 											{chat.title}
 										</span>
 										{chat.has_unread && !isActiveChat && (
 											<span className="sr-only">(unread)</span>
-										)}
-										{isRegeneratingThisChat && (
-											<span className="sr-only" role="status">
-												Regenerating title…
-											</span>
 										)}
 									</div>
 									<div className="flex min-w-0 items-center gap-1.5">
