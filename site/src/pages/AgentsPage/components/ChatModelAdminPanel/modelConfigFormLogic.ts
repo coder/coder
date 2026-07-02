@@ -8,6 +8,7 @@ import {
 	snakeToCamel,
 } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
+import { reasoningEffortRank } from "../../utils/reasoningEffort";
 import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
@@ -445,8 +446,32 @@ function buildYupSchema(
 	return Yup.object(shape) as Yup.ObjectSchema<Record<string, unknown>>;
 }
 
-// Pre-built general-fields schema.
-const generalFieldsSchema = buildYupSchema(getGeneralFields());
+// Pre-built general-fields schema. The reasoning effort bounds are
+// cross-validated on the global effort ordering: an out-of-range pair
+// like default=high, max=low is rejected before it reaches the API.
+const generalFieldsSchema = buildYupSchema(getGeneralFields()).test(
+	"reasoning-effort-default-lte-max",
+	"Default reasoning effort must not exceed the max reasoning effort.",
+	function validate(value) {
+		const efforts = deepGet(value, ["reasoningEffort"]);
+		const defaultValue = deepGet(efforts, ["default"]);
+		const maxValue = deepGet(efforts, ["max"]);
+		if (typeof defaultValue !== "string" || typeof maxValue !== "string") {
+			return true;
+		}
+		const defaultRank = reasoningEffortRank(defaultValue);
+		const maxRank = reasoningEffortRank(maxValue);
+		// Unset or invalid values are covered by the per-field enum tests.
+		if (defaultRank < 0 || maxRank < 0 || defaultRank <= maxRank) {
+			return true;
+		}
+		return this.createError({
+			path: "reasoningEffort.default",
+			message:
+				"Default reasoning effort must not exceed the max reasoning effort.",
+		});
+	},
+);
 
 // Cache of per-provider Yup schemas, built lazily.
 const providerSchemaCache = new Map<

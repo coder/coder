@@ -825,6 +825,10 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
+##### Reasoning effort
+
+Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. During generation preparation, the effective effort is resolved from the config's `default`, clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`, then snapped into the provider's supported subset (the largest supported value not exceeding it, or the provider minimum when below it). The resolved value is injected into the provider-native options (`chatprovider.ProviderOptionsFromChatModelConfig`).
+
 #### Interrupt goroutine
 
 The interrupt goroutine is responsible for handling interrupts. It is spawned when the event indicates the core state machine is in `I0` or `I1` (status is `interrupting`).

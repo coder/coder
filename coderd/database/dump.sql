@@ -1913,8 +1913,11 @@ CREATE TABLE chat_messages (
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
     api_key_id text,
-    revision bigint NOT NULL
+    revision bigint NOT NULL,
+    reasoning_effort text
 );
+
+COMMENT ON COLUMN chat_messages.reasoning_effort IS 'User-selected reasoning effort for the turn triggered by this message. NULL when the sender did not select one.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -1961,8 +1964,11 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     api_key_id text,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    reasoning_effort text
 );
+
+COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'User-selected reasoning effort carried into the message when the queued row is promoted.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2037,6 +2043,7 @@ CREATE TABLE chats (
     context_dirty_since timestamp with time zone,
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
+    last_reasoning_effort text,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2057,6 +2064,8 @@ COMMENT ON COLUMN chats.context_dirty_since IS 'Set when an agent push changes t
 COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.';
 
 COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
+
+COMMENT ON COLUMN chats.last_reasoning_effort IS 'Reasoning effort carried by the most recent message that set one. Used as the per-turn effort for subsequent generations until overridden.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2123,6 +2132,7 @@ CREATE VIEW chats_expanded AS
     c.parent_chat_id,
     c.root_chat_id,
     c.last_model_config_id,
+    c.last_reasoning_effort,
     c.archived,
     c.last_error,
     c.mode,

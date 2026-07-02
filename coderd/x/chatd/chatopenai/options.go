@@ -13,12 +13,14 @@ import (
 )
 
 // ProviderOptionsFromChatConfig converts chat model OpenAI options to fantasy
-// provider options used for inference calls.
+// provider options used for inference calls. reasoningEffort is the resolved
+// per-turn reasoning effort.
 func ProviderOptionsFromChatConfig(
 	model fantasy.LanguageModel,
 	options *codersdk.ChatModelOpenAIProviderOptions,
+	reasoningEffort *string,
 ) fantasy.ProviderOptionsData {
-	reasoningEffort := ReasoningEffortFromChat(options.ReasoningEffort)
+	effort := ReasoningEffortFromChat(reasoningEffort)
 	if UsesResponsesOptions(model) {
 		include := EnsureResponseIncludes(IncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
@@ -29,7 +31,7 @@ func ProviderOptionsFromChatConfig(
 			Metadata:          options.Metadata,
 			ParallelToolCalls: options.ParallelToolCalls,
 			PromptCacheKey:    chatutil.NormalizedStringPointer(options.PromptCacheKey),
-			ReasoningEffort:   reasoningEffort,
+			ReasoningEffort:   effort,
 			ReasoningSummary:  chatutil.NormalizedStringPointer(options.ReasoningSummary),
 			SafetyIdentifier:  chatutil.NormalizedStringPointer(options.SafetyIdentifier),
 			ServiceTier:       ServiceTierFromChat(options.ServiceTier),
@@ -47,7 +49,7 @@ func ProviderOptionsFromChatConfig(
 		TopLogProbs:         options.TopLogProbs,
 		ParallelToolCalls:   options.ParallelToolCalls,
 		User:                chatutil.NormalizedStringPointer(options.User),
-		ReasoningEffort:     reasoningEffort,
+		ReasoningEffort:     effort,
 		MaxCompletionTokens: options.MaxCompletionTokens,
 		TextVerbosity:       chatutil.NormalizedStringPointer(options.TextVerbosity),
 		Prediction:          options.Prediction,

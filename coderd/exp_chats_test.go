@@ -3744,6 +3744,195 @@ func TestCreateChatModelConfig(t *testing.T) {
 		)
 	})
 
+	t.Run("ReasoningEffortStored", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref(" Medium "),
+					Max:     ptr.Ref("xhigh"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, modelConfig.ModelConfig)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort.Default)
+		require.Equal(t, "medium", *modelConfig.ModelConfig.ReasoningEffort.Default)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort.Max)
+		require.Equal(t, "xhigh", *modelConfig.ModelConfig.ReasoningEffort.Max)
+	})
+
+	t.Run("ReasoningEffortMirrorsSingleValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("high"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, modelConfig.ModelConfig)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort.Max)
+		require.Equal(t, "high", *modelConfig.ModelConfig.ReasoningEffort.Max)
+	})
+
+	t.Run("ReasoningEffortRejectsInvalidValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("extreme"),
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+	})
+
+	t.Run("ReasoningEffortRejectsUnsupportedProviderValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "anthropic", "test-api-key")
+
+		contextLimit := int64(4096)
+		// "minimal" is on the global scale but Anthropic's runtime set
+		// starts at "low".
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "claude-sonnet-4-5",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("minimal"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "reasoning_effort.default")
+	})
+
+	t.Run("ReasoningEffortAllowsNoneForVercel", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "vercel", "test-api-key")
+
+		contextLimit := int64(4096)
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "openai/gpt-5.1",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("none"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, modelConfig.ModelConfig)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort)
+		require.NotNil(t, modelConfig.ModelConfig.ReasoningEffort.Default)
+		require.Equal(t, "none", *modelConfig.ModelConfig.ReasoningEffort.Default)
+	})
+
+	t.Run("ReasoningEffortRejectsNoneForOpenAI", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("none"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "reasoning_effort.default")
+	})
+
+	t.Run("ReasoningEffortRejectsDefaultAboveMax", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		contextLimit := int64(4096)
+		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("xhigh"),
+					Max:     ptr.Ref("low"),
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "must not exceed")
+	})
+
 	t.Run("MissingContextLimit", func(t *testing.T) {
 		t.Parallel()
 

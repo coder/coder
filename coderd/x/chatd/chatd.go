@@ -400,6 +400,7 @@ func (p *Server) newAdvisorRuntime(
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
 		advisorModel,
 		advisorCallConfig.ProviderOptions,
+		nil,
 	)
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{

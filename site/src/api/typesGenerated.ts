@@ -2459,7 +2459,6 @@ export interface ChatModel {
 export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
-	readonly effort?: string;
 	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
@@ -2487,6 +2486,7 @@ export interface ChatModelCallConfig {
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
 	readonly cost?: ModelCostConfig;
+	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 
@@ -2544,7 +2544,6 @@ export interface ChatModelGoogleThinkingConfig {
  */
 export interface ChatModelOpenAICompatProviderOptions {
 	readonly user?: string;
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -2560,7 +2559,6 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly max_tool_calls?: number;
 	readonly parallel_tool_calls?: boolean;
 	readonly user?: string;
-	readonly reasoning_effort?: string;
 	readonly reasoning_summary?: string;
 	readonly max_completion_tokens?: number;
 	readonly text_verbosity?: string;
@@ -2671,6 +2669,20 @@ export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableRe
 
 // From codersdk/chats.go
 /**
+ * ChatModelReasoningEffortConfig configures per-model reasoning effort
+ * bounds. Values are ordered on the global effort scale
+ * none < minimal < low < medium < high < xhigh < max; each provider
+ * supports a subset and the effective effort is clamped into it at
+ * generation time. When only one of Default or Max is provided, it is
+ * mirrored into the other before storing.
+ */
+export interface ChatModelReasoningEffortConfig {
+	readonly default?: string;
+	readonly max?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelReasoningOptions configures reasoning behavior for model
  * providers that support it.
  */
@@ -2678,7 +2690,6 @@ export interface ChatModelReasoningOptions {
 	readonly enabled?: boolean;
 	readonly exclude?: boolean;
 	readonly max_tokens?: number;
-	readonly effort?: string;
 }
 
 // From codersdk/chats.go

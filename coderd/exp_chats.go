@@ -7003,7 +7003,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	modelConfigRaw, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig)
+	modelConfigRaw, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig, string(aiProvider.Type))
 	if modelConfigErr != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid model config.",
@@ -7143,6 +7143,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aiProviderID := existing.AIProviderID
+	aiProviderType := ""
 	if req.AIProviderID != nil {
 		//nolint:gocritic // The route already authorized chat model config updates.
 		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
@@ -7162,6 +7163,27 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		aiProviderID = uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
+		aiProviderType = string(aiProvider.Type)
+	} else if req.ModelConfig != nil && existing.AIProviderID.Valid {
+		// Model config validation needs the provider type to check
+		// reasoning effort against the provider's supported set.
+		//nolint:gocritic // The route already authorized chat model config updates.
+		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), existing.AIProviderID.UUID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Cannot update model config.",
+					Detail:  "The AI provider for this model config no longer exists. Set ai_provider_id to an existing provider.",
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get AI provider.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		aiProviderType = string(aiProvider.Type)
 	}
 
 	model := existing.Model
@@ -7208,7 +7230,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	modelConfigRaw := existing.Options
 	if req.ModelConfig != nil {
-		encodedModelConfig, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig)
+		encodedModelConfig, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig, aiProviderType)
 		if modelConfigErr != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config.",
@@ -7515,12 +7537,13 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 
 func marshalChatModelCallConfig(
 	modelConfig *codersdk.ChatModelCallConfig,
+	providerType string,
 ) (json.RawMessage, error) {
 	if modelConfig == nil {
 		return json.RawMessage("{}"), nil
 	}
 
-	if err := validateChatModelCallConfig(modelConfig); err != nil {
+	if err := validateChatModelCallConfig(modelConfig, providerType); err != nil {
 		return nil, err
 	}
 
@@ -7531,7 +7554,7 @@ func marshalChatModelCallConfig(
 	return encoded, nil
 }
 
-func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {
+func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig, providerType string) error {
 	if modelConfig == nil {
 		return nil
 	}
@@ -7556,7 +7579,76 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		}
 	}
 
+	if err := validateChatModelReasoningEffortConfig(modelConfig, providerType); err != nil {
+		return err
+	}
+
 	return validateChatModelProviderOptions(modelConfig.ProviderOptions)
+}
+
+// validateChatModelReasoningEffortConfig validates and canonicalizes
+// the reasoning_effort config in place. When only one of default/max
+// is provided, it is mirrored into the other. Values must be on the
+// provider's supported effort set (or the global scale when the
+// provider is unknown) and default must not exceed max.
+func validateChatModelReasoningEffortConfig(modelConfig *codersdk.ChatModelCallConfig, providerType string) error {
+	config := modelConfig.ReasoningEffort
+	if config == nil {
+		return nil
+	}
+
+	// Mirror a single provided value into the other bound.
+	if config.Default == nil {
+		config.Default = config.Max
+	}
+	if config.Max == nil {
+		config.Max = config.Default
+	}
+	if config.Default == nil {
+		// Both bounds absent; treat the config as unset.
+		modelConfig.ReasoningEffort = nil
+		return nil
+	}
+
+	supported := chatprovider.SupportedReasoningEfforts(providerType)
+	if chatprovider.NormalizeProvider(providerType) != "" && len(supported) == 0 {
+		return xerrors.Errorf("reasoning_effort is not supported for provider type %q", providerType)
+	}
+
+	normalizeField := func(name string, value *string) (*string, error) {
+		normalized := chatprovider.NormalizeGlobalReasoningEffort(value)
+		if normalized == nil {
+			return nil, xerrors.Errorf("reasoning_effort.%s must be one of none, minimal, low, medium, high, xhigh, max", name)
+		}
+		if len(supported) > 0 && !slices.Contains(supported, *normalized) {
+			return nil, xerrors.Errorf(
+				"reasoning_effort.%s must be one of %s for provider type %q",
+				name,
+				strings.Join(supported, ", "),
+				providerType,
+			)
+		}
+		return normalized, nil
+	}
+
+	defaultEffort, err := normalizeField("default", config.Default)
+	if err != nil {
+		return err
+	}
+	maxEffort, err := normalizeField("max", config.Max)
+	if err != nil {
+		return err
+	}
+
+	defaultRank, _ := chatprovider.ReasoningEffortRank(*defaultEffort)
+	maxRank, _ := chatprovider.ReasoningEffortRank(*maxEffort)
+	if defaultRank > maxRank {
+		return xerrors.Errorf("reasoning_effort.default must not exceed reasoning_effort.max")
+	}
+
+	config.Default = defaultEffort
+	config.Max = maxEffort
+	return nil
 }
 
 func validateChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) error {
@@ -7609,6 +7701,7 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.TopK == nil &&
 		config.PresencePenalty == nil &&
 		config.FrequencyPenalty == nil &&
+		config.ReasoningEffort == nil &&
 		isZeroModelCostConfig(config.Cost) &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
 }

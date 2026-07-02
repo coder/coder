@@ -1284,7 +1284,6 @@ type ChatModelOpenAIProviderOptions struct {
 	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty" description:"Maximum number of tool calls per response"`
 	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
 	User                *string          `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort     *string          `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 	ReasoningSummary    *string          `json:"reasoning_summary,omitempty" description:"Controls whether reasoning tokens are summarized in the response" enum:"auto,concise,detailed"`
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
@@ -1310,7 +1309,6 @@ type ChatModelAnthropicThinkingOptions struct {
 type ChatModelAnthropicProviderOptions struct {
 	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
 	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
-	Effort                 *string                            `json:"effort,omitempty" label:"Reasoning Effort" description:"Controls the level of reasoning effort" enum:"low,medium,high,xhigh,max"`
 	ThinkingDisplay        *string                            `json:"thinking_display,omitempty" label:"Thinking Display" description:"Controls how Anthropic returns thinking content" enum:"summarized,omitted"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
@@ -1341,17 +1339,15 @@ type ChatModelGoogleProviderOptions struct {
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
-	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	User *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
 }
 
 // ChatModelReasoningOptions configures reasoning behavior for model
 // providers that support it.
 type ChatModelReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
-	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
-	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	Enabled   *bool  `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
+	Exclude   *bool  `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
+	MaxTokens *int64 `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
 }
 
 // ChatModelOpenRouterProvider configures OpenRouter routing preferences.
@@ -1404,16 +1400,28 @@ type ModelCostConfig struct {
 	CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
 }
 
+// ChatModelReasoningEffortConfig configures per-model reasoning effort
+// bounds. Values are ordered on the global effort scale
+// none < minimal < low < medium < high < xhigh < max; each provider
+// supports a subset and the effective effort is clamped into it at
+// generation time. When only one of Default or Max is provided, it is
+// mirrored into the other before storing.
+type ChatModelReasoningEffortConfig struct {
+	Default *string `json:"default,omitempty" label:"Default Reasoning Effort" description:"Reasoning effort used when the user has not selected one" enum:"none,minimal,low,medium,high,xhigh,max"`
+	Max     *string `json:"max,omitempty" label:"Max Reasoning Effort" description:"Maximum reasoning effort the user may select" enum:"none,minimal,low,medium,high,xhigh,max"`
+}
+
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
-	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
-	Temperature      *float64                  `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
-	TopP             *float64                  `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
-	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
-	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
-	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
-	Cost             *ModelCostConfig          `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
-	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+	MaxOutputTokens  *int64                          `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
+	Temperature      *float64                        `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
+	TopP             *float64                        `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
+	TopK             *int64                          `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
+	PresencePenalty  *float64                        `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
+	FrequencyPenalty *float64                        `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
+	Cost             *ModelCostConfig                `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
+	ReasoningEffort  *ChatModelReasoningEffortConfig `json:"reasoning_effort,omitempty" description:"Default and max reasoning effort for the model"`
+	ProviderOptions  *ChatModelProviderOptions       `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
 }
 
 // UnmarshalJSON accepts both the current nested cost object and the previous
