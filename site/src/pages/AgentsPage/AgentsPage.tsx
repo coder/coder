@@ -39,6 +39,7 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
+	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
@@ -64,7 +65,10 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	getModelOptionsFromConfigs,
+	providerTypeByIDFromUserConfigs,
+} from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
@@ -165,6 +169,7 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -318,6 +323,7 @@ const AgentsPage: FC = () => {
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
+		providerTypeByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =

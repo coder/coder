@@ -99,6 +99,7 @@ interface ModelsPageViewProps {
 	error: unknown;
 	models: readonly ChatModelConfig[];
 	providerStates: readonly ProviderState[];
+	providerTypeByID: ReadonlyMap<string, string>;
 }
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
@@ -106,6 +107,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	error,
 	models,
 	providerStates,
+	providerTypeByID,
 }) => {
 	const navigate = useNavigate();
 	const [page, setPage] = useState(1);
@@ -264,6 +266,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								key={model.id}
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
+								providerTypeByID={providerTypeByID}
 								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
 							/>
 						))

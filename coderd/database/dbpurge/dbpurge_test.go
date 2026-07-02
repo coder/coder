@@ -2084,7 +2084,6 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "openai",
 			Model:        "test-model",
 			ContextLimit: 8192,
 		})
@@ -2311,7 +2310,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "openai",
 			Model:        "test-model",
 			ContextLimit: 8192,
 		})

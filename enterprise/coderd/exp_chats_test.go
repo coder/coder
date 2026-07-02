@@ -55,7 +55,6 @@ func createOpenAIModelConfigForTest(
 	t.Helper()
 	provider := createOpenAIProviderForTest(ctx, t, client, apiKey, baseURL)
 	model, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:             string(provider.Type),
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4",
 		DisplayName:          "GPT-4",
@@ -954,7 +953,6 @@ func TestChatModelConfigDefault(t *testing.T) {
 	firstModel, err := expClient.CreateChatModelConfig(
 		ctx,
 		codersdk.CreateChatModelConfigRequest{
-			Provider:             string(provider.Type),
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-a",
 			DisplayName:          "GPT 5 A",
@@ -969,7 +967,6 @@ func TestChatModelConfigDefault(t *testing.T) {
 	secondModel, err := expClient.CreateChatModelConfig(
 		ctx,
 		codersdk.CreateChatModelConfigRequest{
-			Provider:             string(provider.Type),
 			AIProviderID:         &provider.ID,
 			Model:                "gpt-5-b",
 			DisplayName:          "GPT 5 B",
@@ -1099,7 +1096,6 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:             string(provider.Type),
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
@@ -1169,7 +1165,6 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test-key", "https://example.com")
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:             string(provider.Type),
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
