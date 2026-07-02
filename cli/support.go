@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -57,6 +58,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
+  - Workspace log files (if --workspace-log-path is specified)
   - License status
   - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
@@ -574,16 +576,21 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	return nil
 }
 
-const (
-	supportBundleAgentLogFilesMaxTotal    int64 = 100 * 1024 * 1024
-	supportBundleAgentLogFilesMaxMetadata int64 = 10 * 1024 * 1024
-)
+// supportBundleAgentLogFilesMaxBytes caps how much of the agent's log files
+// archive is unpacked into the bundle. The agent enforces its own limits;
+// this only guards the CLI against a misbehaving agent.
+const supportBundleAgentLogFilesMaxBytes int64 = 110 * 1024 * 1024
 
 func writeAgentLogFilesArchive(src []byte, dest *zip.Writer) error {
-	return writeAgentLogFilesArchiveWithLimits(src, dest, supportBundleAgentLogFilesMaxTotal, supportBundleAgentLogFilesMaxMetadata)
+	return writeAgentLogFilesArchiveWithLimit(src, dest, supportBundleAgentLogFilesMaxBytes)
 }
 
-func writeAgentLogFilesArchiveWithLimits(src []byte, dest *zip.Writer, maxLogBytes int64, maxMetadataBytes int64) error {
+// writeAgentLogFilesArchiveWithLimit unpacks the agent's zip archive into
+// the bundle under agent/log_files/. Entries with unsafe names are dropped,
+// reads are bounded by the remaining budget rather than trusting declared
+// entry sizes, and per-entry problems are recorded in collection_errors.txt
+// instead of failing the bundle.
+func writeAgentLogFilesArchiveWithLimit(src []byte, dest *zip.Writer, maxBytes int64) error {
 	if len(src) == 0 {
 		return nil
 	}
@@ -594,35 +601,31 @@ func writeAgentLogFilesArchiveWithLimits(src []byte, dest *zip.Writer, maxLogByt
 			fmt.Sprintf("open agent log files archive: %s", err),
 		})
 	}
-	var (
-		totalLogBytes      int64
-		totalMetadataBytes int64
-		skipped            []string
-	)
+	remaining := maxBytes
+	var skipped []string
 	for _, file := range zr.File {
 		name, ok := safeAgentLogFilesArchiveName(file.Name)
 		if !ok || !file.FileInfo().Mode().IsRegular() {
 			continue
 		}
-		size := file.FileInfo().Size()
-		isLog := strings.HasPrefix(name, "files/")
-		remaining, maxBytes, kind := maxMetadataBytes-totalMetadataBytes, maxMetadataBytes, "metadata"
-		if isLog {
-			remaining, maxBytes, kind = maxLogBytes-totalLogBytes, maxLogBytes, "log"
-		}
-		if size < 0 {
-			skipped = append(skipped, fmt.Sprintf("%s: invalid size", name))
-			continue
-		}
-		if size > remaining {
-			skipped = append(skipped, fmt.Sprintf("%s: exceeds %d byte %s limit", name, maxBytes, kind))
-			continue
-		}
-		content, err := readAgentLogFileEntry(file, size)
+		rc, err := file.Open()
 		if err != nil {
-			skipped = append(skipped, fmt.Sprintf("%s: %s", name, err))
+			skipped = append(skipped, fmt.Sprintf("%s: open: %s", name, err))
 			continue
 		}
+		// Read one byte beyond the remaining budget to detect oversized
+		// entries without trusting the declared entry size.
+		content, err := io.ReadAll(io.LimitReader(rc, remaining+1))
+		_ = rc.Close()
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("%s: read: %s", name, err))
+			continue
+		}
+		if int64(len(content)) > remaining {
+			skipped = append(skipped, fmt.Sprintf("%s: exceeds remaining %d byte budget", name, remaining))
+			continue
+		}
+		remaining -= int64(len(content))
 		// Failing to write into the bundle (rather than read the agent's
 		// data) means the output zip is broken, so propagate it like the
 		// rest of writeBundle.
@@ -633,37 +636,8 @@ func writeAgentLogFilesArchiveWithLimits(src []byte, dest *zip.Writer, maxLogByt
 		if _, err := f.Write(content); err != nil {
 			return xerrors.Errorf("write agent log files entry %q: %w", name, err)
 		}
-		if isLog {
-			totalLogBytes += size
-		} else {
-			totalMetadataBytes += size
-		}
 	}
 	return writeAgentLogFilesSkipped(dest, skipped)
-}
-
-// readAgentLogFileEntry reads an archive entry into memory, rejecting any
-// whose real content does not match its declared size (e.g. a spoofed
-// header). Reading is bounded by the declared size so it can't be used to
-// exhaust memory.
-func readAgentLogFileEntry(file *zip.File, size int64) ([]byte, error) {
-	rc, err := file.Open()
-	if err != nil {
-		return nil, xerrors.Errorf("open: %w", err)
-	}
-	// Read one extra byte to detect content larger than the declared size.
-	content, err := io.ReadAll(io.LimitReader(rc, size+1))
-	closeErr := rc.Close()
-	if err != nil {
-		return nil, xerrors.Errorf("read: %w", err)
-	}
-	if closeErr != nil {
-		return nil, xerrors.Errorf("close: %w", closeErr)
-	}
-	if int64(len(content)) != size {
-		return nil, xerrors.Errorf("content does not match declared size %d", size)
-	}
-	return content, nil
 }
 
 // writeAgentLogFilesSkipped records, inside the bundle, any workspace log
@@ -685,22 +659,19 @@ func writeAgentLogFilesSkipped(dest *zip.Writer, skipped []string) error {
 	return nil
 }
 
+// safeAgentLogFilesArchiveName reports whether an entry name from the
+// agent's archive is safe to embed in the bundle: a clean, slash-separated
+// relative path without ".." elements or backslashes, within the expected
+// layout (manifest.json or files/...). Backslashes are rejected because
+// some Windows extractors treat them as path separators.
 func safeAgentLogFilesArchiveName(name string) (string, bool) {
-	if strings.Contains(name, "\\") || path.IsAbs(name) {
+	if strings.Contains(name, `\`) || !fs.ValidPath(name) {
 		return "", false
 	}
-	for _, segment := range strings.Split(name, "/") {
-		if segment == ".." {
-			return "", false
-		}
-	}
-	// With no ".." segments and a non-absolute name, Clean cannot escape;
-	// requiring a manifest.json or files/ prefix also rejects "." and "".
-	clean := path.Clean(name)
-	if clean != "manifest.json" && !strings.HasPrefix(clean, "files/") {
+	if name != "manifest.json" && !strings.HasPrefix(name, "files/") {
 		return "", false
 	}
-	return clean, true
+	return name, true
 }
 
 func writePprofData(pprof support.Pprof, dest *zip.Writer) error {

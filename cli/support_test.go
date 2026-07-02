@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -335,25 +334,34 @@ func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
 		return agents
 	})
 
+	// The in-process agent resolves requested paths against its home
+	// directory, which os.UserHomeDir reads from HOME (USERPROFILE on
+	// Windows). Fixture logs live in a dedicated subdirectory, and the
+	// agent log dir stays separate, so the collected files do not depend
+	// on logs the agent writes while the test runs.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	require.NoError(t, os.WriteFile(filepath.Join(home, "coder-agent.log"), []byte("hello from the agent"), 0o600))
-	require.NoError(t, os.WriteFile(filepath.Join(home, "server.log"), []byte("server log"), 0o600))
-	require.NoError(t, os.MkdirAll(filepath.Join(home, "nested"), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(home, "nested", "nested.log"), []byte("nested log"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "testlogs", "nested"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "testlogs", "server.log"), []byte("server log"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "testlogs", "nested", "nested.log"), []byte("nested log"), 0o600))
+
+	logDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(logDir, "coder-agent.log"), []byte("hello from the agent"), 0o600))
 	agt := agenttest.New(t, client.URL, workspaceWithAgent.AgentToken, func(o *agent.Options) {
-		o.LogDir = home
+		o.LogDir = logDir
 	})
 	defer agt.Close()
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceWithAgent.Workspace.ID).Wait()
 
 	d := t.TempDir()
 	bundlePath := filepath.Join(d, "bundle.zip")
+	// The exact path and the glob both match server.log to cover
+	// deduplication end to end.
 	inv, root := clitest.New(t,
 		"support", "bundle", workspaceWithAgent.Workspace.Name,
-		"--workspace-log-path", "$HOME/server.log",
-		"--workspace-log-path", "$HOME/**/*.log",
+		"--workspace-log-path", "$HOME/testlogs/server.log",
+		"--workspace-log-path", "$HOME/testlogs/**/*.log",
 		"--output-file", bundlePath,
 		"--yes",
 	)
@@ -361,12 +369,15 @@ func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
 	require.NoError(t, err)
+
 	assertBundleContents(t, bundlePath, true, true, []string{secretValue})
-	assertSupportBundleWorkspaceLog(t, bundlePath, "agent/log_files/files/server.log", "server log")
-	assertSupportBundleWorkspaceLog(t, bundlePath, "agent/log_files/files/nested/nested.log", "nested log")
-	manifest := readWorkspaceLogManifestFromBundle(t, bundlePath)
-	require.Contains(t, manifest.Requested, "$HOME/server.log")
-	require.Contains(t, manifest.Requested, "$HOME/**/*.log")
+	entries := readZipEntries(t, bundlePath)
+	require.Equal(t, "server log", string(entries["agent/log_files/files/testlogs/server.log"]))
+	require.Equal(t, "nested log", string(entries["agent/log_files/files/testlogs/nested/nested.log"]))
+	var manifest supportBundleWorkspaceLogManifest
+	require.NoError(t, json.Unmarshal(entries["agent/log_files/manifest.json"], &manifest))
+	require.Equal(t, []string{"$HOME/testlogs/server.log", "$HOME/testlogs/**/*.log"}, manifest.Requested)
+	require.Len(t, manifest.Files, 2, "server.log should be deduplicated across the exact path and the glob")
 }
 
 // nolint:revive // It's a control flag, but this is just a test.
@@ -595,42 +606,25 @@ func readBytesFromZip(t *testing.T, f *zip.File) []byte {
 	return bs
 }
 
-func assertSupportBundleWorkspaceLog(t *testing.T, bundlePath string, entryName string, want string) {
-	t.Helper()
-
-	r, err := zip.OpenReader(bundlePath)
-	require.NoError(t, err, "open zip file")
-	defer r.Close()
-	for _, f := range r.File {
-		if f.Name != entryName {
-			continue
-		}
-		require.Equal(t, want, string(readBytesFromZip(t, f)))
-		return
-	}
-	require.Failf(t, "missing workspace log file", "expected %q in bundle", entryName)
-}
-
 type supportBundleWorkspaceLogManifest struct {
 	Requested []string `json:"requested"`
+	Files     []struct {
+		ArchivePath string `json:"archive_path"`
+	} `json:"files"`
 }
 
-func readWorkspaceLogManifestFromBundle(t *testing.T, bundlePath string) supportBundleWorkspaceLogManifest {
+// readZipEntries reads every entry of the zip at zipPath into memory.
+func readZipEntries(t *testing.T, zipPath string) map[string][]byte {
 	t.Helper()
 
-	r, err := zip.OpenReader(bundlePath)
+	r, err := zip.OpenReader(zipPath)
 	require.NoError(t, err, "open zip file")
 	defer r.Close()
+	entries := map[string][]byte{}
 	for _, f := range r.File {
-		if path.Clean(f.Name) != "agent/log_files/manifest.json" {
-			continue
-		}
-		var manifest supportBundleWorkspaceLogManifest
-		decodeJSONFromZip(t, f, &manifest)
-		return manifest
+		entries[f.Name] = readBytesFromZip(t, f)
 	}
-	require.Fail(t, "missing workspace log manifest")
-	return supportBundleWorkspaceLogManifest{}
+	return entries
 }
 
 func assertDoesNotContain(t *testing.T, f *zip.File, vals ...string) {

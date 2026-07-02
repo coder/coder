@@ -3,7 +3,6 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
-	"encoding/binary"
 	"io"
 	"testing"
 
@@ -20,15 +19,15 @@ func TestSafeAgentLogFilesArchiveName(t *testing.T) {
 	}{
 		{name: "manifest.json", want: "manifest.json", ok: true},
 		{name: "files/server.log", want: "files/server.log", ok: true},
-		{name: "./files/server.log", want: "files/server.log", ok: true},
+		{name: "./files/server.log", ok: false},
 		{name: "../manifest.json", ok: false},
 		{name: "/manifest.json", ok: false},
 		{name: "files/nested/../server.log", ok: false},
 		{name: "files/../../manifest.json", ok: false},
 		{name: "files\\nested\\server.log", ok: false},
+		{name: `files/nested\..\server.log`, ok: false},
 		{name: "other/server.log", ok: false},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -39,91 +38,51 @@ func TestSafeAgentLogFilesArchiveName(t *testing.T) {
 	}
 }
 
-func TestWriteAgentLogFilesArchiveLimits(t *testing.T) {
+func TestWriteAgentLogFilesArchive(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AllowsManifestBeyondLogLimit", func(t *testing.T) {
+	t.Run("UnpacksManifestAndFiles", func(t *testing.T) {
 		t.Parallel()
 
-		var agentArchive bytes.Buffer
-		agentZip := zip.NewWriter(&agentArchive)
-		entry, err := agentZip.Create("files/server.log")
-		require.NoError(t, err)
-		_, err = entry.Write([]byte("1234"))
-		require.NoError(t, err)
-		entry, err = agentZip.Create("manifest.json")
-		require.NoError(t, err)
-		_, err = entry.Write([]byte(`{"files":[{"archive_path":"files/server.log"}]}`))
-		require.NoError(t, err)
-		require.NoError(t, agentZip.Close())
+		agentArchive := makeAgentLogFilesArchive(t,
+			"files/server.log", "server log",
+			"manifest.json", `{"files":[{"archive_path":"files/server.log"}]}`,
+			"../escape.log", "should be dropped silently",
+		)
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentLogFilesArchiveWithLimits(agentArchive.Bytes(), bundleZip, 4, 1024))
+		require.NoError(t, writeAgentLogFilesArchive(agentArchive, bundleZip))
 		require.NoError(t, bundleZip.Close())
 
 		entries := readBundleEntries(t, bundle.Bytes())
-		require.Equal(t, "1234", string(entries["agent/log_files/files/server.log"]))
+		require.Equal(t, "server log", string(entries["agent/log_files/files/server.log"]))
 		require.Contains(t, entries, "agent/log_files/manifest.json")
 		require.NotContains(t, entries, "agent/log_files/collection_errors.txt")
+		require.Len(t, entries, 2)
 	})
 
-	t.Run("SkipsOversizedLogEntries", func(t *testing.T) {
+	t.Run("SkipsEntriesBeyondBudget", func(t *testing.T) {
 		t.Parallel()
 
-		var agentArchive bytes.Buffer
-		agentZip := zip.NewWriter(&agentArchive)
-		entry, err := agentZip.Create("files/server.log")
-		require.NoError(t, err)
-		_, err = entry.Write([]byte("server log"))
-		require.NoError(t, err)
-		require.NoError(t, agentZip.Close())
-
-		archiveBytes := agentArchive.Bytes()
-		centralDir := bytes.Index(archiveBytes, []byte{'P', 'K', 0x01, 0x02})
-		require.NotEqual(t, -1, centralDir)
-		binary.LittleEndian.PutUint32(archiveBytes[centralDir+24:centralDir+28], uint32(supportBundleAgentLogFilesMaxTotal+1))
+		agentArchive := makeAgentLogFilesArchive(t,
+			"files/big.log", "this entry is too big",
+			"files/small.log", "ok",
+		)
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentLogFilesArchive(archiveBytes, bundleZip))
-		require.NoError(t, bundleZip.Close())
-
-		// The oversized entry is dropped, but the bundle still succeeds and
-		// records why.
-		entries := readBundleEntries(t, bundle.Bytes())
-		require.NotContains(t, entries, "agent/log_files/files/server.log")
-		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "files/server.log")
-		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "exceeds")
-	})
-
-	t.Run("KeepsValidEntriesWhenOneIsOversized", func(t *testing.T) {
-		t.Parallel()
-
-		var agentArchive bytes.Buffer
-		agentZip := zip.NewWriter(&agentArchive)
-		for name, content := range map[string]string{
-			"files/small.log": "ok",
-			"files/big.log":   "this entry is too big",
-		} {
-			entry, err := agentZip.Create(name)
-			require.NoError(t, err)
-			_, err = entry.Write([]byte(content))
-			require.NoError(t, err)
-		}
-		require.NoError(t, agentZip.Close())
-
-		var bundle bytes.Buffer
-		bundleZip := zip.NewWriter(&bundle)
-		// A 4 byte log budget fits small.log but not big.log, regardless of
-		// the order they're encountered in.
-		require.NoError(t, writeAgentLogFilesArchiveWithLimits(agentArchive.Bytes(), bundleZip, 4, 1024))
+		// A 4 byte budget fits small.log but not big.log. The oversized
+		// entry is dropped, but the bundle still succeeds and records why.
+		require.NoError(t, writeAgentLogFilesArchiveWithLimit(agentArchive, bundleZip, 4))
 		require.NoError(t, bundleZip.Close())
 
 		entries := readBundleEntries(t, bundle.Bytes())
 		require.Equal(t, "ok", string(entries["agent/log_files/files/small.log"]))
 		require.NotContains(t, entries, "agent/log_files/files/big.log")
-		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "files/big.log")
+		errs := string(entries["agent/log_files/collection_errors.txt"])
+		require.Contains(t, errs, "files/big.log")
+		require.Contains(t, errs, "budget")
 	})
 
 	t.Run("MalformedArchiveDoesNotFail", func(t *testing.T) {
@@ -137,6 +96,23 @@ func TestWriteAgentLogFilesArchiveLimits(t *testing.T) {
 		entries := readBundleEntries(t, bundle.Bytes())
 		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "open agent log files archive")
 	})
+}
+
+// makeAgentLogFilesArchive zips alternating name/content pairs in order.
+func makeAgentLogFilesArchive(t *testing.T, pairs ...string) []byte {
+	t.Helper()
+
+	require.Zero(t, len(pairs)%2)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for i := 0; i < len(pairs); i += 2 {
+		entry, err := zw.Create(pairs[i])
+		require.NoError(t, err)
+		_, err = entry.Write([]byte(pairs[i+1]))
+		require.NoError(t, err)
+	}
+	require.NoError(t, zw.Close())
+	return buf.Bytes()
 }
 
 func readBundleEntries(t *testing.T, data []byte) map[string][]byte {
