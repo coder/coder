@@ -46,6 +46,7 @@ import { TemplateAlternatives } from "./TemplateAlternatives";
 import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
 	initialWizardState,
+	type SelectedBaseMeta,
 	type TemplateBuilderWizardState,
 	type WizardAction,
 	wizardReducer,
@@ -54,6 +55,7 @@ import {
 interface TemplateBuilderPageViewProps {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
+	preselectedBase?: SelectedBaseMeta;
 	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
 	createError: Error | null;
 	isCreating: boolean;
@@ -63,13 +65,27 @@ interface TemplateBuilderPageViewProps {
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	error,
 	basesData,
+	preselectedBase,
 	onCreateTemplate,
 	createError,
 	isCreating,
 	onClearCreateError,
 }) => {
-	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
-	const [stepIndex, setStepIndex] = useState(0);
+	const resolvedInitialState = preselectedBase
+		? {
+				...initialWizardState,
+				baseTemplateId: preselectedBase.id,
+				selectedBase: preselectedBase,
+			}
+		: initialWizardState;
+	const [state, dispatch] = useReducer(wizardReducer, resolvedInitialState);
+	const [stepIndex, setStepIndex] = useState(() => {
+		if (!preselectedBase) {
+			return 0;
+		}
+		const next = findNextVisibleIndex(0, state);
+		return next !== -1 ? next : 0;
+	});
 	const modulesQuery = useQuery(templateBuilderModules(state.selectedBase?.id));
 
 	const moduleVarMap = Object.fromEntries(
