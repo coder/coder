@@ -92,16 +92,19 @@ export const resolveModelFromChatConfig = (
 	return modelOptions[0]?.id ?? "";
 };
 
+// Resolves a workspace agent strictly by ID. The agent for a chat is
+// selected by the backend (persisted as the chat's agent_id, see
+// coderd/x/chatd/agentselect); the frontend must not pick an agent itself,
+// so there is deliberately no fallback to the first agent when the ID is
+// missing or does not match.
 export const getWorkspaceAgent = (
 	workspace: TypesGen.Workspace | undefined,
 	workspaceAgentId: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
-	if (!workspace) {
+	if (!workspace || !workspaceAgentId) {
 		return undefined;
 	}
-	const agents = getWorkspaceAgents(workspace);
-	if (agents.length === 0) {
-		return undefined;
-	}
-	return agents.find((agent) => agent.id === workspaceAgentId) ?? agents[0];
+	return getWorkspaceAgents(workspace).find(
+		(agent) => agent.id === workspaceAgentId,
+	);
 };

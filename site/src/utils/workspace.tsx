@@ -254,87 +254,15 @@ export const findWorkspaceAgent = (
 	return getWorkspaceAgents(workspace).find((agent) => agent.id === agentId);
 };
 
-// CHAT_AGENT_SUFFIX marks chat-designated agents during the current PoC.
-// This naming convention is an implementation detail, not a stable contract.
-// Mirrors agentselect.Suffix in coderd/x/chatd/agentselect/agentselect.go.
-const CHAT_AGENT_SUFFIX = "-coderd-chat";
-
-// Reports whether name uses the chat-agent suffix convention. Mirrors
-// agentselect.IsChatAgent in coderd/x/chatd/agentselect/agentselect.go.
-const isChatAgent = (name: string): boolean =>
-	name.toLowerCase().endsWith(CHAT_AGENT_SUFFIX);
-
-// Code-unit string comparison, matching Go's cmp.Compare on strings rather
-// than locale-aware collation.
-const compareStrings = (a: string, b: string): number => {
-	if (a < b) {
-		return -1;
-	}
-	if (a > b) {
-		return 1;
-	}
-	return 0;
-};
-
-// Mirrors compareAgents inside agentselect.FindChatAgent: display order ASC,
-// then name ASC (case-insensitive), then name ASC, then ID ASC.
-const compareAgents = (
-	a: TypesGen.WorkspaceAgent,
-	b: TypesGen.WorkspaceAgent,
-): number => {
-	return (
-		a.display_order - b.display_order ||
-		compareStrings(a.name.toLowerCase(), b.name.toLowerCase()) ||
-		compareStrings(a.name, b.name) ||
-		compareStrings(a.id, b.id)
-	);
-};
-
-// findChatAgent picks the best workspace agent for chat-related defaults
-// (e.g. the task page terminal). It is a strict TypeScript mirror of
-// FindChatAgent in coderd/x/chatd/agentselect/agentselect.go and MUST be
-// kept in sync with it. It applies these rules in order:
-//  1. Filter to root agents only (parent_id is null).
-//  2. Sort stably and deterministically by display order ASC, then name ASC
-//     (case-insensitive), then name ASC, then ID ASC.
-//  3. If exactly one root agent name ends with the chat suffix
-//     (case-insensitive), return it.
-//  4. If zero root agents match the suffix, return the first root agent
-//     after sorting (deterministic fallback).
-//  5. If more than one root agent matches the suffix, return undefined
-//     (the Go selector returns an error).
-//  6. If no root agents exist at all, return undefined (the Go selector
-//     returns an error).
-export const findChatAgent = (
-	workspace: TypesGen.Workspace,
-): TypesGen.WorkspaceAgent | undefined => {
-	const rootAgents = getWorkspaceAgents(workspace).filter(
-		(agent) => agent.parent_id === null,
-	);
-	if (rootAgents.length === 0) {
-		return undefined;
-	}
-	const matchingAgents = rootAgents.filter((agent) => isChatAgent(agent.name));
-	switch (matchingAgents.length) {
-		case 0:
-			return [...rootAgents].sort(compareAgents)[0];
-		case 1:
-			return matchingAgents[0];
-		default:
-			return undefined;
-	}
-};
-
 export const getMatchingAgentOrFirst = (
 	workspace: TypesGen.Workspace,
 	agentName: string | undefined,
 ): TypesGen.WorkspaceAgent | undefined => {
+	const agents = getWorkspaceAgents(workspace);
 	if (!agentName) {
-		return findChatAgent(workspace);
+		return agents[0];
 	}
-	return getWorkspaceAgents(workspace).find(
-		(agent) => agent.name === agentName,
-	);
+	return agents.find((agent) => agent.name === agentName);
 };
 
 export const mustUpdateWorkspace = (

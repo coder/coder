@@ -9545,7 +9545,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -10898,7 +10897,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -14500,7 +14498,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -14786,7 +14783,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "display_apps": [
     "vscode"
   ],
-  "display_order": 0,
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -14870,7 +14866,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                              |
-| `display_order`              | integer                                                                                      | false    |              | Display order controls the relative ordering of agents when displayed in user interfaces. Lower values sort first.                                                           |
 | `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                              |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                              |
@@ -15748,7 +15743,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "display_apps": [
             "vscode"
           ],
-          "display_order": 0,
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -16219,7 +16213,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "display_apps": [
         "vscode"
       ],
-      "display_order": 0,
       "environment_variables": {
         "property1": "string",
         "property2": "string"
@@ -16570,7 +16563,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "display_apps": [
                   "vscode"
                 ],
-                "display_order": 0,
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"

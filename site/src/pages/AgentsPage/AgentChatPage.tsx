@@ -661,7 +661,6 @@ type _UncoveredAgentFields = Omit<
 	// frequently (stats, metadata) or are objects/arrays that would
 	// require deep comparison, and the UI does not read them.
 	| "parent_id"
-	| "display_order"
 	| "created_at"
 	| "updated_at"
 	| "first_connected_at"
@@ -766,6 +765,11 @@ const AgentChatPage: FC = () => {
 		enabled: Boolean(parentChatID),
 	});
 	const workspaceId = chatQuery.data?.workspace_id;
+	// The chat's agent is selected by the backend and persisted as the
+	// chat's agent_id (see coderd/x/chatd/agentselect). The frontend must
+	// not pick an agent itself; when agent_id is missing, no agent is shown
+	// rather than falling back to an arbitrary one.
+	const chatAgentId = chatQuery.data?.agent_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -858,8 +862,8 @@ const AgentChatPage: FC = () => {
 								// reads has changed. This prevents react-query
 								// from notifying subscribers and avoids a full
 								// AgentChatPage re-render on every heartbeat.
-								const prevAgent = getWorkspaceAgent(prev, undefined);
-								const nextAgent = getWorkspaceAgent(next, undefined);
+								const prevAgent = getWorkspaceAgent(prev, chatAgentId);
+								const nextAgent = getWorkspaceAgent(next, chatAgentId);
 								if (
 									prev &&
 									prev.latest_build.status === next.latest_build.status &&
@@ -892,9 +896,9 @@ const AgentChatPage: FC = () => {
 				});
 			},
 		});
-	}, [workspaceId, queryClient]);
+	}, [workspaceId, chatAgentId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
+	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;

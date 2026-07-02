@@ -31,11 +31,6 @@ func IsChatAgent(name string) bool {
 //  5. If more than one root agent matches the suffix, return an error with an
 //     actionable message.
 //  6. If no root agents exist at all, return an error.
-//
-// This selection logic is mirrored in the frontend at
-// site/src/utils/workspace.tsx (findChatAgent) so that the task terminal
-// targets the same agent as the chat desktop and git streams. Keep the two
-// implementations in sync.
 func FindChatAgent(
 	agents []database.WorkspaceAgent,
 ) (database.WorkspaceAgent, error) {

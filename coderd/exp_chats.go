@@ -472,7 +472,53 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID))
+	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
+	// Best-effort agent enrichment; see enrichChatAgentIDs.
+	api.enrichChatAgentIDs(ctx, sdkChats)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
+}
+
+// enrichChatAgentIDs fills AgentID on chats (and their embedded
+// children) that have a bound workspace but no persisted agent
+// binding. chatd persists the binding lazily, only once a turn dials
+// the workspace, so a chat can carry a workspace_id with a null
+// agent_id. The frontend must never select an agent itself, so the
+// response is enriched with the backend's deterministic selection.
+// Enrichment is response-only and best-effort: nothing is persisted,
+// and on any error the field stays null. Lookups are deduplicated per
+// workspace, but this is still one query per distinct workspace that
+// lacks a binding; acceptable because most chats already carry a
+// persisted agent_id.
+func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	agentIDByWorkspace := make(map[uuid.UUID]*uuid.UUID)
+	resolve := func(workspaceID uuid.UUID) *uuid.UUID {
+		if agentID, ok := agentIDByWorkspace[workspaceID]; ok {
+			return agentID
+		}
+		var agentID *uuid.UUID
+		agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
+		if err != nil {
+			api.Logger.Debug(ctx, "failed to fetch workspace agents for chat agent enrichment",
+				slog.F("workspace_id", workspaceID),
+				slog.Error(err),
+			)
+		} else if agent, err := agentselect.FindChatAgent(agents); err == nil {
+			agentID = &agent.ID
+		}
+		agentIDByWorkspace[workspaceID] = agentID
+		return agentID
+	}
+	for i := range chats {
+		if chats[i].AgentID == nil && chats[i].WorkspaceID != nil {
+			chats[i].AgentID = resolve(*chats[i].WorkspaceID)
+		}
+		for j := range chats[i].Children {
+			child := &chats[i].Children[j]
+			if child.AgentID == nil && child.WorkspaceID != nil {
+				child.AgentID = resolve(*child.WorkspaceID)
+			}
+		}
+	}
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -2104,6 +2150,11 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
+
+	// Best-effort agent enrichment; see enrichChatAgentIDs.
+	enriched := []codersdk.Chat{sdkChat}
+	api.enrichChatAgentIDs(ctx, enriched)
+	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }

@@ -190,7 +190,6 @@ of the template will be used.
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -557,7 +556,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -891,7 +889,6 @@ of the template will be used.
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1186,7 +1183,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "display_apps": [
                   "vscode"
                 ],
-                "display_order": 0,
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
@@ -1496,7 +1492,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -2116,7 +2111,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "display_apps": [
               "vscode"
             ],
-            "display_order": 0,
             "environment_variables": {
               "property1": "string",
               "property2": "string"

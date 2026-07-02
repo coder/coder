@@ -3,11 +3,134 @@ package coderd
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestEnrichChatAgentIDs(t *testing.T) {
+	t.Parallel()
+
+	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {
+		t.Helper()
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		return &API{
+			Options: &Options{
+				Database: mDB,
+				Logger:   logger,
+			},
+		}, mDB
+	}
+
+	t.Run("ResolvesRootAgentSkippingSubAgent", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx         = testutil.Context(t, testutil.WaitShort)
+			workspaceID = uuid.New()
+			rootAgentID = uuid.New()
+		)
+		api, mDB := newAPI(t)
+
+		// The sub-agent is returned first to prove selection is not
+		// positional.
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+			Return([]database.WorkspaceAgent{
+				{
+					ID:       uuid.New(),
+					ParentID: uuid.NullUUID{UUID: rootAgentID, Valid: true},
+					Name:     "dev-container",
+				},
+				{
+					ID:   rootAgentID,
+					Name: "main",
+				},
+			}, nil)
+
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}}
+		api.enrichChatAgentIDs(ctx, chats)
+
+		require.NotNil(t, chats[0].AgentID)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+	})
+
+	t.Run("DeduplicatesLookupsAndEnrichesChildren", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx         = testutil.Context(t, testutil.WaitShort)
+			workspaceID = uuid.New()
+			agentID     = uuid.New()
+		)
+		api, mDB := newAPI(t)
+
+		// A single lookup serves the root chat and its child; gomock
+		// fails the test on a second call.
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+			Return([]database.WorkspaceAgent{{ID: agentID, Name: "main"}}, nil).
+			Times(1)
+
+		chats := []codersdk.Chat{{
+			WorkspaceID: &workspaceID,
+			Children:    []codersdk.Chat{{WorkspaceID: &workspaceID}},
+		}}
+		api.enrichChatAgentIDs(ctx, chats)
+
+		require.NotNil(t, chats[0].AgentID)
+		require.Equal(t, agentID, *chats[0].AgentID)
+		require.NotNil(t, chats[0].Children[0].AgentID)
+		require.Equal(t, agentID, *chats[0].Children[0].AgentID)
+	})
+
+	t.Run("LeavesNullOnError", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx         = testutil.Context(t, testutil.WaitShort)
+			workspaceID = uuid.New()
+		)
+		api, mDB := newAPI(t)
+
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+			Return(nil, xerrors.New("boom"))
+
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}}
+		api.enrichChatAgentIDs(ctx, chats)
+
+		require.Nil(t, chats[0].AgentID)
+	})
+
+	t.Run("SkipsChatsWithoutWorkspaceOrWithAgent", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx         = testutil.Context(t, testutil.WaitShort)
+			workspaceID = uuid.New()
+			existing    = uuid.New()
+		)
+		// No database expectations: neither chat should trigger a
+		// lookup.
+		api, _ := newAPI(t)
+
+		chats := []codersdk.Chat{
+			{},
+			{WorkspaceID: &workspaceID, AgentID: &existing},
+		}
+		api.enrichChatAgentIDs(ctx, chats)
+
+		require.Nil(t, chats[0].AgentID)
+		require.Equal(t, existing, *chats[1].AgentID)
+	})
+}
 
 func TestValidateChatModelProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
 	t.Parallel()
