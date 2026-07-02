@@ -59,6 +59,31 @@ export const HasError: Story = {
 	},
 };
 
+export const ErrorWithNoContainerOrAgent: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			status: "error",
+			error: "exit status 1",
+			container: undefined,
+			agent: undefined,
+		},
+		subAgents: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		const moreActionsButton = canvas.getByRole("button", {
+			name: "Dev Container actions",
+		});
+		await user.click(moreActionsButton);
+
+		const body = canvasElement.ownerDocument.body;
+		await within(body).findByText("Delete…");
+	},
+};
+
 export const NoPorts: Story = {};
 
 export const WithPorts: Story = {
