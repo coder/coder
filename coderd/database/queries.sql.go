@@ -9712,32 +9712,37 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 }
 
 const insertChatMessages = `-- name: InsertChatMessages :many
-WITH updated_chat AS (
+WITH batch AS (
+    SELECT
+        (
+            SELECT val
+            FROM UNNEST($4::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        ) AS last_model_config_id,
+        (
+            SELECT val
+            FROM UNNEST($5::text[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != ''
+            ORDER BY ord DESC
+            LIMIT 1
+        ) AS last_reasoning_effort
+),
+updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = (
-            SELECT val
-            FROM UNNEST($4::uuid[])
-                WITH ORDINALITY AS t(val, ord)
-            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
-            ORDER BY ord DESC
-            LIMIT 1
-        )
+        last_model_config_id = COALESCE(batch.last_model_config_id, chats.last_model_config_id),
+        last_reasoning_effort = COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
+    FROM batch
     WHERE
-        id = $1::uuid
-        AND EXISTS (
-            SELECT 1
-            FROM UNNEST($4::uuid[])
-            WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
-        )
-        AND chats.last_model_config_id IS DISTINCT FROM (
-            SELECT val
-            FROM UNNEST($4::uuid[])
-                WITH ORDINALITY AS t(val, ord)
-            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
-            ORDER BY ord DESC
-            LIMIT 1
+        chats.id = $1::uuid
+        AND (
+            chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
+            OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
         )
 )
 INSERT INTO chat_messages (
@@ -9745,6 +9750,7 @@ INSERT INTO chat_messages (
     created_by,
     api_key_id,
     model_config_id,
+    reasoning_effort,
     role,
     content,
     content_version,
@@ -9766,21 +9772,22 @@ SELECT
     NULLIF(UNNEST($2::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(UNNEST($3::text[]), ''),
     NULLIF(UNNEST($4::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    UNNEST($5::chat_message_role[]),
-    UNNEST($6::text[])::jsonb,
-    UNNEST($7::smallint[]),
-    UNNEST($8::chat_message_visibility[]),
-    NULLIF(UNNEST($9::bigint[]), 0),
+    NULLIF(UNNEST($5::text[]), ''),
+    UNNEST($6::chat_message_role[]),
+    UNNEST($7::text[])::jsonb,
+    UNNEST($8::smallint[]),
+    UNNEST($9::chat_message_visibility[]),
     NULLIF(UNNEST($10::bigint[]), 0),
     NULLIF(UNNEST($11::bigint[]), 0),
     NULLIF(UNNEST($12::bigint[]), 0),
     NULLIF(UNNEST($13::bigint[]), 0),
     NULLIF(UNNEST($14::bigint[]), 0),
     NULLIF(UNNEST($15::bigint[]), 0),
-    UNNEST($16::boolean[]),
-    NULLIF(UNNEST($17::bigint[]), 0),
+    NULLIF(UNNEST($16::bigint[]), 0),
+    UNNEST($17::boolean[]),
     NULLIF(UNNEST($18::bigint[]), 0),
-    NULLIF(UNNEST($19::text[]), '')
+    NULLIF(UNNEST($19::bigint[]), 0),
+    NULLIF(UNNEST($20::text[]), '')
 RETURNING
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, reasoning_effort
 `
@@ -9790,6 +9797,7 @@ type InsertChatMessagesParams struct {
 	CreatedBy           []uuid.UUID             `db:"created_by" json:"created_by"`
 	APIKeyID            []string                `db:"api_key_id" json:"api_key_id"`
 	ModelConfigID       []uuid.UUID             `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort     []string                `db:"reasoning_effort" json:"reasoning_effort"`
 	Role                []ChatMessageRole       `db:"role" json:"role"`
 	Content             []string                `db:"content" json:"content"`
 	ContentVersion      []int16                 `db:"content_version" json:"content_version"`
@@ -9813,6 +9821,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.CreatedBy),
 		pq.Array(arg.APIKeyID),
 		pq.Array(arg.ModelConfigID),
+		pq.Array(arg.ReasoningEffort),
 		pq.Array(arg.Role),
 		pq.Array(arg.Content),
 		pq.Array(arg.ContentVersion),
@@ -9876,12 +9885,13 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 }
 
 const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
 SELECT
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::text,
+    $5::text,
     chats.owner_id
 FROM chats
 WHERE chats.id = $1::uuid
@@ -9889,10 +9899,11 @@ RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, positio
 `
 
 type InsertChatQueuedMessageParams struct {
-	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content       json.RawMessage `db:"content" json:"content"`
-	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
-	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
+	ChatID          uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content         json.RawMessage `db:"content" json:"content"`
+	ModelConfigID   uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString  `db:"reasoning_effort" json:"reasoning_effort"`
+	APIKeyID        sql.NullString  `db:"api_key_id" json:"api_key_id"`
 }
 
 // Legacy queue insertion path. When no caller-supplied creator exists,
@@ -9903,6 +9914,7 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		arg.ChatID,
 		arg.Content,
 		arg.ModelConfigID,
+		arg.ReasoningEffort,
 		arg.APIKeyID,
 	)
 	var i ChatQueuedMessage
@@ -9921,23 +9933,25 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
 VALUES (
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::text,
-    $5::uuid
+    $5::text,
+    $6::uuid
 )
 RETURNING id, chat_id, content, created_at, model_config_id, api_key_id, position, created_by, reasoning_effort
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
-	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content       json.RawMessage `db:"content" json:"content"`
-	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
-	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
-	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
+	ChatID          uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content         json.RawMessage `db:"content" json:"content"`
+	ModelConfigID   uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString  `db:"reasoning_effort" json:"reasoning_effort"`
+	APIKeyID        sql.NullString  `db:"api_key_id" json:"api_key_id"`
+	CreatedBy       uuid.UUID       `db:"created_by" json:"created_by"`
 }
 
 // Inserts a queued message that carries a position (from the default
@@ -9948,6 +9962,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ChatID,
 		arg.Content,
 		arg.ModelConfigID,
+		arg.ReasoningEffort,
 		arg.APIKeyID,
 		arg.CreatedBy,
 	)
