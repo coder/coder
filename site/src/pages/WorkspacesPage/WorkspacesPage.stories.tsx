@@ -15,15 +15,24 @@ import {
 	templateVersionsQueryKey,
 } from "#/api/queries/templates";
 import { workspacesKey } from "#/api/queries/workspaces";
-import type { Workspace } from "#/api/typesGenerated";
+import type { Workspace, WorkspaceAppHealth } from "#/api/typesGenerated";
 import { workspaceChecks } from "#/modules/workspaces/permissions";
 import {
 	MockDefaultOrganization,
+	MockDormantOutdatedWorkspace,
+	MockDormantWorkspace,
+	MockOutdatedStoppedWorkspaceAlwaysUpdate,
+	MockOutdatedWorkspace,
+	MockRunningOutdatedWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+	MockWorkspaceBuild,
+	MockWorkspacesResponse,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -216,3 +225,379 @@ export const PaginationChangesQueryKey: Story = {
 		});
 	},
 };
+
+export const Empty: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({ workspaces: [], count: 0 });
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("heading", { name: /Create a workspace/ });
+	},
+};
+
+export const RendersWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue(MockWorkspacesResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText(`${MockWorkspace.name}1`);
+		const templateDisplayNames = await canvas.findAllByText(
+			MockWorkspace.template_display_name,
+		);
+		expect(templateDisplayNames).toHaveLength(MockWorkspacesResponse.count);
+	},
+};
+
+const deletableWorkspaces: Workspace[] = [
+	{ ...MockWorkspace, id: "1" },
+	{ ...MockWorkspace, id: "2" },
+	{ ...MockWorkspace, id: "3" },
+];
+
+export const DeletesOnlySelectedWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: deletableWorkspaces,
+			count: deletableWorkspaces.length,
+		});
+		spyOn(API, "deleteWorkspace").mockResolvedValue(MockWorkspaceBuild);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /delete/i }));
+
+		const confirmButton = await body.findByTestId("confirm-button");
+		await user.click(confirmButton);
+		await user.click(confirmButton);
+		await user.click(confirmButton);
+
+		await waitFor(() => expect(API.deleteWorkspace).toHaveBeenCalledTimes(2));
+		expect(API.deleteWorkspace).toHaveBeenCalledWith("1");
+		expect(API.deleteWorkspace).toHaveBeenCalledWith("2");
+	},
+};
+
+const skipUpToDateWorkspaces: Workspace[] = [
+	{ ...MockWorkspace, id: "1" },
+	{ ...MockDormantWorkspace, id: "2" },
+	{ ...MockOutdatedWorkspace, id: "3" },
+	{
+		...MockOutdatedWorkspace,
+		id: "4",
+		latest_build: { ...MockOutdatedWorkspace.latest_build, status: "running" },
+	},
+];
+
+export const BatchUpdateSkipsUpToDateWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: skipUpToDateWorkspaces,
+			count: skipUpToDateWorkspaces.length,
+		});
+		spyOn(API, "updateWorkspace").mockResolvedValue(MockWorkspaceBuild);
+		spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3", "4"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /Update/ }));
+
+		const modal = await body.findByRole("dialog", { name: /Review Updates/i });
+		await user.click(
+			within(modal).getByRole("checkbox", {
+				name: /I acknowledge these risks\./,
+			}),
+		);
+		await user.click(within(modal).getByRole("button", { name: /Update/ }));
+
+		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(2));
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			skipUpToDateWorkspaces[2],
+			[],
+			false,
+		);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			skipUpToDateWorkspaces[3],
+			[],
+			false,
+		);
+	},
+};
+
+const updateRunningWorkspaces: Workspace[] = [
+	{ ...MockRunningOutdatedWorkspace, id: "1" },
+	{ ...MockOutdatedWorkspace, id: "2" },
+	{ ...MockOutdatedWorkspace, id: "3" },
+];
+
+export const BatchUpdateRunningWorkspace: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: updateRunningWorkspaces,
+			count: updateRunningWorkspaces.length,
+		});
+		spyOn(API, "updateWorkspace").mockResolvedValue(MockWorkspaceBuild);
+		spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /Update/ }));
+
+		const modal = await body.findByRole("dialog", { name: /Review Updates/i });
+		await user.click(
+			within(modal).getByRole("checkbox", {
+				name: /I acknowledge these risks\./,
+			}),
+		);
+		await user.click(within(modal).getByRole("button", { name: /Update/ }));
+
+		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(3));
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			updateRunningWorkspaces[0],
+			[],
+			false,
+		);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			updateRunningWorkspaces[1],
+			[],
+			false,
+		);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			updateRunningWorkspaces[2],
+			[],
+			false,
+		);
+	},
+};
+
+const ignoreDormantWorkspaces: Workspace[] = [
+	{ ...MockDormantOutdatedWorkspace, id: "1" },
+	{ ...MockOutdatedWorkspace, id: "2" },
+	{ ...MockOutdatedWorkspace, id: "3" },
+];
+
+export const BatchUpdateIgnoresDormantWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: ignoreDormantWorkspaces,
+			count: ignoreDormantWorkspaces.length,
+		});
+		spyOn(API, "updateWorkspace").mockResolvedValue(MockWorkspaceBuild);
+		spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /Update/ }));
+
+		const modal = await body.findByRole("dialog", { name: /Review Updates/i });
+		await user.click(within(modal).getByRole("button", { name: /Update/ }));
+
+		await waitFor(() => expect(API.updateWorkspace).toHaveBeenCalledTimes(2));
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			ignoreDormantWorkspaces[1],
+			[],
+			false,
+		);
+		expect(API.updateWorkspace).toHaveBeenCalledWith(
+			ignoreDormantWorkspaces[2],
+			[],
+			false,
+		);
+	},
+};
+
+const runningWorkspaces: Workspace[] = [
+	{ ...MockWorkspace, id: "1" },
+	{ ...MockWorkspace, id: "2" },
+	{ ...MockWorkspace, id: "3" },
+];
+
+export const StopsOnlySelectedWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: runningWorkspaces,
+			count: runningWorkspaces.length,
+		});
+		spyOn(API, "stopWorkspace").mockResolvedValue(MockWorkspaceBuild);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /stop/i }));
+
+		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(2));
+		expect(API.stopWorkspace).toHaveBeenCalledWith("1");
+		expect(API.stopWorkspace).toHaveBeenCalledWith("2");
+	},
+};
+
+const stoppedWorkspaces: Workspace[] = [
+	{ ...MockStoppedWorkspace, id: "1" },
+	{ ...MockStoppedWorkspace, id: "2" },
+	{ ...MockStoppedWorkspace, id: "3" },
+];
+
+export const StartsOnlySelectedWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: stoppedWorkspaces,
+			count: stoppedWorkspaces.length,
+		});
+		spyOn(API, "startWorkspace").mockResolvedValue(MockWorkspaceBuild);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2"]);
+		await openBulkActions(canvas, user);
+		await user.click(await body.findByRole("menuitem", { name: /start/i }));
+
+		await waitFor(() => expect(API.startWorkspace).toHaveBeenCalledTimes(2));
+		expect(API.startWorkspace).toHaveBeenCalledWith(
+			"1",
+			MockStoppedWorkspace.latest_build.template_version_id,
+		);
+		expect(API.startWorkspace).toHaveBeenCalledWith(
+			"2",
+			MockStoppedWorkspace.latest_build.template_version_id,
+		);
+	},
+};
+
+const appHealthStatuses: [WorkspaceAppHealth, boolean][] = [
+	["healthy", true],
+	["disabled", true],
+	["unhealthy", false],
+	["initializing", false],
+];
+
+const appsWorkspace: Workspace = {
+	...MockWorkspace,
+	latest_build: {
+		...MockWorkspace.latest_build,
+		status: "running",
+		resources: [
+			{
+				...MockWorkspace.latest_build.resources[0],
+				agents: [
+					{
+						...MockWorkspaceAgent,
+						display_apps: [],
+						apps: [
+							...appHealthStatuses.map(([health]) => ({
+								...MockWorkspaceApp,
+								id: `${health}-app`,
+								slug: `${health}-app`,
+								display_name: `${health} App`,
+								health,
+								hidden: false,
+							})),
+							{
+								...MockWorkspaceApp,
+								id: "hidden-app",
+								slug: "hidden-app",
+								display_name: "Hidden App",
+								health: "healthy",
+								hidden: true,
+							},
+						],
+					},
+				],
+			},
+		],
+	},
+};
+
+export const FiltersWorkspaceAppsByHealthAndVisibility: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [appsWorkspace],
+			count: 1,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("link", {
+			name: (name) => name.toLowerCase().includes("healthy app"),
+		});
+
+		for (const [health, shouldBeVisible] of appHealthStatuses) {
+			const link = canvas.queryByRole("link", {
+				name: (name) => name.toLowerCase().includes(`${health} app`),
+			});
+			if (shouldBeVisible) {
+				expect(link).toBeInTheDocument();
+			} else {
+				expect(link).not.toBeInTheDocument();
+			}
+		}
+
+		expect(
+			canvas.queryByRole("link", {
+				name: (name) => name.toLowerCase().includes("hidden app"),
+			}),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OutdatedStoppedAlwaysUpdateHidesStartButton: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [MockOutdatedStoppedWorkspaceAlwaysUpdate],
+			count: 1,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Update and start workspace" });
+		expect(
+			canvas.queryByRole("button", { name: "Start workspace" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+async function selectWorkspaces(
+	canvas: ReturnType<typeof within>,
+	user: ReturnType<typeof userEvent.setup>,
+	ids: string[],
+) {
+	for (const id of ids) {
+		await user.click(await canvas.findByTestId(`checkbox-${id}`));
+	}
+}
+
+async function openBulkActions(
+	canvas: ReturnType<typeof within>,
+	user: ReturnType<typeof userEvent.setup>,
+) {
+	await user.click(
+		await canvas.findByRole("button", { name: /bulk actions/i }),
+	);
+}
