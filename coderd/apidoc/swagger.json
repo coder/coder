@@ -1403,10 +1403,7 @@
 					{
 						"CoderSessionToken": []
 					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
+				]
 			},
 			"post": {
 				"consumes": ["application/json"],
@@ -1437,10 +1434,7 @@
 					{
 						"CoderSessionToken": []
 					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
+				]
 			}
 		},
 		"/api/v2/ai-gateway/keys/{key}": {
@@ -1467,10 +1461,7 @@
 					{
 						"CoderSessionToken": []
 					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
+				]
 			}
 		},
 		"/api/v2/ai-gateway/models": {
@@ -1512,10 +1503,7 @@
 					{
 						"AIGatewayKey": []
 					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
+				]
 			}
 		},
 		"/api/v2/ai-gateway/sessions": {

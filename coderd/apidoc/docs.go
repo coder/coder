@@ -1586,10 +1586,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             },
             "post": {
                 "consumes": [
@@ -1626,10 +1623,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             }
         },
         "/api/v2/ai-gateway/keys/{key}": {
@@ -1658,10 +1652,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             }
         },
         "/api/v2/ai-gateway/models": {
@@ -1709,10 +1700,7 @@ const docTemplate = `{
                     {
                         "AIGatewayKey": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             }
         },
         "/api/v2/ai-gateway/sessions": {

@@ -29,7 +29,6 @@ const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, num
 // @Param request body codersdk.CreateAIGatewayKeyRequest true "Create AI Gateway key request"
 // @Success 201 {object} codersdk.CreateAIGatewayKeyResponse
 // @Router /api/v2/ai-gateway/keys [post]
-// @x-apidocgen {"skip": true}
 func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -118,7 +117,6 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 // @Tags Enterprise
 // @Success 200 {array} codersdk.AIGatewayKey
 // @Router /api/v2/ai-gateway/keys [get]
-// @x-apidocgen {"skip": true}
 func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -149,7 +147,6 @@ func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 // @Param key path string true "Key ID" format(uuid)
 // @Success 204
 // @Router /api/v2/ai-gateway/keys/{key} [delete]
-// @x-apidocgen {"skip": true}
 func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

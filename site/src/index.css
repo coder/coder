@@ -36,7 +36,8 @@
 			  dropdowns.
 			- `--mobile-dropdown-above-composer-bottom`: distance from
 			  the layout viewport bottom to a point just above the
-			  composer's top edge.
+			  composer's top edge, clamped to stay above the software
+			  keyboard when the keyboard covers the composer.
 			- `--mobile-dropdown-above-composer-max-height`: maximum
 			  height the `-above-composer` variant can grow to without
 			  extending past the visible viewport top.
