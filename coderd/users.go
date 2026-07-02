@@ -1713,7 +1713,10 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update user hashed password: %w", err)
 		}
 
-		err = tx.DeleteAPIKeysByUserID(ctx, user.ID)
+		//nolint:gocritic // The handler already validated the caller can update
+		// the user's password. Deleting the target's API keys is a security
+		// side-effect that requires system context.
+		err = tx.DeleteAPIKeysByUserID(dbauthz.AsSystemRestricted(ctx), user.ID)
 		if err != nil {
 			return xerrors.Errorf("delete api keys by user ID: %w", err)
 		}

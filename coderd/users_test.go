@@ -1653,6 +1653,35 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Only owners can change the password of an owner")
 	})
 
+	t.Run("UserAdminCanResetMemberPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		member, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "member@coder.com",
+			Username:        "member",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err)
+
+		err = userAdmin.UpdateUserPassword(ctx, member.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "user-admin should be able to reset member password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "member@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "member should login with the new password")
+	})
+
 	t.Run("OwnerCanResetOwnerPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
