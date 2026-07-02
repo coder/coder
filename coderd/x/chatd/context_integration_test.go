@@ -363,10 +363,20 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, resp.GetAccepted())
 
-	// With nothing dirty, the agent-token refresh is a no-op.
+	// Even with nothing dirty, the agent-token refresh re-pins the owned chat
+	// bound to the agent. The re-pin is unconditional so MCP-only changes,
+	// which the drift hash ignores, still reach an already-pinned chat.
 	refresh, err := agentClient.RefreshChatContext(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, refresh.Refreshed, "no dirty chats to refresh")
+	require.Equal(t, 1, refresh.Refreshed, "non-dirty owned chat is re-pinned")
+
+	// The re-pin leaves the clean chat clean and still pinned to the v1
+	// snapshot it hydrated from.
+	afterClean, err := expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, afterClean.Context)
+	require.False(t, afterClean.Context.Dirty, "re-pinning a clean chat keeps it clean")
+	require.Len(t, afterClean.Context.Resources, 1)
 
 	// A second push with a different hash drifts the bound chat dirty.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
@@ -400,10 +410,11 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, other.Context, "agent-less chat stays untouched")
 
-	// A follow-up refresh with nothing dirty is a no-op again.
+	// A follow-up refresh re-pins the now-clean owned chat again: the re-pin
+	// is unconditional, so the count stays 1 rather than dropping to 0.
 	refresh, err = agentClient.RefreshChatContext(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 0, refresh.Refreshed, "nothing left to refresh")
+	require.Equal(t, 1, refresh.Refreshed, "re-pin is unconditional, not drift-gated")
 }
 
 // agentMCPToolContext specifies an mcp_server tool to seed into an agent's

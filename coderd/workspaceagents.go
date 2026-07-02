@@ -2414,11 +2414,17 @@ func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.Wor
 	return sdk
 }
 
-// workspaceAgentRefreshChatContext re-pins every drifted chat bound to the
-// calling agent to the agent's latest context snapshot, clearing their
-// drift markers. It backs the in-workspace `coder exp chat context refresh`
+// workspaceAgentRefreshChatContext re-pins every active chat bound to the
+// calling agent to the agent's latest context snapshot, clearing any drift
+// markers. It backs the in-workspace `coder exp chat context refresh`
 // (no chat argument), which uses the agent token rather than a user
 // session.
+//
+// The re-pin is unconditional: it runs even for chats that are not marked
+// dirty. MCP config and server changes are excluded from the drift hash, so
+// they never flip a pinned chat dirty; re-pinning regardless lets those
+// changes reach an already-pinned chat. This matches the per-chat and
+// user-facing refresh paths, which also re-pin without a dirty check.
 //
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentRefreshChatContext(rw http.ResponseWriter, r *http.Request) {
@@ -2456,9 +2462,10 @@ func (api *API) workspaceAgentRefreshChatContext(rw http.ResponseWriter, r *http
 
 	refreshed := 0
 	for _, chat := range chats {
-		// Only re-pin chats owned by this workspace's owner that have
-		// drifted from the agent's latest snapshot.
-		if chat.OwnerID != workspace.OwnerID || !chat.ContextDirtySince.Valid {
+		// Only re-pin chats owned by this workspace's owner. Re-pin every
+		// such chat, not just drifted ones, so MCP-only changes that the
+		// drift hash ignores are still applied.
+		if chat.OwnerID != workspace.OwnerID {
 			continue
 		}
 		if _, err := api.chatDaemon.RefreshChatContext(sysCtx, chat); err != nil {

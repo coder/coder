@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -12,6 +14,7 @@ import (
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -72,11 +75,19 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	}
 	prefix := server + mcpToolNameSeparator
 	out := make([]codersdk.ChatContextTool, 0, len(tools))
+	seen := make(map[string]struct{}, len(tools))
 	for _, t := range tools {
 		name := strings.TrimPrefix(t.GetName(), prefix)
 		if name == "" {
 			continue
 		}
+		// A server that lists the same tool twice would otherwise report it
+		// twice; keep the first occurrence so the reported tool set matches
+		// the deduplicated set the turn assembles.
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
 		out = append(out, codersdk.ChatContextTool{
 			Name:        name,
 			Description: t.GetDescription(),
@@ -90,41 +101,70 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 
 // workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
 // resources into execution-ready tool infos. Only OK mcp_server rows
-// contribute. The agent reports tool names unprefixed alongside the server
-// name, so each tool is re-prefixed to "<server>__<tool>", the model-facing
-// and proxy-routable form the live discovery path also produces. The pushed
-// input schema is a full JSON Schema object; its "properties" and "required"
-// are split out to match the shape the workspace agent's live tool list
-// produces (see agent/x/agentmcp). Tools with an empty name are skipped.
+// contribute; the per-resource decode and "<server>__<tool>" re-prefixing
+// live in appendMCPToolInfos, shared with the live agent reader.
 func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource) []workspacesdk.MCPToolInfo {
 	var out []workspacesdk.MCPToolInfo
 	for _, r := range resources {
-		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||
-			r.Status != database.WorkspaceAgentContextResourceStatusOk {
+		out = appendMCPToolInfos(out, r.BodyKind, r.Status, r.Source, r.Body)
+	}
+	return out
+}
+
+// agentWorkspaceMCPToolInfos decodes an agent's latest pushed mcp_server
+// resources (workspace_agent_context_resources) into execution-ready tool
+// infos. It is the live counterpart to workspaceMCPToolInfosFromResources,
+// which reads the chat's frozen pinned copy; both share appendMCPToolInfos so
+// a stored server body is interpreted identically on either path.
+func agentWorkspaceMCPToolInfos(resources []database.WorkspaceAgentContextResource) []workspacesdk.MCPToolInfo {
+	var out []workspacesdk.MCPToolInfo
+	for _, r := range resources {
+		out = appendMCPToolInfos(out, r.BodyKind, r.Status, r.Source, r.Body)
+	}
+	return out
+}
+
+// appendMCPToolInfos decodes one mcp_server resource body and appends its
+// execution-ready tool infos to out. Non-mcp_server kinds, non-OK statuses,
+// undecodable bodies, and tools with an empty name are skipped. The agent
+// reports tool names unprefixed alongside the server name, so each tool is
+// re-prefixed to "<server>__<tool>", the model-facing and proxy-routable form
+// the live discovery path also produces. The pushed input schema is a full
+// JSON Schema object; its "properties" and "required" are split out to match
+// the shape the workspace agent's live tool list produces (see
+// agent/x/agentmcp).
+func appendMCPToolInfos(
+	out []workspacesdk.MCPToolInfo,
+	bodyKind database.WorkspaceAgentContextBodyKind,
+	status database.WorkspaceAgentContextResourceStatus,
+	source string,
+	body json.RawMessage,
+) []workspacesdk.MCPToolInfo {
+	if bodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||
+		status != database.WorkspaceAgentContextResourceStatusOk {
+		return out
+	}
+	var decoded agentproto.MCPServerBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return out
+	}
+	server := decoded.GetServerName()
+	if server == "" {
+		server = source
+	}
+	for _, t := range decoded.GetTools() {
+		name := t.GetName()
+		if name == "" {
 			continue
 		}
-		var decoded agentproto.MCPServerBody
-		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
-			continue
-		}
-		server := decoded.GetServerName()
-		if server == "" {
-			server = r.Source
-		}
-		for _, t := range decoded.GetTools() {
-			name := t.GetName()
-			if name == "" {
-				continue
-			}
-			properties, required := splitMCPInputSchema(t.GetInputSchema())
-			out = append(out, workspacesdk.MCPToolInfo{
-				ServerName:  server,
-				Name:        server + mcpToolNameSeparator + name,
-				Description: t.GetDescription(),
-				Schema:      properties,
-				Required:    required,
-			})
-		}
+		properties, required := splitMCPInputSchema(t.GetInputSchema())
+		out = append(out, workspacesdk.MCPToolInfo{
+			ServerName:  server,
+			Name:        server + mcpToolNameSeparator + name,
+			Description: t.GetDescription(),
+			Schema:      properties,
+			Required:    required,
+		})
 	}
 	return out
 }
@@ -148,6 +188,105 @@ func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, re
 		}
 	}
 	return properties, required
+}
+
+// resolveWorkspaceMCPToolsConverged returns the workspace MCP tools for a turn.
+// It starts from the chat's pinned baseline (resolveWorkspaceMCPTools) and
+// overlays the agent's latest pushed MCP set. MCP config and server resources
+// are excluded from the drift hash, so a server the agent connects after a
+// chat was pinned never flips the chat dirty and would otherwise never reach
+// it. Overlaying the live set lets an already-pinned parent and a later child
+// expose the same MCP servers without a manual refresh. Instruction and skill
+// content stay pinned; only the MCP tool set is sourced live.
+func (server *Server) resolveWorkspaceMCPToolsConverged(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+	workspaceCtx *turnWorkspaceContext,
+) []fantasy.AgentTool {
+	pinned := server.resolveWorkspaceMCPTools(ctx, logger, chat, workspaceCtx)
+
+	agent, err := workspaceCtx.getWorkspaceAgent(ctx)
+	if err != nil || agent.ID == uuid.Nil {
+		// Agent unbound or unreachable: keep the pin.
+		return pinned
+	}
+	return server.overlayLiveWorkspaceMCPTools(ctx, logger, chat.ID, agent.ID, pinned, workspaceCtx.getWorkspaceConn)
+}
+
+// overlayLiveWorkspaceMCPTools reads agentID's latest pushed MCP set and merges
+// it over the pinned baseline. Live wins per server; a server present only in
+// the pin is retained. A read failure or an empty live MCP set keeps the pin
+// intact, so a transiently empty or disconnected snapshot never strips MCP
+// tools mid-turn: the agent re-pushes and the next turn reconverges.
+func (server *Server) overlayLiveWorkspaceMCPTools(
+	ctx context.Context,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	agentID uuid.UUID,
+	pinned []fantasy.AgentTool,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) []fantasy.AgentTool {
+	//nolint:gocritic // Chatd reads the agent's live context as the daemon subject.
+	resources, err := server.db.ListWorkspaceAgentContextResources(dbauthz.AsChatd(ctx), agentID)
+	if err != nil {
+		logger.Warn(ctx, "failed to read live workspace MCP context for convergence",
+			slog.F("chat_id", chatID), slog.F("agent_id", agentID), slog.Error(err))
+		return pinned
+	}
+	liveInfos := agentWorkspaceMCPToolInfos(resources)
+	if len(liveInfos) == 0 {
+		return pinned
+	}
+	return mergeWorkspaceMCPToolsByServer(ctx, logger, pinned, liveInfos, getConn)
+}
+
+// mergeWorkspaceMCPToolsByServer overlays the live MCP tool infos over the
+// pinned baseline tools, replacing per server: a pinned tool whose server the
+// live set also advertises is dropped in favor of the live definition, while a
+// pinned tool for a server absent from the live set is retained. The live
+// tools are then appended. This converges an already-pinned chat onto the
+// agent's current MCP set while never dropping a server the live snapshot
+// happens to omit. The prefix test uses the server separator so a server name
+// is matched on a whole segment, not a partial name.
+func mergeWorkspaceMCPToolsByServer(
+	ctx context.Context,
+	logger slog.Logger,
+	pinned []fantasy.AgentTool,
+	liveInfos []workspacesdk.MCPToolInfo,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) []fantasy.AgentTool {
+	livePrefixes := make([]string, 0, len(liveInfos))
+	seenServer := make(map[string]struct{}, len(liveInfos))
+	for _, info := range liveInfos {
+		if _, ok := seenServer[info.ServerName]; ok {
+			continue
+		}
+		seenServer[info.ServerName] = struct{}{}
+		livePrefixes = append(livePrefixes, info.ServerName+mcpToolNameSeparator)
+	}
+
+	merged := make([]fantasy.AgentTool, 0, len(pinned)+len(liveInfos))
+	for _, tool := range pinned {
+		name := tool.Info().Name
+		superseded := false
+		for _, prefix := range livePrefixes {
+			if strings.HasPrefix(name, prefix) {
+				superseded = true
+				break
+			}
+		}
+		if superseded {
+			logger.Debug(ctx, "replacing pinned workspace MCP tool with live definition",
+				slog.F("tool_name", name))
+			continue
+		}
+		merged = append(merged, tool)
+	}
+	for _, info := range liveInfos {
+		merged = append(merged, chattool.NewWorkspaceMCPTool(info, getConn, nil))
+	}
+	return merged
 }
 
 // decodeInstructionContent decodes an instruction-file resource body and
@@ -213,6 +352,17 @@ func (server *Server) pinnedWorkspaceContext(
 			slog.F("resource_count", len(resources)),
 		)
 	}
+	// Non-OK resources (oversize, unreadable, invalid, excluded) are dropped
+	// from the prompt without an error. Emit one aggregated debug line with
+	// the per-status counts so a "missing context" report is diagnosable
+	// without dumping every pinned row.
+	if statusFields := nonOKResourceStatusFields(resources); len(statusFields) > 0 {
+		server.logger.Debug(ctx, "skipped non-ok pinned chat context resources",
+			slog.F("chat_id", chat.ID),
+			slog.F("resource_count", len(resources)),
+			slog.F("status_counts", slog.M(statusFields...)),
+		)
+	}
 	server.logger.Debug(ctx, "built prompt context from pinned chat resources",
 		slog.F("chat_id", chat.ID),
 		slog.F("resource_count", len(resources)),
@@ -220,6 +370,34 @@ func (server *Server) pinnedWorkspaceContext(
 		slog.F("has_instruction", instruction != ""),
 	)
 	return instruction, skills, nil
+}
+
+// nonOKResourceStatusFields tallies pinned resources whose status is not OK
+// and returns one log field per non-OK status present, in a fixed order so the
+// emitted log is deterministic. These statuses (oversize, unreadable, invalid,
+// excluded) are exactly the bodies contextResourcesToPrompt drops from the
+// prompt, so the counts explain a "missing context" report without dumping
+// every row. Returns nil when every resource is OK.
+func nonOKResourceStatusFields(resources []database.ChatContextResource) []slog.Field {
+	counts := map[database.WorkspaceAgentContextResourceStatus]int{}
+	for _, r := range resources {
+		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			counts[r.Status]++
+		}
+	}
+	ordered := []database.WorkspaceAgentContextResourceStatus{
+		database.WorkspaceAgentContextResourceStatusOversize,
+		database.WorkspaceAgentContextResourceStatusUnreadable,
+		database.WorkspaceAgentContextResourceStatusInvalid,
+		database.WorkspaceAgentContextResourceStatusExcluded,
+	}
+	var fields []slog.Field
+	for _, status := range ordered {
+		if n := counts[status]; n > 0 {
+			fields = append(fields, slog.F(string(status), n))
+		}
+	}
+	return fields
 }
 
 // resolveTurnWorkspaceContext selects the instruction block and workspace

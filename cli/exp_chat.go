@@ -276,7 +276,8 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"<chat> argument, refreshes that chat and works from anywhere.\n\nWith no " +
 			"argument, run from inside the workspace: forces the agent to re-resolve its " +
 			"sources (catching freshly-cloned repos and startup-script writes the watcher " +
-			"has not seen yet), then refreshes every drifted chat. This path authenticates " +
+			"has not seen yet), then re-pins every chat bound to this workspace's agent. " +
+			"This path authenticates " +
 			"with the agent token, so it does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
@@ -307,7 +308,7 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 
 			// No argument: in-workspace. Re-resolve the agent's sources over
 			// the local context socket, then ask the agent (using its own
-			// token) to re-pin every drifted chat. Neither step needs a
+			// token) to re-pin every chat bound to it. Neither step needs a
 			// logged-in user session.
 			sock, err := dialAgentContextSocket(ctx, *socketPath)
 			if err != nil {
@@ -332,7 +333,7 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			if err != nil {
 				return xerrors.Errorf("refresh chat context: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Refreshed %d drifted chat(s).\n", resp.Refreshed)
+			_, _ = fmt.Fprintf(inv.Stdout, "Refreshed %d chat(s).\n", resp.Refreshed)
 			return nil
 		},
 	}

@@ -292,7 +292,7 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
+			workspaceMCPTools = server.resolveWorkspaceMCPToolsConverged(ctx, logger, chat, &workspaceCtx)
 			return nil
 		})
 	}
@@ -457,6 +457,11 @@ func (server *Server) prepareGeneration(
 	if !isExploreSubagent {
 		tools = append(tools, workspaceMCPTools...)
 	}
+	// Builtin tools are assembled first, then external and workspace MCP
+	// tools are appended above. Two MCP servers (or an MCP server and a
+	// builtin) can expose the same tool name; dedup here so a duplicate
+	// definition never reaches the provider request, which rejects them.
+	tools = dedupeToolsByName(ctx, logger, tools)
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
 	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
@@ -634,6 +639,28 @@ func (server *Server) prepareGeneration(
 		Cleanup: cleanup,
 		Debug:   debug,
 	}, nil
+}
+
+// dedupeToolsByName removes tools whose Info().Name collides with an earlier
+// tool, keeping the first occurrence. The assembled slice is builtin tools
+// followed by external and workspace MCP tools, so a collision keeps the
+// builtin or earlier-listed server's tool. A duplicate tool definition that
+// reaches the provider request is rejected by the provider, so dropping the
+// later collision keeps the turn valid. Dropped names are logged at debug to
+// keep an unexpected collision diagnosable.
+func dedupeToolsByName(ctx context.Context, logger slog.Logger, tools []fantasy.AgentTool) []fantasy.AgentTool {
+	seen := make(map[string]struct{}, len(tools))
+	deduped := make([]fantasy.AgentTool, 0, len(tools))
+	for _, t := range tools {
+		name := t.Info().Name
+		if _, ok := seen[name]; ok {
+			logger.Debug(ctx, "dropped duplicate tool definition", slog.F("tool_name", name))
+			continue
+		}
+		seen[name] = struct{}{}
+		deduped = append(deduped, t)
+	}
+	return deduped
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
