@@ -72,25 +72,23 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		ResourceID:   chat.ID,
 		UserID:       firstUser.UserID,
 	}))
+	// Only the direct user-ACL grant is notified. The group member gains
+	// access but is not notified, because group grants are not expanded.
 	var sent []*notificationstest.FakeNotification
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
-		return len(sent) == 2
+		return len(sent) == 1
 	}, testutil.IntervalFast)
-	byUserID := map[uuid.UUID]*notificationstest.FakeNotification{}
+	require.Equal(t, sharedUser.ID, sent[0].UserID)
+	require.Equal(t, firstUser.UserID.String(), sent[0].CreatedBy)
+	require.Equal(t, map[string]string{
+		"chat_id":    chat.ID.String(),
+		"chat_title": chat.Title,
+		"initiator":  coderdtest.FirstUserParams.Username,
+	}, sent[0].Labels)
+	require.Equal(t, []uuid.UUID{chat.ID}, sent[0].Targets)
 	for _, notification := range sent {
-		byUserID[notification.UserID] = notification
-	}
-	for _, userID := range []uuid.UUID{sharedUser.ID, groupMember.ID} {
-		notification := byUserID[userID]
-		require.NotNil(t, notification)
-		require.Equal(t, firstUser.UserID.String(), notification.CreatedBy)
-		require.Equal(t, map[string]string{
-			"chat_id":    chat.ID.String(),
-			"chat_title": chat.Title,
-			"initiator":  coderdtest.FirstUserParams.Username,
-		}, notification.Labels)
-		require.Equal(t, []uuid.UUID{chat.ID}, notification.Targets)
+		require.NotEqual(t, groupMember.ID, notification.UserID)
 	}
 
 	notifyEnq.Clear()
@@ -216,11 +214,11 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	requireSDKError(t, err, http.StatusNotFound)
 }
 
-// TestChatACLSharingExcludesGroupMemberInitiator verifies that a non-owner
-// initiator who is a member of a newly shared group is not self-notified, and
-// that a reader granted through both a direct ACL entry and a group is
-// notified only once.
-func TestChatACLSharingExcludesGroupMemberInitiator(t *testing.T) {
+// TestChatACLSharingNotifiesDirectReadersOnly verifies that only users granted
+// read through the user ACL are notified. Members who gain access solely
+// through a group grant are not notified, and the initiator is never
+// self-notified even when the direct grant would otherwise include them.
+func TestChatACLSharingNotifiesDirectReadersOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -235,6 +233,7 @@ func TestChatACLSharingExcludesGroupMemberInitiator(t *testing.T) {
 	adminClient, admin := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
 	adminExp := codersdk.NewExperimentalClient(adminClient)
 	_, groupMember := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	_, directUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
 	// The group contains both the sharing initiator and another member.
 	group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
@@ -243,11 +242,11 @@ func TestChatACLSharingExcludesGroupMemberInitiator(t *testing.T) {
 
 	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "admin shared chat")
 
-	// Share with the group, and also with groupMember directly so that reader
-	// is granted access through both paths (exercises deduplication).
+	// Share with the group (which grants access to groupMember) and with
+	// directUser via the user ACL. Only directUser should be notified.
 	err := adminExp.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			groupMember.ID.String(): codersdk.ChatRoleRead,
+			directUser.ID.String(): codersdk.ChatRoleRead,
 		},
 		GroupRoles: map[string]codersdk.ChatRole{
 			group.ID.String(): codersdk.ChatRoleRead,
@@ -260,10 +259,11 @@ func TestChatACLSharingExcludesGroupMemberInitiator(t *testing.T) {
 		sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
 		return len(sent) == 1
 	}, testutil.IntervalFast)
-	// groupMember is notified exactly once despite the direct and group grants.
-	// The initiator (admin) and owner (firstUser) are never notified.
-	require.Equal(t, groupMember.ID, sent[0].UserID)
+	// Only the direct user-ACL grant is notified. The group member, initiator
+	// (admin), and owner (firstUser) are never notified.
+	require.Equal(t, directUser.ID, sent[0].UserID)
 	for _, notification := range sent {
+		require.NotEqual(t, groupMember.ID, notification.UserID)
 		require.NotEqual(t, admin.ID, notification.UserID)
 		require.NotEqual(t, firstUser.UserID, notification.UserID)
 	}

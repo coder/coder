@@ -212,8 +212,8 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
 	} else {
-		// Fan out on the server context so a large group does not block the
-		// response and a client disconnect does not drop notifications.
+		// Fan out on the server context, not the request, so a client
+		// disconnect after the ACL commit does not drop notifications.
 		newChat := aReq.New
 		go func() {
 			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {
@@ -226,17 +226,8 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiator database.User) (int, error) {
-	//nolint:gocritic // Notifier actor is required to read group members and enqueue.
-	notifierCtx := dbauthz.AsNotifier(ctx)
-
-	oldReaders, err := api.effectiveChatReaders(notifierCtx, oldChat)
-	if err != nil {
-		return 0, xerrors.Errorf("resolve previous chat readers: %w", err)
-	}
-	newReaders, err := api.effectiveChatReaders(notifierCtx, newChat)
-	if err != nil {
-		return 0, xerrors.Errorf("resolve current chat readers: %w", err)
-	}
+	oldReaders := api.directChatReaders(ctx, oldChat)
+	newReaders := api.directChatReaders(ctx, newChat)
 
 	recipientIDs := make([]uuid.UUID, 0, len(newReaders))
 	for userID := range newReaders {
@@ -258,6 +249,8 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 		"initiator":  initiator.Username,
 	}
 
+	//nolint:gocritic // Notifier actor is required to enqueue notifications.
+	notifierCtx := dbauthz.AsNotifier(ctx)
 	var eg errgroup.Group
 	eg.SetLimit(10)
 	for _, userID := range recipientIDs {
@@ -272,9 +265,10 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	return len(recipientIDs), eg.Wait()
 }
 
-func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (map[uuid.UUID]struct{}, error) {
+// directChatReaders returns users granted read via the user ACL. Group-ACL
+// grants are excluded so sharing with a group does not notify its members.
+func (api *API) directChatReaders(ctx context.Context, chat database.Chat) map[uuid.UUID]struct{} {
 	readers := map[uuid.UUID]struct{}{chat.OwnerID: {}}
-
 	for rawUserID, entry := range chat.UserACL {
 		if !slices.Contains(entry.Permissions, policy.ActionRead) {
 			continue
@@ -286,29 +280,7 @@ func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (m
 		}
 		readers[userID] = struct{}{}
 	}
-
-	for rawGroupID, entry := range chat.GroupACL {
-		if !slices.Contains(entry.Permissions, policy.ActionRead) {
-			continue
-		}
-		groupID, err := uuid.Parse(rawGroupID)
-		if err != nil {
-			api.Logger.Warn(ctx, "skip chat ACL entry with invalid group UUID", slog.F("chat_id", chat.ID), slog.F("group_id", rawGroupID), slog.Error(err))
-			continue
-		}
-		members, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-			GroupID:       groupID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("get members for group %s: %w", groupID, err)
-		}
-		for _, member := range members {
-			readers[member.UserID] = struct{}{}
-		}
-	}
-
-	return readers, nil
+	return readers
 }
 
 func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatUser, bool) {
