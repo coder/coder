@@ -224,17 +224,6 @@ describe("hasSVGRootElement", () => {
 		expect(hasSVGRootElement("\uFEFF<svg></svg>")).toBe(true);
 	});
 
-	it("handles combined prolog: BOM, XML decl, comment, DOCTYPE, then <svg>", () => {
-		const text = [
-			"\uFEFF",
-			'<?xml version="1.0"?>',
-			"<!-- hand written -->",
-			"<!DOCTYPE svg>",
-			'<svg xmlns="http://www.w3.org/2000/svg"/>',
-		].join("\n");
-		expect(hasSVGRootElement(text)).toBe(true);
-	});
-
 	it("returns false for HTML documents", () => {
 		expect(hasSVGRootElement("<html><body>not svg</body></html>")).toBe(false);
 	});

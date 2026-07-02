@@ -32,65 +32,24 @@ export function getPastedPlainText(
 }
 
 /**
- * Detects whether the pasted text begins with an SVG root element,
- * mirroring the server-side chatfiles.HasSVGRootElement classifier.
+ * Detects whether the pasted text parses as an SVG document with an
+ * `<svg>` root element.
  *
- * The server explicitly refuses SVG uploads for security reasons (SVG can
- * carry active script content), so we intercept SVG XML in the paste
- * pipeline before the large-paste-to-file conversion would upload it as an
- * attachment.
+ * The server refuses SVG uploads and probes for an SVG root regardless of
+ * the declared MIME type. We can't lean on the clipboard MIME here
+ * because SVG source copied from a text editor arrives as `text/plain`,
+ * so we ask the browser's XML parser to classify the content for us.
  *
- * Only structural markup, that is, XML declarations, processing
- * instructions, comments, DOCTYPE-like directives, and whitespace char
- * data, is allowed before the root element. Any other leading content
- * makes this return false, matching the Go xml decoder semantics used by
- * ClassifyStoredMediaType in coderd/x/chatfiles/mime.go.
+ * The check is deliberately lenient: a false positive just leaves an
+ * XML-ish paste inline, which is harmless, whereas a false negative
+ * reproduces the "Unsupported file type." bug the server surfaces.
  */
 export function hasSVGRootElement(text: string): boolean {
-	// Strip a UTF-8 BOM. Some editors add one when saving.
-	let remaining = text.startsWith("\uFEFF") ? text.slice(1) : text;
-
-	while (remaining.length > 0) {
-		const trimmed = remaining.replace(/^\s+/, "");
-		if (trimmed !== remaining) {
-			remaining = trimmed;
-			continue;
-		}
-
-		// XML processing instruction: <?target ... ?>
-		if (remaining.startsWith("<?")) {
-			const end = remaining.indexOf("?>");
-			if (end === -1) return false;
-			remaining = remaining.slice(end + 2);
-			continue;
-		}
-
-		// XML comment: <!-- ... -->
-		if (remaining.startsWith("<!--")) {
-			const end = remaining.indexOf("-->", 4);
-			if (end === -1) return false;
-			remaining = remaining.slice(end + 3);
-			continue;
-		}
-
-		// XML directive (e.g. <!DOCTYPE ...>). Bare heuristic; anything
-		// past the first '>' is treated as consumed. This matches how
-		// the Go decoder skips over xml.Directive tokens between the
-		// prolog and the root element.
-		if (remaining.startsWith("<!")) {
-			const end = remaining.indexOf(">");
-			if (end === -1) return false;
-			remaining = remaining.slice(end + 1);
-			continue;
-		}
-
-		// First non-structural token must be the SVG root opening tag.
-		// The trailing character class rejects lookalike names such as
-		// <svgx> while accepting <svg>, <svg/> and <svg ...>.
-		return /^<svg[\s/>]/i.test(remaining);
+	const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+	if (doc.getElementsByTagName("parsererror").length > 0) {
+		return false;
 	}
-
-	return false;
+	return doc.documentElement?.tagName.toLowerCase() === "svg";
 }
 
 /**
