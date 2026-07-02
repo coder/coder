@@ -289,6 +289,105 @@ describe("useEmptyStateDraft", () => {
 		expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
 		unmount();
 	});
+
+	describe("URL prompt", () => {
+		const renderWithUrlPrompt = (urlPrompt: string | null) =>
+			renderHook(() => useEmptyStateDraft(urlPrompt));
+
+		it("initializes the draft from the URL prompt when provided", () => {
+			const { result, unmount } = renderWithUrlPrompt("summarize this repo");
+
+			expect(result.current.initialInputValue).toBe("summarize this repo");
+			expect(result.current.initialEditorState).toBeUndefined();
+			expect(result.current.showUrlPromptWarning).toBe(true);
+			unmount();
+		});
+
+		it("prefers the URL prompt over a stored draft", () => {
+			localStorage.setItem(emptyInputStorageKey, "stored draft");
+
+			const { result, unmount } = renderWithUrlPrompt("from url");
+
+			expect(result.current.initialInputValue).toBe("from url");
+			expect(result.current.initialEditorState).toBeUndefined();
+			unmount();
+		});
+
+		it("falls back to the stored draft when no URL prompt is provided", () => {
+			localStorage.setItem(emptyInputStorageKey, "stored draft");
+
+			const { result, unmount } = renderWithUrlPrompt(null);
+
+			expect(result.current.initialInputValue).toBe("stored draft");
+			expect(result.current.showUrlPromptWarning).toBe(false);
+			unmount();
+		});
+
+		it("does not persist the URL prompt to localStorage on the initial content event", () => {
+			const { result, unmount } = renderWithUrlPrompt("from url");
+
+			// Editor mount fires onChange with the initial value.
+			act(() => {
+				result.current.handleContentChange("from url", "from url", false);
+			});
+
+			expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+			expect(result.current.showUrlPromptWarning).toBe(true);
+			unmount();
+		});
+
+		it("persists to localStorage once the URL prompt is modified", () => {
+			const { result, unmount } = renderWithUrlPrompt("from url");
+
+			act(() => {
+				result.current.handleContentChange("from url", "from url", false);
+			});
+			expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+
+			act(() => {
+				result.current.handleContentChange(
+					"from url with edits",
+					"from url with edits",
+					false,
+				);
+			});
+
+			expect(localStorage.getItem(emptyInputStorageKey)).toBe(
+				"from url with edits",
+			);
+			expect(result.current.showUrlPromptWarning).toBe(false);
+			unmount();
+		});
+
+		it("keeps persisting after modification even if the user retypes the URL prompt", () => {
+			const { result, unmount } = renderWithUrlPrompt("from url");
+
+			act(() => {
+				result.current.handleContentChange("modified", "modified", false);
+			});
+			expect(localStorage.getItem(emptyInputStorageKey)).toBe("modified");
+
+			// Retype the URL prompt verbatim: banner stays dismissed, persistence continues.
+			act(() => {
+				result.current.handleContentChange("from url", "from url", false);
+			});
+			expect(localStorage.getItem(emptyInputStorageKey)).toBe("from url");
+			expect(result.current.showUrlPromptWarning).toBe(false);
+			unmount();
+		});
+
+		it("clears the draft via submitDraft even when the URL prompt was never modified", () => {
+			localStorage.setItem(emptyInputStorageKey, "stale unrelated draft");
+			const { result, unmount } = renderWithUrlPrompt("from url");
+
+			act(() => {
+				result.current.submitDraft();
+			});
+
+			expect(localStorage.getItem(emptyInputStorageKey)).toBeNull();
+			unmount();
+		});
+	});
 });
 
 describe("useFileAttachments persistence", () => {

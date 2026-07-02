@@ -8,6 +8,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -827,5 +828,115 @@ export const PermittedOrgsResolvesToSubset: Story = {
 			throw new Error("Expected onCreateChat to receive options");
 		}
 		expect(options.organizationId).toBe(MockOrganization2.id);
+	},
+};
+
+/** `/agents?q=<prompt>` prefills the composer with a caution banner; never auto-submits. */
+export const PrefillPromptFromUrl: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: {
+					q: "summarize the top-level README of this repo",
+				},
+			},
+			routing: [{ path: "/agents", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		const input = await canvas.findByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(input.textContent).toContain(
+				"summarize the top-level README of this repo",
+			);
+		});
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Use caution before running this prompt/),
+			).toBeInTheDocument();
+		});
+
+		// Never auto-submits.
+		expect(args.onCreateChat).not.toHaveBeenCalled();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = (args.onCreateChat as ReturnType<typeof fn>).mock
+			.calls[0]?.[0] as { message: string } | undefined;
+		if (!options) {
+			throw new Error("Expected onCreateChat to receive options");
+		}
+		expect(options.message).toBe("summarize the top-level README of this repo");
+	},
+};
+
+/** Editing the URL-supplied prompt dismisses the caution banner. */
+export const UrlPromptWarningDismissesOnEdit: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { q: "prompt from url" },
+			},
+			routing: [{ path: "/agents", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Use caution before running this prompt/),
+			).toBeInTheDocument();
+		});
+
+		// Modify the prompt.
+		const input = canvas.getByTestId("chat-message-input");
+		await userEvent.click(input);
+		await userEvent.keyboard(" and add tests");
+
+		await waitFor(() => {
+			expect(
+				canvas.queryByText(/Use caution before running this prompt/),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+/** Whitespace-only `?q=` is ignored: no prefill, no banner. */
+export const EmptyUrlPromptIsIgnored: Story = {
+	args: {
+		...defaultArgs,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { q: "   " },
+			},
+			routing: [{ path: "/agents", useStoryElement: true }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByTestId("chat-message-input");
+		expect(input.textContent).toBe("");
+		expect(
+			canvas.queryByText(/Use caution before running this prompt/),
+		).not.toBeInTheDocument();
 	},
 };

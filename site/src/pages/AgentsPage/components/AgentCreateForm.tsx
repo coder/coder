@@ -1,6 +1,6 @@
 import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
@@ -40,6 +40,40 @@ export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
+// Industry-convention prefill param (ChatGPT, Grok, Gemini, Perplexity).
+const URL_PROMPT_PARAM = "q";
+
+/**
+ * Reads `?q=<prompt>` and strips it from the URL on mount. The value
+ * survives the strip via `useState`, and is never auto-submitted.
+ * See https://www.tenable.com/security/research/tra-2025-22.
+ */
+function useConsumedUrlPrompt(): string | null {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [urlPrompt] = useState<string | null>(() => {
+		const raw = searchParams.get(URL_PROMPT_PARAM);
+		const trimmed = raw?.trim();
+		return trimmed && trimmed.length > 0 ? trimmed : null;
+	});
+	useEffect(() => {
+		if (urlPrompt === null) {
+			return;
+		}
+		setSearchParams(
+			(prev) => {
+				if (!prev.has(URL_PROMPT_PARAM)) {
+					return prev;
+				}
+				const next = new URLSearchParams(prev);
+				next.delete(URL_PROMPT_PARAM);
+				return next;
+			},
+			{ replace: true },
+		);
+	}, [urlPrompt, setSearchParams]);
+	return urlPrompt;
+}
+
 type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
@@ -57,22 +91,41 @@ export type CreateChatOptions = {
  * Persists the current input to localStorage so the user's draft
  * survives page reloads.
  *
+ * When `urlPrompt` is provided it wins over any stored draft and is
+ * kept out of localStorage until modified, so opening an untrusted
+ * link and closing the tab leaves no residue.
+ *
  * Once `submitDraft` is called, the stored draft is removed and further
  * content changes are no longer persisted for the lifetime of the hook.
  * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
  *
  * @internal Exported for testing.
  */
-export function useEmptyStateDraft() {
-	const [{ initialInputValue, initialEditorState }] = useState(() => {
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
-		return {
-			initialInputValue: draft.text,
-			initialEditorState: draft.editorState,
-		};
-	});
+export function useEmptyStateDraft(urlPrompt: string | null = null) {
+	const [{ initialInputValue, initialEditorState, isFromUrl }] = useState(
+		() => {
+			if (urlPrompt !== null) {
+				return {
+					initialInputValue: urlPrompt,
+					initialEditorState: undefined as string | undefined,
+					isFromUrl: true,
+				};
+			}
+			const draft = parseStoredDraft(
+				localStorage.getItem(emptyInputStorageKey),
+			);
+			return {
+				initialInputValue: draft.text,
+				initialEditorState: draft.editorState,
+				isFromUrl: false,
+			};
+		},
+	);
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
+	// Flips true on the first user edit, resuming persistence and dismissing the banner.
+	const [hasModifiedUrlPrompt, setHasModifiedUrlPrompt] = useState(false);
+	const showUrlPromptWarning = isFromUrl && !hasModifiedUrlPrompt;
 
 	const handleContentChange = (
 		content: string,
@@ -80,17 +133,25 @@ export function useEmptyStateDraft() {
 		hasFileReferences: boolean,
 	) => {
 		inputValueRef.current = content;
-		if (!sentRef.current) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+		if (sentRef.current) {
+			return;
+		}
+		// Don't persist or dismiss while the URL prompt is unmodified.
+		if (isFromUrl && !hasModifiedUrlPrompt) {
+			if (content === initialInputValue) {
+				return;
 			}
+			setHasModifiedUrlPrompt(true);
+		}
+		const shouldPersist = content.trim() || hasFileReferences;
+		if (shouldPersist) {
+			try {
+				localStorage.setItem(emptyInputStorageKey, serializedEditorState);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		} else {
+			localStorage.removeItem(emptyInputStorageKey);
 		}
 	};
 
@@ -114,6 +175,7 @@ export function useEmptyStateDraft() {
 		handleContentChange,
 		submitDraft,
 		resetDraft,
+		showUrlPromptWarning,
 	};
 }
 
@@ -169,13 +231,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isWorkspacesLoading,
 }) => {
 	const { organizations, showOrganizations } = useDashboard();
+	const urlPrompt = useConsumedUrlPrompt();
 	const {
 		initialInputValue,
 		initialEditorState,
 		handleContentChange,
 		submitDraft,
 		resetDraft,
-	} = useEmptyStateDraft();
+		showUrlPromptWarning,
+	} = useEmptyStateDraft(urlPrompt);
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
@@ -555,6 +619,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelCount={modelCount}
 						unsupportedProviderNames={unsupportedProviderNames}
 						aiGatewayDisabled={aiGatewayDisabled}
+						showUrlPromptWarning={showUrlPromptWarning}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

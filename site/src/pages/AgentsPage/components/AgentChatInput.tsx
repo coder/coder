@@ -10,6 +10,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
@@ -154,6 +155,9 @@ interface AgentChatInputProps {
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
+	// URL-prompt caution: wraps composer with a warning ring and a
+	// top-of-composer banner. Auto-dismissed upstream on user edit.
+	showUrlPromptWarning?: boolean;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
@@ -373,6 +377,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
+	showUrlPromptWarning = false,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -1107,7 +1112,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					isEditingHistoryMessage &&
+					(isEditingHistoryMessage || showUrlPromptWarning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 				onKeyDown={handleComposerKeyDown}
@@ -1151,6 +1156,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</Button>
 					</div>
 				)}
+				{showUrlPromptWarning &&
+					!isEditingHistoryMessage &&
+					editingQueuedMessageID === null && (
+						<div className="flex items-start gap-1.5 border-b border-border-warning/50 px-3 py-1.5 text-xs font-medium text-content-warning">
+							<TriangleAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+							<span>
+								Use caution before running this prompt. Malicious content could
+								trick Coder Agents into attempting harmful actions or sharing
+								your data.
+							</span>
+						</div>
+					)}
 				{onRemoveAttachment && (
 					<AttachmentPreview
 						attachments={attachments}
