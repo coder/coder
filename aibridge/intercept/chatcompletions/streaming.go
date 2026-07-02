@@ -149,7 +149,10 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				// client: as an SSE event if events have already been sent,
 				// or by direct write otherwise.
 				respErr := intercept.ResponseErrorFromKeyPool(keyPoolErr)
-				interceptionErr = respErr
+				// Record the underlying key-pool error (not the masked 502
+				// envelope) so the recorder can categorize by its kind. The
+				// client still receives respErr below.
+				interceptionErr = xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				if events.IsStreaming() {
 					payload, mErr := i.marshalErr(respErr)
 					if mErr != nil {

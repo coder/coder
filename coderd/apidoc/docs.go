@@ -15206,7 +15206,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "error_type": {
-                    "description": "ErrorType is the categorized terminal upstream error from the root\ninterception. Nil when the interception succeeded. One of bad_request,\nunauthorized, rate_limited, overloaded, server_error, or unknown.",
+                    "description": "ErrorType is the categorized terminal upstream error from the root\ninterception, or nil when the interception succeeded. See the\naibridge_interception_error_type enum for possible values.",
                     "type": "string"
                 },
                 "id": {

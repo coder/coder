@@ -355,8 +355,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// For a centralized pool, the hint now reflects the last key the
 		// failover loop attempted.
 		credCtx := intercept.WithCredentialInfo(ctx, cred)
-		// errType and errMsg are empty for a successful interception, which
-		// leaves the error columns NULL on the record.
 		errType, errMsg := categorizeInterceptionError(p, execErr)
 		if execErr != nil {
 			if m != nil {

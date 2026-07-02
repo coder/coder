@@ -223,6 +223,12 @@ func (p *Anthropic) APIDumpDir() string {
 const statusOverloaded = 529
 
 func (*Anthropic) CategorizeError(err error) *recorder.ErrorType {
+	return categorizeAnthropicError(err)
+}
+
+// categorizeAnthropicError categorizes a terminal error from an Anthropic
+// (messages) provider. It returns nil when err is not an Anthropic-shaped error.
+func categorizeAnthropicError(err error) *recorder.ErrorType {
 	var status int
 	var envErr *messages.ResponseError
 	switch {

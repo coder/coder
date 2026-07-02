@@ -18,11 +18,8 @@ import (
 // records a categorized upstream error on the ended record.
 //
 // The default test provider is centralized (backed by a single-key pool), so a
-// 401 exhausts the pool. The pool masks permanent exhaustion as a 502 to the
-// client. Blocking interceptors return the *keypool.Error, so the cause is
-// recovered as "unauthorized". Streaming interceptors only observe the masked
-// 502 (the pool response is re-parsed by the SDK), so the record reflects
-// "server_error".
+// 401 exhausts the pool. Both blocking and streaming interceptors preserve the
+// *keypool.Error so the cause is categorized as "unauthorized".
 func TestInterceptionUpstreamErrorRecorded(t *testing.T) {
 	t.Parallel()
 
@@ -35,9 +32,9 @@ func TestInterceptionUpstreamErrorRecorded(t *testing.T) {
 		wantType  recorder.ErrorType
 	}{
 		{"anthropic_blocking", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, false, recorder.ErrorTypeUnauthorized},
-		{"anthropic_streaming", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, true, recorder.ErrorTypeServerError},
+		{"anthropic_streaming", config.ProviderAnthropic, fixtures.AntSimple, pathAnthropicMessages, true, recorder.ErrorTypeUnauthorized},
 		{"openai_blocking", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, false, recorder.ErrorTypeUnauthorized},
-		{"openai_streaming", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, true, recorder.ErrorTypeServerError},
+		{"openai_streaming", config.ProviderOpenAI, fixtures.OaiChatSimple, pathOpenAIChatCompletions, true, recorder.ErrorTypeUnauthorized},
 	}
 
 	for _, tc := range cases {

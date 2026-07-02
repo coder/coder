@@ -73,6 +73,8 @@ const (
 	ErrorTypeOverloaded ErrorType = "overloaded"
 	// ErrorTypeServerError is an upstream or gateway server error (HTTP 5xx).
 	ErrorTypeServerError ErrorType = "server_error"
+	// ErrorTypeTimeout is an upstream request timeout (HTTP 408).
+	ErrorTypeTimeout ErrorType = "timeout"
 	// ErrorTypeUnknown is any error that could not be categorized.
 	ErrorTypeUnknown ErrorType = "unknown"
 )
@@ -82,12 +84,14 @@ const (
 // before calling this. Unrecognized codes yield ErrorTypeUnknown.
 func ErrorTypeFromStatus(status int) ErrorType {
 	switch status {
-	case http.StatusBadRequest:
+	case http.StatusBadRequest, http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity:
 		return ErrorTypeBadRequest
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return ErrorTypeUnauthorized
 	case http.StatusTooManyRequests:
 		return ErrorTypeRateLimited
+	case http.StatusRequestTimeout:
+		return ErrorTypeTimeout
 	}
 	if status >= 500 && status <= 599 {
 		return ErrorTypeServerError

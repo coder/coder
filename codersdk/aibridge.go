@@ -81,8 +81,8 @@ type AIBridgeThread struct {
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
 	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
 	// ErrorType is the categorized terminal upstream error from the root
-	// interception. Nil when the interception succeeded. One of bad_request,
-	// unauthorized, rate_limited, overloaded, server_error, or unknown.
+	// interception, or nil when the interception succeeded. See the
+	// aibridge_interception_error_type enum for possible values.
 	ErrorType *string `json:"error_type,omitempty"`
 	// ErrorMessage is the raw terminal upstream error message from the root
 	// interception. Nil when the interception succeeded.

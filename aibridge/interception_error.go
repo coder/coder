@@ -1,6 +1,7 @@
 package aibridge
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -38,6 +39,9 @@ func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorT
 	// returns a sentinel error that carries no HTTP status of its own.
 	if errors.Is(err, circuitbreaker.ErrCircuitOpen) {
 		return recorder.ErrorTypeServerError, msg
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return recorder.ErrorTypeTimeout, msg
 	}
 	// Centralized key-pool exhaustion. Checked before delegating because the
 	// pool masks the client response (e.g. permanent failures become 502),
