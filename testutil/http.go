@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// RoundTripperFunc adapts a function to an http.RoundTripper.
+type RoundTripperFunc func(*http.Request) (*http.Response, error)
+
+var _ http.RoundTripper = RoundTripperFunc(nil)
+
+func (f RoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 // RequireEventuallyResponseOK makes HTTP GET requests to the given endpoint until it returns
 // 200 OK with a valid JSON response that can be decoded into target, or until the context
 // times out. This is useful for waiting for HTTP servers to become ready during tests,

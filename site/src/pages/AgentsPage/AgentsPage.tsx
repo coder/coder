@@ -16,6 +16,7 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
+	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -38,10 +39,12 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
+	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
 	workspaceById,
+	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -58,12 +61,19 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
+	notifyArchiveAndDeleteFailed,
+	notifyDeleteQueueState,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import {
+	getModelOptionsFromConfigs,
+	providerTypeByIDFromUserConfigs,
+} from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
@@ -154,6 +164,7 @@ const AgentsPage: FC = () => {
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
+			sources: sidebarFilters.sources,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
@@ -162,6 +173,7 @@ const AgentsPage: FC = () => {
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -205,9 +217,11 @@ const AgentsPage: FC = () => {
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
-		onSuccess: (_data, chatId) => {
+		onSuccess: (data, chatId) => {
+			archiveChatBase.onSuccess(data, chatId);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -228,26 +242,46 @@ const AgentsPage: FC = () => {
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
 			),
-		onSuccess: async ({ chatId }) => {
+		onSuccess: ({ chatId, workspaceId, deleteBuild }) => {
+			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
-			await invalidateChatListQueries(queryClient);
-			await queryClient.invalidateQueries({
+			clearPersistedRightPanelState(chatId);
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
 				exact: true,
 			});
-			await queryClient.invalidateQueries({
+			void queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
 			});
-			await invalidateWorkspaceMutationQueries(queryClient, {
+			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
 			});
-		},
-		onError: (error) => {
-			toast.error(
-				getErrorMessage(error, "Failed to archive and delete workspace."),
+			notifyDeleteQueueState(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+				deleteBuild,
 			);
+		},
+		onError: (error, { workspaceId }) => {
+			notifyArchiveAndDeleteFailed(
+				queryClient.getQueryData<TypesGen.Workspace>(
+					workspaceByIdKey(workspaceId),
+				),
+				error,
+				(path) => navigate(path),
+			);
+			// Archive failed after the delete already ran; refresh
+			// workspace state so consumers see the deletion.
+			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
+				void invalidateWorkspaceMutationQueries(queryClient, {
+					organizationName,
+					username: user.username,
+				});
+			}
 		},
 	});
 	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
@@ -311,6 +345,7 @@ const AgentsPage: FC = () => {
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
+		providerTypeByIDFromUserConfigs(chatProviderConfigsQuery.data),
 	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
@@ -405,7 +440,7 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						onSettled: () => {
+						onSuccess: () => {
 							navigateAfterArchive(chatId);
 						},
 					},
@@ -416,11 +451,6 @@ const AgentsPage: FC = () => {
 				// about interrupting a live workspace, which is moot
 				// when the workspace no longer exists.
 				archiveAgentMutation.mutate(chatId, {
-					// Navigate only on success. The proceed/confirm paths
-					// use onSettled because their pre-existing behavior
-					// navigates regardless of delete outcome. This path
-					// has no delete step, so a failed archive should not
-					// redirect the user.
 					onSuccess: () => {
 						navigateAfterArchive(chatId);
 					},
@@ -440,6 +470,8 @@ const AgentsPage: FC = () => {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
+				},
+				onSuccess: () => {
 					navigateAfterArchive(archivedChatId);
 				},
 			});
@@ -641,6 +673,18 @@ const AgentsPage: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
+						if (chatEvent.kind === "context_dirty") {
+							// The watch payload carries only the lightweight
+							// context flags (the merge above applies them);
+							// refetch the open chat to pull the pinned
+							// resources the single-chat GET computes. Only the
+							// active chat has an observer, so other chats are
+							// merely marked stale.
+							void queryClient.invalidateQueries({
+								queryKey: chatKey(updatedChat.id),
+								exact: true,
+							});
+						}
 					}
 				});
 				return ws;
@@ -675,6 +719,7 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}

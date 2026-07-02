@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -38,6 +39,15 @@ import (
 // This doesn't affect tool invocation since originalName is used
 // directly when calling the remote server.
 const toolNameSep = "__"
+
+// truncateToolName caps the assembled tool name at MaxToolNameLen so
+// it fits within provider limits (e.g. OpenAI 64, Bedrock 128).
+func truncateToolName(name string) string {
+	if len(name) > aidmcp.MaxToolNameLen {
+		return name[:aidmcp.MaxToolNameLen]
+	}
+	return name
+}
 
 // connectTimeout bounds how long we wait for a single MCP server
 // to start its transport and complete initialization. Servers that
@@ -162,6 +172,31 @@ func ConnectAll(
 			cmp.Compare(aTool.MCPServerConfigID().String(), bTool.MCPServerConfigID().String()),
 		)
 	})
+
+	// Warn about name collisions that may result from sanitization
+	// and truncation. When two tools resolve to the same name, the
+	// LLM tool-call dispatch map keeps only one, so the other
+	// becomes silently unreachable.
+	for i := 1; i < len(tools); i++ {
+		if tools[i-1].Info().Name == tools[i].Info().Name {
+			prevTool, ok := tools[i-1].(MCPToolIdentifier)
+			if !ok {
+				continue
+			}
+			currTool, ok := tools[i].(MCPToolIdentifier)
+			if !ok {
+				continue
+			}
+			if prevTool.MCPServerConfigID() != currTool.MCPServerConfigID() {
+				logger.Warn(ctx,
+					"duplicate tool name after sanitization; one tool will be unreachable",
+					slog.F("tool_name", tools[i].Info().Name),
+					slog.F("prev_config_id", prevTool.MCPServerConfigID()),
+					slog.F("curr_config_id", currTool.MCPServerConfigID()),
+				)
+			}
+		}
+	}
 
 	return tools, cleanup
 }
@@ -520,7 +555,7 @@ func newMCPTool(
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
 		configID:     configID,
-		prefixedName: serverSlug + toolNameSep + tool.Name,
+		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
 		originalName: tool.Name,
 		description:  tool.Description,
 		parameters:   tool.InputSchema.Properties,

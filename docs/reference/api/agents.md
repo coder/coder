@@ -1,5 +1,7 @@
 # Agents
 
+Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.
+
 ## Get DERP map updates
 
 ### Code samples

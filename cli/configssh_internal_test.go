@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,7 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_sshConfigSplitOnCoderSection(t *testing.T) {
@@ -302,6 +306,140 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 	}
 }
 
+func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		coderd  codersdk.SSHConfigResponse
+		wantErr string
+	}{
+		{
+			name: "HostnameSuffix",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "coder\nHost *",
+			},
+			wantErr: "workspace hostname suffix",
+		},
+		{
+			name: "HostnamePrefix",
+			coderd: codersdk.SSHConfigResponse{
+				HostnamePrefix: "coder.\nHost *",
+			},
+			wantErr: "workspace hostname prefix",
+		},
+		{
+			name: "ProxyCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"},
+			},
+			wantErr: `ssh config option "ProxyCommand" is not allowed`,
+		},
+		{
+			name: "PermitLocalCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"PermitLocalCommand": "yes"},
+			},
+			wantErr: `ssh config option "PermitLocalCommand" is not allowed`,
+		},
+		{
+			name: "KnownHostsCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"KnownHostsCommand": "echo key"},
+			},
+			wantErr: `ssh config option "KnownHostsCommand" is not allowed`,
+		},
+		{
+			name: "PKCS11Provider",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"PKCS11Provider": "/tmp/evil.so"},
+			},
+			wantErr: `ssh config option "PKCS11Provider" is not allowed`,
+		},
+		{
+			name: "NewlineInValue",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *"},
+			},
+			wantErr: `ssh config option "UserKnownHostsFile" must not contain carriage return, newline, or NUL characters`,
+		},
+		{
+			name: "SmartcardDevice",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"SmartcardDevice": "/path/to/lib"},
+			},
+			wantErr: `not allowed`,
+		},
+		{
+			name: "XAuthLocation",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"XAuthLocation": "/usr/bin/xauth"},
+			},
+			wantErr: `not allowed`,
+		},
+		{
+			name: "ProxyJump",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"ProxyJump": "bastion.example.com"},
+			},
+			wantErr: `conflicts with`,
+		},
+		{
+			name: "HostnameSuffixGlob",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "*",
+			},
+			wantErr: `glob`,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := mergeSSHOptions(sshConfigOptions{}, tt.coderd, t.TempDir(), "/tmp/coder")
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func Test_mergeSSHOptions_UserOptionsOverrideServerConfig(t *testing.T) {
+	t.Parallel()
+
+	user := sshConfigOptions{
+		userHostPrefix: "dev.",
+		hostnameSuffix: "local",
+	}
+	got, err := mergeSSHOptions(user, codersdk.SSHConfigResponse{
+		HostnamePrefix: "coder.",
+		HostnameSuffix: "coder",
+	}, t.TempDir(), "/tmp/coder")
+	require.NoError(t, err)
+	require.Equal(t, "dev.", got.userHostPrefix)
+	require.Equal(t, "local", got.hostnameSuffix)
+}
+
+func Test_mergeSSHOptions_AllowsSafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	got, err := mergeSSHOptions(sshConfigOptions{}, codersdk.SSHConfigResponse{
+		HostnamePrefix: "coder.",
+		HostnameSuffix: "coder",
+		SSHConfigOptions: map[string]string{
+			"HostName":           "example.com",
+			"User":               "coder",
+			"Port":               "22",
+			"SetEnv":             "FOO=bar BAZ=qux",
+			"UserKnownHostsFile": "/tmp/coder_known_hosts",
+		},
+	}, t.TempDir(), "/tmp/coder")
+	require.NoError(t, err)
+	require.Equal(t, "coder.", got.userHostPrefix)
+	require.Equal(t, "coder", got.hostnameSuffix)
+	require.Contains(t, got.sshOptions, "HostName example.com")
+	require.Contains(t, got.sshOptions, "SetEnv FOO=bar BAZ=qux")
+}
+
 func Test_sshConfigOptions_addOption(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
@@ -374,6 +512,184 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 			slices.Sort(tt.Expect)
 			slices.Sort(o.sshOptions)
 			require.Equal(t, tt.Expect, o.sshOptions)
+		})
+	}
+}
+
+func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		opts    sshConfigOptions
+		want    []string // substrings that must appear
+		notWant []string // substrings that must not appear
+	}{
+		{
+			name: "wildcard suffix",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host *.coder\n", "ProxyCommand", "--hostname-suffix coder %h"},
+			notWant: []string{"Host workspace"},
+		},
+		{
+			name: "wildcard prefix",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host coder.*\n", "ProxyCommand", "--ssh-host-prefix coder. %h"},
+			notWant: []string{"Host coder.workspace"},
+		},
+		{
+			name: "no-wildcard suffix with workspaces",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1", "workspace2"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host workspace1.coder\n",
+				"Host workspace2.coder\n",
+				"Match host workspace1.coder !exec",
+				"Match host workspace2.coder !exec",
+				"--hostname-suffix coder %h",
+			},
+			notWant: []string{"Host *.coder", "Match host *.coder"},
+		},
+		{
+			name: "no-wildcard suffix with zero workspaces produces no host entries",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   nil,
+				waitEnum:         "auto",
+			},
+			notWant: []string{"Host", "ProxyCommand", "Match"},
+		},
+		{
+			name: "no-wildcard prefix with workspaces",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1", "workspace2"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host coder.workspace1\n",
+				"Host coder.workspace2\n",
+				"--ssh-host-prefix coder. %h",
+			},
+			notWant: []string{"Host coder.*"},
+		},
+		{
+			name: "no-wildcard suffix skips proxy command when skipProxyCommand is set",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1"},
+				skipProxyCommand: true,
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host workspace1.coder\n"},
+			notWant: []string{"ProxyCommand", "Match host", "Host *.coder"},
+		},
+		{
+			name: "no-wildcard prefix skips proxy command when skipProxyCommand is set",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1"},
+				skipProxyCommand: true,
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host coder.workspace1\n"},
+			notWant: []string{"ProxyCommand", "Host coder.*"},
+		},
+		{
+			name: "no-wildcard suffix SSH options appear in every workspace entry",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1", "workspace2"},
+				sshOptions:       []string{"ForwardAgent=yes", "LogLevel=DEBUG"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host workspace1.coder\n",
+				"\tForwardAgent=yes\n",
+				"\tLogLevel=DEBUG\n",
+				"Host workspace2.coder\n",
+			},
+		},
+		{
+			name: "wildcard suffix SSH options appear in host block",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				sshOptions:       []string{"ForwardAgent=yes"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host *.coder\n",
+				"\tForwardAgent=yes\n",
+			},
+		},
+		{
+			name: "no-wildcard with both prefix and suffix generates entries for both",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				hostnameSuffix:   "testy",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host coder.workspace1\n",
+				"Host workspace1.testy\n",
+				"Match host workspace1.testy !exec",
+			},
+			notWant: []string{"Host coder.*", "Host *.testy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+			err := tt.opts.writeToBuffer(&buf)
+			require.NoError(t, err)
+
+			got := buf.String()
+			for _, w := range tt.want {
+				assert.Contains(t, got, w, "expected substring not found")
+			}
+			for _, nw := range tt.notWant {
+				assert.NotContains(t, got, nw, "unexpected substring found")
+			}
 		})
 	}
 }

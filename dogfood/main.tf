@@ -105,8 +105,8 @@ resource "coderd_template" "dogfood" {
   deprecation_message            = null
   failure_ttl_ms                 = 604800000
   require_active_version         = true
-  time_til_dormant_autodelete_ms = 7776000000
-  time_til_dormant_ms            = 8640000000
+  time_til_dormant_autodelete_ms = 2592000000 # 30 days
+  time_til_dormant_ms            = 2592000000 # 30 days
 }
 
 resource "coderd_template" "vscode_coder" {
@@ -152,8 +152,8 @@ resource "coderd_template" "vscode_coder" {
   deprecation_message            = null
   failure_ttl_ms                 = 604800000
   require_active_version         = true
-  time_til_dormant_autodelete_ms = 7776000000
-  time_til_dormant_ms            = 8640000000
+  time_til_dormant_autodelete_ms = 2592000000 # 30 days
+  time_til_dormant_ms            = 2592000000 # 30 days
 }
 
 resource "coderd_template" "envbuilder_dogfood" {
@@ -198,6 +198,6 @@ resource "coderd_template" "envbuilder_dogfood" {
   deprecation_message            = null
   failure_ttl_ms                 = 604800000
   require_active_version         = true
-  time_til_dormant_autodelete_ms = 7776000000
-  time_til_dormant_ms            = 8640000000
+  time_til_dormant_autodelete_ms = 2592000000 # 30 days
+  time_til_dormant_ms            = 2592000000 # 30 days
 }

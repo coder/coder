@@ -1,11 +1,4 @@
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -132,7 +125,11 @@ interface AgentCreateFormProps {
 	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
-	agentSetupNotice?: ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
@@ -154,7 +151,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	canCreateChat,
 	modelCatalog,
 	modelOptions,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
@@ -517,7 +518,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							isPersonalModelOverridesLoading ||
-							!hasModelOptions
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled)
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -548,7 +550,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
 						isWorkspaceLoading={isWorkspacesLoading}
-						agentSetupNotice={agentSetupNotice}
+						canConfigureAgentSetup={canConfigureAgentSetup}
+						providerCount={providerCount}
+						modelCount={modelCount}
+						unsupportedProviderNames={unsupportedProviderNames}
+						aiGatewayDisabled={aiGatewayDisabled}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

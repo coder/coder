@@ -1,5 +1,4 @@
 import {
-	type CSSProperties,
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -106,13 +105,11 @@ export const ResizableChatsSidebarFrame = ({
 	return (
 		<div
 			data-testid="agents-sidebar-panel"
-			style={
-				{
-					"--agents-left-sidebar-width": `${width}px`,
-					"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
-					"--agents-left-sidebar-max-width": `${maxWidth}px`,
-				} as CSSProperties
-			}
+			style={{
+				"--agents-left-sidebar-width": `${width}px`,
+				"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
+				"--agents-left-sidebar-max-width": `${maxWidth}px`,
+			}}
 			className={cn(
 				className,
 				"relative sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[var(--agents-left-sidebar-min-width)] sm:max-w-[var(--agents-left-sidebar-max-width)]",

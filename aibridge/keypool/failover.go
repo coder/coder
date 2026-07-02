@@ -15,8 +15,7 @@ type KeyFailoverConfig struct {
 	// Pool is the key pool to walk. Nil disables key failover.
 	Pool *Pool
 
-	ProviderName string
-	Logger       slog.Logger
+	Logger slog.Logger
 
 	// IsBYOK returns true when the request already carries
 	// user-supplied auth. BYOK requests skip key failover.
@@ -70,6 +69,7 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 
 	// Fresh walker per request, independent of other inflight requests.
 	walker := t.config.Pool.Walker()
+	defer func() { t.config.Pool.RecordAttempts(walker.Attempts()) }()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
@@ -95,7 +95,7 @@ func (t *keyFailoverTransport) RoundTrip(req *http.Request) (*http.Response, err
 			return resp, rtErr
 		}
 		// MarkKeyOnStatus returns true on key-specific failures (e.g. 401/403/429).
-		if MarkKeyOnStatus(req.Context(), key, resp, t.config.Logger, t.config.ProviderName) {
+		if t.config.Pool.MarkKeyOnStatus(req.Context(), key, resp, t.config.Logger) {
 			// Drain and retry with the next key.
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()

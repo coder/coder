@@ -1,0 +1,18 @@
+module "vscode-web" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/vscode-web/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  accept_license = {{ .Variables.accept_license }}
+  auto_install_extensions = {{ .Variables.auto_install_extensions }}
+  commit_id = {{ .Variables.commit_id }}
+  disable_trust = {{ .Variables.disable_trust }}
+  extensions_dir = {{ .Variables.extensions_dir }}
+  folder = {{ .Variables.folder }}
+  offline = {{ .Variables.offline }}
+  platform = {{ .Variables.platform }}
+  port = {{ .Variables.port }}
+  telemetry_level = {{ .Variables.telemetry_level }}
+  use_cached = {{ .Variables.use_cached }}
+  workspace = {{ .Variables.workspace }}
+}

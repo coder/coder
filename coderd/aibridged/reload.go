@@ -15,7 +15,13 @@ type ProviderReloader interface {
 	Reload(ctx context.Context) error
 }
 
-// SubscribeProviderReload refreshes once, then on AI provider changes.
+// SubscribeProviderReload subscribes to AI provider change events, reloading
+// the reloader's snapshot on each event, and performs one initial reload
+// before returning. Subscribing happens before the initial reload so no change
+// event is missed.
+//
+// A subscription failure returns an error without reloading. The initial
+// reload is best-effort: a reload failure is logged and not returned.
 func SubscribeProviderReload(
 	ctx context.Context,
 	ps dbpubsub.Pubsub,
@@ -43,6 +49,7 @@ func SubscribeProviderReload(
 	if err != nil {
 		return nil, xerrors.Errorf("subscribe to %s: %w", pubsub.AIProvidersChangedChannel, err)
 	}
+
 	if err := reloader.Reload(ctx); err != nil {
 		logger.Warn(ctx, "initial ai provider reload", slog.Error(err))
 	}

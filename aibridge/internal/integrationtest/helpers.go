@@ -6,6 +6,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
@@ -13,7 +14,7 @@ import (
 func anthropicCfg(url string, key string) config.Anthropic {
 	return config.Anthropic{
 		BaseURL: url,
-		Key:     key,
+		KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, key),
 	}
 }
 
@@ -39,7 +40,7 @@ func bedrockCfg(url string) *config.AWSBedrock {
 func openAICfg(url string, key string) config.OpenAI {
 	return config.OpenAI{
 		BaseURL: url,
-		Key:     key,
+		KeyPool: testutil.SingleKeyPool(config.ProviderOpenAI, key),
 	}
 }
 

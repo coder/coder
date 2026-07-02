@@ -1,4 +1,4 @@
-import { type CSSProperties, type FC, useState } from "react";
+import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -35,11 +35,9 @@ export const AgentsPageSkeleton: FC = () => {
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">
 			<div
-				style={
-					{
-						"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
-					} as CSSProperties
-				}
+				style={{
+					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
+				}}
 				className="order-2 sm:order-none flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
 				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
@@ -195,11 +193,9 @@ export const AgentChatPageSkeleton: FC = () => {
 			</div>
 			{rightPanel.open && (
 				<div
-					style={
-						{
-							"--panel-width": `${rightPanel.width}px`,
-						} as React.CSSProperties
-					}
+					style={{
+						"--panel-width": `${rightPanel.width}px`,
+					}}
 					className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />

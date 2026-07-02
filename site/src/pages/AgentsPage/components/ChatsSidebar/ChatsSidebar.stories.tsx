@@ -7,6 +7,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -44,7 +45,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: "config-openai-gpt-4o",
-		provider: "openai",
+		ai_provider_id: "prov-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -59,22 +60,11 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
 	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: "owner-1",
-	title: "Agent",
-	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
-	mcp_server_ids: [],
-	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
 	...overrides,
 });
 
@@ -87,6 +77,7 @@ const agentsRouting = [
 ];
 
 const settingsRouting = [
+	{ path: "/ai/settings/coder-agents", useStoryElement: true },
 	{ path: "/agents/settings/:section", useStoryElement: true },
 	{ path: "/agents/settings", useStoryElement: true },
 	...agentsRouting,
@@ -114,6 +105,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
+		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),
@@ -181,6 +173,56 @@ export const ChatWithTurnSummary: Story = {
  * holds the previous turn's text. The sidebar replaces it with a live
  * "{model} streaming…" label so the status does not look stuck.
  */
+export const SharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-chat",
+				title: "Shared chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				last_turn_summary: "Original chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(canvas.getByText("Original chat summary")).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Shared by Sharing User"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SharedUnreadChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-unread-chat",
+				title: "Shared unread chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				has_unread: true,
+				last_turn_summary: "Original unread chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(
+			canvas.getByTestId("unread-indicator-shared-unread-chat"),
+		).toBeInTheDocument();
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
@@ -223,7 +265,7 @@ export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	render: (args) => {
 		const initialSummary = "Added Docker and Terraform validation";
@@ -1908,6 +1950,45 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 };
 
+export const AgentWithWorkspaceMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-workspace",
+				title: "Agent with workspace",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent with workspace")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText(
+			"Open actions for Agent with workspace",
+		);
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
 export const PinnedChatsSection: Story = {
 	args: {
 		chats: [
@@ -2191,28 +2272,13 @@ export const SettingsUserAgentsAdmin: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(
-			canvas.getByRole("link", { name: "Manage agents" }),
-		).toBeInTheDocument();
-	},
-};
-
-export const SettingsAdminAgentsEntryPreserved: Story = {
-	args: {
-		chats: [],
-		isAdmin: true,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/agents" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const agentsLink = canvas.getByRole("link", { name: "Agents" });
-		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
+		const manageAgentsLink = canvas.getByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
 	},
 };
 

@@ -1,7 +1,7 @@
 package coderd
 
 import (
-	"fmt"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,66 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
-
-func TestActiveAgentChatDefinitionsAgree(t *testing.T) {
-	t.Parallel()
-
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
-	db, _ := dbtestutil.NewDB(t)
-
-	org, err := db.GetDefaultOrganization(ctx)
-	require.NoError(t, err)
-
-	owner := dbgen.User(t, db, database.User{})
-	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: org.ID,
-		OwnerID:        owner.ID,
-	}).WithAgent().Do()
-	modelConfig := insertAgentChatTestModelConfig(t, db, owner.ID)
-
-	insertedChats := make([]database.Chat, 0, len(database.AllChatStatusValues())*2)
-	for _, archived := range []bool{false, true} {
-		for _, status := range database.AllChatStatusValues() {
-			chat := dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    org.ID,
-				Status:            status,
-				OwnerID:           owner.ID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             fmt.Sprintf("%s-archived-%t", status, archived),
-				AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
-			})
-
-			if archived {
-				_, err = db.ArchiveChatByID(ctx, chat.ID)
-				require.NoError(t, err)
-
-				chat, err = db.GetChatByID(ctx, chat.ID)
-				require.NoError(t, err)
-			}
-
-			insertedChats = append(insertedChats, chat)
-		}
-	}
-
-	activeChats, err := db.GetActiveChatsByAgentID(ctx, workspace.Agents[0].ID)
-	require.NoError(t, err)
-
-	activeByID := make(map[uuid.UUID]bool, len(activeChats))
-	for _, chat := range activeChats {
-		activeByID[chat.ID] = true
-	}
-
-	for _, chat := range insertedChats {
-		require.Equalf(
-			t,
-			isActiveAgentChat(chat),
-			activeByID[chat.ID],
-			"status=%s archived=%t",
-			chat.Status,
-			chat.Archived,
-		)
-	}
-}
 
 func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 	t.Parallel()
@@ -156,4 +96,31 @@ func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 	require.True(t, fetchedChild.ParentChatID.Valid)
 	require.Equal(t, rootUserACL, fetchedChild.UserACL)
 	require.Equal(t, rootGroupACL, fetchedChild.GroupACL)
+}
+
+func insertAgentChatTestModelConfig(
+	t testing.TB,
+	db database.Store,
+	userID uuid.UUID,
+) database.ChatModelConfig {
+	t.Helper()
+
+	createdBy := uuid.NullUUID{UUID: userID, Valid: true}
+
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:        database.AIProviderTypeOpenai,
+		Name:        "test-openai",
+		DisplayName: sql.NullString{String: "OpenAI", Valid: true},
+	})
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{
+		ProviderID: provider.ID,
+		APIKey:     "test-api-key",
+	})
+
+	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		CreatedBy:    createdBy,
+		UpdatedBy:    createdBy,
+		IsDefault:    true,
+	})
 }

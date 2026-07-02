@@ -1,0 +1,44 @@
+{
+  "id": "git-config",
+  "display_name": "Git Config",
+  "description": "Stores Git configuration from Coder credentials",
+  "icon": "/icon/git.svg",
+  "category": "Source Control",
+  "tags": [
+    "helper",
+    "git"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.0.33",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "allow_email_change",
+      "type": "bool",
+      "description": "Allow developers to change their git email.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "allow_username_change",
+      "type": "bool",
+      "description": "Allow developers to change their git username.",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

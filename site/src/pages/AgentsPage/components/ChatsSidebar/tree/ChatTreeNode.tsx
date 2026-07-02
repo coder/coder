@@ -1,13 +1,8 @@
 import {
-	ArchiveIcon,
-	ArchiveRestoreIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
-	PinIcon,
-	PinOffIcon,
-	SquarePenIcon,
-	Trash2Icon,
+	UsersIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
@@ -30,6 +25,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
+import { ChatActionsMenuItems } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
@@ -123,6 +119,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		return () => clearTimeout(timeoutId);
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const isSharedChat = chat.shared;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -143,69 +140,25 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const isRegeneratingThisChat = regeneratingTitleChatIds.includes(chat.id);
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-	const renderMenuItems = ({
-		Item,
-		Separator,
-	}: {
-		Item: typeof DropdownMenuItem | typeof ContextMenuItem;
-		Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator;
-	}) => (
-		<>
-			{!chat.archived && !isChildNode && (
-				<Item
-					onSelect={() =>
-						chat.pin_order > 0 ? onUnpinAgent(chat.id) : onPinAgent(chat.id)
-					}
-				>
-					{chat.pin_order > 0 ? (
-						<>
-							<PinOffIcon className="size-3.5" />
-							Unpin agent
-						</>
-					) : (
-						<>
-							<PinIcon className="size-3.5" />
-							Pin agent
-						</>
-					)}
-				</Item>
-			)}
-			{chat.archived ? (
-				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
-					<ArchiveRestoreIcon className="size-3.5" />
-					Unarchive agent
-				</Item>
-			) : (
-				<>
-					{onOpenRenameDialog && (
-						<Item onSelect={() => onOpenRenameDialog(chat)}>
-							<SquarePenIcon className="size-3.5" />
-							Rename chat
-						</Item>
-					)}
-					<Separator />
-					<Item
-						className="text-content-destructive focus:text-content-destructive"
-						disabled={isArchiving}
-						onSelect={() => onArchiveAgent(chat.id)}
-					>
-						<ArchiveIcon className="size-3.5" />
-						Archive agent
-					</Item>
-					{workspaceId && (
-						<Item
-							className="text-content-destructive focus:text-content-destructive"
-							disabled={isArchiving}
-							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
-						>
-							<Trash2Icon className="size-3.5" />
-							Archive & delete workspace
-						</Item>
-					)}
-				</>
-			)}
-		</>
-	);
+	const sharedMenuItemProps = {
+		isArchived: chat.archived,
+		isPinned: chat.pin_order > 0,
+		isChildChat: isChildNode,
+		hasWorkspace: Boolean(workspaceId),
+		isArchiving,
+		onPinAgent: () => onPinAgent(chat.id),
+		onUnpinAgent: () => onUnpinAgent(chat.id),
+		onArchiveAgent: () => onArchiveAgent(chat.id),
+		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
+		onArchiveAndDeleteWorkspace: () => {
+			if (workspaceId) {
+				onArchiveAndDeleteWorkspace(chat.id, workspaceId);
+			}
+		},
+		onOpenRenameDialog: onOpenRenameDialog
+			? () => onOpenRenameDialog(chat)
+			: undefined,
+	};
 
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
@@ -318,14 +271,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-							{isArchivingThisChat ? (
-								<Spinner
-									className="h-3.5 w-3.5 text-content-secondary"
-									loading
-								/>
-							) : (
-								<>
+						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+								{isArchivingThisChat ? (
+									<Spinner
+										className="h-3.5 w-3.5 text-content-secondary"
+										loading
+									/>
+								) : (
 									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 										{chat.has_unread && !isActiveChat ? (
 											<span
@@ -334,42 +287,56 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												aria-hidden="true"
 											/>
 										) : (
-											<span data-chromatic="ignore">
-												{shortRelativeTime(chat.updated_at)}
-											</span>
+											<>
+												{/* Pin the ignored mask width so Chromatic does not diff bounding rect changes. */}
+												<span
+													data-pixel="ignore"
+													className="inline-block w-7 text-right"
+												>
+													{shortRelativeTime(chat.updated_at)}
+												</span>
+											</>
 										)}
 									</span>
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-												aria-label={`Open actions for ${chat.title}`}
-											>
-												<EllipsisVerticalIcon className="size-3.5" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent
-											align="end"
-											className="[&_[role=menuitem]]:text-[13px]"
-										>
-											{renderMenuItems({
-												Item: DropdownMenuItem,
-												Separator: DropdownMenuSeparator,
-											})}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</>
+								)}
+							</div>
+							{isSharedChat && (
+								<UsersIcon
+									className="mt-auto size-3.5 text-content-secondary"
+									aria-label="Shared chat"
+								/>
 							)}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisVerticalIcon className="size-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
+									<ChatActionsMenuItems
+										{...sharedMenuItemProps}
+										Item={DropdownMenuItem}
+										Separator={DropdownMenuSeparator}
+									/>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
-					{renderMenuItems({
-						Item: ContextMenuItem,
-						Separator: ContextMenuSeparator,
-					})}
+					<ChatActionsMenuItems
+						{...sharedMenuItemProps}
+						Item={ContextMenuItem}
+						Separator={ContextMenuSeparator}
+					/>
 				</ContextMenuContent>
 			</ContextMenu>
 

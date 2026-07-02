@@ -100,7 +100,7 @@ workloads, so the cluster should be deployed as such, without production-level
 configurations.
 
 Adjust the CPU and memory values as shown in
-[Helm provisioner values.yaml](https://github.com/coder/coder/blob/main/helm/provisioner/values.yaml#L134-L141):
+[Helm provisioner values.yaml](../../../helm/provisioner/values.yaml#L134-L141):
 
 ```yaml
 …

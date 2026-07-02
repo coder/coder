@@ -25,6 +25,14 @@ interface ChatsSidebarProps {
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
+	/**
+	 * Controlled value for the rename-chat dialog. When provided alongside
+	 * `onChatPendingRenameChange`, the dialog is opened by the parent so
+	 * the chat top bar and the sidebar share a single dialog instance.
+	 * Falls back to internal state when omitted.
+	 */
+	chatPendingRename?: Chat | null;
+	onChatPendingRenameChange?: (chat: Chat | null) => void;
 	onBeforeNewAgent?: () => void;
 	isSearchDialogOpen: boolean;
 	onSearchDialogOpenChange: (open: boolean) => void;
@@ -43,6 +51,7 @@ interface ChatsSidebarProps {
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
+	currentUserId: string;
 }
 
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
@@ -59,6 +68,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onReorderPinnedAgent,
 		onRenameTitle,
 		onProposeTitle,
+		chatPendingRename: chatPendingRenameProp,
+		onChatPendingRenameChange,
 		onBeforeNewAgent,
 		isSearchDialogOpen,
 		onSearchDialogOpenChange,
@@ -77,6 +88,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
+		currentUserId,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -86,14 +98,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 	const isSettingsPanel = isSettingsView(sidebarView);
-	const isFallbackToUserPanel =
-		sidebarView.panel === "settings-admin" && !isAdmin;
-	const settingsPanel =
-		sidebarView.panel === "settings-admin" && isAdmin
-			? "settings-admin"
-			: "settings";
-	const settingsSection =
-		isSettingsPanel && !isFallbackToUserPanel ? sidebarView.section : undefined;
+	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
 	const providerConfigsQuery = useQuery({
 		...userChatProviderConfigs(),
 		enabled: isSettingsPanel && !isAdmin,
@@ -101,7 +106,19 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
-	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
+	const [internalChatPendingRename, setInternalChatPendingRename] =
+		useState<Chat | null>(null);
+	const isControlled = chatPendingRenameProp !== undefined;
+	const chatPendingRename = isControlled
+		? chatPendingRenameProp
+		: internalChatPendingRename;
+	const setChatPendingRename = (chat: Chat | null) => {
+		if (isControlled) {
+			onChatPendingRenameChange?.(chat);
+		} else {
+			setInternalChatPendingRename(chat);
+		}
+	};
 
 	return (
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
@@ -136,10 +153,10 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isSettingsPanel={isSettingsPanel}
 				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
 				location={location}
+				currentUserId={currentUserId}
 			/>
 			<SettingsPanel
 				isSettingsPanel={isSettingsPanel}
-				settingsPanel={settingsPanel}
 				settingsSection={settingsSection}
 				showApiKeysItem={showApiKeysItem}
 				isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}

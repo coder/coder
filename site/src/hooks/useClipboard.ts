@@ -13,6 +13,13 @@ export type UseClipboardInput = Readonly<{
 
 export type UseClipboardResult = Readonly<{
 	copyToClipboard: (textToCopy: string) => Promise<void>;
+
+	/**
+	 * Reads text from the clipboard. When the asynchronous Clipboard API is
+	 * available (secure contexts), it returns the live clipboard contents.
+	 */
+	readFromClipboard: () => Promise<string>;
+
 	error: Error | undefined;
 
 	/**
@@ -44,6 +51,7 @@ export const useClipboard = (
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();
 	const timeoutIdRef = useRef<number | undefined>(undefined);
+	const lastCopiedTextRef = useRef("");
 
 	useEffect(() => {
 		return () => window.clearTimeout(timeoutIdRef.current);
@@ -52,6 +60,7 @@ export const useClipboard = (
 	const copyToClipboard = useCallback(
 		async (textToCopy: string) => {
 			const markSuccess = () => {
+				lastCopiedTextRef.current = textToCopy;
 				setShowCopiedSuccess(true);
 				if (clearErrorOnSuccess) {
 					setError(undefined);
@@ -84,7 +93,22 @@ export const useClipboard = (
 		[onError, clearErrorOnSuccess],
 	);
 
-	return { showCopiedSuccess, error, copyToClipboard };
+	const readFromClipboard = useCallback(async (): Promise<string> => {
+		// Insecure (HTTP) contexts and older browsers cannot read the system
+		// clipboard, so fall back to the last value copied within Coder. In a
+		// secure context, surface read failures (such as a denied permission)
+		// instead of silently pasting a stale cached selection.
+		if (
+			window.isSecureContext &&
+			typeof navigator.clipboard?.readText === "function"
+		) {
+			return await navigator.clipboard.readText();
+		}
+
+		return lastCopiedTextRef.current;
+	}, []);
+
+	return { showCopiedSuccess, error, copyToClipboard, readFromClipboard };
 };
 
 /**

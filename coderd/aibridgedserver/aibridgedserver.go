@@ -21,11 +21,13 @@ import (
 	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -43,6 +45,7 @@ var (
 	ErrExpired       = xerrors.New("expired")
 	ErrUnknownUser   = xerrors.New("unknown user")
 	ErrDeletedUser   = xerrors.New("deleted user")
+	ErrInactiveUser  = xerrors.New("inactive user")
 	ErrSystemUser    = xerrors.New("system user")
 	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
 
@@ -66,12 +69,26 @@ type store interface {
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
 	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 
+	// Cost-attribution queries, used to snapshot price and effective group on
+	// each token usage record.
+	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error)
+	GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error)
+	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
+	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
+
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
 
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+
+	// ProviderConfigurator-related queries. InTx wraps the provider and key
+	// reads in a single read-only transaction; AcquireLock serializes against
+	// any in-flight env seed holding LockIDAIProvidersEnvSeed.
+	InTx(func(database.Store) error, *database.TxOptions) error
+	GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error)
+	GetAIProviderKeysByProviderIDs(ctx context.Context, providerIDs []uuid.UUID) ([]database.AIProviderKey, error)
 }
 
 type Server struct {
@@ -86,6 +103,9 @@ type Server struct {
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
 	aiSeatTracker     aiseats.SeatTracker
+	// budgetPolicy selects the effective group when a user belongs to multiple
+	// budgeted groups, used for cost attribution on token usage records.
+	budgetPolicy codersdk.AIBudgetPolicy
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
@@ -109,6 +129,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
 		aiSeatTracker:       aiSeatTracker,
+		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(bridgeCfg.BudgetPolicy),
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
@@ -179,21 +200,29 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		providerName = in.Provider
 	}
 
+	agentFirewallSessionID, err := parseOptionalUUID(in.AgentFirewallSessionId)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid agent firewall session ID in interception request",
+			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
-		ID:                         intcID,
-		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
-		Client:                     sql.NullString{String: in.Client, Valid: in.Client != ""},
-		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
-		InitiatorID:                initID,
-		Provider:                   in.Provider,
-		ProviderName:               providerName,
-		Model:                      in.Model,
-		Metadata:                   out,
-		StartedAt:                  in.StartedAt.AsTime(),
-		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
-		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
-		CredentialKind:             credentialKindOrDefault(in.CredentialKind),
-		CredentialHint:             in.CredentialHint,
+		ID:                          intcID,
+		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
+		Client:                      sql.NullString{String: in.Client, Valid: in.Client != ""},
+		ClientSessionID:             sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
+		InitiatorID:                 initID,
+		Provider:                    in.Provider,
+		ProviderName:                providerName,
+		Model:                       in.Model,
+		Metadata:                    out,
+		StartedAt:                   in.StartedAt.AsTime(),
+		ThreadParentInterceptionID:  uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+		CredentialKind:              credentialKindOrDefault(in.CredentialKind),
+		CredentialHint:              in.CredentialHint,
+		AgentFirewallSessionID:      agentFirewallSessionID,
+		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -263,6 +292,21 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
 	}
 
+	// The interception is always recorded before any of its token usages,
+	// so it must exist. It carries the provider, model, and initiator needed
+	// for cost attribution.
+	intc, err := s.store.GetAIBridgeInterceptionByID(ctx, intcID)
+	if err != nil {
+		return nil, xerrors.Errorf("get interception %q: %w", intcID, err)
+	}
+
+	// Snapshot the effective group, per-token prices and compute cost. A
+	// missing price row or unbudgeted user yields NULL columns.
+	cost, err := s.resolveTokenUsageCost(ctx, intc, in)
+	if err != nil {
+		return nil, xerrors.Errorf("resolve token usage cost: %w", err)
+	}
+
 	_, err = s.store.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 		ID:                    uuid.New(),
 		InterceptionID:        intcID,
@@ -273,6 +317,12 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		CacheWriteInputTokens: in.GetCacheWriteInputTokens(),
 		Metadata:              out,
 		CreatedAt:             in.GetCreatedAt().AsTime(),
+		EffectiveGroupID:      cost.effectiveGroupID,
+		InputPriceMicros:      cost.inputPriceMicros,
+		OutputPriceMicros:     cost.outputPriceMicros,
+		CacheReadPriceMicros:  cost.cacheReadPriceMicros,
+		CacheWritePriceMicros: cost.cacheWritePriceMicros,
+		CostMicros:            cost.costMicros,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)
@@ -553,13 +603,13 @@ externalAuthLoop:
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
-// caller's claim of identity and skips the key-secret check. This is safe only
-// because the DRPCServer is reachable solely via the in-process
-// [aibridged.MemTransportPipe]; the handler itself cannot tell whether it was
-// invoked over the in-memory pipe or a network socket. If this RPC is ever
-// exposed over a network boundary, any caller who knows a valid 10-char key ID
-// (which is not secret) could authenticate as the key's owner without the
-// secret. Do not bind this DRPCServer to a network listener.
+// caller's claim of identity and skips the key-secret check. This DRPCServer is
+// reachable both in-process via [aibridged.MemTransportPipe] and over the network
+// via the /api/v2/ai-gateway/serve endpoint. That endpoint admits only holders of
+// AI Gateway key, which are fully trusted. Standalone AI Gateway authenticates its
+// own users and acts on their behalf, much like a provisioner daemon. A Gateway key
+// holder can therefore act as any user without that user's secret. Per-user
+// authorization on this surface is a known gap.
 //
 // NOTE: this should really be using the code from [httpmw.ExtractAPIKey]. That function not only validates the key
 // but handles many other cases like updating last used, expiry, etc. This code does not currently use it for
@@ -623,9 +673,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrUnknownUser
 	}
 
-	// User is not deleted or a system user.
+	// User is active, not deleted, and not a system user.
 	if user.Deleted {
 		return nil, ErrDeletedUser
+	}
+	if user.Status != database.UserStatusActive {
+		return nil, ErrInactiveUser
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
@@ -636,6 +689,93 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		ApiKeyId: key.ID,
 		Username: user.Username,
 	}, nil
+}
+
+// GetAIProviders returns the full AI provider set (enabled and disabled) from
+// the database, which is the single source of truth seeded from coderd's
+// environment. Embedded and standalone AI Gateway daemons call this over DRPC
+// to build their provider pool instead of reading the database directly.
+//
+// The handler reads under a read-only transaction that first acquires
+// LockIDAIProvidersEnvSeed, so it blocks until any in-flight env seed commits
+// or rolls back. This guarantees the response is never a partial, mid-seed
+// snapshot.
+//
+// Keys are populated only for enabled providers; disabled providers never call
+// upstream, so their secrets are withheld.
+//
+// SECURITY: the response carries plaintext API keys and Bedrock credentials.
+// Do not log the response struct.
+func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequest) (*proto.GetAIProvidersResponse, error) {
+	//nolint:gocritic // AIBridged has a minimal permission set scoped to AI Bridge queries.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	var (
+		rows           []database.AIProvider
+		keysByProvider map[uuid.UUID][]database.AIProviderKey
+	)
+	// Wrap both reads in a read-only transaction so the provider list and the
+	// key list are consistent with each other, and so the seed lock is held
+	// for the duration of the reads.
+	err := s.store.InTx(func(tx database.Store) error {
+		// Block on any in-flight seed transaction holding the advisory lock so
+		// the response reflects a fully-seeded snapshot.
+		if err := tx.AcquireLock(ctx, database.LockIDAIProvidersEnvSeed); err != nil {
+			return xerrors.Errorf("acquire ai providers env seed lock: %w", err)
+		}
+
+		var err error
+		rows, err = tx.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+		if err != nil {
+			return xerrors.Errorf("get ai providers: %w", err)
+		}
+
+		// Load keys only for enabled providers to avoid materializing secrets
+		// for disabled rows.
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			if !row.Enabled {
+				continue
+			}
+			ids = append(ids, row.ID)
+		}
+		keysByProvider = make(map[uuid.UUID][]database.AIProviderKey, len(ids))
+		if len(ids) == 0 {
+			return nil
+		}
+		keyRows, err := tx.GetAIProviderKeysByProviderIDs(ctx, ids)
+		if err != nil {
+			return xerrors.Errorf("get ai provider keys: %w", err)
+		}
+		for _, k := range keyRows {
+			keysByProvider[k.ProviderID] = append(keysByProvider[k.ProviderID], k)
+		}
+		return nil
+	}, &database.TxOptions{ReadOnly: true, TxIdentifier: "get_ai_providers"})
+	if err != nil {
+		return nil, err
+	}
+
+	providers := make([]*proto.AIProvider, 0, len(rows))
+	for _, row := range rows {
+		p, err := aiProviderToProto(row, keysByProvider[row.ID])
+		if err != nil {
+			// Skip the offending row rather than failing the whole fetch:
+			// one row with a corrupt settings blob must not break provider
+			// configuration for every gateway, which would otherwise loop
+			// forever on the empty pool.
+			s.logger.Error(ctx, "skipping ai provider with invalid settings; it will be absent from the gateway pool",
+				slog.F("provider_id", row.ID),
+				slog.F("provider_name", row.Name),
+				slog.F("provider_type", string(row.Type)),
+				slog.Error(err),
+			)
+			continue
+		}
+		providers = append(providers, p)
+	}
+
+	return &proto.GetAIProvidersResponse{Providers: providers}, nil
 }
 
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
@@ -683,4 +823,69 @@ func metadataToMap(in map[string]*anypb.Any) map[string]any {
 		}
 	}
 	return meta
+}
+
+// parseOptionalUUID converts an optional proto string to uuid.NullUUID.
+// Returns a zero NullUUID if s is nil. If s is non-nil but not a valid UUID, it
+// returns a zero NullUUID along with the parse error so the caller can decide
+// how to surface it.
+func parseOptionalUUID(s *string) (uuid.NullUUID, error) {
+	if s == nil {
+		return uuid.NullUUID{}, nil
+	}
+	id, err := uuid.Parse(*s)
+	if err != nil {
+		return uuid.NullUUID{}, err
+	}
+	return uuid.NullUUID{UUID: id, Valid: true}, nil
+}
+
+// parseOptionalInt32 converts an optional proto int32 to sql.NullInt32.
+func parseOptionalInt32(n *int32) sql.NullInt32 {
+	if n == nil {
+		return sql.NullInt32{}
+	}
+	return sql.NullInt32{Int32: *n, Valid: true}
+}
+
+// aiProviderToProto maps a single ai_providers row (and its keys, for enabled
+// providers) to the proto representation served to AI Gateway daemons. Keys and
+// Bedrock settings are only attached for enabled providers; disabled providers
+// never call upstream so their secrets are withheld.
+func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (*proto.AIProvider, error) {
+	p := &proto.AIProvider{
+		Name:    row.Name,
+		Type:    string(row.Type),
+		Enabled: row.Enabled,
+		BaseUrl: row.BaseUrl,
+	}
+	// Disabled providers are rendered as stubs by the client and never call
+	// upstream, so only the identity fields are returned; keys and settings
+	// (including Bedrock credentials) are withheld.
+	if !row.Enabled {
+		return p, nil
+	}
+
+	p.Keys = make([]string, 0, len(keys))
+	for _, k := range keys {
+		p.Keys = append(p.Keys, k.APIKey)
+	}
+
+	settings, err := db2sdk.AIProviderSettings(row.Settings)
+	if err != nil {
+		return nil, xerrors.Errorf("decode settings: %w", err)
+	}
+	if settings.Bedrock != nil {
+		p.Bedrock = &proto.AIProviderKindBedrock{
+			Region:          settings.Bedrock.Region,
+			AccessKey:       ptr.NilToEmpty(settings.Bedrock.AccessKey),
+			AccessKeySecret: ptr.NilToEmpty(settings.Bedrock.AccessKeySecret),
+			Model:           settings.Bedrock.Model,
+			SmallFastModel:  settings.Bedrock.SmallFastModel,
+			RoleArn:         settings.Bedrock.RoleARN,
+			ExternalId:      settings.Bedrock.ExternalID,
+		}
+	}
+
+	return p, nil
 }

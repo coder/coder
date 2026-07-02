@@ -18,20 +18,23 @@ WHERE
 
 -- name: GetChatModelConfigs :many
 SELECT
-    *
+    cmc.*
 FROM
-    chat_model_configs
+    chat_model_configs cmc
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    deleted = FALSE
+    cmc.deleted = FALSE
 ORDER BY
-    provider ASC,
-    model ASC,
-    updated_at DESC,
-    id DESC;
+    ap.type::text ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC;
 
 -- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.*
+    sqlc.embed(cmc),
+    ap.type::text AS provider
 FROM
     chat_model_configs cmc
 JOIN
@@ -42,7 +45,7 @@ WHERE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
 ORDER BY
-    cmc.provider ASC,
+    ap.type::text ASC,
     cmc.model ASC,
     cmc.updated_at DESC,
     cmc.id DESC;
@@ -65,7 +68,6 @@ WHERE
 
 -- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
-    provider,
     model,
     display_name,
     created_by,
@@ -77,7 +79,6 @@ INSERT INTO chat_model_configs (
     options,
     ai_provider_id
 ) VALUES (
-    @provider::text,
     @model::text,
     @display_name::text,
     sqlc.narg('created_by')::uuid,
@@ -96,7 +97,6 @@ RETURNING
 UPDATE
     chat_model_configs
 SET
-    provider = @provider::text,
     model = @model::text,
     display_name = @display_name::text,
     updated_by = sqlc.narg('updated_by')::uuid,
@@ -132,17 +132,6 @@ SET
     updated_at = NOW()
 WHERE
     id = @id::uuid;
-
--- name: DeleteChatModelConfigsByProvider :exec
-UPDATE
-    chat_model_configs
-SET
-    deleted = TRUE,
-    deleted_at = NOW(),
-    updated_at = NOW()
-WHERE
-    provider = @provider::text
-    AND deleted = FALSE;
 
 -- name: DeleteChatModelConfigsByAIProviderID :exec
 UPDATE

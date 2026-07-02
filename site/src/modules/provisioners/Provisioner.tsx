@@ -77,7 +77,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 					<span>No warnings</span>
 				)}
 				{provisioner.last_seen_at && (
-					<span className="text-content-primary" data-chromatic="ignore">
+					<span className="text-content-primary" data-pixel="ignore">
 						Last seen {createDayString(provisioner.last_seen_at)}
 					</span>
 				)}

@@ -18,7 +18,11 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
-import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
+import {
+	isAppBlockedByMissingWildcard,
+	isExternalApp,
+	needsSessionToken,
+} from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import { docs } from "#/utils/docs";
 import { AgentButton } from "../AgentButton";
@@ -76,7 +80,7 @@ export const AppLink: FC<AppLinkProps> = ({
 		primaryTooltip = "Unhealthy";
 	}
 
-	if (!host && app.subdomain) {
+	if (isAppBlockedByMissingWildcard(app, host)) {
 		canClick = false;
 		icon = (
 			<CircleAlertIcon

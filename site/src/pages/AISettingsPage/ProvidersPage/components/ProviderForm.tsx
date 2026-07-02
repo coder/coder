@@ -9,8 +9,10 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { Link as DocsLink } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
 
@@ -23,6 +25,7 @@ export type ProviderFormValues = {
 	smallFastModel: string;
 	accessKey: string;
 	accessKeySecret: string;
+	roleArn: string;
 	apiKey: string;
 	enabled: boolean;
 };
@@ -64,9 +67,21 @@ const defaultInitialValues: ProviderFormValues = {
 	smallFastModel: "",
 	accessKey: "",
 	accessKeySecret: "",
+	roleArn: "",
 	apiKey: "",
 	enabled: true,
 };
+
+// Bedrock model defaults mirror codersdk/deployment.go's
+// aiGatewayBedrockModel and aiGatewayBedrockSmallFastModel defaults
+// so the create form lands on the same models the env-seeded path
+// uses. Update both sides together when AWS publishes new model IDs.
+const BEDROCK_DEFAULT_MODEL =
+	"global.anthropic.claude-sonnet-4-5-20250929-v1:0";
+const BEDROCK_DEFAULT_SMALL_FAST_MODEL =
+	"global.anthropic.claude-haiku-4-5-20251001-v1:0";
+const BEDROCK_MODEL_CARDS_URL =
+	"https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html";
 
 const providerDefaults: Partial<
 	Record<AIProviderType, Partial<ProviderFormValues>>
@@ -76,6 +91,8 @@ const providerDefaults: Partial<
 	bedrock: {
 		name: "bedrock",
 		baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com",
+		model: BEDROCK_DEFAULT_MODEL,
+		smallFastModel: BEDROCK_DEFAULT_SMALL_FAST_MODEL,
 	},
 	azure: {
 		name: "azure",
@@ -92,6 +109,10 @@ const providerDefaults: Partial<
 	"openai-compat": { name: "openai-compat", baseUrl: "" },
 	openrouter: { name: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
 	vercel: { name: "vercel", baseUrl: "https://ai-gateway.vercel.sh/v1" },
+};
+
+const baseUrlPlaceholders: Partial<Record<AIProviderType, string>> = {
+	"openai-compat": "https://provider.example.com/v1",
 };
 
 const makeOpenAiAnthropicSchema = (editing: boolean) =>
@@ -125,6 +146,13 @@ const credentialFilled = (value: string | undefined): boolean => {
 	return trimmed !== "" && trimmed !== SAVED_CREDENTIAL_MASK;
 };
 
+const BEDROCK_ACCESS_KEY_PAIRED_MESSAGE =
+	"Enter both access key and secret, or leave both blank to use AWS environment credentials.";
+
+// Bedrock access keys are optional: when both are blank the server
+// falls back to ambient AWS credentials (IAM role, AWS_PROFILE, IRSA,
+// instance profile). Yup still requires them to be supplied as a pair
+// so a half-typed rotation does not slip through.
 const makeBedrockSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
@@ -142,24 +170,18 @@ const makeBedrockSchema = (editing: boolean) =>
 		apiKey: Yup.string(),
 		model: Yup.string().required("Model is required"),
 		smallFastModel: Yup.string().required("Small-fast model is required"),
-		accessKey: (editing
-			? Yup.string()
-			: Yup.string().required("Access key is required")
-		).test(
+		accessKey: Yup.string().test(
 			"access-key-paired",
-			"Enter both access key and secret to rotate credentials.",
+			BEDROCK_ACCESS_KEY_PAIRED_MESSAGE,
 			function (value) {
 				const secret = (this.parent as { accessKeySecret?: string })
 					.accessKeySecret;
 				return !(credentialFilled(secret) && !credentialFilled(value));
 			},
 		),
-		accessKeySecret: (editing
-			? Yup.string()
-			: Yup.string().required("Access key secret is required")
-		).test(
+		accessKeySecret: Yup.string().test(
 			"access-key-secret-paired",
-			"Enter both access key and secret to rotate credentials.",
+			BEDROCK_ACCESS_KEY_PAIRED_MESSAGE,
 			function (value) {
 				const accessKey = (this.parent as { accessKey?: string }).accessKey;
 				return !(credentialFilled(accessKey) && !credentialFilled(value));
@@ -243,6 +265,7 @@ const apiKeyPlaceholder = (provider: string) => {
 };
 
 const baseUrlPlaceholder = (provider: string) =>
+	baseUrlPlaceholders[provider as keyof typeof baseUrlPlaceholders] ??
 	providerDefaults[provider as keyof typeof providerDefaults]?.baseUrl;
 
 export const ProviderForm: FC<ProviderFormProps> = ({
@@ -455,19 +478,30 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								field={getFieldHelpers("model")}
 								label="Model"
 								className="w-full"
-								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
+								placeholder={BEDROCK_DEFAULT_MODEL}
 							/>
 							<FormField
 								required
 								field={getFieldHelpers("smallFastModel")}
 								label="Small-fast model"
 								className="w-full"
-								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
+								placeholder={BEDROCK_DEFAULT_SMALL_FAST_MODEL}
 							/>
 						</div>
+						<p className="text-xs text-content-secondary m-0">
+							Find available Bedrock model IDs in the{" "}
+							<DocsLink
+								size="sm"
+								href={BEDROCK_MODEL_CARDS_URL}
+								target="_blank"
+								rel="noreferrer"
+							>
+								AWS Bedrock model cards
+							</DocsLink>
+							.
+						</p>
 						<div className="grid grid-cols-2 items-start gap-4">
 							<CredentialField
-								required
 								label="Access key"
 								helpers={getFieldHelpers("accessKey")}
 								onBlur={() => handleCredentialBlur("accessKey")}
@@ -475,7 +509,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								autoComplete="new-password"
 							/>
 							<CredentialField
-								required
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
 								onBlur={() => handleCredentialBlur("accessKeySecret")}
@@ -483,11 +516,33 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								autoComplete="new-password"
 							/>
 						</div>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. Leave both fields blank to authenticate with the AWS
+							environment (IAM role, instance profile, AWS_PROFILE).{" "}
+							<DocsLink
+								size="sm"
+								href={docs("/ai-coder/ai-gateway/providers#amazon-bedrock")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								View docs
+							</DocsLink>
+						</p>
+						<FormField
+							field={getFieldHelpers("roleArn")}
+							label="Role ARN"
+							className="w-full"
+							placeholder="arn:aws:iam::123456789012:role/BedrockRole"
+						/>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. When a role ARN is set, the gateway assumes that role
+							(using the base identity) before calling Bedrock.
+						</p>
 					</>
 				)}
 
 				<div className="flex justify-end gap-4">
-					<Link to="/ai/settings">
+					<Link to="/ai/settings/providers">
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>

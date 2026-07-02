@@ -3,6 +3,7 @@ package workspacesdk
 import (
 	neturl "net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -47,5 +48,23 @@ func TestAgentAPIPath(t *testing.T) {
 		require.Equal(t, "40", parsed.Query().Get("max_line_bytes"))
 		require.Equal(t, "50", parsed.Query().Get("max_response_lines"))
 		require.Equal(t, "60", parsed.Query().Get("max_response_bytes"))
+	})
+
+	t.Run("debug logs zero after", func(t *testing.T) {
+		t.Parallel()
+
+		got := debugLogsPath(time.Time{})
+		require.Equal(t, "/debug/logs", got)
+	})
+
+	t.Run("debug logs after", func(t *testing.T) {
+		t.Parallel()
+
+		after := time.Date(2026, 5, 18, 12, 34, 56, 789, time.FixedZone("test", -7*60*60))
+		got := debugLogsPath(after)
+		parsed, err := neturl.Parse(got)
+		require.NoError(t, err)
+		require.Equal(t, "/debug/logs", parsed.Path)
+		require.Equal(t, after.UTC().Format(time.RFC3339Nano), parsed.Query().Get("after"))
 	})
 }

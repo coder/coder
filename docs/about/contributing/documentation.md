@@ -32,8 +32,14 @@ following third-party references:
 
 ## Tools
 
-The following are tools that you can use to edit your writing. However, take the
-suggestions provided with a grain of salt.
+This repository runs [Vale](https://vale.sh/) on `docs/` as part of CI to enforce prose style.
+The configuration is the repo-root `.vale.ini`, and the curated rule set is documented in [`docs/.style/style-guide/`](../../.style/style-guide/README.md).
+Run the same checks locally with `make lint/prose`.
+Vale runs in advisory mode in this iteration: warnings surface as inline PR annotations, but they don't block the build.
+
+The following external tools can also help when drafting. Take their
+suggestions with a grain of salt because they aren't tuned for Coder's
+voice or product names:
 
 - [alex.js](https://alexjs.com/)
 - [Grammarly](https://app.grammarly.com/)

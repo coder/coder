@@ -70,6 +70,7 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
@@ -655,15 +656,21 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
 	 * as having multiple resources with many agents, but they are not common. The
 	 * most common scenario is to have one single compute resource with one single
-	 * agent containing all the apps. Lets test this getting the apps for the
-	 * first resource, and first agent - they are sorted to return the compute
-	 * resource first - and see what customers and ourselves, using dogfood, think
-	 * about that.
+	 * agent containing all the apps. We get the apps from the first compute
+	 * resource (they are sorted to return the compute resource first).
+	 *
+	 * For multi-agent workspaces with sub-agents we show the apps from the parent
+	 * agent (the one without a `parent_id`). Sub-agents, such as those created by
+	 * devcontainers, are skipped so agent ordering does not determine which apps
+	 * appear.
+	 *
+	 * When a workspace has multiple parent-level agents we show the apps from the
+	 * first one only; aggregating apps across agents is tracked separately.
 	 */
 	const agent = workspace.latest_build.resources
 		.filter((r) => !r.hide)
 		.at(0)
-		?.agents?.at(0);
+		?.agents?.find((a) => a.parent_id === null);
 	if (!agent) {
 		return null;
 	}
@@ -759,15 +766,18 @@ const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
 	workspace,
 }) => {
 	const status = workspace.latest_app_status;
-	const agent = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.find((a) => a?.id === status?.agent_id);
-	const app = agent?.apps.find((a) => a.id === status?.app_id);
+	const appWithAgent = status
+		? findWorkspaceAppWithAgent(workspace, status.agent_id, status.app_id)
+		: undefined;
 
 	return (
 		<>
-			{agent && app && (
-				<IconAppLink app={app} workspace={workspace} agent={agent} />
+			{appWithAgent && (
+				<IconAppLink
+					app={appWithAgent}
+					workspace={workspace}
+					agent={appWithAgent.agent}
+				/>
 			)}
 
 			{status?.uri && status?.uri !== "n/a" && (

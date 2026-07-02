@@ -2,11 +2,14 @@ package clilog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -106,10 +109,10 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		switch loc {
 		case "", "/dev/null":
 		case "/dev/stdout":
-			sinks = append(sinks, sinkFn(inv.Stdout))
+			sinks = append(sinks, sinkFn(MaybeDiscardOnPipeError(inv.Stdout)))
 
 		case "/dev/stderr":
-			sinks = append(sinks, sinkFn(inv.Stderr))
+			sinks = append(sinks, sinkFn(MaybeDiscardOnPipeError(inv.Stderr)))
 
 		default:
 			logWriter := &LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
@@ -237,4 +240,26 @@ func (c *LumberjackWriteCloseFixer) Write(p []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 	return c.Writer.Write(p)
+}
+
+// MaybeDiscardOnPipeError wraps w so writes to alternate CLI sinks that fail
+// because the reader is gone are dropped. It leaves os.Stdout and os.Stderr
+// unchanged so production pipe errors keep their existing behavior.
+func MaybeDiscardOnPipeError(w io.Writer) io.Writer {
+	if w == os.Stdout || w == os.Stderr {
+		return w
+	}
+	return &discardOnPipeError{w: w}
+}
+
+type discardOnPipeError struct {
+	w io.Writer
+}
+
+func (d *discardOnPipeError) Write(p []byte) (int, error) {
+	n, err := d.w.Write(p)
+	if err != nil && (errors.Is(err, io.ErrClosedPipe) || errors.Is(err, syscall.EPIPE)) {
+		return len(p), nil
+	}
+	return n, err
 }

@@ -154,11 +154,14 @@ type Options struct {
 	IncludeProvisionerDaemon      bool
 	ChatdInstructionLookupTimeout time.Duration
 	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
-	ProvisionerDaemonVersion      string
-	ProvisionerDaemonTags         map[string]string
-	MetricsCacheRefreshInterval   time.Duration
-	AgentStatsRefreshInterval     time.Duration
-	DeploymentValues              *codersdk.DeploymentValues
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker. Used in tests.
+	ChatWorkerDisabled          bool
+	ProvisionerDaemonVersion    string
+	ProvisionerDaemonTags       map[string]string
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -594,6 +597,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
@@ -908,6 +912,16 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 	require.NoError(t, err)
 	for _, org := range orgs {
 		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
+		// The implicit role set (organization-member plus the org's
+		// default_org_member_roles) is unioned at request time by
+		// GetAuthorizationUserRoles. Subjects built directly here bypass
+		// that SQL union, so mirror it explicitly.
+		for _, name := range org.DefaultOrgMemberRoles {
+			roles = append(roles, rbac.RoleIdentifier{
+				Name:           name,
+				OrganizationID: org.ID,
+			})
+		}
 	}
 
 	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
@@ -1209,35 +1223,59 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 }
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
-// from cancelation, an error, or from completing successfully.
+// from cancelation, an error, or from completing successfully. The wait is bounded by
+// testutil.WaitLong; use AwaitTemplateVersionJobCompletedWithTimeout to wait longer.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
+	return AwaitTemplateVersionJobCompletedWithTimeout(t, client, version, testutil.WaitLong)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+// AwaitTemplateVersionJobCompletedWithTimeout waits up to timeout for the template
+// version build job to complete, polling at testutil.IntervalFast. Transient API errors
+// are logged and retried. Fails the test if the job does not complete in time.
+func AwaitTemplateVersionJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, version uuid.UUID, timeout time.Duration) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			t.Logf("failed to get template version %s: %v", version, err)
+			return false
+		}
 		t.Logf("template version job status: %s", templateVersion.Job.Status)
-		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+		return templateVersion.Job.CompletedAt != nil
+	}, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
+// status. The wait is bounded by testutil.WaitMedium; use
+// AwaitWorkspaceBuildJobCompletedWithTimeout to wait longer.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
+	return AwaitWorkspaceBuildJobCompletedWithTimeout(t, client, build, testutil.WaitMedium)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+// AwaitWorkspaceBuildJobCompletedWithTimeout waits up to timeout for a workspace
+// provision job to reach completed status, polling at testutil.IntervalFast. Transient
+// API errors are logged and retried. Fails the test if the job does not complete in time.
+func AwaitWorkspaceBuildJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, build uuid.UUID, timeout time.Duration) codersdk.WorkspaceBuild {
+	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
-	require.Eventually(t, func() bool {
+	completed := testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		if err != nil {
@@ -1249,7 +1287,10 @@ func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, buil
 			return false
 		}
 		return true
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.IntervalFast, "workspace build %s did not complete", build)
+	if !completed {
+		t.FailNow()
+	}
 	t.Logf("got workspace build job %s (status: %s)", build, workspaceBuild.Job.Status)
 	return workspaceBuild
 }
@@ -1841,6 +1882,18 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 	})
 	require.NoError(t, err)
 	t.Logf("Successfully updated provisioner LastSeenAt")
+}
+
+// NextAutostartTick returns workspace.NextStartAt for use as the autobuild
+// tick. The executor's eligibility query checks next_start_at <= tick.
+// Computing from build.CreatedAt is racy: next_start_at derives from build
+// completion time, so it can advance past sched.Next(build.CreatedAt) and
+// the workspace misses the eligibility window.
+func NextAutostartTick(t testing.TB, workspace codersdk.Workspace) time.Time {
+	t.Helper()
+	require.NotNil(t, workspace.NextStartAt,
+		"workspace next_start_at is nil; ensure autostart is enabled and the latest build has completed before calling NextAutostartTick")
+	return *workspace.NextStartAt
 }
 
 func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {

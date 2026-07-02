@@ -6,7 +6,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { AIBridgeModelIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeModelIcon";
+import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
 import { cn } from "#/utils/cn";
 import { formatDate } from "#/utils/time";
 import { TokenBadges } from "../../TokenBadges";

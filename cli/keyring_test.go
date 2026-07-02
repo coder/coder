@@ -55,14 +55,12 @@ func setupKeyringTestEnv(t *testing.T, clientURL string, args ...string) keyring
 	return keyringTestEnv{serviceName, backend, inv, cfg, parsedURL}
 }
 
+//nolint:paralleltest,tparallel // Windows OS keyring has intermittent failures with concurrent access
 func TestUseKeyring(t *testing.T) {
 	// Verify that the --use-keyring flag default opts into using a keyring backend
 	// for storing session tokens instead of plain text files.
-	t.Parallel()
 
 	t.Run("Login", func(t *testing.T) {
-		t.Parallel()
-
 		if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 			t.Skip("keyring is not supported on this OS")
 		}
@@ -109,8 +107,6 @@ func TestUseKeyring(t *testing.T) {
 	})
 
 	t.Run("Logout", func(t *testing.T) {
-		t.Parallel()
-
 		if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 			t.Skip("keyring is not supported on this OS")
 		}
@@ -174,8 +170,6 @@ func TestUseKeyring(t *testing.T) {
 	})
 
 	t.Run("DefaultFileStorage", func(t *testing.T) {
-		t.Parallel()
-
 		if runtime.GOOS != "linux" {
 			t.Skip("file storage is the default for Linux")
 		}
@@ -220,8 +214,6 @@ func TestUseKeyring(t *testing.T) {
 	})
 
 	t.Run("EnvironmentVariable", func(t *testing.T) {
-		t.Parallel()
-
 		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		// Create a test server
@@ -265,8 +257,6 @@ func TestUseKeyring(t *testing.T) {
 	})
 
 	t.Run("DisableKeyringWithFlag", func(t *testing.T) {
-		t.Parallel()
-
 		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)

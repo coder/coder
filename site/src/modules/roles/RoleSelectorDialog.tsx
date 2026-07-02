@@ -20,6 +20,7 @@ type RoleSelectorDialogProps = {
 	user?: ThingWithRoles;
 	/** The roles available in this context that can be given or removed from the user */
 	availableRoles?: AssignableRoles[];
+	additionalImpliedRoles?: AssignableRoles[];
 
 	onCancel: () => void;
 	onUpdateRoles: (roles: string[]) => Promise<void>;
@@ -36,6 +37,7 @@ type ThingWithRoles = {
 export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 	user,
 	availableRoles = [],
+	additionalImpliedRoles = [],
 	onCancel,
 	onUpdateRoles,
 	isUpdatingRoles,
@@ -48,6 +50,7 @@ export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 		<ActiveRoleSelectorDialog
 			user={user}
 			availableRoles={availableRoles}
+			additionalImpliedRoles={additionalImpliedRoles}
 			onCancel={onCancel}
 			onUpdateRoles={onUpdateRoles}
 			isUpdatingRoles={isUpdatingRoles}
@@ -58,6 +61,7 @@ export const RoleSelectorDialog: React.FC<RoleSelectorDialogProps> = ({
 const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 	user,
 	availableRoles,
+	additionalImpliedRoles,
 	onCancel,
 	onUpdateRoles,
 	isUpdatingRoles,
@@ -89,6 +93,7 @@ const ActiveRoleSelectorDialog: React.FC<Required<RoleSelectorDialogProps>> = ({
 				<RoleSelector
 					hideLabel
 					availableRoles={availableRoles}
+					additionalImpliedRoles={additionalImpliedRoles}
 					selectedRoles={selectedRoles}
 					onChange={setSelectedRoles}
 				/>

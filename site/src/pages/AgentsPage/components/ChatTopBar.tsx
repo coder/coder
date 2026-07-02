@@ -1,15 +1,12 @@
 import {
-	ArchiveIcon,
-	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
-	EllipsisIcon,
+	EllipsisVerticalIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
 	Share2Icon,
-	Trash2Icon,
-	WandSparklesIcon,
+	UsersIcon,
 } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -27,6 +24,7 @@ import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
+import { ChatActionsMenuItems } from "./ChatActionsMenuItems";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -46,14 +44,19 @@ type ChatTopBarProps = {
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
-	onRegenerateTitle?: () => void;
+	onPinAgent?: () => void;
+	onUnpinAgent?: () => void;
+	onOpenRenameDialog?: () => void;
 	isRegeneratingTitle?: boolean;
-	isRegenerateTitleDisabled?: boolean;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
+	isArchiving?: boolean;
+	isChildChat?: boolean;
+	isPinned?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	isSharedChat?: boolean;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
@@ -97,14 +100,19 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
-	onRegenerateTitle,
+	onPinAgent,
+	onUnpinAgent,
+	onOpenRenameDialog,
 	isRegeneratingTitle,
-	isRegenerateTitleDisabled,
-	hasWorkspace,
-	isArchived,
+	hasWorkspace = false,
+	isArchived = false,
+	isArchiving = false,
+	isChildChat = false,
+	isPinned = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	isSharedChat,
 	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
@@ -150,7 +158,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				</Button>
 			)}
 			{/* Title area */}
-			<div className="flex min-w-0 flex-1 items-center">
+			<div className="flex min-w-0 flex-1 items-center gap-1.5">
 				{chatTitle && (
 					<div
 						role="status"
@@ -186,6 +194,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						>
 							{chatTitle}
 						</span>
+						{isSharedChat && (
+							<UsersIcon
+								className="size-3.5 shrink-0 text-content-secondary"
+								aria-label="Shared chat"
+							/>
+						)}
 						{isRegeneratingTitle && (
 							<Spinner
 								aria-label="Regenerating title"
@@ -195,8 +209,44 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						)}
 					</div>
 				)}
+				{/* Actions menu sits inline with the title so it tracks the title's right edge.
+				   Suppressed when there is no chat to act on (loading and not-found views). */}
+				{!isEmbedded && chatTitle && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
+								aria-label="Open agent actions"
+							>
+								<EllipsisVerticalIcon className="size-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="start"
+							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						>
+							<ChatActionsMenuItems
+								isArchived={isArchived}
+								isPinned={isPinned}
+								isChildChat={isChildChat}
+								hasWorkspace={hasWorkspace}
+								isArchiving={isArchiving}
+								onPinAgent={onPinAgent}
+								onUnpinAgent={onUnpinAgent}
+								onArchiveAgent={onArchiveAgent}
+								onUnarchiveAgent={onUnarchiveAgent}
+								onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
+								onOpenRenameDialog={onOpenRenameDialog}
+								Item={DropdownMenuItem}
+								Separator={DropdownMenuSeparator}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
 			</div>
-			{/* PR link — mobile: icon + number; desktop: icon + title.
+			{/* PR link. On mobile: icon + number; on desktop: icon + title.
 			   Hidden on desktop when the sidebar panel is open
 			   (which already shows PR info). */}
 			{prUrl && hasPR && (
@@ -228,62 +278,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<ChatSharingTopBarButton
 						renderChatSharingContent={renderChatSharingContent}
 					/>
-				)}
-				{!isEmbedded && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className="size-7 text-content-secondary hover:text-content-primary"
-								aria-label="Open agent actions"
-							>
-								<EllipsisIcon className="size-4" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							align="end"
-							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
-						>
-							{!isArchived && onRegenerateTitle && (
-								<>
-									<DropdownMenuItem
-										disabled={isRegenerateTitleDisabled}
-										onSelect={onRegenerateTitle}
-									>
-										<WandSparklesIcon className="size-3.5" />
-										Generate new title
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-								</>
-							)}
-							{isArchived ? (
-								<DropdownMenuItem onSelect={onUnarchiveAgent}>
-									<ArchiveRestoreIcon className="size-3.5" />
-									Unarchive Agent
-								</DropdownMenuItem>
-							) : (
-								<>
-									<DropdownMenuItem
-										className="text-content-destructive focus:text-content-destructive"
-										onSelect={onArchiveAgent}
-									>
-										<ArchiveIcon className="size-3.5" />
-										Archive Agent
-									</DropdownMenuItem>
-									{hasWorkspace && (
-										<DropdownMenuItem
-											className="text-content-destructive focus:text-content-destructive"
-											onSelect={onArchiveAndDeleteWorkspace}
-										>
-											<Trash2Icon className="size-3.5" />
-											Archive & Delete Workspace
-										</DropdownMenuItem>
-									)}
-								</>
-							)}
-						</DropdownMenuContent>
-					</DropdownMenu>
 				)}
 				{!isEmbedded && (
 					<Button

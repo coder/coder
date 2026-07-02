@@ -16,19 +16,20 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "#/components/TemporarySavedState/TemporarySavedState";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
-import {
-	TemporarySavedState,
-	useTemporarySavedState,
-} from "./TemporarySavedState";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
+	providerTypeByID: ReadonlyMap<string, string>;
 	modelConfigsError?: unknown;
 	isLoadingModelConfigs?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -71,6 +72,7 @@ export const UserCompactionThresholdSettings: FC<
 	UserCompactionThresholdSettingsProps
 > = ({
 	modelConfigs,
+	providerTypeByID,
 	modelConfigsError,
 	isLoadingModelConfigs,
 	thresholds,
@@ -282,7 +284,9 @@ export const UserCompactionThresholdSettings: FC<
 									<TableCell className="text-sm font-medium text-content-primary">
 										<Badge size="sm" variant="default" className="w-fit">
 											<ProviderIcon
-												provider={modelConfig.provider}
+												provider={
+													providerTypeByID.get(modelConfig.ai_provider_id) ?? ""
+												}
 												className="size-4"
 											/>
 											{modelName}

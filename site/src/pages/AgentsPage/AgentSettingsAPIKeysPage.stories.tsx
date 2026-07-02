@@ -4,6 +4,7 @@ import type {
 	ChatModelConfig,
 	UserChatProviderConfig,
 } from "#/api/typesGenerated";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	AgentSettingsAPIKeysPageView,
 	type AgentSettingsAPIKeysPageViewProps,
@@ -23,19 +24,12 @@ const createProvider = (
 
 const createModel = (
 	overrides: Partial<ChatModelConfig> &
-		Pick<ChatModelConfig, "id" | "provider" | "model">,
+		Pick<ChatModelConfig, "id" | "ai_provider_id" | "model">,
 ): ChatModelConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	display_name: overrides.display_name ?? overrides.model,
-	model: overrides.model,
-	enabled: overrides.enabled ?? true,
-	is_default: overrides.is_default ?? false,
-	context_limit: overrides.context_limit ?? 200000,
-	compression_threshold: overrides.compression_threshold ?? 70,
-	model_config: overrides.model_config,
-	created_at: overrides.created_at ?? "2026-03-01T00:00:00.000Z",
-	updated_at: overrides.updated_at ?? "2026-03-01T00:00:00.000Z",
+	...MockChatModelConfig,
+	created_at: "2026-03-01T00:00:00.000Z",
+	updated_at: "2026-03-01T00:00:00.000Z",
+	...overrides,
 });
 
 const baseProvider = createProvider({
@@ -46,7 +40,7 @@ const baseProvider = createProvider({
 
 const baseModel = createModel({
 	id: "model-1",
-	provider: "openai",
+	ai_provider_id: "prov-1",
 	display_name: "GPT-4o",
 	model: "gpt-4o",
 });
@@ -133,7 +127,7 @@ export const WithFallback: Story = {
 		models: [
 			createModel({
 				id: "model-1",
-				provider: "anthropic",
+				ai_provider_id: "prov-1",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
@@ -166,19 +160,19 @@ export const MultipleProviders: Story = {
 		models: [
 			createModel({
 				id: "model-openai-1",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				display_name: "GPT-4o",
 				model: "gpt-4o",
 			}),
 			createModel({
 				id: "model-anthropic-1",
-				provider: "anthropic",
+				ai_provider_id: "prov-anthropic",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
 			createModel({
 				id: "model-anthropic-2",
-				provider: "anthropic",
+				ai_provider_id: "prov-anthropic",
 				display_name: "Claude Opus 4",
 				model: "claude-opus-4-20250514",
 			}),
@@ -232,7 +226,7 @@ export const SavingSingleProvider: Story = {
 			...baseModels,
 			createModel({
 				id: "model-2",
-				provider: "anthropic",
+				ai_provider_id: "prov-2",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
@@ -336,19 +330,19 @@ export const ShowsProviderStatuses: Story = {
 		models: [
 			createModel({
 				id: "model-openai-1",
-				provider: "openai",
+				ai_provider_id: "prov-openai",
 				display_name: "GPT-4o",
 				model: "gpt-4o",
 			}),
 			createModel({
 				id: "model-anthropic-1",
-				provider: "anthropic",
+				ai_provider_id: "prov-anthropic",
 				display_name: "Claude Sonnet 4",
 				model: "claude-sonnet-4-20250514",
 			}),
 			createModel({
 				id: "model-google-1",
-				provider: "google",
+				ai_provider_id: "prov-google",
 				display_name: "Gemini 2.5 Pro",
 				model: "gemini-2.5-pro",
 			}),

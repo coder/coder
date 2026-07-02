@@ -19,7 +19,7 @@ import (
 //			Handler: MyHandler,
 //			CtxMutator: func(ctx context.Context) context.Context {
 //				ctx = httpmw.WithWorkspaceParam(ctx, ws)
-//				ctx = dbauthz.As(ctx, coderdtest.MemberSubject(userID, orgID))
+//				ctx = dbauthz.As(ctx, mySubject(userID, orgID))
 //				return ctx
 //			},
 //	        Logger: logger.Named("roundtripper"),

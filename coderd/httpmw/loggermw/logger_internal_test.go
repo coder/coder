@@ -68,7 +68,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	})
 
 	// Wrap the test handler with the Logger middleware
-	loggerMiddleware := Logger(logger)
+	loggerMiddleware := Logger(logger, nil)
 	wrappedHandler := loggerMiddleware(testHandler)
 
 	// Create a test HTTP request
@@ -91,7 +91,7 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 	}
 
 	// Check that the log contains the expected fields
-	requiredFields := []string{"host", "path", "proto", "remote_addr", "start", "took", "status_code", "user_agent", "latency_ms"}
+	requiredFields := []string{"host", "received_host", "path", "proto", "remote_addr", "start", "took", "status_code", "user_agent", "latency_ms"}
 	for _, field := range requiredFields {
 		_, exists := fieldsMap[field]
 		require.True(t, exists, "field %q is missing in log fields", field)
@@ -101,6 +101,38 @@ func TestLoggerMiddleware_SingleRequest(t *testing.T) {
 
 	// Check value of the status code
 	require.Equal(t, fieldsMap["status_code"], http.StatusOK)
+}
+
+func TestLoggerMiddleware_HostFields(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger()
+
+	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})
+
+	loggerMiddleware := Logger(logger, func(_ *http.Request) string {
+		return "effective.test"
+	})
+	wrappedHandler := loggerMiddleware(testHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "http://received.test/path", nil)
+
+	sw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+	wrappedHandler.ServeHTTP(sw, req)
+
+	entries := sink.Entries()
+	require.Len(t, entries, 1, "expected exactly one log entry")
+
+	fieldsMap := make(map[string]any)
+	for _, field := range entries[0].Fields {
+		fieldsMap[field.Name] = field.Value
+	}
+
+	require.Equal(t, "effective.test", fieldsMap["host"])
+	require.Equal(t, "received.test", fieldsMap["received_host"])
 }
 
 func TestLoggerMiddleware_WebSocket(t *testing.T) {
@@ -129,7 +161,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	})
 
 	// Wrap the test handler with the Logger middleware
-	loggerMiddleware := Logger(logger)
+	loggerMiddleware := Logger(logger, nil)
 	wrappedHandler := loggerMiddleware(testHandler)
 
 	// RequestLogger expects the ResponseWriter to be *tracing.StatusWriter
@@ -186,7 +218,7 @@ func TestRequestLogger_HTTPRouteParams(t *testing.T) {
 	})
 
 	// Wrap the test handler with the Logger middleware
-	loggerMiddleware := Logger(logger)
+	loggerMiddleware := Logger(logger, nil)
 	wrappedHandler := loggerMiddleware(testHandler)
 
 	// Create a test HTTP request

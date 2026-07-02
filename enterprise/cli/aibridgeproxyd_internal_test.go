@@ -21,7 +21,7 @@ func TestClassifyProviderRow(t *testing.T) {
 	enabledRow := func(name, baseURL string) database.AIProvider {
 		return database.AIProvider{
 			Name:    name,
-			Type:    database.AiProviderTypeOpenai,
+			Type:    database.AIProviderTypeOpenai,
 			Enabled: true,
 			BaseUrl: baseURL,
 		}
@@ -33,7 +33,7 @@ func TestClassifyProviderRow(t *testing.T) {
 		seen := map[string]string{}
 		got := classifyProviderRow(enabledRow("openai", "https://api.openai.com/v1"), seen)
 		assert.Equal(t, "openai", got.Name)
-		assert.Equal(t, string(database.AiProviderTypeOpenai), got.Type)
+		assert.Equal(t, string(database.AIProviderTypeOpenai), got.Type)
 		assert.Equal(t, aibridged.ProviderStatusEnabled, got.Status)
 		assert.Equal(t, "api.openai.com", got.Host)
 		assert.NoError(t, got.Err)

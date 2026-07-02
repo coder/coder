@@ -1,0 +1,75 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.15.5",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "data.coder_provisioner.me",
+          "mode": "data",
+          "type": "coder_provisioner",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "arch": "amd64",
+            "id": "dd55eb9e-dcf2-4a01-ad70-06118d626188",
+            "os": "linux"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_workspace.me",
+          "mode": "data",
+          "type": "coder_workspace",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "access_port": 443,
+            "access_url": "https://mydeployment.coder.com",
+            "id": "8324ba11-3a81-422b-8c92-fef111777f47",
+            "is_prebuild": false,
+            "is_prebuild_claim": false,
+            "name": "default",
+            "prebuild_count": 0,
+            "start_count": 1,
+            "template_id": "",
+            "template_name": "",
+            "template_version": "",
+            "transition": "start"
+          },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.coder_workspace_owner.me",
+          "mode": "data",
+          "type": "coder_workspace_owner",
+          "name": "me",
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 0,
+          "values": {
+            "email": "default@example.com",
+            "full_name": "default",
+            "groups": [],
+            "id": "ffe8b59f-8833-4622-8cbd-d34549c5f176",
+            "login_type": null,
+            "name": "default",
+            "oidc_access_token": "",
+            "rbac_roles": [],
+            "session_token": "",
+            "ssh_private_key": "",
+            "ssh_public_key": ""
+          },
+          "sensitive_values": {
+            "groups": [],
+            "oidc_access_token": true,
+            "rbac_roles": [],
+            "session_token": true,
+            "ssh_private_key": true
+          }
+        }
+      ]
+    }
+  }
+}

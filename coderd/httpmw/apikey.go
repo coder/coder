@@ -424,7 +424,11 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 		changed = true
 	}
-	if !cfg.DisableSessionExpiryRefresh {
+	// Only apply sliding-window expiry refresh to interactive login
+	// sessions. Programmatic API tokens (LoginTypeToken, created via
+	// `coder tokens create`) honor a fixed, finite lifetime and must not be
+	// silently extended to now+lifetime on each authenticated request.
+	if !cfg.DisableSessionExpiryRefresh && key.LoginType != database.LoginTypeToken {
 		apiKeyLifetime := time.Duration(key.LifetimeSeconds) * time.Second
 		if key.ExpiresAt.Sub(now) <= apiKeyLifetime-time.Hour {
 			key.ExpiresAt = now.Add(apiKeyLifetime)

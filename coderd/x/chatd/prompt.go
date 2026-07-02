@@ -1,6 +1,16 @@
 package chatd
 
+import "github.com/coder/coder/v2/coderd/x/chatd/chattool"
+
 const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
+
+// subagentOrchestrationPromptBlock is the root-only orchestration guidance.
+// Delegated child chats cannot call list_agents or message_agent, so this
+// block is stripped from their system prompt at creation time.
+const subagentOrchestrationPromptBlock = `<subagent-orchestration>
+An error status is often recoverable. Resume the agent with message_agent to retry; treat only genuine, repeating failures as terminal.
+If you lose track of your spawned agents, call list_agents to recover them before finishing.
+</subagent-orchestration>`
 
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 
@@ -9,7 +19,7 @@ Do not create or start a workspace by default. Many requests can be completed us
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
 const workspaceDetachedAwareness = workspaceDetachedAwarenessBase + ` Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
-If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
+If a workspace is needed, use list_templates before create_workspace and follow its ` + chattool.NextStepField + `. Call read_template only when you need template parameter or preset details.`
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`
 
@@ -104,6 +114,12 @@ Do not start with clarifying questions if the codebase or tools can answer them.
 Ask the minimum number of questions needed to define the scope together.
 </collaboration>
 
+<workspace-template-selection>
+When no workspace is attached and you need to create one:
+- Call list_templates with concise search terms from the user's task, then follow its ` + chattool.NextStepField + `: use the recommended template, or ask the user to choose when none is recommended.
+- Call read_template only when you need parameter or preset details before create_workspace.
+</workspace-template-selection>
+
 <planning>
 Propose a plan when:
 - The task is too ambiguous to implement with confidence.
@@ -123,7 +139,9 @@ Once a workspace is available:
 Write the file first, then present it. All file paths must be absolute.
 When the <plan-file-path> block below is present, use that exact path.
 ` + defaultSystemPromptPlanPathBlockPlaceholder + `
-</planning>`
+</planning>
+
+` + subagentOrchestrationPromptBlock
 
 var planningOverlayPrompt = `You are in Plan Mode.
 Every response must work toward producing a plan.

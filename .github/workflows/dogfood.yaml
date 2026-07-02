@@ -75,8 +75,13 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          # Depth 2 makes the PR merge commit's first parent (the base
+          # branch tip) available so lint/emdash, run inside the image via
+          # scripts/dogfood_test_image.sh, can diff against HEAD^1 without
+          # fetching the base branch at runtime.
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Get branch name
@@ -258,7 +263,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 

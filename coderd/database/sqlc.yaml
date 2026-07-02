@@ -27,6 +27,12 @@ sql:
         emit_db_tags: true
         emit_enum_valid_method: true
         emit_all_enum_values: true
+        initialisms:
+          # Keep the sqlc default initialism and add AI so generated
+          # identifiers follow Go naming conventions.
+          - id
+          - ai
+          - nats
         overrides:
           - column: "api_keys.scopes"
             go_type:
@@ -248,6 +254,7 @@ sql:
           login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
           crypto_key_feature_workspace_apps_api_key: CryptoKeyFeatureWorkspaceAppsAPIKey
           crypto_key_feature_oidc_convert: CryptoKeyFeatureOIDCConvert
+          crypto_key_feature_nats_ca: CryptoKeyFeatureNATSCA
           stale_interval_ms: StaleIntervalMS
           has_ai_task: HasAITask
           ai_task_sidebar_app_id: AITaskSidebarAppID

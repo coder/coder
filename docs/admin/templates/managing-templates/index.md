@@ -1,7 +1,7 @@
 # Working with templates
 
 You create and edit Coder templates as
-[Terraform](../../../tutorials/quickstart.md) configuration files (`.tf`) and
+[Terraform](https://developer.hashicorp.com/terraform/intro) configuration files (`.tf`) and
 any supporting files, like a README or configuration files for other services.
 
 ## Who creates templates?
@@ -28,13 +28,13 @@ If you prefer to use Coder on the
 [command line](../../../reference/cli/index.md), `coder templates init`.
 
 Coder starter templates are also available on our
-[GitHub repo](https://github.com/coder/coder/tree/main/examples/templates).
+[GitHub repo](../../../../examples/templates).
 
 ## Community Templates
 
 As well as Coder's starter templates, you can see a list of community templates
 by our users
-[here](https://github.com/coder/coder/blob/main/examples/templates/community-templates.md).
+[here](../../../../examples/templates/community-templates.md).
 
 ## Editing templates
 

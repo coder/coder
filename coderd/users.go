@@ -917,11 +917,19 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Avatars for password and none login types are managed manually. For
+	// other login types the avatar is synced from the identity provider on
+	// login, so we preserve the existing value and ignore any submitted one.
+	avatarURL := user.AvatarURL
+	if user.LoginType == database.LoginTypePassword || user.LoginType == database.LoginTypeNone {
+		avatarURL = params.AvatarURL
+	}
+
 	updatedUserProfile, err := api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
 		Name:      params.Name,
-		AvatarURL: user.AvatarURL,
+		AvatarURL: avatarURL,
 		Username:  params.Username,
 		UpdatedAt: dbtime.Now(),
 	})
@@ -1602,6 +1610,24 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, policy.ActionUpdatePersonal, user) {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+
+	// Only owners can change the password of another owner.
+	if apiKey.UserID != user.ID && slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
+		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching acting user.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !slices.Contains(actingUser.RBACRoles, rbac.RoleOwner().String()) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Only owners can change the password of an owner.",
+			})
+			return
+		}
 	}
 
 	if !httpapi.Read(ctx, rw, r, &params) {

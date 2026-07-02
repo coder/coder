@@ -94,7 +94,9 @@ describe("TokenPage", () => {
 		});
 
 		await createToken();
-		await userEvent.click(screen.getByRole("button", { name: "Copy code" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Copy code" }),
+		);
 
 		await waitFor(() => {
 			expect(copiedText).toBe("abcd");

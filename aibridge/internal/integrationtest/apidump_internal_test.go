@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
@@ -39,7 +40,7 @@ func TestAPIDump(t *testing.T) {
 			name:    "anthropic",
 			fixture: fixtures.AntSimple,
 			providerFunc: func(addr, dumpDir string) aibridge.Provider {
-				return provider.NewAnthropic(anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
+				return aibridgetest.NewAnthropicProvider(t, anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
 			},
 			path:              pathAnthropicMessages,
 			expectProviderDir: config.ProviderAnthropic,
@@ -121,7 +122,7 @@ func TestAPIDump(t *testing.T) {
 
 			// Setup mock upstream server.
 			fix := fixtures.Parse(t, tc.fixture)
-			srv := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			srv := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			// Create temp dir for API dumps.
 			dumpDir := t.TempDir()
@@ -219,7 +220,7 @@ func TestAPIDumpPassthrough(t *testing.T) {
 		{
 			name: "anthropic",
 			providerFunc: func(addr string, dumpDir string) aibridge.Provider {
-				return provider.NewAnthropic(anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
+				return aibridgetest.NewAnthropicProvider(t, anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
 			},
 			requestPath:    "/anthropic/v1/models",
 			expectDumpName: "-v1-models-",

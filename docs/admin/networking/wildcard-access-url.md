@@ -56,6 +56,12 @@ Use a reverse proxy to handle TLS termination with automatic certificate managem
 - [Apache with Let's Encrypt](../../tutorials/reverse-proxy-apache.md)
 - [Caddy reverse proxy](../../tutorials/reverse-proxy-caddy.md)
 
+If your reverse proxy rewrites the request `Host` and forwards the original
+host in `X-Forwarded-Host`, configure
+[`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server.md#--proxy-trusted-origins)
+to trust that proxy's address. Otherwise Coder will ignore `X-Forwarded-Host`
+for subdomain app routing.
+
 ### DNS Setup
 
 You'll need to configure DNS to point wildcard subdomains to your Coder server:

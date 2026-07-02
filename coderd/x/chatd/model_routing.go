@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
@@ -29,55 +30,15 @@ func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOp
 	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 }
 
-type modelRouteKind int
-
-const (
-	modelRouteKindDirect modelRouteKind = iota + 1
-	modelRouteKindAIGateway
-)
-
-type resolvedModelRoute struct {
-	kind      modelRouteKind
-	direct    directModelRoute
-	aiGateway aiGatewayModelRoute
-}
-
-func newDirectModelRoute(providerHint string, keys chatprovider.ProviderAPIKeys) resolvedModelRoute {
-	return resolvedModelRoute{
-		kind: modelRouteKindDirect,
-		direct: directModelRoute{
-			ProviderHint: providerHint,
-			Keys:         keys,
-		},
+// withActiveTurnAPIKeyID augments ctx with the active turn's delegated API
+// key ID when one is known. AI Gateway routing and subagent tool callbacks
+// read this value from the context to attribute requests to the correct
+// turn. When no key is known, ctx is returned unchanged.
+func withActiveTurnAPIKeyID(ctx context.Context, opts modelBuildOptions) context.Context {
+	if opts.ActiveAPIKeyID == "" {
+		return ctx
 	}
-}
-
-func (r resolvedModelRoute) providerHint() (string, error) {
-	switch r.kind {
-	case modelRouteKindDirect:
-		return r.direct.ProviderHint, nil
-	case modelRouteKindAIGateway:
-		return r.aiGateway.ModelProviderHint, nil
-	default:
-		return "", xerrors.New("model route is not configured")
-	}
-}
-
-func (r resolvedModelRoute) withProviderHint(providerHint string) resolvedModelRoute {
-	switch r.kind {
-	case modelRouteKindDirect:
-		r.direct.ProviderHint = providerHint
-	case modelRouteKindAIGateway:
-		r.aiGateway.ModelProviderHint = providerHint
-	}
-	return r
-}
-
-func (r resolvedModelRoute) directProviderKeys() chatprovider.ProviderAPIKeys {
-	if r.kind != modelRouteKindDirect {
-		return chatprovider.ProviderAPIKeys{}
-	}
-	return r.direct.Keys
+	return aibridge.WithDelegatedAPIKeyID(ctx, opts.ActiveAPIKeyID)
 }
 
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
@@ -89,49 +50,6 @@ func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID
 		return database.AIProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
 	}
 	return provider, nil
-}
-
-func (p *Server) shouldUseAIGatewayRouting() bool {
-	return p.aiGatewayRoutingEnabled
-}
-
-func (p *Server) resolveModelRouteForConfig(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	modelConfig database.ChatModelConfig,
-	fallbackKeys chatprovider.ProviderAPIKeys,
-) (resolvedModelRoute, error) {
-	if p.shouldUseAIGatewayRouting() {
-		return p.resolveAIGatewayModelRouteForConfig(ctx, ownerID, modelConfig)
-	}
-	return p.resolveDirectModelRouteForConfig(ctx, ownerID, modelConfig, fallbackKeys)
-}
-
-func (p *Server) resolveModelRouteForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (resolvedModelRoute, error) {
-	if p.shouldUseAIGatewayRouting() {
-		return p.resolveAIGatewayModelRouteForProviderType(ctx, ownerID, providerType)
-	}
-	return p.resolveDirectModelRouteForProviderType(ctx, ownerID, providerType)
-}
-
-func (p *Server) newModel(
-	ctx context.Context,
-	req modelClientRequest,
-	route resolvedModelRoute,
-	opts modelBuildOptions,
-) (fantasy.LanguageModel, error) {
-	switch route.kind {
-	case modelRouteKindDirect:
-		return p.newDirectModel(ctx, req, route.direct, opts)
-	case modelRouteKindAIGateway:
-		return p.newAIGatewayModel(ctx, req, route.aiGateway, opts)
-	default:
-		return nil, xerrors.New("model route is not configured")
-	}
 }
 
 func newLanguageModel(

@@ -28,7 +28,6 @@ import {
 	Message,
 	MessageContent,
 	Response,
-	Shimmer,
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
@@ -38,8 +37,7 @@ import {
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
-import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
-import { ToolIcon } from "../ChatElements/tools/ToolIcon";
+import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -49,8 +47,8 @@ import {
 import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
+	buildDisplayMessages,
 	deriveMessageDisplayState,
-	groupSequentialReadFileMessages,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -156,24 +154,19 @@ const ReasoningDisclosure = memo<{
 
 		return (
 			<div data-transcript-row="">
-				<ToolCollapsible
+				<ToolCall.Root
 					className="w-full"
+					status={isStreaming ? "running" : "completed"}
+					hasContent={hasText}
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
-					header={
-						<>
-							<ToolIcon name="thinking" isError={false} />
-							{isStreaming ? (
-								<Shimmer as="span" className="text-[13px] leading-6">
-									{title}
-								</Shimmer>
-							) : (
-								<span className="text-[13px] leading-6">{title}</span>
-							)}
-						</>
-					}
 				>
-					{hasText && (
+					<ToolCall.Header
+						iconName="thinking"
+						label={title}
+						showStatus={false}
+					/>
+					<ToolCall.Content>
 						<div
 							ref={previewScrollRef}
 							className={cn(
@@ -189,8 +182,8 @@ const ReasoningDisclosure = memo<{
 								{body}
 							</Response>
 						</div>
-					)}
-				</ToolCollapsible>
+					</ToolCall.Content>
+				</ToolCall.Root>
 			</div>
 		);
 	},
@@ -533,6 +526,11 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
+	// The bottom spacer fakes the height of the hidden action bar so
+	// chain-end messages keep even spacing before the next bubble.
+	// The last transcript message has nothing after it, so the spacer
+	// would render as a dangling blank at the end of the chat.
+	isLastMessage?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -561,6 +559,7 @@ const ChatMessageItem = memo<{
 		hideActions = false,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
+		isLastMessage = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -744,7 +743,7 @@ const ChatMessageItem = memo<{
 								)}
 						</div>
 					)}
-				{displayState.needsAssistantBottomSpacer && (
+				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
 				{previewImage && (
@@ -844,10 +843,13 @@ const StickyUserMessage = memo<{
 			const MIN_HEIGHT = 72;
 			const STICKY_TOP = 8;
 
-			let scrollerTop = scroller.getBoundingClientRect().top;
-			let scrollerHeight = scroller.clientHeight;
-
 			const update = () => {
+				// Read the scroller geometry on each tick. Caching it goes
+				// stale when the scroller moves or resizes without a window
+				// resize (for example the composer growing), which skews the
+				// clip height and push-up math.
+				const scrollerTop = scroller.getBoundingClientRect().top;
+				const scrollerHeight = scroller.clientHeight;
 				const fullHeight = container.offsetHeight;
 
 				// Skip sticky behavior for messages that take up
@@ -905,12 +907,6 @@ const StickyUserMessage = memo<{
 			};
 			updateFnRef.current = update;
 
-			const onResize = () => {
-				scrollerTop = scroller.getBoundingClientRect().top;
-				scrollerHeight = scroller.clientHeight;
-				update();
-			};
-
 			// Throttle to one update per animation frame so we don't
 			// do redundant work on high-refresh-rate displays.
 			let rafId: number | null = null;
@@ -922,12 +918,21 @@ const StickyUserMessage = memo<{
 				});
 			};
 
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
-			const contentEl = scroller.firstElementChild as HTMLElement | null;
+			// Re-run the visual update when the transcript height changes,
+			// for example a streaming response or several messages arriving
+			// at once. In flex-col-reverse the scrollTop stays at 0 while
+			// pinned to the bottom, so no scroll event fires; observing the
+			// content wrapper catches that growth instead.
+			//
+			// The scroller's firstElementChild is the flex spacer that pins
+			// content to the bottom. It collapses to 0px once the transcript
+			// overflows and then stops emitting resize callbacks, which is
+			// exactly when truncation is active, so observe the real content
+			// node (an ancestor of the sentinel) and fall back to the spacer
+			// only when the marker is absent.
+			const contentEl =
+				sentinel.closest<HTMLElement>("[data-chat-scroll-content]") ??
+				(scroller.firstElementChild as HTMLElement | null);
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
 				? new ResizeObserver(() => {
@@ -941,7 +946,7 @@ const StickyUserMessage = memo<{
 			contentObserver?.observe(contentEl!);
 
 			scroller.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", onResize);
+			window.addEventListener("resize", update);
 			update();
 			// Set immediately — both --clip-h and --overlay-ready are
 			// applied before the browser paints since we're in a
@@ -949,7 +954,7 @@ const StickyUserMessage = memo<{
 			container.style.setProperty("--overlay-ready", "1");
 			return () => {
 				scroller.removeEventListener("scroll", onScroll);
-				window.removeEventListener("resize", onResize);
+				window.removeEventListener("resize", update);
 				contentObserver?.disconnect();
 				container.style.removeProperty("--overlay-ready");
 				if (rafId !== null) cancelAnimationFrame(rafId);
@@ -1145,7 +1150,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
-		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
+		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
 
 		if (parsedMessages.length === 0) {
@@ -1289,6 +1294,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								hideActions={!isLastInChain}
 								hasActiveStream={Boolean(hasActiveStream)}
 								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+								isLastMessage={msgIdx === displayMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}

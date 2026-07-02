@@ -46,24 +46,29 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
-	it("returns the lifecycle admin settings section", () => {
+	it("keeps legacy admin redirect paths on the settings panel", () => {
+		expect(sidebarViewFromPath("/agents/settings/admin")).toEqual({
+			panel: "settings",
+			section: "admin",
+		});
+	});
+
+	it("falls through moved admin sections to the user settings panel", () => {
+		expect(sidebarViewFromPath("/agents/settings/instructions")).toEqual({
+			panel: "settings",
+			section: "instructions",
+		});
 		expect(sidebarViewFromPath("/agents/settings/lifecycle")).toEqual({
-			panel: "settings-admin",
+			panel: "settings",
 			section: "lifecycle",
 		});
-	});
-
-	it("normalizes the admin index route to an undefined section", () => {
-		expect(sidebarViewFromPath("/agents/settings/admin")).toEqual({
-			panel: "settings-admin",
-			section: undefined,
+		expect(sidebarViewFromPath("/agents/settings/models")).toEqual({
+			panel: "settings",
+			section: "models",
 		});
-	});
-
-	it("returns the instructions admin settings section", () => {
-		expect(sidebarViewFromPath("/agents/settings/instructions")).toEqual({
-			panel: "settings-admin",
-			section: "instructions",
+		expect(sidebarViewFromPath("/agents/settings/templates")).toEqual({
+			panel: "settings",
+			section: "templates",
 		});
 	});
 
@@ -86,12 +91,6 @@ describe("isSettingsView", () => {
 		expect(isSettingsView({ panel: "settings", section: undefined })).toBe(
 			true,
 		);
-	});
-
-	it("returns true for the admin settings panel", () => {
-		expect(
-			isSettingsView({ panel: "settings-admin", section: "providers" }),
-		).toBe(true);
 	});
 
 	it("returns false for chats", () => {

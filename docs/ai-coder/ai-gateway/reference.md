@@ -7,7 +7,7 @@
 
 ## Implementation Details
 
-`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/coder/tree/main/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
+`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in ../../../aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
 
 ![AI Gateway implementation details](../../images/aibridge/aibridge-implementation-details.png)
 

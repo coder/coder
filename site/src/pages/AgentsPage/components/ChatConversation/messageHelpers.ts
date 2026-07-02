@@ -22,6 +22,16 @@ export type MessageDisplayState = {
 	needsAssistantBottomSpacer: boolean;
 };
 
+type MessageEntryInput = {
+	message: TypesGen.ChatMessage;
+	parsed: ParsedMessageContent;
+};
+
+type HiddenTimelineEntryReason =
+	| "tool-result"
+	| "metadata-only"
+	| "empty-non-user";
+
 const isUserInlineRenderBlock = (
 	block: RenderBlock,
 ): block is UserInlineRenderBlock =>
@@ -62,12 +72,54 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const hasThinkingOnlyContent =
 		visibleBlocks.length > 0 &&
 		visibleBlocks.every((block) => block.type === "thinking");
+	const endsWithResponseBlock =
+		visibleBlocks.length > 0 &&
+		visibleBlocks[visibleBlocks.length - 1].type === "response";
 
 	return {
 		hasRenderableContent,
 		hasThinkingOnlyContent,
+		endsWithResponseBlock,
 	};
 };
+
+const isToolResultOnlyEntry = ({
+	message,
+	parsed,
+}: MessageEntryInput): boolean =>
+	message.role === "tool" &&
+	parsed.toolResults.length > 0 &&
+	parsed.toolCalls.length === 0 &&
+	parsed.markdown === "" &&
+	parsed.reasoning === "";
+
+const getHiddenTimelineEntryReason = ({
+	message,
+	parsed,
+}: MessageEntryInput): HiddenTimelineEntryReason | undefined => {
+	const parts = message.content ?? [];
+	const { hasRenderableContent } = getRenderableContentState(parsed);
+
+	if (
+		isToolResultOnlyEntry({ message, parsed }) ||
+		isProviderToolResultOnlyMessage(parts)
+	) {
+		return "tool-result";
+	}
+
+	if (isMetadataOnlyMessage(parts)) {
+		return "metadata-only";
+	}
+
+	if (message.role !== "user" && !hasRenderableContent) {
+		return "empty-non-user";
+	}
+
+	return undefined;
+};
+
+const shouldHideTimelineEntry = (entry: MessageEntryInput): boolean =>
+	getHiddenTimelineEntryReason(entry) !== undefined;
 
 export const deriveMessageDisplayState = ({
 	message,
@@ -91,10 +143,16 @@ export const deriveMessageDisplayState = ({
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
-	const hasCopyableContent =
-		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
-	const { hasRenderableContent, hasThinkingOnlyContent } =
+	const { hasThinkingOnlyContent, endsWithResponseBlock } =
 		getRenderableContentState(parsed);
+	// The copy action row renders below the whole message, so assistant
+	// messages only get one when the last visible block is text.
+	// Otherwise the button would sit under a tool call with nothing
+	// copyable directly above it.
+	const hasCopyableContent =
+		Boolean(parsed.markdown.trim()) &&
+		!hasFileAttachments &&
+		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
@@ -102,19 +160,8 @@ export const deriveMessageDisplayState = ({
 		!isUser &&
 		!hasCopyableContent &&
 		(hasThinkingOnlyContent || parsed.sources.length > 0);
-	const hasToolResultsOnly =
-		parsed.toolResults.length > 0 &&
-		parsed.toolCalls.length === 0 &&
-		parsed.markdown === "" &&
-		parsed.reasoning === "";
-	const parts = message.content ?? [];
-
 	return {
-		shouldHide:
-			hasToolResultsOnly ||
-			isProviderToolResultOnlyMessage(parts) ||
-			isMetadataOnlyMessage(parts) ||
-			(!isUser && !hasRenderableContent),
+		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
 		hasUserMessageBody,
@@ -172,7 +219,7 @@ const mergeReadFileMessageGroup = (
 // of one row per persisted message. Synthetic grouped entries deliberately
 // render from merged parsed fields because their raw message payload still
 // belongs to the first persisted message.
-export const groupSequentialReadFileMessages = (
+export const buildDisplayMessages = (
 	entries: readonly ParsedMessageEntry[],
 ): ParsedMessageEntry[] => {
 	const grouped: ParsedMessageEntry[] = [];
@@ -187,13 +234,7 @@ export const groupSequentialReadFileMessages = (
 	};
 
 	for (const entry of entries) {
-		const displayState = deriveMessageDisplayState({
-			message: entry.message,
-			parsed: entry.parsed,
-			hideActions: false,
-			hasActiveStream: false,
-		});
-		if (displayState.shouldHide) {
+		if (shouldHideTimelineEntry(entry)) {
 			continue;
 		}
 		if (isReadFileOnlyMessage(entry)) {

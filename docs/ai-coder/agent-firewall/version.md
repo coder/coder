@@ -13,12 +13,12 @@ v4.7.0 or newer**.
 ### Coder v2.30.0+
 
 Since Coder v2.30.0, Agent Firewall is embedded inside the Coder binary, and
-you don't need to install it separately. The `coder boundary` subcommand is
+you don't need to install it separately. The `coder agent-firewall` subcommand is
 available directly from the Coder CLI.
 
 ### Claude Code Module v4.7.0+
 
-Since Claude Code module v4.7.0, the embedded `coder boundary` subcommand is
+Since Claude Code module v4.7.0, the embedded `coder agent-firewall` subcommand is
 used by default. This means you don't need to set `boundary_version`; the
 boundary version is tied to your Coder version.
 
@@ -27,7 +27,7 @@ boundary version is tied to your Coder version.
 ### Using Coder Before v2.30.0 with Claude Code Module v4.7.0+
 
 If you're using Coder before v2.30.0 with Claude Code module v4.7.0 or newer,
-the `coder boundary` subcommand isn't available in your Coder installation. In
+the `coder agent-firewall` subcommand isn't available in your Coder installation. In
 this case, you need to:
 
 1. Set `use_boundary_directly = true` in your Terraform module configuration

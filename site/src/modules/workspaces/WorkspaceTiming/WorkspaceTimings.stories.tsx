@@ -42,7 +42,7 @@ export const ClickToOpen: Story = {
 		defaultIsOpen: false,
 	},
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
@@ -54,7 +54,7 @@ export const ClickToOpen: Story = {
 
 export const ClickToClose: Story = {
 	parameters: {
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
@@ -285,7 +285,7 @@ export const InvalidTimeRange: Story = {
 export const MultipleAgents: Story = {
 	decorators: [
 		(Story) => (
-			<div style={{ "--collapse-body-height": "600px" } as React.CSSProperties}>
+			<div style={{ "--collapse-body-height": "600px" }}>
 				<Story />
 			</div>
 		),

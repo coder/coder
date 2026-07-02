@@ -319,7 +319,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 											</p>
 											<Link
 												href={docs(
-													"/ai-coder/ai-bridge/audit#human-vs-agent-attribution",
+													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
 												)}
 												target="_blank"
 												className="text-sm"

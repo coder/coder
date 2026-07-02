@@ -5,7 +5,7 @@ import (
 )
 
 // hopByHopHeaders are connection-level headers specific to the connection
-// between client and AI Bridge, not meant for the upstream.
+// between client and AI Gateway, not meant for the upstream.
 // See https://www.rfc-editor.org/rfc/rfc2616#section-13.5.1
 var hopByHopHeaders = []string{
 	"Connection",
@@ -36,8 +36,28 @@ var authHeaders = []string{
 	"X-Api-Key",
 }
 
+// proxyHeaders describe the path the inbound request took to reach
+// aibridge. On bridge routes aibridge acts as a client, not a proxy,
+// so these headers are not meaningful on the outbound request.
+var proxyHeaders = []string{
+	"X-Forwarded-For",
+	"X-Forwarded-Host",
+	"X-Forwarded-Proto",
+	"X-Forwarded-Port",
+	"Forwarded",
+}
+
+// agentFirewallHeaders carry Agent Firewall correlation data used by
+// AI Gateway for session correlation. AI Gateway records the values
+// from the incoming request and strips the headers here so they are
+// never forwarded to upstream LLM providers.
+var agentFirewallHeaders = []string{
+	"X-Coder-Agent-Firewall-Session-Id",
+	"X-Coder-Agent-Firewall-Sequence-Number",
+}
+
 // PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
-// transport, and auth headers removed.
+// transport, auth, and proxy headers removed.
 func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	prepared := clientHeaders.Clone()
 	for _, h := range hopByHopHeaders {
@@ -47,6 +67,12 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 		prepared.Del(h)
 	}
 	for _, h := range authHeaders {
+		prepared.Del(h)
+	}
+	for _, h := range proxyHeaders {
+		prepared.Del(h)
+	}
+	for _, h := range agentFirewallHeaders {
 		prepared.Del(h)
 	}
 	return prepared

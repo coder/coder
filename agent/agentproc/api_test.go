@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -136,23 +138,47 @@ func newTestAPIWithOptions(t *testing.T, updateEnv func([]string) ([]string, err
 	logger := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv, nil, workingDir)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, nil, updateEnv, workingDir)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
 	return agentchat.Middleware(api.Routes())
 }
 
+// newTestAPIWithEnvInfo creates a new API with an injected EnvInfoer
+// and an optional workingDir hook.
+func newTestAPIWithEnvInfo(t *testing.T, workingDir func() string, envInfo usershell.EnvInfoer) http.Handler {
+	t.Helper()
+
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	}).Leveled(slog.LevelDebug)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, envInfo, nil, workingDir)
+	t.Cleanup(func() {
+		_ = api.Close()
+	})
+	return agentchat.Middleware(api.Routes())
+}
+
+// homeOverrideEnvInfo is a usershell.EnvInfoer that delegates to the
+// system implementation but reports a custom home directory.
+type homeOverrideEnvInfo struct {
+	usershell.SystemEnvInfo
+	home string
+}
+
+func (e homeOverrideEnvInfo) HomeDir() (string, error) { return e.home, nil }
+
 func TestAccessLogIncludesChatID(t *testing.T) {
 	t.Parallel()
 
 	sink := testutil.NewFakeSink(t)
 	logger := sink.Logger()
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, nil)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, nil, nil, nil)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
-	handler := tracing.StatusWriterMiddleware(loggermw.Logger(logger)(
+	handler := tracing.StatusWriterMiddleware(loggermw.Logger(logger, nil)(
 		agentchat.Middleware(api.Routes()),
 	))
 
@@ -379,6 +405,40 @@ func TestStartProcess(t *testing.T) {
 
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "echo ok",
+		})
+
+		resp := waitForExit(t, handler, id)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+
+		w := getList(t, handler)
+		require.Equal(t, http.StatusOK, w.Code)
+		var listResp workspacesdk.ListProcessesResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&listResp))
+		var proc *workspacesdk.ProcessInfo
+		for i := range listResp.Processes {
+			if listResp.Processes[i].ID == id {
+				proc = &listResp.Processes[i]
+				break
+			}
+		}
+		require.NotNil(t, proc, "process not found in list")
+		require.Equal(t, homeDir, proc.WorkDir)
+	})
+
+	t.Run("DefaultWorkDirUsesInjectedEnvInfoHome", func(t *testing.T) {
+		t.Parallel()
+
+		// With no explicit or configured directory available,
+		// the home fallback must come from the injected EnvInfo
+		// rather than the real user home.
+		homeDir := t.TempDir()
+		handler := newTestAPIWithEnvInfo(t, func() string {
+			return filepath.Join(t.TempDir(), "nonexistent")
+		}, homeOverrideEnvInfo{home: homeDir})
 
 		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
 			Command: "echo ok",
@@ -904,13 +964,11 @@ func TestProcessOutput(t *testing.T) {
 			codes [2]int
 		)
 		for i := range 2 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				w := getOutputWithWait(t, handler, id)
 				codes[i] = w.Code
 				_ = json.NewDecoder(w.Body).Decode(&resps[i])
-			}()
+			})
 		}
 
 		// Signal the process to exit so both waiters unblock.
@@ -1084,9 +1142,9 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	defer unsub()
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, func(current []string) ([]string, error) {
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, pathStore, nil, func(current []string) ([]string, error) {
 		return current, nil
-	}, pathStore, nil)
+	}, nil)
 	defer api.Close()
 
 	routes := agentchat.Middleware(api.Routes())

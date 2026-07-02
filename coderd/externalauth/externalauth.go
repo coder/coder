@@ -139,7 +139,8 @@ type Config struct {
 	RefreshRetryMaxBackoff time.Duration
 	// RefreshRetryTimeout overrides the total budget for retrying a transient
 	// refresh failure across all attempts. A zero value applies
-	// defaultRefreshRetryTimeout.
+	// defaultRefreshRetryTimeout. A negative value disables transient-failure
+	// retries entirely, so exactly one refresh attempt is made.
 	RefreshRetryTimeout time.Duration
 }
 
@@ -389,14 +390,20 @@ validate:
 
 // refreshTokenWithRetry exchanges the refresh token for a new access token,
 // retrying with exponential backoff on transient failures. Permanent
-// failures (as classified by isFailedRefresh) and the no-op case where no
-// refresh token is set bypass the retry loop so a doomed refresh is not
-// repeatedly attempted.
+// failures (as classified by isFailedRefresh), the no-op case where no
+// refresh token is set, and a negative RefreshRetryTimeout all bypass the
+// retry loop so a doomed or unwanted refresh is not repeatedly attempted.
 func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth2.Token) (*oauth2.Token, error) {
 	// Without a refresh token the oauth2 library short-circuits with
 	// "token expired and refresh token is not set". No retry can recover
 	// from that, so make a single attempt and return.
 	if existingToken.RefreshToken == "" {
+		return c.TokenSource(ctx, existingToken).Token()
+	}
+
+	// A negative RefreshRetryTimeout disables retries entirely, so make a
+	// single attempt and return.
+	if c.RefreshRetryTimeout < 0 {
 		return c.TokenSource(ctx, existingToken).Token()
 	}
 
@@ -409,7 +416,7 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		maximum = defaultRefreshRetryMaxBackoff
 	}
 	total := c.RefreshRetryTimeout
-	if total <= 0 {
+	if total == 0 {
 		total = defaultRefreshRetryTimeout
 	}
 
@@ -430,7 +437,7 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		// retry.Wait selects between time.After(delay) and ctx.Done(); when
 		// delay is zero and the context is already canceled the two cases
 		// race nondeterministically, which would cause an unwanted extra
-		// refresh attempt with a near-zero budget (notably in tests).
+		// refresh attempt with a near-zero budget.
 		if retryCtx.Err() != nil {
 			return token, err
 		}

@@ -106,17 +106,19 @@ func TestServerCreateAdminUser(t *testing.T) {
 		org1Name, org1ID := "org1", uuid.New()
 		org2Name, org2ID := "org2", uuid.New()
 		_, err = db.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:        org1ID,
-			Name:      org1Name,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:                    org1ID,
+			Name:                  org1Name,
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		require.NoError(t, err)
 		_, err = db.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:        org2ID,
-			Name:      org2Name,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:                    org2ID,
+			Name:                  org2Name,
+			CreatedAt:             dbtime.Now(),
+			UpdatedAt:             dbtime.Now(),
+			DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 		})
 		require.NoError(t, err)
 

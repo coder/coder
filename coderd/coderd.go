@@ -251,12 +251,16 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatSubscribeFn provides cross-replica subscription merging.
-	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatSubscribeFn chatd.SubscribeFn
+	// ChatStreamPartsDialer dials remote chat stream parts.
+	// Set by enterprise for HA deployments. Nil uses chatd's local
+	// in-process channel dialer.
+	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker.
+	ChatWorkerDisabled bool
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -321,6 +325,12 @@ type Options struct {
 
 // @BasePath /
 
+// @tag.name Agents
+// @tag.description Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.
+
+// @tag.name Chats
+// @tag.description Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
+
 // @securitydefinitions.apiKey Authorization
 // @in header
 // @name Authorizaiton
@@ -328,6 +338,10 @@ type Options struct {
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
 // @name Coder-Session-Token
+
+// @securitydefinitions.apiKey AIGatewayKey
+// @in header
+// @name X-AI-Governance-Gateway-Key
 // New constructs a Coder API handler.
 func New(options *Options) *API {
 	if options == nil {
@@ -348,11 +362,16 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing || options.DeploymentValues.DisableChatSharing {
+	experiments := ReadExperiments(
+		options.Logger, options.DeploymentValues.Experiments.Value(),
+	)
+
+	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
+			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
 		})
 	}
 
@@ -391,9 +410,6 @@ func New(options *Options) *API {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
 
-	experiments := ReadExperiments(
-		options.Logger, options.DeploymentValues.Experiments.Value(),
-	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -609,7 +625,7 @@ func New(options *Options) *API {
 	// Seed the AI Bridge model price table from the embedded price book.
 	//nolint:gocritic // Startup seeder needs to run as aibridge context.
 	if err := prices.Seed(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
-		options.Logger.Error(ctx, "failed to seed AI Bridge prices; cost tracking may use stale prices", slog.Error(err))
+		options.Logger.Error(ctx, "failed to seed AI Gateway prices; cost tracking may use stale prices", slog.Error(err))
 	}
 
 	// AGPL uses a no-op build usage checker as there are no license
@@ -698,6 +714,7 @@ func New(options *Options) *API {
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
+		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -809,33 +826,39 @@ func New(options *Options) *API {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
-		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
-			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
-
-		api.chatDaemon = chatd.New(chatd.Config{
-			Logger:                         options.Logger.Named("chatd"),
-			Database:                       options.Database,
-			ReplicaID:                      api.ID,
-			SubscribeFn:                    options.ChatSubscribeFn,
-			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                providerAPIKeys,
-			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			AllowBYOKSet:                   true,
-			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
-			AIGatewayRoutingEnabled:        chatAIGatewayRoutingEnabled,
-			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-			AgentConn:                      api.agentProvider.AgentConn,
-			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
-			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
-			CreateWorkspace:                api.chatCreateWorkspace,
-			StartWorkspace:                 api.chatStartWorkspace,
-			StopWorkspace:                  api.chatStopWorkspace,
-			Pubsub:                         options.Pubsub,
-			WebpushDispatcher:              options.WebPushDispatcher,
-			UsageTracker:                   options.WorkspaceUsageTracker,
-			PrometheusRegistry:             options.PrometheusRegistry,
-			OIDCTokenSource:                oidcMCPSrc,
-		}).Start()
+		// AI Gateway is mandatory for chat. When the bridge is disabled
+		// the chat daemon stays nil and chat HTTP handlers return a
+		// service-unavailable error with a clear remediation message.
+		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+				Logger:                         options.Logger.Named("chatd"),
+				Database:                       options.Database,
+				ReplicaID:                      api.ID,
+				StreamPartsDialer:              options.ChatStreamPartsDialer,
+				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+				ProviderAPIKeys:                providerAPIKeys,
+				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+				AllowBYOKSet:                   true,
+				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				Experiments:                    experiments,
+				AgentConn:                      api.agentProvider.AgentConn,
+				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+				CreateWorkspace:                api.chatCreateWorkspace,
+				StartWorkspace:                 api.chatStartWorkspace,
+				StopWorkspace:                  api.chatStopWorkspace,
+				WebpushDispatcher:              options.WebPushDispatcher,
+				UsageTracker:                   options.WorkspaceUsageTracker,
+				PrometheusRegistry:             options.PrometheusRegistry,
+				OIDCTokenSource:                oidcMCPSrc,
+				NotificationsEnqueuer:          options.NotificationsEnqueuer,
+				Auditor:                        &api.Auditor,
+			})
+			if !options.ChatWorkerDisabled {
+				api.chatDaemon.Start()
+			}
+		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
@@ -843,9 +866,10 @@ func New(options *Options) *API {
 			gitSyncLogger.Named("refresher"),
 			quartz.NewReal(),
 		)
+		publishDiffStatusChange := chatDaemonPublishDiffStatusChangeFunc(api.chatDaemon)
 		api.gitSyncWorker = gitsync.NewWorker(options.Database,
 			refresher,
-			api.chatDaemon.PublishDiffStatusChange,
+			publishDiffStatusChange,
 			quartz.NewReal(),
 			gitSyncLogger,
 		)
@@ -1010,7 +1034,9 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		loggermw.Logger(api.Logger),
+		loggermw.Logger(api.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(api.RealIPConfig, r)
+		}),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		// Validate API key on every request (if present) and store
@@ -1241,9 +1267,6 @@ func New(options *Options) *API {
 					r.Get("/summary", api.chatCostSummary)
 				})
 			})
-			r.Route("/insights", func(r chi.Router) {
-				r.Get("/pull-requests", api.prInsights)
-			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
@@ -1260,16 +1283,20 @@ func New(options *Options) *API {
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
 				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
 				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
-				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
-				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
-				r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-				r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
+					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
+					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
+				})
 				r.Get("/debug-logging", api.getChatDebugLogging)
 				r.Put("/debug-logging", api.putChatDebugLogging)
 				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
 				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
-				r.Get("/advisor", api.getChatAdvisorConfig)
-				r.Put("/advisor", api.putChatAdvisorConfig)
+				r.Group(func(r chi.Router) {
+					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
+					r.Get("/advisor", api.getChatAdvisorConfig)
+					r.Put("/advisor", api.putChatAdvisorConfig)
+				})
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
@@ -1338,14 +1365,17 @@ func New(options *Options) *API {
 				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)
+					r.Get("/parts", api.streamChatParts)
 					r.Get("/desktop", api.watchChatDesktop)
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
+				r.Put("/context", api.refreshChatContext)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
@@ -1453,6 +1483,7 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
+
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1606,8 +1637,10 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 				)
-				// Endpoints added by DEVEX-275 (bases), DEVEX-276
-				// (modules), DEVEX-277/279 (compose).
+				r.Get("/bases", api.templateBuilderBases)
+				r.Get("/modules", api.templateBuilderModules)
+				r.Post("/compose", api.templateBuilderCompose)
+				r.Post("/compose/template", api.templateBuilderCreateTemplate)
 			})
 		}
 
@@ -1773,8 +1806,7 @@ func New(options *Options) *API {
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context", api.workspaceAgentAddChatContext)
-					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
@@ -2215,11 +2247,12 @@ type API struct {
 	// providers directly. Registered by coderd at startup once aibridged is
 	// wired in-memory.
 	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
-	// aibridgedHandler is the in-memory aibridge HTTP handler. Set by
-	// RegisterInMemoryAIBridgedHTTPHandler; read both by the enterprise
-	// /api/v2/aibridge route (license-gated) and by the in-memory transport
-	// (used by chatd, license-exempt).
-	aibridgedHandler http.Handler
+	// aiGatewayHandler is the in-memory AI Gateway HTTP handler
+	// (no prefix stripping). Set by RegisterInMemoryAIBridgedHTTPHandler,
+	// used by the enterprise /api/v2/aibridge and /api/v2/ai-gateway
+	// routes (license-gated) which apply their own StripPrefix, and by
+	// the in-memory transport (used by chatd, license-exempt).
+	aiGatewayHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -2282,6 +2315,23 @@ type API struct {
 	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
 }
 
+// chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
+// PublishDiffStatusChange method bound as a gitsync.PublishDiffStatusChangeFunc,
+// or a true nil func value when chatDaemon is nil (AI Gateway disabled).
+//
+// This must not be inlined as chatDaemon.PublishDiffStatusChange: a method
+// value on a nil pointer receiver is itself non-nil (it captures the
+// receiver, it doesn't call the method), so gitsync.Worker's own "if
+// publishDiffStatusChangeFn != nil" check would not catch a nil chatDaemon,
+// and invoking the returned func would panic dereferencing the nil
+// receiver.
+func chatDaemonPublishDiffStatusChangeFunc(chatDaemon *chatd.Server) gitsync.PublishDiffStatusChangeFunc {
+	if chatDaemon == nil {
+		return nil
+	}
+	return chatDaemon.PublishDiffStatusChange
+}
+
 // Close waits for all WebSocket connections to drain before returning.
 func (api *API) Close() error {
 	select {
@@ -2316,8 +2366,10 @@ func (api *API) Close() error {
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
 	}
-	if err := api.chatDaemon.Close(); err != nil {
-		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+	if api.chatDaemon != nil {
+		if err := api.chatDaemon.Close(); err != nil {
+			api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+		}
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {

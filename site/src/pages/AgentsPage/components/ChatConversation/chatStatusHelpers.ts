@@ -34,8 +34,8 @@ export const getErrorTitle = (
 			return "Rate limited";
 		case "timeout":
 			return "Request timed out";
-		case "startup_timeout":
-			return "Startup timed out";
+		case "stream_silence_timeout":
+			return "Response stalled";
 		case "auth":
 			return "Authentication failed";
 		case "config":

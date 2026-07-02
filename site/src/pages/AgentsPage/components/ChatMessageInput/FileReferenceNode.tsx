@@ -8,10 +8,10 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
-import { XIcon } from "lucide-react";
-import { type FC, memo, type ReactNode } from "react";
-import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { type FC, type ReactNode, useSyncExternalStore } from "react";
 import { cn } from "#/utils/cn";
+import { EditableFileReferenceChip } from "./FileReferenceChip";
+import { getFileReferenceSiblingSpacing } from "./fileReferenceDisplay";
 
 type SerializedFileReferenceNode = Spread<
 	{
@@ -22,73 +22,6 @@ type SerializedFileReferenceNode = Spread<
 	},
 	SerializedLexicalNode
 >;
-
-export function FileReferenceChip({
-	fileName,
-	startLine,
-	endLine,
-	isSelected,
-	onRemove,
-	onClick,
-	className: extraClassName,
-}: {
-	fileName: string;
-	startLine: number;
-	endLine: number;
-	isSelected?: boolean;
-	onRemove?: () => void;
-	onClick?: () => void;
-	className?: string;
-}) {
-	const shortFile = fileName.split("/").pop() || fileName;
-	const lineLabel =
-		startLine === endLine ? `L${startLine}` : `L${startLine}–${endLine}`;
-
-	return (
-		<span
-			className={cn(
-				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
-				isSelected &&
-					"border-content-link bg-content-link/10 ring-1 ring-content-link/40",
-				extraClassName,
-			)}
-			contentEditable={false}
-			title={`${fileName}:${lineLabel}`}
-			onClick={onClick}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					onClick?.();
-				}
-			}}
-			role="button"
-			tabIndex={0}
-		>
-			<FileIcon fileName={shortFile} className="shrink-0" />
-			<span className="inline-flex min-w-0 text-content-secondary">
-				<span dir="rtl" className="min-w-0 truncate">
-					{shortFile}
-				</span>
-				<span className="shrink-0 text-content-link">:{lineLabel}</span>
-			</span>
-			{onRemove && (
-				<button
-					type="button"
-					className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
-					onClick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						onRemove();
-					}}
-					aria-label="Remove reference"
-					tabIndex={-1}
-				>
-					<XIcon className="size-2" />
-				</button>
-			)}
-		</span>
-	);
-}
 
 export class FileReferenceNode extends DecoratorNode<ReactNode> {
 	__fileName: string;
@@ -124,9 +57,8 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		this.__content = content;
 	}
 
-	createDOM(config: EditorConfig): HTMLElement {
+	createDOM(_config: EditorConfig): HTMLElement {
 		const span = document.createElement("span");
-		span.className = config.theme.inlineDecorator ?? "";
 		span.style.display = "inline";
 		span.style.userSelect = "none";
 		return span;
@@ -177,14 +109,40 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 	}
 }
 
+const SPACING_BEFORE = 1;
+const SPACING_AFTER = 2;
+
+const getFileReferenceSpacingSnapshot = (
+	editor: LexicalEditor,
+	nodeKey: NodeKey,
+) => {
+	const spacing = getFileReferenceSiblingSpacing(editor, nodeKey);
+	return (
+		(spacing.before ? SPACING_BEFORE : 0) | (spacing.after ? SPACING_AFTER : 0)
+	);
+};
+
+const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
+	const spacingSnapshot = useSyncExternalStore(
+		(notify) => editor.registerUpdateListener(notify),
+		() => getFileReferenceSpacingSnapshot(editor, nodeKey),
+	);
+
+	return {
+		after: (spacingSnapshot & SPACING_AFTER) !== 0,
+		before: (spacingSnapshot & SPACING_BEFORE) !== 0,
+	};
+};
+
 const FileReferenceChipWrapper: FC<{
 	editor: LexicalEditor;
 	nodeKey: NodeKey;
 	fileName: string;
 	startLine: number;
 	endLine: number;
-}> = memo(({ editor, nodeKey, fileName, startLine, endLine }) => {
+}> = ({ editor, nodeKey, fileName, startLine, endLine }) => {
 	const [isSelected] = useLexicalNodeSelection(nodeKey);
+	const spacing = useFileReferenceSpacing(editor, nodeKey);
 
 	const handleRemove = () => {
 		editor.update(() => {
@@ -204,17 +162,17 @@ const FileReferenceChipWrapper: FC<{
 	};
 
 	return (
-		<FileReferenceChip
+		<EditableFileReferenceChip
 			fileName={fileName}
 			startLine={startLine}
 			endLine={endLine}
-			isSelected={isSelected}
+			selected={isSelected}
 			onRemove={handleRemove}
-			onClick={handleClick}
+			onOpen={handleClick}
+			className={cn(spacing.before && "ml-1", spacing.after && "mr-1")}
 		/>
 	);
-});
-FileReferenceChipWrapper.displayName = "FileReferenceChipWrapper";
+};
 
 export function $createFileReferenceNode(
 	fileName: string,

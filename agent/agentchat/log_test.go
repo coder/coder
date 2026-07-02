@@ -22,7 +22,7 @@ func TestMiddlewareAccessLog(t *testing.T) {
 	chatID := uuid.New()
 	ancestorID := uuid.New()
 	sink := testutil.NewFakeSink(t)
-	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger())(
+	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger(), nil)(
 		agentchat.Middleware(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			rw.WriteHeader(http.StatusNoContent)
 		})),
@@ -46,7 +46,7 @@ func TestMiddlewareWithoutChatHeader(t *testing.T) {
 	t.Parallel()
 
 	sink := testutil.NewFakeSink(t)
-	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger())(
+	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger(), nil)(
 		agentchat.Middleware(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			rw.WriteHeader(http.StatusNoContent)
 		})),
@@ -68,7 +68,7 @@ func TestMiddlewareContextFields(t *testing.T) {
 
 	chatID := uuid.New()
 	sink := testutil.NewFakeSink(t)
-	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger())(
+	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger(), nil)(
 		agentchat.Middleware(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			sink.Logger().With(agentchat.Fields(r.Context())...).Info(r.Context(), "handler log")
 			rw.WriteHeader(http.StatusNoContent)

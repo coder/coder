@@ -1,12 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
+import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
 const mockModelOptions: readonly ModelSelectorOption[] = [
 	{
+		...MockModelSelectorOption,
 		id: "gpt-4o-mini",
-		provider: "openai",
 		model: "gpt-4o-mini",
 		displayName: "GPT-4o mini",
+	},
+	{
+		...MockModelSelectorOption,
+		id: "claude-opus",
+		provider: "anthropic",
+		model: "claude-opus-4-1",
+		displayName: "Claude Opus 4.1",
+		contextLimit: 1_000_000,
 	},
 ];
 

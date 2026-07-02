@@ -57,7 +57,7 @@ export const AiAddonHelpPopover: FC = () => {
 			<HelpPopoverContent>
 				<HelpPopoverTitle>What is the AI add-on?</HelpPopoverTitle>
 				<HelpPopoverText>
-					Users with access to AI features like AI Bridge or Tasks who are
+					Users with access to AI features like AI Gateway or Tasks who are
 					actively consuming a seat.
 				</HelpPopoverText>
 			</HelpPopoverContent>

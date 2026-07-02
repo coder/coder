@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -111,6 +112,69 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	require.NotNilf(t, foundEcho, "expected to find myserver__echo")
 	echoInfo := foundEcho.Info()
 	assert.Equal(t, "Echoes the input", echoInfo.Description)
+}
+
+func TestConnectAll_SanitizesDottedSlug(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	// Use a dotted slug like awslabs.* MCP servers ship with.
+	// Dots violate Bedrock's tool name pattern ^[a-zA-Z0-9_-]{1,128}$.
+	cfg := makeConfig("awslabs.aws-documentation-mcp-server", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 1)
+
+	// Dots in the slug must be replaced with underscores.
+	names := toolNames(tools)
+	assert.Equal(t, []string{"awslabs_aws-documentation-mcp-server__echo"}, names)
+
+	// The tool should still be callable; the original name is
+	// used when contacting the remote MCP server.
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "awslabs_aws-documentation-mcp-server__echo",
+		Input: `{"input":"hello"}`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "echo: hello", resp.Content)
+}
+
+func TestConnectAll_TruncationCollisionWarning(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// Two servers whose slugs differ only in a trailing suffix.
+	// After sanitization + truncation to 64 chars, both produce
+	// the same prefixed tool name, triggering a collision warning.
+	// slug (65) + "__" (2) + "echo" (4) = 71 chars; truncated to
+	// 64 chops the suffix and tool name entirely.
+	base := strings.Repeat("a", 64)
+	slug1 := base + "x"
+	slug2 := base + "y"
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg1 := makeConfig(slug1, ts.URL)
+	cfg2 := makeConfig(slug2, ts.URL)
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger,
+		[]database.MCPServerConfig{cfg1, cfg2},
+		nil, uuid.Nil, nil, nil,
+	)
+	t.Cleanup(cleanup)
+
+	// Both tools should be present (the caller decides policy),
+	// but their names collide after truncation.
+	require.Len(t, tools, 2)
+	assert.Equal(t, tools[0].Info().Name, tools[1].Info().Name,
+		"truncated names should collide")
 }
 
 func TestConnectAll_CallTool(t *testing.T) {

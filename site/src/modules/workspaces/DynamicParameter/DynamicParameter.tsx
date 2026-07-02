@@ -698,7 +698,8 @@ export const getInitialParameterValues = (
 		);
 
 		const useAutofill =
-			autofillParam?.value && isValidParameterOption(parameter, autofillParam);
+			autofillParam?.value !== undefined &&
+			isValidParameterOption(parameter, autofillParam);
 
 		return {
 			name: parameter.name,

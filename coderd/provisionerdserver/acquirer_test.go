@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -473,11 +474,12 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			db, ps := dbtestutil.NewDB(t)
 			log := testutil.Logger(t)
 			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:          uuid.New(),
-				Name:        "test org",
-				Description: "the organization of testing",
-				CreatedAt:   dbtime.Now(),
-				UpdatedAt:   dbtime.Now(),
+				ID:                    uuid.New(),
+				Name:                  "test org",
+				Description:           "the organization of testing",
+				CreatedAt:             dbtime.Now(),
+				UpdatedAt:             dbtime.Now(),
+				DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 			})
 			require.NoError(t, err)
 			pj, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{

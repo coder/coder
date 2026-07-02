@@ -18,7 +18,7 @@ CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
 
 # Known active ESR (Extended Support Release) minor versions.
 # Update this list when new ESR versions are designated or old ones reach end of life.
-ESR_VERSIONS=(24 29)
+ESR_VERSIONS=(29 34)
 
 # Check if a minor version is a known active ESR version.
 is_esr_version() {
@@ -194,9 +194,15 @@ generate_release_calendar() {
 			status="Not Supported"
 		fi
 
-		# Override status for active ESR versions that would otherwise be "Not Supported"
-		if [[ "$status" == "Not Supported" ]] && is_esr_version "$rel_minor"; then
-			status="Extended Support Release"
+		# Mark ESR versions. An ESR that has aged out of support shows as a
+		# full "Extended Support Release"; while it is still in an active
+		# channel we append "(ESR)" to that channel, e.g. "Mainline (ESR)".
+		if is_esr_version "$rel_minor"; then
+			if [[ "$status" == "Not Supported" ]]; then
+				status="Extended Support Release"
+			elif [[ "$status" != "Not Released" ]]; then
+				status="$status (ESR)"
+			fi
 		fi
 
 		result+="$(generate_release_row "$version_major" "$rel_minor" "$status")\n"

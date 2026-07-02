@@ -3,13 +3,14 @@ import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
 export const ExternalImage: React.FC<React.ComponentPropsWithRef<"img">> = ({
 	style,
+	alt = "",
 	...props
 }) => {
 	const theme = useTheme();
 
 	return (
-		// biome-ignore lint/a11y/useAltText: alt should be passed in as a prop
 		<img
+			alt={alt}
 			style={{
 				...getExternalImageStylesFromUrl(theme.externalImages, props.src),
 				...style,

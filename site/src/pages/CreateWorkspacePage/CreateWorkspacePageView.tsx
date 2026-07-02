@@ -66,7 +66,7 @@ interface CreateWorkspacePageViewProps {
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
-	externalAuthPollingState: ExternalAuthPollingState;
+	externalAuthPollingState: Record<string, ExternalAuthPollingState>;
 	hasAllRequiredExternalAuth: boolean;
 	hasIgnoredUrlParams?: boolean;
 	mode: CreateWorkspaceMode;
@@ -85,7 +85,7 @@ interface CreateWorkspacePageViewProps {
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
-	startPollingExternalAuth: () => void;
+	startPollingExternalAuth: (providerId: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
 }
@@ -398,13 +398,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<button
 					onClick={onCancel}
 					type="button"
-					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-12"
+					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-[68px]"
 				>
 					<ArrowLeftIcon size={20} />
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-md mx-auto">
+			<div className="flex flex-col gap-6 max-w-screen-md mx-auto pb-96">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">
@@ -588,9 +588,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										key={auth.id}
 										error={error}
 										auth={auth}
-										isLoading={externalAuthPollingState === "polling"}
-										onStartPolling={startPollingExternalAuth}
-										displayRetry={externalAuthPollingState === "abandoned"}
+										isLoading={externalAuthPollingState[auth.id] === "polling"}
+										onStartPolling={() => startPollingExternalAuth(auth.id)}
+										displayRetry={
+											externalAuthPollingState[auth.id] === "abandoned"
+										}
 									/>
 								))}
 							</div>

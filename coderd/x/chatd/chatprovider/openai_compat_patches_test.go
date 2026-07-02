@@ -12,9 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/internal/googleopenai"
 )
-
-const dummyThoughtSignature = "skip_thought_signature_validator"
 
 func TestModelFromConfig_GeminiOpenAICompatThoughtSignatures(t *testing.T) {
 	t.Parallel()
@@ -26,9 +25,9 @@ func TestModelFromConfig_GeminiOpenAICompatThoughtSignatures(t *testing.T) {
 		messages := body["messages"].([]any)
 
 		require.Empty(t, thoughtSignature(t, messages[1], 0))
-		require.Equal(t, dummyThoughtSignature, thoughtSignature(t, messages[4], 0))
-		require.Empty(t, thoughtSignature(t, messages[4], 1))
-		require.Equal(t, dummyThoughtSignature, thoughtSignature(t, messages[6], 0))
+		require.Equal(t, googleopenai.DummyThoughtSignature, thoughtSignature(t, messages[4], 0))
+		require.Equal(t, googleopenai.DummyThoughtSignature, thoughtSignature(t, messages[4], 1))
+		require.Equal(t, googleopenai.DummyThoughtSignature, thoughtSignature(t, messages[6], 0))
 	})
 
 	t.Run("Coder AI Bridge Gemini route receives current turn thought signature", func(t *testing.T) {
@@ -37,7 +36,7 @@ func TestModelFromConfig_GeminiOpenAICompatThoughtSignatures(t *testing.T) {
 		body := generateOpenAICompatRequest(t, "http://coder-aibridge/v1", "gemini-3.5-flash")
 		messages := body["messages"].([]any)
 
-		require.Equal(t, dummyThoughtSignature, thoughtSignature(t, messages[4], 0))
+		require.Equal(t, googleopenai.DummyThoughtSignature, thoughtSignature(t, messages[4], 0))
 	})
 
 	t.Run("Vercel OpenAI-compatible Gemini route is unchanged", func(t *testing.T) {

@@ -7,6 +7,7 @@ import "tailnet/proto/tailnet.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 message WorkspaceApp {
 	bytes id = 1;
@@ -538,6 +539,124 @@ message UpdateAppStatusRequest {
 
 message UpdateAppStatusResponse {}
 
+// ContextResource is a single resolved workspace context
+// resource (instruction file, skill meta, MCP config, or live
+// MCP server tool list) pushed from the agent to coderd as part
+// of a PushContextStateRequest snapshot.
+//
+// The resource kind is conveyed by which variant of the body
+// oneof is set. Reserved variants for the Claude Code plugin
+// RFC (plugin/hook/subagent/command bodies) are not emitted by
+// v2.10 agents but will be added without renumbering.
+message ContextResource {
+	// source is the resource's own locator: a canonical file path
+	// for file-backed kinds, or the MCP server name for
+	// mcp_server resources.
+	string source = 1;
+	// source_path is the user-declared scan root that produced
+	// this resource (empty for built-in roots, set to the owning
+	// .mcp.json for mcp_server entries declared in a user config).
+	optional string source_path = 2;
+	// content_hash is sha256 over the original on-disk bytes (or
+	// over the agent's canonical encoding for non-file kinds).
+	bytes content_hash = 3;
+	// size_bytes is the resource's original size in bytes.
+	uint64 size_bytes = 4;
+	Status status = 5;
+	// error carries the per-resource failure string when status
+	// is not OK; may also carry a non-fatal warning when status
+	// is OK.
+	string error = 6;
+
+	enum Status {
+		STATUS_UNSPECIFIED = 0;
+		OK = 1;
+		OVERSIZE = 2;
+		UNREADABLE = 3;
+		INVALID = 4;
+		EXCLUDED = 5;
+	}
+
+	// body conveys both the resource kind (via which variant is
+	// set) and the kind-specific payload. The variant is set even
+	// when status is not OK so coderd can still attribute the
+	// failure to a known kind.
+	oneof body {
+		InstructionFileBody instruction_file = 10;
+		SkillMetaBody skill = 11;
+		MCPConfigBody mcp_config = 12;
+		MCPServerBody mcp_server = 13;
+	}
+
+	// Reserved tags from the legacy v2.10 schema that carried
+	// id (1->renamed), kind enum, payload, description, and the
+	// removed plugin/hook/subagent/command flat fields. Keep them
+	// reserved so a future renumber cannot reintroduce them.
+	reserved 7, 8, 9, 14, 15, 16;
+}
+
+// InstructionFileBody carries a plain-text instruction file
+// such as AGENTS.md, CLAUDE.md, or .cursorrules. The content is
+// the verbatim file bytes (capped at the resolver's per-resource
+// limit).
+message InstructionFileBody {
+	bytes content = 1;
+}
+
+// SkillMetaBody carries the SKILL.md meta file content plus the
+// fields parsed from its YAML front-matter. Supporting files in
+// the skill directory are NOT included; clients fetch them on
+// demand via the agent's local HTTP API.
+message SkillMetaBody {
+	bytes meta = 1;
+	string name = 2;
+	string description = 3;
+}
+
+// MCPConfigBody is intentionally empty: the .mcp.json content
+// can contain secrets in env blocks and must not leave the
+// agent. content_hash and size_bytes on ContextResource still
+// let coderd detect changes for cache invalidation.
+message MCPConfigBody {
+}
+
+// MCPServerBody carries a live MCP server's resolved tool list,
+// emitted by the agent's MCPProvider after the server has been
+// connected.
+message MCPServerBody {
+	string server_name = 1;
+	string description = 2;
+	repeated MCPTool tools = 3;
+}
+
+// MCPTool mirrors the MCP server-reported tool surface. The
+// input schema is JSON Schema; we ship it as a google.protobuf
+// Struct so coderd can introspect it without re-parsing JSON.
+message MCPTool {
+	string name = 1;
+	string description = 2;
+	google.protobuf.Struct input_schema = 3;
+}
+
+message PushContextStateRequest {
+	uint64 version = 1;
+	bytes aggregate_hash = 2;
+	repeated ContextResource resources = 3;
+	bool initial = 4;
+	string snapshot_error = 6;
+
+	// Reserved tags from the pre-release v2.10 schema. schema_version
+	// was removed before the first release that ships v2.10 because
+	// it duplicated the agent API minor version (tailnet/proto.
+	// CurrentMinor); the proto bump and the existing Unimplemented
+	// fallback cover every forward-compat case it tried to address.
+	reserved 5;
+}
+
+message PushContextStateResponse {
+	bool accepted = 1;
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -557,4 +676,5 @@ service Agent {
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
 	rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
+	rpc PushContextState(PushContextStateRequest) returns (PushContextStateResponse);
 }

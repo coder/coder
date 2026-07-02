@@ -28,9 +28,9 @@ func terminalMessage(classified ClassifiedError) string {
 		}
 		return stringutil.Capitalize(fmt.Sprintf("%s is temporarily unavailable.", subject))
 
-	case codersdk.ChatErrorKindStartupTimeout:
+	case codersdk.ChatErrorKindStreamSilenceTimeout:
 		return stringutil.Capitalize(fmt.Sprintf(
-			"%s did not start responding in time.", subject,
+			"%s did not send response data in time.", subject,
 		))
 
 	case codersdk.ChatErrorKindUsageLimit:
@@ -89,9 +89,9 @@ func retryMessage(classified ClassifiedError) string {
 		return stringutil.Capitalize(fmt.Sprintf("%s is rate limiting requests.", subject))
 	case codersdk.ChatErrorKindTimeout:
 		return stringutil.Capitalize(fmt.Sprintf("%s is temporarily unavailable.", subject))
-	case codersdk.ChatErrorKindStartupTimeout:
+	case codersdk.ChatErrorKindStreamSilenceTimeout:
 		return stringutil.Capitalize(fmt.Sprintf(
-			"%s did not start responding in time.", subject,
+			"%s did not send response data in time.", subject,
 		))
 	case codersdk.ChatErrorKindAuth:
 		return fmt.Sprintf(

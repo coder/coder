@@ -147,7 +147,7 @@ func TestMetrics_Interception(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 			upstream.AllowOverflow = tc.allowOverflow
 
 			m := aibridge.NewMetrics(prometheus.NewRegistry())
@@ -256,7 +256,7 @@ func TestMetrics_PromptCount(t *testing.T) {
 	t.Cleanup(cancel)
 
 	fix := fixtures.Parse(t, fixtures.OaiChatSimple)
-	upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+	upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 	m := aibridge.NewMetrics(prometheus.NewRegistry())
 	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
@@ -342,7 +342,7 @@ func TestMetrics_TokenUseCount(t *testing.T) {
 			t.Cleanup(cancel)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			m := aibridge.NewMetrics(prometheus.NewRegistry())
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
@@ -383,7 +383,7 @@ func TestMetrics_NonInjectedToolUseCount(t *testing.T) {
 	t.Cleanup(cancel)
 
 	fix := fixtures.Parse(t, fixtures.OaiChatSingleBuiltinTool)
-	upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+	upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 	m := aibridge.NewMetrics(prometheus.NewRegistry())
 	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
@@ -410,7 +410,7 @@ func TestMetrics_InjectedToolUseCount(t *testing.T) {
 
 	// First request returns the tool invocation, the second returns the mocked response to the tool result.
 	fix := fixtures.Parse(t, fixtures.AntSingleInjectedTool)
-	upstream := newMockUpstream(ctx, t, newFixtureResponse(fix), newFixtureToolResponse(fix))
+	upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix), testutil.NewFixtureToolResponse(fix))
 
 	m := aibridge.NewMetrics(prometheus.NewRegistry())
 

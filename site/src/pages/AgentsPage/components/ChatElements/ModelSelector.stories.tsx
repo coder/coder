@@ -1,25 +1,26 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
+import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
 const openAIModels: ModelSelectorOption[] = [
 	{
+		...MockModelSelectorOption,
 		id: "openai/gpt-4o",
-		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
 		contextLimit: 128_000,
 	},
 	{
+		...MockModelSelectorOption,
 		id: "openai/gpt-4o-mini",
-		provider: "openai",
 		model: "gpt-4o-mini",
 		displayName: "GPT-4o Mini",
 		contextLimit: 128_000,
 	},
 	{
+		...MockModelSelectorOption,
 		id: "openai/o3-mini",
-		provider: "openai",
 		model: "o3-mini",
 		displayName: "o3-mini",
 		contextLimit: 200_000,
@@ -28,6 +29,7 @@ const openAIModels: ModelSelectorOption[] = [
 
 const anthropicModels: ModelSelectorOption[] = [
 	{
+		...MockModelSelectorOption,
 		id: "anthropic/claude-sonnet-4",
 		provider: "anthropic",
 		model: "claude-sonnet-4-20250514",
@@ -35,11 +37,12 @@ const anthropicModels: ModelSelectorOption[] = [
 		contextLimit: 200_000,
 	},
 	{
+		...MockModelSelectorOption,
 		id: "anthropic/claude-haiku-3.5",
 		provider: "anthropic",
 		model: "claude-3-5-haiku-20241022",
 		displayName: "Claude 3.5 Haiku",
-		contextLimit: 200_000,
+		contextLimit: 1_000_000,
 	},
 ];
 
@@ -48,13 +51,6 @@ const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
 	component: ModelSelector,
-	decorators: [
-		(Story) => (
-			<div className="w-72 rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		options: openAIModels,
 		value: "",
@@ -144,7 +140,7 @@ export const NoOptions: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// Play function – selection interaction
+// Play function, selection interaction
 // ---------------------------------------------------------------------------
 
 export const SelectsModel: Story = {
@@ -156,15 +152,75 @@ export const SelectsModel: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Open the popover by clicking the trigger.
 		const trigger = canvas.getByRole("combobox");
 		await userEvent.click(trigger);
 
-		// The dropdown should appear with model options.
 		const listbox = await within(document.body).findByRole("listbox");
-		const option = within(listbox).getByText("GPT-4o Mini");
-		await userEvent.click(option);
+		await userEvent.click(within(listbox).getByText("GPT-4o Mini"));
 
 		expect(args.onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
+	},
+};
+
+export const FiltersModels: Story = {
+	args: {
+		options: allModels,
+		value: "openai/gpt-4o",
+		onValueChange: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const trigger = canvas.getByRole("combobox", { name: "GPT-4o" });
+
+		const openListbox = async () => {
+			await userEvent.click(trigger);
+			return body.findByRole("listbox");
+		};
+
+		const searchFor = async (
+			listbox: HTMLElement,
+			query: string,
+			expected: RegExp,
+		) => {
+			const input = body.getByPlaceholderText("Search...");
+			await userEvent.clear(input);
+			await userEvent.type(input, query);
+			await waitFor(() => {
+				expect(
+					within(listbox).getByRole("option", { name: expected }),
+				).toBeInTheDocument();
+				expect(
+					within(listbox).queryByRole("option", { name: /GPT-4o Mini/ }),
+				).not.toBeInTheDocument();
+			});
+		};
+
+		let listbox = await openListbox();
+		await searchFor(listbox, "anthropic", /Claude Sonnet 4/);
+		expect(
+			within(listbox).getByRole("option", { name: /Claude 3.5 Haiku/ }),
+		).toBeInTheDocument();
+
+		await searchFor(listbox, "claude-3-5-haiku-20241022", /Claude 3.5 Haiku/);
+
+		await searchFor(listbox, "1M", /Claude 3.5 Haiku/);
+
+		await userEvent.click(trigger);
+		await waitFor(() =>
+			expect(body.queryByRole("listbox")).not.toBeInTheDocument(),
+		);
+
+		listbox = await openListbox();
+		expect(
+			within(listbox).getByRole("option", { name: /GPT-4o Mini/ }),
+		).toBeInTheDocument();
+
+		await userEvent.click(
+			within(listbox).getByRole("option", { name: /Claude 3.5 Haiku/ }),
+		);
+		expect(args.onValueChange).toHaveBeenCalledWith(
+			"anthropic/claude-haiku-3.5",
+		);
 	},
 };

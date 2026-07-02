@@ -66,7 +66,7 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
-import { formatProviderLabel } from "../utils/modelOptions";
+import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
 	isUploadInProgress,
@@ -161,6 +161,11 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
+	// Re-pins the chat to the workspace's latest context snapshot,
+	// surfaced by the context indicator when the pinned context has
+	// drifted.
+	onRefreshContext?: () => void;
+	isRefreshingContext?: boolean;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -183,7 +188,13 @@ interface AgentChatInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-	agentSetupNotice?: React.ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	// AI Gateway is disabled deployment-wide, independent of provider/model
+	// configuration. Forces the setup notice regardless of the counts above.
+	aiGatewayDisabled?: boolean;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -196,7 +207,8 @@ export interface AttachedWorkspaceInfo {
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
+	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
+	| { kind: "planning" };
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
@@ -224,12 +236,37 @@ const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
+	onRemovePlanning?: () => void;
+	isDisabled?: boolean;
 	className?: string;
-}> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
+}> = ({
+	badge,
+	onRemoveWorkspace,
+	onRemoveMcp,
+	onRemovePlanning,
+	isDisabled,
+	className,
+}) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
+
+	if (badge.kind === "planning") {
+		return (
+			<span data-testid="planning-badge" className={badgeCls}>
+				<PencilIcon className="size-3" />
+				Planning
+				{onRemovePlanning && (
+					<BadgeDismissButton
+						onClick={onRemovePlanning}
+						ariaLabel="Disable plan mode"
+						isDisabled={isDisabled}
+					/>
+				)}
+			</span>
+		);
+	}
 
 	if (badge.kind === "attached-workspace") {
 		return (
@@ -338,6 +375,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelHistoryEdit,
 	userPromptHistory = [],
 	contextUsage,
+	onRefreshContext,
+	isRefreshingContext,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -355,9 +394,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
+	unsupportedProviderNames = [],
+	aiGatewayDisabled,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const showAgentSetupNotice =
+		aiGatewayDisabled ||
+		(canConfigureAgentSetup
+			? providerCount !== undefined &&
+				modelCount !== undefined &&
+				(providerCount === 0 || modelCount === 0)
+			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -521,10 +571,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const badgeContainerRef = useRef<HTMLDivElement>(null);
 
 	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
+	const shouldOverflowPlanningBadge =
+		planModeEnabled && contextUsage !== undefined;
 
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
+	if (shouldOverflowPlanningBadge) {
+		allBadges.push({ kind: "planning" });
+	}
 	// When workspace data is available, WorkspacePill handles
 	// the display (including app dropdown). Otherwise fall back
 	// to the simple attached-workspace ToolBadge.
@@ -1013,15 +1068,35 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="mb-2"
 				/>
 			)}
-			{agentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">{agentSetupNotice}</div>
+			{showAgentSetupNotice && (
+				<div className="relative z-0 mb-[-2.5rem]">
+					{(aiGatewayDisabled ||
+						(providerCount !== undefined && modelCount !== undefined)) &&
+					canConfigureAgentSetup ? (
+						<AgentSetupNotice
+							isAdmin
+							providerCount={providerCount ?? 0}
+							modelCount={modelCount ?? 0}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
+						/>
+					) : (
+						<AgentSetupNotice
+							isAdmin={false}
+							providerCount={0}
+							modelCount={0}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
+						/>
+					)}
+				</div>
 			)}
 			<div
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
 					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
-					agentSetupNotice && "sm:bg-surface-secondary",
+					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -1146,7 +1221,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 									disabled={
-										isDisabled && !agentSetupNotice && !canUseWorkspacePicker
+										isDisabled &&
+										!showAgentSetupNotice &&
+										!canUseWorkspacePicker
 									}
 									aria-label="More options"
 								>
@@ -1338,14 +1415,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
+								className="md:shrink"
 								dropdownSide="top"
-								dropdownAlign="center"
+								dropdownAlign="start"
 								enableMobileFullWidthDropdown
 							/>
 						)}
-						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
+						{planModeEnabled && !shouldOverflowPlanningBadge && (
+							<span
+								data-testid="planning-badge"
+								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+							>
 								<PencilIcon className="size-3" />
 								Planning
 								{onPlanModeToggle && (
@@ -1356,7 +1436,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								)}
 							</span>
-						)}{" "}
+						)}
 						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
@@ -1387,6 +1467,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
+										onRemovePlanning={
+											onPlanModeToggle ? handleDisablePlanMode : undefined
+										}
+										isDisabled={isDisabled}
 										className={isOverflow ? "invisible order-1" : undefined}
 									/>
 								);
@@ -1427,13 +1511,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											badge={badge}
 											onRemoveWorkspace={removeWorkspaceHandler}
 											onRemoveMcp={handleRemoveMcp}
+											onRemovePlanning={
+												onPlanModeToggle ? handleDisablePlanMode : undefined
+											}
+											isDisabled={isDisabled}
 										/>
 									))}
 								</PopoverContent>
 							</Popover>
 						</div>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex shrink-0 items-center gap-2">
 						{speech.isSupported && !isStreaming && (
 							<>
 								<Button
@@ -1466,7 +1554,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator usage={contextUsage} />
+							<ContextUsageIndicator
+								usage={contextUsage}
+								onRefreshContext={onRefreshContext}
+								isRefreshingContext={isRefreshingContext}
+							/>
 						)}
 						{isStreaming && onInterrupt && (
 							<Button

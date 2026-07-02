@@ -17,10 +17,10 @@ You can configure both Anthropic and OpenAI providers to point to AI Gateway.
 {
   "language_models": {
     "anthropic": {
-      "api_url": "https://coder.example.com/api/v2/aibridge/anthropic",
+      "api_url": "https://coder.example.com/api/v2/ai-gateway/anthropic",
     },
     "openai": {
-      "api_url": "https://coder.example.com/api/v2/aibridge/openai/v1",
+      "api_url": "https://coder.example.com/api/v2/ai-gateway/openai/v1",
     },
   },
   // optional settings to set favorite models for the AI

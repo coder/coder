@@ -109,45 +109,6 @@ func WithPreviousResponseID(
 	return cloned
 }
 
-// HasPreviousResponseID checks whether the provider options contain an OpenAI
-// Responses entry with a non-empty PreviousResponseID.
-func HasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
-	if len(providerOptions) == 0 {
-		return false
-	}
-
-	entry, ok := providerOptions[fantasyopenai.Name]
-	if !ok {
-		return false
-	}
-	options, ok := entry.(*fantasyopenai.ResponsesProviderOptions)
-	return ok && options != nil && options.PreviousResponseID != nil &&
-		*options.PreviousResponseID != ""
-}
-
-// ClearPreviousResponseID returns a clone of providerOptions with
-// PreviousResponseID cleared on the OpenAI Responses options. The original
-// providerOptions is not modified.
-func ClearPreviousResponseID(providerOptions fantasy.ProviderOptions) fantasy.ProviderOptions {
-	cloned := maps.Clone(providerOptions)
-	if cloned == nil {
-		return fantasy.ProviderOptions{}
-	}
-
-	entry, ok := cloned[fantasyopenai.Name]
-	if !ok {
-		return cloned
-	}
-	options, ok := entry.(*fantasyopenai.ResponsesProviderOptions)
-	if !ok || options == nil {
-		return cloned
-	}
-	optionsClone := *options
-	optionsClone.PreviousResponseID = nil
-	cloned[fantasyopenai.Name] = &optionsClone
-	return cloned
-}
-
 // extractResponseID extracts the OpenAI Responses API response ID from provider
 // metadata. Returns an empty string if no OpenAI Responses metadata is present.
 func extractResponseID(metadata fantasy.ProviderMetadata) string {

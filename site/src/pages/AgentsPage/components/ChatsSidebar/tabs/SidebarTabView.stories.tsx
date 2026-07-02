@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { PlusIcon } from "lucide-react";
+import { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
+import { Button } from "#/components/Button/Button";
 import type { SidebarTab } from "./SidebarTabView";
 import { SidebarTabView } from "./SidebarTabView";
 
@@ -78,7 +81,6 @@ export const EmptyState: Story = {
 export const DesktopHidden: Story = {
 	args: {
 		tabs: [],
-		desktopChatId: undefined,
 	},
 };
 
@@ -108,4 +110,135 @@ export const NarrowPanel: Story = {
 			</div>
 		),
 	],
+};
+
+export const CloseableTabs: Story = {
+	render: function CloseableTabs() {
+		const [activeTabId, setActiveTabId] = useState("terminal-2");
+		const [tabs, setTabs] = useState<SidebarTab[]>([
+			gitTab,
+			{
+				id: "terminal",
+				label: "Terminal",
+				content: makePanelContent("Terminal"),
+			},
+			{ id: "debug", label: "Debug", content: makePanelContent("Debug") },
+			...Array.from({ length: 8 }, (_, index) => ({
+				id: `terminal-${index + 2}`,
+				label: `Terminal ${index + 2}`,
+				content: makePanelContent(`Terminal ${index + 2}`),
+			})),
+		]);
+
+		const handleCloseTab = (tabId: string) => {
+			const visibleTabIds = tabs.map((tab) => tab.id);
+			const remainingTabIds = visibleTabIds.filter((id) => id !== tabId);
+			const closedTabIndex = visibleTabIds.indexOf(tabId);
+			setTabs(tabs.filter((tab) => tab.id !== tabId));
+
+			if (activeTabId !== tabId) {
+				return;
+			}
+			const nextActiveTabId =
+				remainingTabIds[Math.min(closedTabIndex, remainingTabIds.length - 1)];
+			if (nextActiveTabId) {
+				setActiveTabId(nextActiveTabId);
+			}
+		};
+
+		return (
+			<SidebarTabView
+				tabs={tabs.map((tab) => ({
+					...tab,
+					onClose: tab.id.startsWith("terminal-")
+						? () => handleCloseTab(tab.id)
+						: undefined,
+				}))}
+				effectiveTabId={activeTabId}
+				onActiveTabChange={setActiveTabId}
+				isExpanded={false}
+				onToggleExpanded={() => {}}
+				addTabControl={
+					<Button
+						variant="outline"
+						size="icon"
+						onClick={fn()}
+						aria-label="New terminal tab"
+						title="New terminal tab"
+						className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
+					>
+						<PlusIcon className="size-3.5" />
+					</Button>
+				}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.queryByRole("button", { name: "Close Git tab" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Close Terminal tab" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Close Debug tab" }),
+		).not.toBeInTheDocument();
+
+		expect(canvas.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+
+		await user.click(
+			canvas.getByRole("button", { name: "Close Terminal 3 tab" }),
+		);
+
+		expect(
+			canvas.queryByRole("tab", { name: "Terminal 3" }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+
+		await user.click(
+			canvas.getByRole("button", { name: "Close Terminal 2 tab" }),
+		);
+
+		expect(
+			canvas.queryByRole("tab", { name: "Terminal 2" }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByRole("tab", { name: "Terminal 4" })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+	},
+};
+
+export const AddTabControlDisabled: Story = {
+	args: {
+		tabs: [gitTab],
+		addTabControl: (
+			<Button
+				variant="outline"
+				size="icon"
+				onClick={fn()}
+				disabled
+				aria-label="New terminal tab"
+				title="New terminal tab"
+				className="size-6 bg-surface-primary p-0 text-content-secondary hover:text-content-primary"
+			>
+				<PlusIcon className="size-3.5" />
+			</Button>
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "New terminal tab" }),
+		).toBeDisabled();
+	},
 };
