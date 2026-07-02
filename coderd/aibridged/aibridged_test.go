@@ -140,7 +140,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 					SpendLimitMicros: ptr.Ref(int64(1_000)),
 				}, nil)
 			},
-			expectedErr:    xerrors.New("ai budget of"),
+			expectedErr:    xerrors.New("AI budget of"),
 			expectedStatus: http.StatusForbidden,
 		},
 		{

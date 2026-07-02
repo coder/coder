@@ -24,7 +24,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
-	ErrBudgetCheck           = xerrors.New("internal server error checking user ai budget")
+	ErrBudgetCheck           = xerrors.New("internal server error checking user AI budget")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -153,13 +153,13 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		PeriodStart: timestamppb.New(periodStart),
 	})
 	if err != nil {
-		logger.Warn(ctx, "ai budget check failed", slog.Error(err))
+		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
 		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
 		return
 	}
 	if budgetStatus.GetExceeded() {
 		http.Error(rw, fmt.Sprintf(
-			"ai budget of US$%.2f exceeded. Please contact an administrator for more details.",
+			"AI budget of US$%.2f exceeded. Please contact an administrator for more details.",
 			float64(budgetStatus.GetSpendLimitMicros())/1_000_000,
 		), http.StatusForbidden)
 		return
