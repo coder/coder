@@ -30,7 +30,6 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 		TopLogProbs:         &topLogProbs,
 		ParallelToolCalls:   &parallelToolCalls,
 		User:                ptr(" user-1 "),
-		ReasoningEffort:     ptr(" HIGH "),
 		MaxCompletionTokens: &maxCompletionTokens,
 		TextVerbosity:       ptr(" High "),
 		Prediction: map[string]any{
@@ -47,6 +46,7 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 	got := chatopenai.ProviderOptionsFromChatConfig(
 		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-3.5-turbo-instruct"},
 		options,
+		ptr(" HIGH "),
 	)
 
 	providerOptions, ok := got.(*fantasyopenai.ProviderOptions)
@@ -88,7 +88,6 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 		Metadata:          map[string]any{"scope": "unit"},
 		ParallelToolCalls: &parallelToolCalls,
 		PromptCacheKey:    ptr(" prompt-cache "),
-		ReasoningEffort:   ptr(" minimal "),
 		ReasoningSummary:  ptr(" auto "),
 		SafetyIdentifier:  ptr(" safety "),
 		ServiceTier:       ptr(" FLEX "),
@@ -100,6 +99,7 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 	got := chatopenai.ProviderOptionsFromChatConfig(
 		fakeLanguageModel{provider: fantasyopenai.Name, model: "gpt-4.1"},
 		options,
+		ptr(" minimal "),
 	)
 
 	providerOptions, ok := got.(*fantasyopenai.ResponsesProviderOptions)
