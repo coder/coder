@@ -22,7 +22,6 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -387,7 +386,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const wildcardHostname = proxy.preferredWildcardHostname;
-	const { experiments } = useDashboard();
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
 
@@ -494,19 +492,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
 
-	// Workspace app and port preview tabs are gated behind the agent-app-tabs
-	// experiment. Terminal tabs are generally available. Derived after all hook
-	// calls so the React Compiler keeps the tab list and the tab-open handlers
-	// below in a single memoization scope.
-	const userAppTabsEnabled = experiments.includes("agent-app-tabs");
-
-	// When app and port tabs are gated off, persisted tabs of those kinds
-	// are hidden rather than deleted; the save effect persists the raw tab
-	// state, so they reappear if the gate lifts.
 	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
 		userRightPanelTabs,
 		{ workspace, workspaceAgent, wildcardHostname },
-	).filter((tab) => userAppTabsEnabled || tab.kind === "terminal");
+	);
 
 	const hasBuiltInTerminal = Boolean(
 		workspace && workspaceAgent && !defaultTerminalHidden,
@@ -1001,7 +990,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							tabs={sidebarTabs}
 							addTabControl={
 								<RightPanelAddTabControl
-									appExperimentEnabled={userAppTabsEnabled}
 									workspace={workspace}
 									agent={workspaceAgent}
 									host={wildcardHostname}
