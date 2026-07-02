@@ -1436,11 +1436,11 @@ WITH hydrated AS (
     RETURNING id
 )
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, origin_kind
 )
 SELECT
     hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.origin_root, r.origin_kind
 FROM hydrated
 CROSS JOIN workspace_agent_context_resources r
 WHERE r.workspace_agent_id = @agent_id::uuid
@@ -1451,7 +1451,8 @@ ON CONFLICT (chat_id, source) DO UPDATE SET
     size_bytes = EXCLUDED.size_bytes,
     status = EXCLUDED.status,
     error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
+    origin_root = EXCLUDED.origin_root,
+    origin_kind = EXCLUDED.origin_kind,
     updated_at = now();
 
 -- name: MarkChatsContextDirtyByAgent :many
@@ -1476,11 +1477,11 @@ RETURNING id, owner_id;
 -- transaction) to re-pin a chat to its agent's latest snapshot from the
 -- refresh endpoint and on agent rebinding.
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, origin_kind
 )
 SELECT
     @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.origin_root, r.origin_kind
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = @agent_id::uuid;
 

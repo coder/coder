@@ -206,7 +206,29 @@ type ChatContextResource struct {
 	// Error explains a non-ok Status; empty when healthy. May also carry a
 	// non-fatal warning when Status is ok.
 	Error string `json:"error,omitempty"`
+	// OriginRoot is the filesystem path of the scan root that discovered this
+	// resource (the working directory, a built-in root, or a user-declared
+	// source). Empty for resources pushed by pre-origin agents.
+	OriginRoot string `json:"origin_root,omitempty"`
+	// OriginKind classifies OriginRoot. Empty (unspecified) for resources
+	// pushed by pre-origin agents.
+	OriginKind ChatContextResourceOriginKind `json:"origin_kind,omitempty"`
+	// MCPConfigSource is the path of the .mcp.json that declared this server.
+	// Populated only for the mcp_server kind; links the server back to its
+	// originating mcp_config resource (whose Source is the same path).
+	MCPConfigSource string `json:"mcp_config_source,omitempty"`
 }
+
+// ChatContextResourceOriginKind classifies the scan root that discovered a
+// pinned context resource, mirroring the agent resolver's origin kinds.
+type ChatContextResourceOriginKind string
+
+const (
+	ChatContextResourceOriginKindUnspecified ChatContextResourceOriginKind = "unspecified"
+	ChatContextResourceOriginKindWorkingDir  ChatContextResourceOriginKind = "working_dir"
+	ChatContextResourceOriginKindBuiltin     ChatContextResourceOriginKind = "builtin"
+	ChatContextResourceOriginKindUserSource  ChatContextResourceOriginKind = "user_source"
+)
 
 // ChatContextResourceStatus is the health of a pinned context resource,
 // mirroring the agent resolver's per-resource status.

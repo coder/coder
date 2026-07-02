@@ -132,10 +132,10 @@ type ScanRoot struct {
 	// Path is the absolute path. Symlinks should already be
 	// resolved.
 	Path string
-	// UserSource is the canonical source path the user
-	// declared, when this root came from a user-added Source.
-	// Empty for built-in roots.
-	UserSource string
+	// Kind classifies the root (working directory, built-in
+	// default, or user-declared source). It is stamped onto every
+	// resource the root produces as Resource.OriginKind.
+	Kind OriginKind
 }
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
@@ -273,7 +273,7 @@ func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]
 		return
 	}
 	if !info.IsDir() {
-		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
+		if res, ok := r.classifyFile(root, root.Path, info); ok {
 			appendResource(out, seenID, res)
 		}
 		return
@@ -312,9 +312,9 @@ func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID 
 		path := filepath.Join(root.Path, name)
 		var res Resource
 		if isInstruction {
-			res = r.readInstructionFile(root.Path, path, info, root.UserSource)
+			res = r.readInstructionFile(root, path, info)
 		} else {
-			res = r.readMCPConfig(root.Path, path, info, root.UserSource)
+			res = r.readMCPConfig(root, path, info)
 		}
 		appendResource(out, seenID, res)
 	}
@@ -380,18 +380,18 @@ func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath
 // Resource when the basename matches a recognized convention.
 // Directory roots are handled by discoverIn; this is reached only
 // for sources that point directly at a file.
-func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
+func (r *Resolver) classifyFile(root ScanRoot, path string, info fs.FileInfo) (Resource, bool) {
 	name := info.Name()
 	switch {
 	case recognizedInstructionFile(name):
-		return r.readInstructionFile(scanRoot, path, info, userSource), true
+		return r.readInstructionFile(root, path, info), true
 	case name == mcpConfigFileName:
-		return r.readMCPConfig(scanRoot, path, info, userSource), true
+		return r.readMCPConfig(root, path, info), true
 	case name == skillMetaFileName:
 		// SKILL.md as an explicit single-file source is still a
 		// valid skill when its parent directory name matches the
 		// front-matter name.
-		return r.readSkillMeta(scanRoot, path, info, userSource)
+		return r.readSkillMeta(root, path, info)
 	default:
 		return Resource{}, false
 	}
@@ -408,8 +408,8 @@ func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSou
 // follow-up chatd integration that consumes Snapshot.Resources.
 // Until that lands, downstream consumers that render these
 // payloads must sanitize themselves.
-func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
-	res := r.readFileResource(KindInstructionFile, scanRoot, path, info, userSource)
+func (r *Resolver) readInstructionFile(root ScanRoot, path string, info fs.FileInfo) Resource {
+	res := r.readFileResource(KindInstructionFile, root, path, info)
 	if res.Status == StatusOK {
 		res.Description = firstLine(string(res.Payload))
 	}
@@ -426,15 +426,16 @@ func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, 
 // the bytes; the live MCP server's tool list arrives
 // separately as a KindMCPServer resource, which is what
 // downstream consumers actually need.
-func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
+func (r *Resolver) readMCPConfig(root ScanRoot, path string, info fs.FileInfo) Resource {
 	res := Resource{
 		ID:         resourceID(KindMCPConfig, path),
 		Kind:       KindMCPConfig,
 		Source:     path,
 		SizeBytes:  safeUint64(info.Size()),
-		SourcePath: userSource,
+		OriginRoot: root.Path,
+		OriginKind: root.Kind,
 	}
-	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, root.Path)
 	if !ok {
 		res.Status = status
 		res.Error = errMsg
@@ -502,8 +503,8 @@ func validateMCPConfig(data []byte) error {
 // file, hash it, attach the bytes. Callers add kind-specific
 // post-processing (e.g. firstLine for instruction files) by
 // inspecting Status==StatusOK.
-func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, info fs.FileInfo, userSource string) Resource {
-	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+func (r *Resolver) readFileResource(kind ResourceKind, root ScanRoot, path string, info fs.FileInfo) Resource {
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, root.Path)
 	// Attribute the resource to the resolved target rather than
 	// the path we walked. When several names point at the same
 	// file (e.g. CLAUDE.md and .cursorrules symlinked to
@@ -521,7 +522,8 @@ func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, in
 		Kind:       kind,
 		Source:     idPath,
 		SizeBytes:  safeUint64(info.Size()),
-		SourcePath: userSource,
+		OriginRoot: root.Path,
+		OriginKind: root.Kind,
 	}
 	if !ok {
 		res.Status = status
@@ -554,16 +556,17 @@ func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, in
 // and emits a KindSkill resource. The name encoded in the
 // front-matter must match the parent directory's basename to
 // be considered valid; otherwise Status is StatusInvalid.
-func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
+func (r *Resolver) readSkillMeta(root ScanRoot, path string, info fs.FileInfo) (Resource, bool) {
 	parent := filepath.Base(filepath.Dir(path))
 	res := Resource{
 		ID:         resourceID(KindSkill, filepath.Dir(path)),
 		Kind:       KindSkill,
 		Source:     filepath.Dir(path),
 		SizeBytes:  safeUint64(info.Size()),
-		SourcePath: userSource,
+		OriginRoot: root.Path,
+		OriginKind: root.Kind,
 	}
-	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, root.Path)
 	if !ok {
 		res.Status = status
 		res.Error = errMsg
@@ -631,7 +634,7 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 		if err != nil {
 			continue
 		}
-		res, ok := r.readSkillMeta(root.Path, meta, info, root.UserSource)
+		res, ok := r.readSkillMeta(root, meta, info)
 		if !ok {
 			continue
 		}
@@ -894,6 +897,43 @@ func (s ResourceStatus) String() string {
 	}
 }
 
+// OriginKind classifies the scan root that produced a resource so
+// consumers can distinguish a bespoke user-added source from a
+// built-in default or the working directory. It mirrors the proto
+// ContextResource.OriginKind enum and the workspace_agent_context
+// origin_kind database enum.
+type OriginKind int
+
+const (
+	// OriginUnspecified is the zero value: the producing root kind
+	// is unknown (for example a resource pushed by an agent that
+	// predates origin tracking).
+	OriginUnspecified OriginKind = iota
+	// OriginWorkingDir is the agent's working directory.
+	OriginWorkingDir
+	// OriginBuiltin is a default root layered in by the agent
+	// (e.g. ~/.coder, ~/.coder/skills).
+	OriginBuiltin
+	// OriginUserSource is a scan root added explicitly by a user or
+	// template author (HTTP API or CODER_AGENT_EXP_*_DIRS).
+	OriginUserSource
+)
+
+// String returns the lower-snake-case name used on the wire and in
+// the database enum. Unknown values stringify to "unspecified".
+func (k OriginKind) String() string {
+	switch k {
+	case OriginWorkingDir:
+		return "working_dir"
+	case OriginBuiltin:
+		return "builtin"
+	case OriginUserSource:
+		return "user_source"
+	default:
+		return "unspecified"
+	}
+}
+
 // Resource is what the resolver emits for each recognized file
 // or live server it discovers under a scan root. The struct is
 // intentionally flat; the typed wire mapping happens in
@@ -933,12 +973,22 @@ type Resource struct {
 	// instruction-file first line). Shipped on the wire only
 	// for kinds whose body type carries a description field.
 	Description string
-	// SourcePath is the user-declared source that contributed
-	// the resource; empty for built-in scan roots.
-	SourcePath string
+	// OriginRoot is the scan root that discovered this resource:
+	// the working directory, a built-in default root, or a
+	// user-declared source. Empty for KindMCPServer, which links
+	// to its declaring config via MCPConfigSource instead.
+	OriginRoot string
+	// OriginKind classifies OriginRoot. OriginUnspecified for
+	// KindMCPServer and for resources with no attributable root.
+	OriginKind OriginKind
 	// Tools is populated for KindMCPServer with the live
 	// server's tool list; empty otherwise.
 	Tools []MCPTool
+	// MCPConfigSource is the path of the .mcp.json that declared
+	// this server, set only for KindMCPServer. It equals the
+	// Source of the corresponding KindMCPConfig resource so
+	// consumers can link a live server to its config file.
+	MCPConfigSource string
 }
 
 // MCPTool mirrors the wire MCPTool message. InputSchema is the

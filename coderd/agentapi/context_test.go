@@ -438,6 +438,59 @@ func TestPushContextState(t *testing.T) {
 		require.Equal(t, "file exceeds 64KiB per-resource cap", got.Error)
 	})
 
+	t.Run("MapsOriginFieldsAndDeriveShim", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		expectInTx(dbm)
+
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextSnapshot{}, nil)
+
+		got := map[string]database.UpsertWorkspaceAgentContextResourceParams{}
+		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
+			Times(3).
+			DoAndReturn(func(_ context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
+				got[arg.Source] = arg
+				return database.WorkspaceAgentContextResource{}, nil
+			})
+		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).Return(nil)
+
+		// New agent: explicit working-dir origin maps straight through.
+		work := "/work"
+		newAgent := instructionResource("/work/AGENTS.md", "hi")
+		newAgent.OriginRoot = &work
+		newAgent.OriginKind = agentproto.ContextResource_WORKING_DIR
+
+		// Old agent: origin_root set but kind unspecified. The derive
+		// shim must classify the non-empty root as a user source.
+		src := "/src"
+		oldAgent := instructionResource("/src/AGENTS.md", "hi")
+		oldAgent.OriginRoot = &src
+
+		// Built-in: no origin root and unspecified kind stay unspecified.
+		builtin := instructionResource("/builtin/AGENTS.md", "hi")
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version:   1,
+			Initial:   true,
+			Resources: []*agentproto.ContextResource{newAgent, oldAgent, builtin},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+
+		require.Equal(t, "/work", got["/work/AGENTS.md"].OriginRoot)
+		require.Equal(t, database.WorkspaceAgentContextOriginKindWorkingDir, got["/work/AGENTS.md"].OriginKind)
+
+		require.Equal(t, "/src", got["/src/AGENTS.md"].OriginRoot)
+		require.Equal(t, database.WorkspaceAgentContextOriginKindUserSource, got["/src/AGENTS.md"].OriginKind)
+
+		require.Empty(t, got["/builtin/AGENTS.md"].OriginRoot)
+		require.Equal(t, database.WorkspaceAgentContextOriginKindUnspecified, got["/builtin/AGENTS.md"].OriginKind)
+	})
+
 	t.Run("SerializationConflictRetries", func(t *testing.T) {
 		t.Parallel()
 
@@ -534,6 +587,22 @@ func TestPushContextState(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, resp)
 			require.Contains(t, err.Error(), "byte cap")
+		})
+
+		t.Run("OriginRootTooLong", func(t *testing.T) {
+			t.Parallel()
+			api, _ := makeAPI(t)
+			res := instructionResource("/a/AGENTS.md", "x")
+			oversized := strings.Repeat("a", 1025)
+			res.OriginRoot = &oversized
+			resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+				Version:   1,
+				Initial:   true,
+				Resources: []*agentproto.ContextResource{res},
+			})
+			require.Error(t, err)
+			require.Nil(t, resp)
+			require.Contains(t, err.Error(), "origin root")
 		})
 
 		t.Run("BodyTooLarge", func(t *testing.T) {

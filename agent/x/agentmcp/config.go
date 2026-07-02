@@ -18,6 +18,11 @@ type ServerConfig struct {
 	Env       map[string]string `json:"env"`
 	URL       string            `json:"url"`
 	Headers   map[string]string `json:"headers"`
+	// Origin is the absolute path of the .mcp.json file this server
+	// was parsed from. It is metadata for attribution (surfaced as a
+	// context resource's config link) and is deliberately excluded
+	// from the change-detection comparison in classifyServers.
+	Origin string `json:"-"`
 }
 
 // mcpConfigFile mirrors the on-disk .mcp.json schema.
@@ -80,6 +85,7 @@ func ParseConfig(path string) ([]ServerConfig, error) {
 			Env:       entry.Env,
 			URL:       entry.URL,
 			Headers:   entry.Headers,
+			Origin:    path,
 		})
 	}
 

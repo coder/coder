@@ -528,7 +528,14 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 
 	for name, wantCfg := range wanted {
 		if existing, ok := m.servers[name]; ok {
-			if reflect.DeepEqual(existing.config, wantCfg) {
+			// Compare configs ignoring Origin: a server that only
+			// moved to a different .mcp.json must not force a
+			// reconnect, since the connection itself is unchanged.
+			existingCfg := existing.config
+			existingCfg.Origin = ""
+			cmpCfg := wantCfg
+			cmpCfg.Origin = ""
+			if reflect.DeepEqual(existingCfg, cmpCfg) {
 				diff.keep[name] = existing
 			} else {
 				diff.toConnect = append(diff.toConnect, wantCfg)
@@ -775,7 +782,7 @@ func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerCo
 	// connected surfaces as an unreadable entry rather than vanishing.
 	catalog := make([]ServerStatus, 0, len(wanted))
 	for name := range wanted {
-		st := ServerStatus{Name: name}
+		st := ServerStatus{Name: name, ConfigPath: wanted[name].Origin}
 		switch res, ok := results[name]; {
 		case ok && res.err == nil:
 			st.Connected = true
@@ -1044,6 +1051,10 @@ type ServerStatus struct {
 	Connected bool
 	Err       string
 	Tools     []ToolInfo
+	// ConfigPath is the absolute path of the .mcp.json file that
+	// declared this server. It links the resource back to its
+	// originating config and is empty when unknown.
+	ConfigPath string
 }
 
 // ToolInfo is one tool exposed by an MCP server. InputSchema is the

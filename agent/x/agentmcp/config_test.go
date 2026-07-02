@@ -201,7 +201,13 @@ func TestParseConfig(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, got)
+			// ParseConfig stamps each server's Origin with the config
+			// file path, which is per-subtest, so fill it in here.
+			want := tt.expected
+			for i := range want {
+				want[i].Origin = path
+			}
+			require.Equal(t, want, got)
 		})
 	}
 }
@@ -234,6 +240,7 @@ func TestParseConfig_EnvVarInterpolation(t *testing.T) {
 			Transport: "stdio",
 			Command:   "run",
 			Env:       map[string]string{"TOKEN": "secret123"},
+			Origin:    path,
 		},
 	}, got)
 }

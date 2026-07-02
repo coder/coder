@@ -75,12 +75,13 @@ func TestDRPCAgentSocketService_Context(t *testing.T) {
 					ID:          "instruction_file:" + sourcePath + "/AGENTS.md",
 					Kind:        agentcontext.KindInstructionFile,
 					Source:      sourcePath + "/AGENTS.md",
-					SourcePath:  sourcePath,
+					OriginRoot:  sourcePath,
+					OriginKind:  agentcontext.OriginUserSource,
 					SizeBytes:   42,
 					Status:      agentcontext.StatusOK,
 					Description: "be concise",
 				}, {
-					// A built-in resource (no source path) the show filter must skip.
+					// A built-in resource (no origin root) the show filter must skip.
 					ID:     "instruction_file:/home/coder/.coder/AGENTS.md",
 					Kind:   agentcontext.KindInstructionFile,
 					Source: "/home/coder/.coder/AGENTS.md",
@@ -121,13 +122,14 @@ func TestDRPCAgentSocketService_Context(t *testing.T) {
 		_, err = client.GetContextSource(ctx, "/nope")
 		require.Error(t, err)
 
-		// Snapshot carries resources with their source path stamped.
+		// Snapshot carries resources with their origin stamped.
 		snap, err := client.GetContextSnapshot(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 7, snap.Version)
 		require.Len(t, snap.Resources, 2)
 		require.Equal(t, agentcontext.KindInstructionFile.String(), snap.Resources[0].Kind)
-		require.Equal(t, sourcePath, snap.Resources[0].SourcePath)
+		require.Equal(t, sourcePath, snap.Resources[0].OriginRoot)
+		require.Equal(t, agentcontext.OriginUserSource.String(), snap.Resources[0].OriginKind)
 		require.EqualValues(t, 42, snap.Resources[0].SizeBytes)
 
 		// Remove the source; removing again reports not found.

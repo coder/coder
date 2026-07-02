@@ -29,7 +29,8 @@ INSERT INTO workspace_agent_context_resources (
     size_bytes,
     status,
     error,
-    source_path,
+    origin_root,
+    origin_kind,
     created_at,
     updated_at
 ) VALUES (
@@ -41,7 +42,8 @@ INSERT INTO workspace_agent_context_resources (
     @size_bytes,
     @status,
     @error,
-    @source_path,
+    @origin_root,
+    @origin_kind,
     @now,
     @now
 )
@@ -52,7 +54,8 @@ ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     size_bytes = EXCLUDED.size_bytes,
     status = EXCLUDED.status,
     error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
+    origin_root = EXCLUDED.origin_root,
+    origin_kind = EXCLUDED.origin_kind,
     updated_at = EXCLUDED.updated_at
 RETURNING *;
 

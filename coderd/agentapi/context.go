@@ -291,8 +291,8 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource)
 		}
 		seen[r.Source] = struct{}{}
 
-		if len(r.GetSourcePath()) > maxContextSourceBytes {
-			return nil, xerrors.Errorf("resource %q: source path is %d bytes, exceeds %d byte cap", r.Source, len(r.GetSourcePath()), maxContextSourceBytes)
+		if len(r.GetOriginRoot()) > maxContextSourceBytes {
+			return nil, xerrors.Errorf("resource %q: origin root is %d bytes, exceeds %d byte cap", r.Source, len(r.GetOriginRoot()), maxContextSourceBytes)
 		}
 		if len(r.Error) > maxContextErrorBytes {
 			return nil, xerrors.Errorf("resource %q: error is %d bytes, exceeds %d byte cap", r.Source, len(r.Error), maxContextErrorBytes)
@@ -323,7 +323,8 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource)
 		//nolint:exhaustruct // WorkspaceAgentID and Now are filled by the caller at upsert time.
 		rows = append(rows, database.UpsertWorkspaceAgentContextResourceParams{
 			Source:      r.Source,
-			SourcePath:  r.GetSourcePath(),
+			OriginRoot:  r.GetOriginRoot(),
+			OriginKind:  contextResourceOriginKind(r.GetOriginKind(), r.GetOriginRoot()),
 			BodyKind:    kind,
 			Body:        body,
 			ContentHash: append([]byte(nil), r.ContentHash...),
@@ -334,6 +335,27 @@ func validateAndConvertContextResources(resources []*agentproto.ContextResource)
 		})
 	}
 	return rows, nil
+}
+
+// contextResourceOriginKind maps the wire origin kind to the database
+// enum, applying a compatibility shim for pre-origin agents. Those
+// agents report ORIGIN_KIND_UNSPECIFIED but populated origin_root only
+// for user-declared sources, so a non-empty root with an unspecified
+// kind is attributed to user_source; an empty root stays unspecified.
+func contextResourceOriginKind(k agentproto.ContextResource_OriginKind, originRoot string) database.WorkspaceAgentContextOriginKind {
+	switch k {
+	case agentproto.ContextResource_WORKING_DIR:
+		return database.WorkspaceAgentContextOriginKindWorkingDir
+	case agentproto.ContextResource_BUILTIN:
+		return database.WorkspaceAgentContextOriginKindBuiltin
+	case agentproto.ContextResource_USER_SOURCE:
+		return database.WorkspaceAgentContextOriginKindUserSource
+	default:
+		if originRoot != "" {
+			return database.WorkspaceAgentContextOriginKindUserSource
+		}
+		return database.WorkspaceAgentContextOriginKindUnspecified
+	}
 }
 
 // marshalContextResourceBody picks the body variant set on the wire

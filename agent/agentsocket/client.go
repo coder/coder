@@ -237,16 +237,18 @@ func contextSnapshotFromProto(s *proto.ContextSnapshot) ContextSnapshot {
 	}
 	for _, r := range s.GetResources() {
 		out.Resources = append(out.Resources, ContextResource{
-			ID:          r.GetId(),
-			Kind:        r.GetKind(),
-			Source:      r.GetSource(),
-			SourcePath:  r.GetSourcePath(),
-			ContentHash: r.GetContentHash(),
-			SizeBytes:   r.GetSizeBytes(),
-			Status:      r.GetStatus(),
-			Error:       r.GetError(),
-			Name:        r.GetName(),
-			Description: r.GetDescription(),
+			ID:              r.GetId(),
+			Kind:            r.GetKind(),
+			Source:          r.GetSource(),
+			OriginRoot:      r.GetOriginRoot(),
+			OriginKind:      r.GetOriginKind(),
+			ContentHash:     r.GetContentHash(),
+			SizeBytes:       r.GetSizeBytes(),
+			Status:          r.GetStatus(),
+			Error:           r.GetError(),
+			Name:            r.GetName(),
+			Description:     r.GetDescription(),
+			MCPConfigSource: r.GetMcpConfigSource(),
 		})
 	}
 	return out
@@ -283,16 +285,18 @@ type ContextSource struct {
 // ContextResource is a resolved workspace-context resource. Payload bytes are
 // never carried over the socket.
 type ContextResource struct {
-	Kind        string `table:"kind,default_sort" json:"kind"`
-	Name        string `table:"name" json:"name"`
-	Source      string `table:"source" json:"source"`
-	SourcePath  string `table:"source path" json:"source_path"`
-	Status      string `table:"status" json:"status"`
-	SizeBytes   uint64 `table:"size bytes" json:"size_bytes"`
-	Error       string `table:"error" json:"error"`
-	Description string `table:"-" json:"description"`
-	ID          string `table:"-" json:"id"`
-	ContentHash string `table:"-" json:"content_hash"`
+	Kind            string `table:"kind,default_sort" json:"kind"`
+	Name            string `table:"name" json:"name"`
+	Source          string `table:"source" json:"source"`
+	OriginRoot      string `table:"origin root" json:"origin_root"`
+	OriginKind      string `table:"origin kind" json:"origin_kind"`
+	Status          string `table:"status" json:"status"`
+	SizeBytes       uint64 `table:"size bytes" json:"size_bytes"`
+	Error           string `table:"error" json:"error"`
+	MCPConfigSource string `table:"mcp config" json:"mcp_config_source"`
+	Description     string `table:"-" json:"description"`
+	ID              string `table:"-" json:"id"`
+	ContentHash     string `table:"-" json:"content_hash"`
 }
 
 // ContextSnapshot is the agent's resolved workspace-context state.

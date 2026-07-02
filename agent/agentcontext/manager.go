@@ -572,6 +572,13 @@ func (m *Manager) SetReady() {
 func (m *Manager) scanRootsLocked() []ScanRoot {
 	builtinRoots := defaultBuiltinRoots()
 	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
+	// User-declared sources are listed first so that, when a path is
+	// reachable from more than one root, the resolver's first-wins
+	// dedup attributes the resource to the most explicit root. Origin
+	// precedence is therefore user_source > working_dir > builtin.
+	for _, s := range m.sources {
+		out = append(out, ScanRoot{Path: s.Path, Kind: OriginUserSource})
+	}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
 			// The working directory is a single scan root. The
@@ -581,7 +588,7 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 			// to parent directories. Additional directories are
 			// added explicitly as Sources or via the seeding env
 			// vars.
-			out = append(out, ScanRoot{Path: wd})
+			out = append(out, ScanRoot{Path: wd, Kind: OriginWorkingDir})
 		}
 	}
 	for _, r := range builtinRoots {
@@ -589,10 +596,7 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		if err != nil {
 			continue
 		}
-		out = append(out, ScanRoot{Path: canonical})
-	}
-	for _, s := range m.sources {
-		out = append(out, ScanRoot{Path: s.Path, UserSource: s.Path})
+		out = append(out, ScanRoot{Path: canonical, Kind: OriginBuiltin})
 	}
 	return out
 }

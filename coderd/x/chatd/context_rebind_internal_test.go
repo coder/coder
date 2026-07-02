@@ -299,6 +299,7 @@ func seedAgentContext(ctx context.Context, t *testing.T, db database.Store, agen
 		ContentHash:      hash,
 		SizeBytes:        int64(len(body)),
 		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		OriginKind:       database.WorkspaceAgentContextOriginKindUnspecified,
 		Now:              now,
 	})
 	require.NoError(t, err)
