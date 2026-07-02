@@ -21,6 +21,11 @@ const (
 	WorkspaceAppsTokenDuration = time.Minute
 	OIDCConvertTokenDuration   = time.Minute * 5
 	TailnetResumeTokenDuration = time.Hour * 24
+	// NATSCALeafValidity is the maximum lifetime of a leaf certificate
+	// minted under the NATS cluster CA. Old CA rows must remain valid trust
+	// roots for this long after rotation so that replicas holding leaves
+	// signed by the old CA can still be verified.
+	NATSCALeafValidity = time.Hour * 24 * 30
 
 	// defaultRotationInterval is the default interval at which keys are checked for rotation.
 	defaultRotationInterval = time.Minute * 10
@@ -67,6 +72,15 @@ func WithClock(clock quartz.Clock) RotatorOption {
 func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 	return func(r *rotator) {
 		r.keyDuration = keyDuration
+	}
+}
+
+// WithFeatures overrides the set of crypto key features the rotator manages.
+// Callers use this to opt experiment-gated features (such as the NATS CA) into
+// rotation only when the corresponding experiment is enabled.
+func WithFeatures(features ...database.CryptoKeyFeature) RotatorOption {
+	return func(r *rotator) {
+		r.features = features
 	}
 }
 
@@ -189,7 +203,7 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 }
 
 func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature database.CryptoKeyFeature, startsAt time.Time) (database.CryptoKey, error) {
-	secret, err := generateNewSecret(feature)
+	secret, err := generateNewSecret(feature, startsAt, k.keyDuration)
 	if err != nil {
 		return database.CryptoKey{}, xerrors.Errorf("generate new secret: %w", err)
 	}
@@ -246,7 +260,11 @@ func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database
 	return []database.CryptoKey{updatedKey, newKey}, nil
 }
 
-func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
+// generateNewSecret generates the secret for a new key of the given feature.
+// keyDuration is the rotator's key duration; it is only used by features whose
+// secret encodes its own validity window (currently only the NATS CA, whose
+// certificate must outlive the key row's active-signer period).
+func generateNewSecret(feature database.CryptoKeyFeature, startsAt time.Time, keyDuration time.Duration) (string, error) {
 	switch feature {
 	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateKey(32)
@@ -256,6 +274,8 @@ func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
+	case database.CryptoKeyFeatureNATSCA:
+		return generateCASecret(startsAt, keyDuration)
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
 }
@@ -279,6 +299,8 @@ func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration
+	case database.CryptoKeyFeatureNATSCA:
+		return NATSCALeafValidity
 	default:
 		return 0
 	}

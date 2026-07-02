@@ -49,6 +49,18 @@ func (p *Pubsub) SetPeerFetcher(fetcher PeerFetcher) {
 	p.RefreshPeers()
 }
 
+// SetClusterTLSProvider installs the provider used to mint the cluster route
+// TLS config on the next peer-route reload and triggers an immediate refresh.
+// The provider is invoked once: the first reload that runs while it is set
+// installs cluster mTLS, and later reloads reuse the already-applied config.
+// Passing nil leaves routes plaintext.
+func (p *Pubsub) SetClusterTLSProvider(provider ClusterTLSProvider) {
+	p.clusterMu.Lock()
+	p.clusterTLSProvider = provider
+	p.clusterMu.Unlock()
+	p.RefreshPeers()
+}
+
 // RefreshPeers signals the peer refresh worker to fetch and apply the latest
 // peer route addresses. Multiple pending refreshes are coalesced.
 func (p *Pubsub) RefreshPeers() {
@@ -106,17 +118,38 @@ func (p *Pubsub) setPeerAddresses(addresses []string) error {
 
 	routes = sortRouteURLs(routes)
 
-	if sortedURLsEqual(p.currentRoutes, routes) {
+	// Skip the reload when nothing changed, but never skip the first reload
+	// that still needs to install cluster TLS: routes may already match (e.g.
+	// after the provider is wired with the peer set unchanged) yet the TLS
+	// config has not been applied yet.
+	tlsPending := p.clusterTLSProvider != nil && !p.clusterTLSApplied
+	if sortedURLsEqual(p.currentRoutes, routes) && !tlsPending {
 		return nil
 	}
 
 	newOpts := p.serverOpts.Clone()
 	newOpts.Routes = cloneRouteURLs(routes)
+	// Install cluster mTLS once, before the routes in this reload handshake.
+	// No plaintext window exists because the server booted with no routes, so
+	// the first route ever established already negotiates over mTLS.
+	if tlsPending {
+		tlsConfig, err := p.clusterTLSProvider()
+		if err != nil {
+			return xerrors.Errorf("build cluster tls: %w", err)
+		}
+		if tlsConfig != nil {
+			newOpts.Cluster.TLSConfig = tlsConfig
+			newOpts.Cluster.TLSTimeout = clusterTLSTimeout.Seconds()
+		}
+	}
 	if err := p.Server.ReloadOptions(newOpts); err != nil {
 		return xerrors.Errorf("reload nats peer addresses: %w", err)
 	}
 	p.serverOpts = newOpts.Clone()
 	p.currentRoutes = cloneRouteURLs(routes)
+	if newOpts.Cluster.TLSConfig != nil {
+		p.clusterTLSApplied = true
+	}
 	return nil
 }
 

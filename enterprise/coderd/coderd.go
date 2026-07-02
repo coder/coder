@@ -881,6 +881,30 @@ func (api *API) Close() error {
 	return api.AGPL.Close()
 }
 
+// configureNATSClusterTLS installs the cluster mTLS provider on natsPubsub when
+// this replica has a relay URL. The relay URL host is the IP SAN peers verify,
+// so without one routes stay plaintext (token auth only). The provider runs
+// lazily on the first peer reload, after the key rotator has minted the nats_ca
+// CA and the read-only NATSCACache is dbcrypt-safe, so nothing reads the CA at
+// nats.New or server boot.
+func (api *API) configureNATSClusterTLS(natsPubsub *nats.Pubsub) {
+	relayURL := api.Options.DeploymentValues.DERP.Server.RelayURL.Value()
+	if relayURL == nil || relayURL.String() == "" {
+		return
+	}
+	natsPubsub.SetClusterTLSProvider(func() (*tls.Config, error) {
+		ca, err := api.AGPL.NATSCACache.CA(api.ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("fetch nats cluster CA: %w", err)
+		}
+		tlsOpts, err := nats.ClusterTLSOptionsFromRelayURL(relayURL, ca.Cert, ca.Key)
+		if err != nil {
+			return nil, err
+		}
+		return nats.BuildClusterTLSConfig(*tlsOpts)
+	})
+}
+
 func (api *API) updateEntitlements(ctx context.Context) error {
 	return api.Entitlements.Update(ctx, func(ctx context.Context) (codersdk.Entitlements, error) {
 		replicas := api.replicaManager.AllPrimary()
@@ -1009,6 +1033,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
 					natsPubsub.SetPeerFetcher(api.replicaManager)
+					api.configureNATSClusterTLS(natsPubsub)
 					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
 				}
 
