@@ -12,8 +12,7 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-Your workspace bobby-workspace is scheduled to automatically stop at 2024-0=
-3-15 14:00 UTC.
+Your workspace bobby-workspace will automatically stop 1 hour from now.
 
 Connect to it or extend the deadline to keep it running.
 
@@ -49,8 +48,8 @@ argin: 8px 0 32px; line-height: 1.5;">
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>Your workspace <strong>bobby-workspace</strong> is scheduled to =
-automatically stop at 2024-03-15 14:00 UTC.</p>
+        <p>Your workspace <strong>bobby-workspace</strong> will automatical=
+ly stop 1 hour from now.</p>
 
 <p>Connect to it or extend the deadline to keep it running.</p>
       </div>
