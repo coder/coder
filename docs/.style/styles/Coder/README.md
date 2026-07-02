@@ -1,15 +1,15 @@
 # Coder custom Vale rules
 
-Custom Vale rules specific to Coder live here. Each rule is a YAML file
-that Vale loads through the `BasedOnStyles = Coder` setting in the
-repo-root `.vale.ini`.
+Custom Vale rules specific to Coder live here.
+Each rule is a YAML file that Vale loads through the `BasedOnStyles = Coder` setting in the repo-root `.vale.ini`.
 
-This directory is intentionally empty for now. Follow-up PRs add rules
-incrementally. Planned starter rules:
+Active rules ship as YAML files in this directory.
+See the matching sections in `docs/.style/style-guide.md` for the user-facing policy each rule enforces.
+Follow-up PRs add rules incrementally.
+Planned coverage:
 
 - Dev Container terminology
-- HashiCorp casing
-- Limit "we"
+- Limit `we`
 - Setup vs set up, Quickstart casing
 - Next steps vs Learn more
 - Vale substitution rule scaffold
@@ -28,9 +28,8 @@ incrementally. Planned starter rules:
    - The rule is objectively correct (typo, brand-name casing, banned
      substitution).
    - The existing-content violation count for the rule reaches zero.
-4. A follow-up PR will add a parity CI check that verifies every rule
-   here has a matching section in `style-guide.md`. Add the section in
-   the same PR as the rule.
+4. A follow-up PR adds a parity CI check that verifies every rule here has a matching section in `style-guide.md`.
+   Add the section in the same PR as the rule.
 
 ## Reference
 

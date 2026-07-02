@@ -833,8 +833,8 @@
 							"path": "./admin/integrations/dx-data-cloud.md"
 						},
 						{
-							"title": "Hashicorp Vault",
-							"description": "Integrate Coder with Hashicorp Vault",
+							"title": "HashiCorp Vault",
+							"description": "Integrate Coder with HashiCorp Vault",
 							"path": "./admin/integrations/vault.md"
 						},
 						{

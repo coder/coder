@@ -1,0 +1,28 @@
+# Coder.BrandNames - enforce canonical brand-name casing in prose.
+#
+# Vale's substitution rule applies in prose only; it skips fenced code
+# blocks, inline code, and URLs by default. That means `hashicorp/kubernetes`
+# (Terraform provider source) and `developer.hashicorp.com` (URL) stay
+# untouched. The rule fires on body text and headings where the wrong
+# casing appears as a normal word.
+#
+# Level: error. Each swap targets a brand whose owner publishes a
+# canonical casing; "Hashicorp Vault" instead of "HashiCorp Vault" is
+# objectively wrong, not a judgment call. The existing-content violation
+# count is zero (cleanup landed in the previous commit), so this rule
+# can ship at error from day one.
+#
+# Adding a brand: append a key/value to the swap table below and audit
+# the docs corpus for the wrong-casing variant. Keep the message template
+# unchanged; the `%s` token interpolates the matched (wrong) text.
+extends: substitution
+message: "Use '%s' instead of '%s' (brand-name casing)."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide.md#brand-names
+level: error
+ignorecase: false
+nonword: false
+action:
+  name: replace
+swap:
+  Hashicorp: HashiCorp
+  HASHICORP: HashiCorp
