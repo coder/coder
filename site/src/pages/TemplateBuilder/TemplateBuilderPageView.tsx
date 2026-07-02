@@ -1,10 +1,4 @@
-import {
-	type FC,
-	type ReactNode,
-	useCallback,
-	useReducer,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useReducer, useState } from "react";
 
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -110,13 +104,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		setStepIndex(nextIndex);
 	};
 
-	const handleProvisionerStatusChange = useCallback(
-		(value: boolean | undefined) => {
-			dispatch({ type: "SET_HAS_PROVISIONERS", value });
-		},
-		[],
-	);
-
 	const handleDeselectModule = (moduleId: string) => {
 		// If the only module gets deselected, go back to module selection
 		if (state.modules.length === 1) {
@@ -161,7 +148,6 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							dispatch,
 							moduleVarMap,
 							createError,
-							handleProvisionerStatusChange,
 						)}
 					</div>
 
@@ -213,7 +199,6 @@ function renderStepContent(
 	dispatch: (action: WizardAction) => void,
 	moduleVarMap: Record<string, Record<string, string>>,
 	createError: Error | null,
-	onProvisionerStatusChange: (value: boolean | undefined) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -274,7 +259,6 @@ function renderStepContent(
 								value,
 							})
 						}
-						onProvisionerStatusChange={onProvisionerStatusChange}
 					/>
 				</>
 			);
@@ -306,7 +290,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "" && state.hasProvisioners !== false;
+			return state.name.trim() !== "";
 		default:
 			return true;
 	}
