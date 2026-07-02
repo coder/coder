@@ -265,8 +265,6 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	return len(recipientIDs), eg.Wait()
 }
 
-// directChatReaders returns users granted read via the user ACL. Group-ACL
-// grants are excluded so sharing with a group does not notify its members.
 func (api *API) directChatReaders(ctx context.Context, chat database.Chat) map[uuid.UUID]struct{} {
 	readers := map[uuid.UUID]struct{}{chat.OwnerID: {}}
 	for rawUserID, entry := range chat.UserACL {
