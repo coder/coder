@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/scripts/atomicwrite"
+	"github.com/coder/coder/v2/scripts/docgenenv"
 	"github.com/coder/flog"
 	"github.com/coder/serpent"
 )
@@ -27,32 +27,6 @@ type route struct {
 type manifest struct {
 	Versions []string `json:"versions,omitempty"`
 	Routes   []route  `json:"routes,omitempty"`
-}
-
-func prepareEnv() {
-	// Unset CODER_ environment variables
-	for _, env := range os.Environ() {
-		if strings.HasPrefix(env, "CODER_") {
-			split := strings.SplitN(env, "=", 2)
-			if err := os.Unsetenv(split[0]); err != nil {
-				panic(err)
-			}
-		}
-	}
-
-	// Override default OS values to ensure the same generated results.
-	err := os.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "~/.cache")
-	if err != nil {
-		panic(err)
-	}
-	err = os.Setenv("CLIDOCGEN_CONFIG_DIRECTORY", "~/.config/coderv2")
-	if err != nil {
-		panic(err)
-	}
-	err = os.Setenv("TMPDIR", "/tmp")
-	if err != nil {
-		panic(err)
-	}
 }
 
 func deleteEmptyDirs(dir string) error {
@@ -79,7 +53,7 @@ func deleteEmptyDirs(dir string) error {
 }
 
 func main() {
-	prepareEnv()
+	docgenenv.Prepare()
 
 	workdir, err := os.Getwd()
 	if err != nil {
