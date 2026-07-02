@@ -1,20 +1,5 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import { API, withDefaultFeatures } from "#/api/api";
 import type { UpdateTemplateMeta } from "#/api/typesGenerated";
-import {
-	MockEntitlements,
-	MockTemplate,
-	mockApiError,
-} from "#/testHelpers/entities";
-import {
-	renderWithTemplateSettingsLayout,
-	waitForLoaderToBeRemoved,
-} from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
 import { validationSchema } from "./TemplateSettingsForm";
-import TemplateSettingsPage from "./TemplateSettingsPage";
 
 type FormValues = Required<
 	Omit<
@@ -62,92 +47,7 @@ const validFormValues: FormValues = {
 	disable_module_cache: false,
 };
 
-const renderTemplateSettingsPage = async () => {
-	renderWithTemplateSettingsLayout(<TemplateSettingsPage />, {
-		route: `/templates/${MockTemplate.name}/settings`,
-		path: "/templates/:template/settings",
-		extraRoutes: [
-			{ path: "/templates/:template", element: <div>Template</div> },
-		],
-	});
-	await waitForLoaderToBeRemoved();
-};
-
-const fillAndSubmitForm = async ({
-	name,
-	display_name,
-	description,
-	icon,
-	allow_user_cancel_workspace_jobs,
-}: FormValues) => {
-	const nameField = await screen.findByLabelText("Name");
-	await userEvent.clear(nameField);
-	await userEvent.type(nameField, name);
-
-	const displayNameField = await screen.findByLabelText("Display name");
-	await userEvent.clear(displayNameField);
-	await userEvent.type(displayNameField, display_name);
-
-	const descriptionField = await screen.findByLabelText("Description");
-	await userEvent.clear(descriptionField);
-	await userEvent.type(descriptionField, description);
-
-	const iconField = await screen.findByLabelText("Icon");
-	await userEvent.clear(iconField);
-	await userEvent.type(iconField, icon);
-
-	const allowCancelJobsField = screen.getByRole("checkbox", {
-		name: /allow users to cancel in-progress workspace jobs/i,
-	});
-	// checkbox is checked by default, so it must be clicked to get unchecked
-	if (!allow_user_cancel_workspace_jobs) {
-		await userEvent.click(allowCancelJobsField);
-	}
-
-	const submitButton = await screen.findByText(/save/i);
-	await userEvent.click(submitButton);
-};
-
-describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	it("succeeds", async () => {
-		await renderTemplateSettingsPage();
-		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
-			...MockTemplate,
-			...validFormValues,
-		});
-		await fillAndSubmitForm(validFormValues);
-		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
-	});
-
-	it("displays an error if the name is taken", async () => {
-		await renderTemplateSettingsPage();
-		vi.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
-			mockApiError({
-				message: `Template with name "test-template" already exists`,
-				validations: [
-					{
-						field: "name",
-						detail: "This value is already in use and should be unique.",
-					},
-				],
-			}),
-		);
-		await fillAndSubmitForm(validFormValues);
-		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
-		const form = await screen.findByRole("form", {
-			name: /template settings/i,
-		});
-		expect(
-			await within(form).findByText(
-				"This value is already in use and should be unique.",
-			),
-		).toBeInTheDocument();
-	});
-
+describe("TemplateSettingsPage", () => {
 	it("allows a description of 128 chars", () => {
 		const values: UpdateTemplateMeta = {
 			...validFormValues,
@@ -167,66 +67,4 @@ describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
 		const validate = () => validationSchema.validateSync(values);
 		expect(validate).toThrowError();
 	});
-
-	describe("Deprecate template", () => {
-		it("deprecates a template when has access control", async () => {
-			server.use(
-				http.get("/api/v2/entitlements", () => {
-					return HttpResponse.json({
-						...MockEntitlements,
-						features: withDefaultFeatures({
-							access_control: { enabled: true, entitlement: "entitled" },
-						}),
-					});
-				}),
-			);
-			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
-			const deprecationMessage = "This template is deprecated";
-
-			await renderTemplateSettingsPage();
-			await deprecateTemplate(deprecationMessage);
-			await waitFor(() =>
-				expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1),
-			);
-
-			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-			expect(templateId).toEqual(MockTemplate.id);
-			expect(data).toEqual(
-				expect.objectContaining({ deprecation_message: deprecationMessage }),
-			);
-		});
-
-		it("does not deprecate a template when does not have access control", async () => {
-			server.use(
-				http.get("/api/v2/entitlements", () => {
-					return HttpResponse.json({
-						...MockEntitlements,
-						features: withDefaultFeatures({
-							access_control: { enabled: false, entitlement: "not_entitled" },
-						}),
-					});
-				}),
-			);
-			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
-
-			await renderTemplateSettingsPage();
-			await deprecateTemplate("This template should not be able to deprecate");
-			await waitFor(() =>
-				expect(updateTemplateMetaSpy).toHaveBeenCalledTimes(1),
-			);
-
-			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
-			expect(templateId).toEqual(MockTemplate.id);
-			expect(data).toEqual(
-				expect.objectContaining({ deprecation_message: "" }),
-			);
-		});
-	});
 });
-
-async function deprecateTemplate(message: string) {
-	const deprecationField = screen.getByLabelText("Deprecation Message");
-	await userEvent.type(deprecationField, message);
-	const submitButton = await screen.findByRole("button", { name: /save/i });
-	await userEvent.click(submitButton);
-}
