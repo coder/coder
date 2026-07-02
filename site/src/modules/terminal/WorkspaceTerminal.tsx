@@ -51,6 +51,7 @@ type WorkspaceTerminalProps = {
 	onStatusChange?: (status: ConnectionStatus) => void;
 	onError?: (error: Error) => void;
 	onContentReady?: () => void;
+	onTitleChange?: (title: string) => void;
 	reconnectionToken: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
@@ -82,6 +83,7 @@ export const WorkspaceTerminal = ({
 	onStatusChange,
 	onError,
 	onContentReady,
+	onTitleChange,
 	reconnectionToken,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
@@ -104,6 +106,9 @@ export const WorkspaceTerminal = ({
 	});
 	const handleContentReady = useEffectEvent(() => {
 		onContentReady?.();
+	});
+	const handleTitleChange = useEffectEvent((title: string) => {
+		onTitleChange?.(title);
 	});
 	const [terminal, setTerminal] = useState<Terminal>();
 	const { copyToClipboard, readFromClipboard } = useClipboard();
@@ -239,6 +244,10 @@ export const WorkspaceTerminal = ({
 				handleOpenLink(uri);
 			}),
 		);
+
+		nextTerminal.onTitleChange((title) => {
+			handleTitleChange(title);
+		});
 
 		const copySelection = () => {
 			const selection = nextTerminal.getSelection();
