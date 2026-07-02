@@ -72,12 +72,6 @@ func aiGatewayHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handl
 // under /aibridge. The stripPrefix parameter selects which URL prefix
 // to strip before forwarding to the in-memory aibridged handler.
 func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
-	// Build the overload protection middleware chain for the aibridged handler.
-	// These limits are applied per-replica.
-	bridgeCfg := api.DeploymentValues.AI.BridgeConfig
-	concurrencyLimiter := httpmw.ConcurrencyLimit(bridgeCfg.MaxConcurrency.Value(), "AI Gateway")
-	rateLimiter := httpmw.RateLimitByAuthToken(int(bridgeCfg.RateLimit.Value()), aiBridgeRateLimitWindow)
-
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 		r.Group(func(r chi.Router) {
@@ -88,10 +82,10 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 			r.Get("/clients", api.aiBridgeListClients)
 		})
 
-		// Apply overload protection middleware to the aibridged handler.
-		// Concurrency limit is checked first for faster rejection under load.
+		// Apply the shared per-request data-plane middleware (per-replica
+		// overload protection plus BYOK gating) to the aibridged handler.
 		r.Group(func(r chi.Router) {
-			r.Use(concurrencyLimiter, rateLimiter)
+			r.Use(AIGatewayDataPlaneMiddleware(api.DeploymentValues.AI.BridgeConfig))
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
@@ -103,19 +97,36 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 					return
 				}
 
-				// Reject BYOK requests when the deployment has not
-				// enabled bring-your-own-key mode.
-				if agplaibridge.IsBYOK(r.Header) && !bridgeCfg.AllowBYOK.Value() {
-					httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-						Message: "Bring Your Own Key (BYOK) mode is not enabled.",
-						Detail:  "Contact your administrator to enable it with --aibridge-allow-byok.",
-					})
-					return
-				}
-
 				// Strip the prefix and relay to the aibridged handler.
 				http.StripPrefix(stripPrefix, handler).ServeHTTP(rw, r)
 			})
+		})
+	}
+}
+
+// AIGatewayDataPlaneMiddleware returns the per-request middleware chain that
+// guards the AI Gateway data-plane handler. It is the single source of truth
+// shared by the embedded route and the standalone gateway.
+func AIGatewayDataPlaneMiddleware(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Handler {
+	concurrencyLimiter := httpmw.ConcurrencyLimit(cfg.MaxConcurrency.Value(), "AI Gateway")
+	rateLimiter := httpmw.RateLimitByAuthToken(int(cfg.RateLimit.Value()), aiBridgeRateLimitWindow)
+	byokGuard := aiGatewayBYOKGuard(cfg)
+	return func(next http.Handler) http.Handler {
+		return concurrencyLimiter(rateLimiter(byokGuard(next)))
+	}
+}
+
+func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if agplaibridge.IsBYOK(r.Header) && !cfg.AllowBYOK.Value() {
+				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+					Message: "Bring Your Own Key (BYOK) mode is not enabled.",
+					Detail:  "Contact your administrator to enable it with --ai-gateway-allow-byok.",
+				})
+				return
+			}
+			next.ServeHTTP(rw, r)
 		})
 	}
 }

@@ -115,7 +115,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		r.Header.Del("X-Api-Key")
 	}
 
-	client, err := s.Client()
+	client, err := s.ClientContext(ctx)
 	if err != nil {
 		logger.Warn(ctx, "failed to connect to coderd", slog.Error(err))
 		http.Error(rw, ErrConnect.Error(), http.StatusServiceUnavailable)
@@ -134,7 +134,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
+		logger.Warn(ctx, "key authorization check failed", slog.F("error", err.Error()))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}
