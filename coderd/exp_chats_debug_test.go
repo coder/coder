@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/txtar"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -27,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // The types below mirror the (unexported) response type for
@@ -148,7 +147,13 @@ func getDebugSnapshot(t *testing.T, client *codersdk.ExperimentalClient, chatID 
 // dynamically-generated UUIDs that appear elsewhere in the payload (e.g.
 // runner/worker IDs) should be arranged by the caller to be deterministic
 // fixture values instead of uuid.New(), matching the convention used for
-// insights golden files. Run with -update to regenerate the fixture.
+// insights golden files.
+//
+// Callers must be tests whose name matches `make gen`'s `Test.*Golden$`
+// filter (see coderd/.gen-golden in the Makefile); otherwise
+// `make clean/golden-files` deletes the fixture and it never gets
+// regenerated. Run `go test ./coderd -run "Test.*Golden$" -update`, or
+// `make gen/golden-files`, to regenerate fixtures.
 func assertDebugSnapshotGolden(t *testing.T, name string, snap debugSnapshot) {
 	t.Helper()
 
@@ -161,12 +166,12 @@ func assertDebugSnapshotGolden(t *testing.T, name string, snap debugSnapshot) {
 		require.NoError(t, err)
 		data = append(data, '\n')
 		ar := &txtar.Archive{Files: []txtar.File{{Name: "response.json", Data: data}}}
-		require.NoError(t, os.WriteFile(goldenPath, txtar.Format(ar), 0o644), "want no error writing golden file")
+		require.NoError(t, os.WriteFile(goldenPath, txtar.Format(ar), 0o600), "want no error writing golden file")
 		return
 	}
 
 	raw, err := os.ReadFile(goldenPath)
-	require.NoError(t, err, "open golden file, run \"go test ./coderd/ -run TestGetChatDebugSnapshot -update\" and commit the changes")
+	require.NoError(t, err, "open golden file, run \"go test ./coderd -run 'Test.*Golden$' -update\" and commit the changes")
 	ar := txtar.Parse(raw)
 	require.Len(t, ar.Files, 1, "golden file %s should contain exactly one file", goldenPath)
 
@@ -178,7 +183,7 @@ func assertDebugSnapshotGolden(t *testing.T, name string, snap debugSnapshot) {
 		cmp.Transformer("UUID", func(id uuid.UUID) string { return id.String() }),
 	}
 	assert.Empty(t, cmp.Diff(want, snap, cmpOpts...),
-		"golden file mismatch (-want +got): %s, run \"go test ./coderd/ -run TestGetChatDebugSnapshot -update\" and commit the changes", goldenPath)
+		"golden file mismatch (-want +got): %s, run \"go test ./coderd -run 'Test.*Golden$' -update\" and commit the changes", goldenPath)
 }
 
 // normalizeDebugSnapshot zeroes fields that are never deterministic across
@@ -274,8 +279,8 @@ func TestGetChatDebugSnapshot_ExecutionState(t *testing.T) {
 	}
 }
 
-// TestGetChatDebugSnapshot_MessageStats verifies the message_stats breakdown.
-func TestGetChatDebugSnapshot_MessageStats(t *testing.T) {
+// TestGetChatDebugSnapshot_MessageStats_Golden verifies the message_stats breakdown.
+func TestGetChatDebugSnapshot_MessageStats_Golden(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
@@ -360,9 +365,9 @@ func TestGetChatDebugSnapshot_Heartbeat(t *testing.T) {
 	require.True(t, hb.IsStale)
 }
 
-// TestGetChatDebugSnapshot_Runtime_Unowned verifies the runtime section when
+// TestGetChatDebugSnapshot_Runtime_Unowned_Golden verifies the runtime section when
 // the chat has no owner. worker_id_matches_local must be false and no runners.
-func TestGetChatDebugSnapshot_Runtime_Unowned(t *testing.T) {
+func TestGetChatDebugSnapshot_Runtime_Unowned_Golden(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, _ := newChatClientWithAPI(t, withChatWorkerDisabled)
@@ -374,10 +379,10 @@ func TestGetChatDebugSnapshot_Runtime_Unowned(t *testing.T) {
 	assertDebugSnapshotGolden(t, "runtime_unowned", snap)
 }
 
-// TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner verifies that when the
+// TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner_Golden verifies that when the
 // chat is owned by a different replica the proxy is invoked and its response
 // is returned verbatim.
-func TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner(t *testing.T) {
+func TestGetChatDebugSnapshot_MultiReplica_ProxiesToOwner_Golden(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
