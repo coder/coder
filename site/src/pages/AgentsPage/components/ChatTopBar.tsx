@@ -21,7 +21,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import { ChatActionsMenuItems } from "./ChatActionsMenuItems";
@@ -47,7 +46,6 @@ type ChatTopBarProps = {
 	onPinAgent?: () => void;
 	onUnpinAgent?: () => void;
 	onOpenRenameDialog?: () => void;
-	isRegeneratingTitle?: boolean;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
 	isArchiving?: boolean;
@@ -103,7 +101,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	onPinAgent,
 	onUnpinAgent,
 	onOpenRenameDialog,
-	isRegeneratingTitle,
 	hasWorkspace = false,
 	isArchived = false,
 	isArchiving = false,
@@ -163,7 +160,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<div
 						role="status"
 						aria-live="polite"
-						aria-busy={isRegeneratingTitle}
 						className="flex min-w-0 items-center gap-1.5"
 					>
 						{parentChat && (
@@ -186,25 +182,13 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
-						<span
-							className={cn(
-								"truncate text-sm text-content-primary",
-								isRegeneratingTitle && "animate-pulse",
-							)}
-						>
+						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
 						{isSharedChat && (
 							<UsersIcon
 								className="size-3.5 shrink-0 text-content-secondary"
 								aria-label="Shared chat"
-							/>
-						)}
-						{isRegeneratingTitle && (
-							<Spinner
-								aria-label="Regenerating title"
-								className="h-3.5 w-3.5 shrink-0 text-content-secondary"
-								loading
 							/>
 						)}
 					</div>
