@@ -334,11 +334,9 @@ func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
 		return agents
 	})
 
-	// The in-process agent resolves requested paths against its home
-	// directory, which os.UserHomeDir reads from HOME (USERPROFILE on
-	// Windows). Fixture logs live in a dedicated subdirectory, and the
-	// agent log dir stays separate, so the collected files do not depend
-	// on logs the agent writes while the test runs.
+	// The agent resolves requested paths against $HOME (USERPROFILE on
+	// Windows). Fixture logs live in their own subdirectory and the agent
+	// log dir is separate, so collection does not race live agent logs.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)

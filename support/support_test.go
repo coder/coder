@@ -317,37 +317,25 @@ func assertWorkspaceLogFilesArchive(t *testing.T, data []byte, wantEntry string,
 	require.NotEmpty(t, data)
 	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	require.NoError(t, err)
-	foundManifest := false
-	foundEntry := false
+	entries := map[string]string{}
 	for _, file := range zr.File {
 		rc, err := file.Open()
 		require.NoError(t, err)
 		content, err := io.ReadAll(rc)
 		require.NoError(t, err)
 		require.NoError(t, rc.Close())
-		switch file.Name {
-		case "manifest.json":
-			foundManifest = true
-			var manifest struct {
-				Files []struct {
-					ArchivePath string `json:"archive_path"`
-				} `json:"files"`
-			}
-			require.NoError(t, json.Unmarshal(content, &manifest))
-			found := false
-			for _, file := range manifest.Files {
-				if file.ArchivePath == wantEntry {
-					found = true
-				}
-			}
-			require.True(t, found, "manifest should include %q", wantEntry)
-		case wantEntry:
-			foundEntry = true
-			require.Equal(t, wantContent, string(content))
-		}
+		entries[file.Name] = string(content)
 	}
-	require.True(t, foundManifest, "manifest should be present")
-	require.True(t, foundEntry, "workspace log entry should be present")
+	require.Equal(t, wantContent, entries[wantEntry])
+
+	var manifest struct {
+		Files []struct {
+			ArchivePath string `json:"archive_path"`
+		} `json:"files"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(entries["manifest.json"]), &manifest))
+	require.Len(t, manifest.Files, 1)
+	require.Equal(t, wantEntry, manifest.Files[0].ArchivePath)
 }
 
 func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {

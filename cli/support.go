@@ -561,7 +561,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
-	if err := writeAgentLogFilesArchive(src.Agent.LogFilesArchive, dest); err != nil {
+	if err := writeAgentLogFilesArchive(src.Agent.LogFilesArchive, dest, supportBundleAgentLogFilesMaxBytes); err != nil {
 		return xerrors.Errorf("write agent log files: %w", err)
 	}
 
@@ -577,20 +577,14 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 }
 
 // supportBundleAgentLogFilesMaxBytes caps how much of the agent's log files
-// archive is unpacked into the bundle. The agent enforces its own limits;
-// this only guards the CLI against a misbehaving agent.
+// archive is unpacked into the bundle, guarding against a misbehaving agent.
 const supportBundleAgentLogFilesMaxBytes int64 = 110 * 1024 * 1024
 
-func writeAgentLogFilesArchive(src []byte, dest *zip.Writer) error {
-	return writeAgentLogFilesArchiveWithLimit(src, dest, supportBundleAgentLogFilesMaxBytes)
-}
-
-// writeAgentLogFilesArchiveWithLimit unpacks the agent's zip archive into
-// the bundle under agent/log_files/. Entries with unsafe names are dropped,
-// reads are bounded by the remaining budget rather than trusting declared
-// entry sizes, and per-entry problems are recorded in collection_errors.txt
-// instead of failing the bundle.
-func writeAgentLogFilesArchiveWithLimit(src []byte, dest *zip.Writer, maxBytes int64) error {
+// writeAgentLogFilesArchive unpacks the agent's zip archive into the bundle
+// under agent/log_files/. Unsafe entry names are dropped, reads are bounded
+// by the remaining budget rather than trusting declared sizes, and
+// per-entry problems are recorded in collection_errors.txt.
+func writeAgentLogFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) error {
 	if len(src) == 0 {
 		return nil
 	}
@@ -626,9 +620,8 @@ func writeAgentLogFilesArchiveWithLimit(src []byte, dest *zip.Writer, maxBytes i
 			continue
 		}
 		remaining -= int64(len(content))
-		// Failing to write into the bundle (rather than read the agent's
-		// data) means the output zip is broken, so propagate it like the
-		// rest of writeBundle.
+		// A failed write means the output zip itself is broken, so
+		// propagate it like the rest of writeBundle.
 		f, err := dest.Create(path.Join("agent/log_files", name))
 		if err != nil {
 			return xerrors.Errorf("create agent log files entry %q: %w", name, err)
@@ -640,9 +633,8 @@ func writeAgentLogFilesArchiveWithLimit(src []byte, dest *zip.Writer, maxBytes i
 	return writeAgentLogFilesSkipped(dest, skipped)
 }
 
-// writeAgentLogFilesSkipped records, inside the bundle, any workspace log
-// entries dropped while assembling it so the omission stays visible instead
-// of silently shrinking the bundle or failing it entirely.
+// writeAgentLogFilesSkipped records dropped workspace log entries inside
+// the bundle so the omission stays visible without failing the bundle.
 func writeAgentLogFilesSkipped(dest *zip.Writer, skipped []string) error {
 	if len(skipped) == 0 {
 		return nil
@@ -659,11 +651,11 @@ func writeAgentLogFilesSkipped(dest *zip.Writer, skipped []string) error {
 	return nil
 }
 
-// safeAgentLogFilesArchiveName reports whether an entry name from the
-// agent's archive is safe to embed in the bundle: a clean, slash-separated
-// relative path without ".." elements or backslashes, within the expected
-// layout (manifest.json or files/...). Backslashes are rejected because
-// some Windows extractors treat them as path separators.
+// safeAgentLogFilesArchiveName validates an agent archive entry name and
+// returns it when safe to embed in the bundle: a valid slash-separated
+// relative path within the expected layout (manifest.json or files/...).
+// Backslashes are rejected because some Windows extractors treat them as
+// path separators.
 func safeAgentLogFilesArchiveName(name string) (string, bool) {
 	if strings.Contains(name, `\`) || !fs.ValidPath(name) {
 		return "", false

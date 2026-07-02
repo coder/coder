@@ -25,10 +25,6 @@ import (
 
 const (
 	debugLogFilesMaxPatterns     = 32
-	debugLogFilesMaxFiles        = 100
-	debugLogFilesMaxMatches      = 100
-	debugLogFilesMaxBytes        = debugLogsActiveMaxBytes
-	debugLogFilesMaxTotal        = debugLogsCombinedMaxBytes
 	debugLogFilesRequestMaxBytes = 64 * 1024
 )
 
@@ -37,6 +33,13 @@ type debugLogFilesLimits struct {
 	MaxGlobMatches  int   `json:"max_glob_matches"`
 	MaxBytesPerFile int64 `json:"max_bytes_per_file"`
 	MaxTotalBytes   int64 `json:"max_total_bytes"`
+}
+
+var defaultDebugLogFilesLimits = debugLogFilesLimits{
+	MaxFiles:        100,
+	MaxGlobMatches:  100,
+	MaxBytesPerFile: debugLogsActiveMaxBytes,
+	MaxTotalBytes:   debugLogsCombinedMaxBytes,
 }
 
 type debugLogFilesManifest struct {
@@ -63,6 +66,14 @@ type debugLogFileError struct {
 	Reason    string `json:"reason"`
 }
 
+func (m *debugLogFilesManifest) appendError(requested string, filePath string, reason string) {
+	m.Errors = append(m.Errors, debugLogFileError{
+		Requested: requested,
+		Path:      filePath,
+		Reason:    reason,
+	})
+}
+
 var errDebugLogFilesGlobLimit = xerrors.New("debug log files glob match limit reached")
 
 func (a *agent) HandleHTTPDebugLogFiles(w http.ResponseWriter, r *http.Request) {
@@ -80,34 +91,23 @@ func (a *agent) HandleHTTPDebugLogFiles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	extendDebugLogWriteDeadline(r.Context(), a.logger, w, debugLogsWriteTimeout, "extend debug log files write deadline")
+	extendDebugLogWriteDeadline(r.Context(), a.logger, w)
 
 	ctx, cancel := context.WithTimeout(r.Context(), debugLogsWriteTimeout)
 	defer cancel()
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.WriteHeader(http.StatusOK)
-	if err := collectDebugLogFiles(ctx, a.logger, home, req, w); err != nil {
+	if err := collectDebugLogFiles(ctx, a.logger, home, req, w, defaultDebugLogFilesLimits); err != nil {
 		a.logger.Error(r.Context(), "collect debug log files", slog.Error(err))
 	}
 }
 
-func collectDebugLogFiles(ctx context.Context, logger slog.Logger, home string, req workspacesdk.DebugLogFilesRequest, w io.Writer) error {
-	return collectDebugLogFilesWithLimits(ctx, logger, home, req, w, debugLogFilesLimits{
-		MaxFiles:        debugLogFilesMaxFiles,
-		MaxGlobMatches:  debugLogFilesMaxMatches,
-		MaxBytesPerFile: debugLogFilesMaxBytes,
-		MaxTotalBytes:   debugLogFilesMaxTotal,
-	})
-}
-
-// collectDebugLogFilesWithLimits streams a zip archive containing the
-// requested files under files/ and a manifest.json describing the
-// collection. Files are confined to home: requested paths are resolved
-// lexically against it and all file access goes through os.Root, which
-// refuses symlinks that escape it. Per-path problems are recorded in the
-// manifest instead of failing the archive.
-func collectDebugLogFilesWithLimits(ctx context.Context, logger slog.Logger, home string, req workspacesdk.DebugLogFilesRequest, w io.Writer, limits debugLogFilesLimits) error {
+// collectDebugLogFiles streams a zip archive with the requested files under
+// files/ and a manifest.json describing the collection. Files are confined
+// to home by os.Root, which refuses symlink escapes; per-path problems are
+// recorded in the manifest instead of failing the archive.
+func collectDebugLogFiles(ctx context.Context, logger slog.Logger, home string, req workspacesdk.DebugLogFilesRequest, w io.Writer, limits debugLogFilesLimits) error {
 	paths := req.Paths
 	pathsTruncated := len(paths) > debugLogFilesMaxPatterns
 	if pathsTruncated {
@@ -116,25 +116,25 @@ func collectDebugLogFilesWithLimits(ctx context.Context, logger slog.Logger, hom
 	manifest := debugLogFilesManifest{Requested: paths, Limits: limits}
 	if pathsTruncated {
 		manifest.Truncated = true
-		appendDebugLogFilesError(&manifest, "", "", "requested path pattern limit reached")
+		manifest.appendError("", "", "requested path pattern limit reached")
 	}
 
-	// os.UserHomeDir returns $HOME verbatim, so matching requested paths
-	// lexically against it agrees with the paths users see in their shell.
-	// filepath.EvalSymlinks is deliberately avoided: it fails on Windows
-	// volume mount points, and os.Root already stops symlink escapes at
-	// open time.
+	// Requested paths are matched lexically against $HOME as users see it
+	// in their shell. filepath.EvalSymlinks is deliberately avoided: it
+	// fails on Windows volume mount points, and os.Root already blocks
+	// symlink escapes at open time.
 	home, err := filepath.Abs(home)
-	if err != nil {
-		appendDebugLogFilesError(&manifest, "", "", "resolve home directory: "+err.Error())
-		return writeDebugLogFilesManifestArchive(w, manifest)
+	var root *os.Root
+	if err == nil {
+		root, err = os.OpenRoot(home)
 	}
-	root, err := os.OpenRoot(home)
 	if err != nil {
-		appendDebugLogFilesError(&manifest, "", "", "open home directory: "+err.Error())
-		return writeDebugLogFilesManifestArchive(w, manifest)
+		// Collect nothing; the archive still carries the manifest.
+		manifest.appendError("", "", "open home directory: "+err.Error())
+		paths = nil
+	} else {
+		defer root.Close()
 	}
-	defer root.Close()
 
 	zw := zip.NewWriter(w)
 	remainingBytes := limits.MaxTotalBytes
@@ -145,7 +145,7 @@ patterns:
 	for _, requested := range paths {
 		if err := ctx.Err(); err != nil {
 			manifest.Truncated = true
-			appendDebugLogFilesError(&manifest, requested, "", "collection canceled: "+err.Error())
+			manifest.appendError(requested, "", "collection canceled: "+err.Error())
 			break
 		}
 
@@ -154,54 +154,52 @@ patterns:
 			if ctx.Err() != nil {
 				manifest.Truncated = true
 			}
-			appendDebugLogFilesError(&manifest, requested, "", err.Error())
+			manifest.appendError(requested, "", err.Error())
 			continue
 		}
 		if len(matches) == 0 {
-			appendDebugLogFilesError(&manifest, requested, "", "no matches")
+			manifest.appendError(requested, "", "no matches")
 			continue
 		}
 		if matchesTruncated {
 			manifest.Truncated = true
-			appendDebugLogFilesError(&manifest, requested, "", "glob match limit reached")
+			manifest.appendError(requested, "", "glob match limit reached")
 		}
 
 		for _, rel := range matches {
 			if err := ctx.Err(); err != nil {
 				manifest.Truncated = true
-				appendDebugLogFilesError(&manifest, requested, rel, "collection canceled: "+err.Error())
+				manifest.appendError(requested, rel, "collection canceled: "+err.Error())
 				break patterns
 			}
 			if writtenFiles >= limits.MaxFiles {
 				manifest.Truncated = true
-				appendDebugLogFilesError(&manifest, requested, rel, "file count limit reached")
+				manifest.appendError(requested, rel, "file count limit reached")
 				break patterns
 			}
 			if remainingBytes <= 0 {
 				manifest.Truncated = true
-				appendDebugLogFilesError(&manifest, requested, rel, "total byte limit reached")
+				manifest.appendError(requested, rel, "total byte limit reached")
 				break patterns
 			}
-			// Deduplicating by relative path is what prevents duplicate
-			// entry names in the archive.
+			// Dedupe by relative path to avoid duplicate archive entries.
 			if _, ok := seen[rel]; ok {
 				continue
 			}
 			seen[rel] = struct{}{}
 
-			// Root.Stat follows symlinks only within the root and errors
-			// on any component that escapes it.
+			// Root.Stat errors on any path component escaping the root.
 			info, err := root.Stat(filepath.FromSlash(rel))
 			if err != nil {
 				reason := "stat path: " + err.Error()
 				if errors.Is(err, fs.ErrNotExist) {
 					reason = "does not exist"
 				}
-				appendDebugLogFilesError(&manifest, requested, rel, reason)
+				manifest.appendError(requested, rel, reason)
 				continue
 			}
 			if !info.Mode().IsRegular() {
-				appendDebugLogFilesError(&manifest, requested, rel, "not a regular file")
+				manifest.appendError(requested, rel, "not a regular file")
 				continue
 			}
 
@@ -218,7 +216,7 @@ patterns:
 			manifest.Truncated = manifest.Truncated || entry.Truncated
 			if err := writeDebugLogFileEntry(root, zw, entry); err != nil {
 				logger.Warn(ctx, "write debug log file", slog.Error(err), slog.F("path", rel))
-				appendDebugLogFilesError(&manifest, requested, rel, err.Error())
+				manifest.appendError(requested, rel, err.Error())
 				continue
 			}
 			manifest.Files = append(manifest.Files, entry)
@@ -227,8 +225,14 @@ patterns:
 		}
 	}
 
-	if err := writeDebugLogFilesManifest(zw, manifest); err != nil {
-		return err
+	mf, err := zw.Create("manifest.json")
+	if err != nil {
+		return xerrors.Errorf("create manifest in archive: %w", err)
+	}
+	enc := json.NewEncoder(mf)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(manifest); err != nil {
+		return xerrors.Errorf("write manifest: %w", err)
 	}
 	if err := zw.Close(); err != nil {
 		return xerrors.Errorf("close archive: %w", err)
@@ -238,16 +242,11 @@ patterns:
 
 // debugLogFileMatches expands requested against home and returns matching
 // home-relative slash paths. Non-glob paths return a single candidate
-// without checking existence; the caller reports missing files when it
-// stats them.
+// without checking existence; the caller reports missing files on stat.
 func debugLogFileMatches(ctx context.Context, root *os.Root, home string, requested string, maxMatches int) ([]string, bool, error) {
-	pattern, err := expandDebugLogFilePattern(home, requested)
+	rel, err := debugLogFileRelPattern(home, requested)
 	if err != nil {
 		return nil, false, err
-	}
-	rel, ok := homeRelativePath(home, pattern)
-	if !ok {
-		return nil, false, xerrors.Errorf("outside home")
 	}
 	if !strings.ContainsAny(rel, "*?{[") {
 		return []string{rel}, false, nil
@@ -272,8 +271,9 @@ func debugLogFileMatches(ctx context.Context, root *os.Root, home string, reques
 	return matches, matchesTruncated, nil
 }
 
-// debugLogFilesFS bounds a glob walk by the request context so a slow walk
-// over a large home directory stops once the request is canceled.
+// debugLogFilesFS cancels a glob walk once the request context ends. Only
+// Open is implemented; the fs.ReadDir and fs.Stat helpers fall back to it,
+// so every filesystem operation of the walk passes the context check.
 type debugLogFilesFS struct {
 	ctx  context.Context
 	fsys fs.FS
@@ -286,76 +286,33 @@ func (f debugLogFilesFS) Open(name string) (fs.File, error) {
 	return f.fsys.Open(name)
 }
 
-func (f debugLogFilesFS) ReadDir(name string) ([]fs.DirEntry, error) {
-	if err := f.ctx.Err(); err != nil {
-		return nil, err
+// debugLogFileRelPattern expands $HOME, ${HOME}, or ~ in requested and
+// returns it as a home-relative slash path. Relative paths are rejected,
+// and absolute paths must be lexically under home.
+func debugLogFileRelPattern(home string, requested string) (string, error) {
+	pattern := strings.TrimSpace(requested)
+	if pattern == "" {
+		return "", xerrors.New("empty path")
 	}
-	return fs.ReadDir(f.fsys, name)
-}
-
-func (f debugLogFilesFS) Stat(name string) (fs.FileInfo, error) {
-	if err := f.ctx.Err(); err != nil {
-		return nil, err
-	}
-	return fs.Stat(f.fsys, name)
-}
-
-func expandDebugLogFilePattern(home string, requested string) (string, error) {
-	trimmed := strings.TrimSpace(requested)
-	if trimmed == "" {
-		return "", xerrors.Errorf("empty path")
-	}
-
-	switch trimmed {
+	switch pattern {
 	case "$HOME", "${HOME}", "~":
-		return filepath.Clean(home), nil
-	}
-	for _, prefix := range []string{"$HOME/", "${HOME}/", "~/"} {
-		if rest, ok := strings.CutPrefix(trimmed, prefix); ok {
-			return filepath.Clean(filepath.Join(home, filepath.FromSlash(rest))), nil
+		pattern = home
+	default:
+		for _, prefix := range []string{"$HOME/", "${HOME}/", "~/"} {
+			if rest, ok := strings.CutPrefix(pattern, prefix); ok {
+				pattern = filepath.Join(home, filepath.FromSlash(rest))
+				break
+			}
+		}
+		if !filepath.IsAbs(pattern) {
+			return "", xerrors.New("relative path not allowed")
 		}
 	}
-	if filepath.IsAbs(trimmed) {
-		return filepath.Clean(trimmed), nil
+	rel, err := filepath.Rel(home, filepath.Clean(pattern))
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", xerrors.New("outside home")
 	}
-	return "", xerrors.Errorf("relative path not allowed")
-}
-
-// homeRelativePath returns filePath relative to home in slash form, and
-// false when filePath is not lexically under home.
-func homeRelativePath(home string, filePath string) (string, bool) {
-	rel, err := filepath.Rel(home, filePath)
-	if err != nil {
-		return "", false
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
-		return "", false
-	}
-	return filepath.ToSlash(rel), true
-}
-
-func writeDebugLogFilesManifestArchive(w io.Writer, manifest debugLogFilesManifest) error {
-	zw := zip.NewWriter(w)
-	if err := writeDebugLogFilesManifest(zw, manifest); err != nil {
-		return err
-	}
-	if err := zw.Close(); err != nil {
-		return xerrors.Errorf("close archive: %w", err)
-	}
-	return nil
-}
-
-func writeDebugLogFilesManifest(zw *zip.Writer, manifest debugLogFilesManifest) error {
-	mf, err := zw.Create("manifest.json")
-	if err != nil {
-		return xerrors.Errorf("create manifest in archive: %w", err)
-	}
-	enc := json.NewEncoder(mf)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(manifest); err != nil {
-		return xerrors.Errorf("write manifest: %w", err)
-	}
-	return nil
+	return filepath.ToSlash(rel), nil
 }
 
 // writeDebugLogFileEntry copies the last entry.BytesWritten bytes of the
@@ -376,16 +333,8 @@ func writeDebugLogFileEntry(root *os.Root, zw *zip.Writer, entry debugLogFileMan
 	if err != nil {
 		return xerrors.Errorf("create archive entry: %w", err)
 	}
-	if _, err := copyDebugLog(w, f, entry.BytesWritten); err != nil {
+	if _, err := io.Copy(w, io.LimitReader(f, entry.BytesWritten)); err != nil {
 		return xerrors.Errorf("copy file: %w", err)
 	}
 	return nil
-}
-
-func appendDebugLogFilesError(manifest *debugLogFilesManifest, requested string, filePath string, reason string) {
-	manifest.Errors = append(manifest.Errors, debugLogFileError{
-		Requested: requested,
-		Path:      filePath,
-		Reason:    reason,
-	})
 }

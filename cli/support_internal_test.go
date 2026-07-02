@@ -14,11 +14,10 @@ func TestSafeAgentLogFilesArchiveName(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		want string
 		ok   bool
 	}{
-		{name: "manifest.json", want: "manifest.json", ok: true},
-		{name: "files/server.log", want: "files/server.log", ok: true},
+		{name: "manifest.json", ok: true},
+		{name: "files/server.log", ok: true},
 		{name: "./files/server.log", ok: false},
 		{name: "../manifest.json", ok: false},
 		{name: "/manifest.json", ok: false},
@@ -33,7 +32,9 @@ func TestSafeAgentLogFilesArchiveName(t *testing.T) {
 
 			got, ok := safeAgentLogFilesArchiveName(tt.name)
 			require.Equal(t, tt.ok, ok)
-			require.Equal(t, tt.want, got)
+			if tt.ok {
+				require.Equal(t, tt.name, got)
+			}
 		})
 	}
 }
@@ -52,7 +53,7 @@ func TestWriteAgentLogFilesArchive(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentLogFilesArchive(agentArchive, bundleZip))
+		require.NoError(t, writeAgentLogFilesArchive(agentArchive, bundleZip, supportBundleAgentLogFilesMaxBytes))
 		require.NoError(t, bundleZip.Close())
 
 		entries := readBundleEntries(t, bundle.Bytes())
@@ -74,7 +75,7 @@ func TestWriteAgentLogFilesArchive(t *testing.T) {
 		bundleZip := zip.NewWriter(&bundle)
 		// A 4 byte budget fits small.log but not big.log. The oversized
 		// entry is dropped, but the bundle still succeeds and records why.
-		require.NoError(t, writeAgentLogFilesArchiveWithLimit(agentArchive, bundleZip, 4))
+		require.NoError(t, writeAgentLogFilesArchive(agentArchive, bundleZip, 4))
 		require.NoError(t, bundleZip.Close())
 
 		entries := readBundleEntries(t, bundle.Bytes())
@@ -90,7 +91,7 @@ func TestWriteAgentLogFilesArchive(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentLogFilesArchive([]byte("not a zip"), bundleZip))
+		require.NoError(t, writeAgentLogFilesArchive([]byte("not a zip"), bundleZip, supportBundleAgentLogFilesMaxBytes))
 		require.NoError(t, bundleZip.Close())
 
 		entries := readBundleEntries(t, bundle.Bytes())

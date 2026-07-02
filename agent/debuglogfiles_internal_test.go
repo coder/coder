@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -105,12 +106,9 @@ func TestCollectDebugLogFiles(t *testing.T) {
 		home := t.TempDir()
 		writeTestLogFile(t, home, "large.log", "0123456789")
 
-		entries := readDebugLogFilesArchive(t, collectDebugLogFilesForTest(t, home, []string{"$HOME/large.log"}, debugLogFilesLimits{
-			MaxFiles:        debugLogFilesMaxFiles,
-			MaxGlobMatches:  debugLogFilesMaxMatches,
-			MaxBytesPerFile: 4,
-			MaxTotalBytes:   debugLogFilesMaxTotal,
-		}))
+		limits := defaultDebugLogFilesLimits
+		limits.MaxBytesPerFile = 4
+		entries := readDebugLogFilesArchive(t, collectDebugLogFilesForTest(t, home, []string{"$HOME/large.log"}, limits))
 
 		require.Equal(t, "6789", string(entries.files["files/large.log"]))
 		require.Len(t, entries.manifest.Files, 1)
@@ -127,12 +125,11 @@ func TestCollectDebugLogFiles(t *testing.T) {
 		writeTestLogFile(t, home, "two.log", "2222")
 		writeTestLogFile(t, home, "three.log", "3333")
 
-		entries := readDebugLogFilesArchive(t, collectDebugLogFilesForTest(t, home, []string{"$HOME/*.log"}, debugLogFilesLimits{
-			MaxFiles:        1,
-			MaxGlobMatches:  2,
-			MaxBytesPerFile: debugLogFilesMaxBytes,
-			MaxTotalBytes:   3,
-		}))
+		limits := defaultDebugLogFilesLimits
+		limits.MaxFiles = 1
+		limits.MaxGlobMatches = 2
+		limits.MaxTotalBytes = 3
+		entries := readDebugLogFilesArchive(t, collectDebugLogFilesForTest(t, home, []string{"$HOME/*.log"}, limits))
 
 		require.Len(t, entries.files, 1)
 		require.True(t, entries.manifest.Truncated)
@@ -190,18 +187,13 @@ func TestHandleHTTPDebugLogFiles(t *testing.T) {
 func collectDebugLogFilesForTest(t *testing.T, home string, paths []string, limit ...debugLogFilesLimits) []byte {
 	t.Helper()
 
-	limits := debugLogFilesLimits{
-		MaxFiles:        debugLogFilesMaxFiles,
-		MaxGlobMatches:  debugLogFilesMaxMatches,
-		MaxBytesPerFile: debugLogFilesMaxBytes,
-		MaxTotalBytes:   debugLogFilesMaxTotal,
-	}
+	limits := defaultDebugLogFilesLimits
 	if len(limit) > 0 {
 		limits = limit[0]
 	}
 
 	var buf bytes.Buffer
-	err := collectDebugLogFilesWithLimits(t.Context(), slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), home, workspacesdk.DebugLogFilesRequest{Paths: paths}, &buf, limits)
+	err := collectDebugLogFiles(t.Context(), slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), home, workspacesdk.DebugLogFilesRequest{Paths: paths}, &buf, limits)
 	require.NoError(t, err)
 	return buf.Bytes()
 }
@@ -245,13 +237,9 @@ func requireDebugLogFilesManifestErrors(t *testing.T, errs []debugLogFileError, 
 	t.Helper()
 
 	for _, want := range contains {
-		found := false
-		for _, err := range errs {
-			if strings.Contains(err.Reason, want) {
-				found = true
-				break
-			}
-		}
+		found := slices.ContainsFunc(errs, func(e debugLogFileError) bool {
+			return strings.Contains(e.Reason, want)
+		})
 		require.Truef(t, found, "expected manifest error containing %q in %#v", want, errs)
 	}
 }
