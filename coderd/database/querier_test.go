@@ -12803,7 +12803,6 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		Compressed:          []bool{false},
 		TotalCostMicros:     []int64{0},
 		RuntimeMs:           []int64{0},
-		ProviderResponseID:  []string{""},
 	})
 	require.NoError(t, err)
 
@@ -14497,7 +14496,6 @@ func TestGetChatsFilter(t *testing.T) {
 			Compressed:          []bool{false},
 			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
-			ProviderResponseID:  []string{""},
 		})
 		require.NoError(t, err)
 	}
@@ -14742,7 +14740,6 @@ func TestChatHasUnread(t *testing.T) {
 			Compressed:          []bool{false},
 			TotalCostMicros:     []int64{0},
 			RuntimeMs:           []int64{0},
-			ProviderResponseID:  []string{""},
 		})
 		require.NoError(t, err)
 	}

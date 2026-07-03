@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -69,10 +68,9 @@ type PendingToolCall struct {
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
 type PersistedStep struct {
-	Content            []fantasy.Content
-	Usage              fantasy.Usage
-	ContextLimit       sql.NullInt64
-	ProviderResponseID string
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -162,10 +160,9 @@ type RunOptions struct {
 	)
 	// Callers should attach correlation fields (chat_id, owner_id, etc.)
 	// using Logger.With before passing the logger in.
-	Logger           slog.Logger
-	Compaction       *CompactionOptions
-	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
-	DisableChainMode func()
+	Logger         slog.Logger
+	Compaction     *CompactionOptions
+	ReloadMessages func(context.Context) ([]fantasy.Message, error)
 	// PrepareMessages is called at least once before each LLM step
 	// with the current message history. If it returns non-nil, the
 	// returned slice replaces messages for this and all subsequent
@@ -436,7 +433,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Content:              result.content,
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
-		ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:              opts.Clock.Since(stepStart),
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,

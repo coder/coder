@@ -6159,19 +6159,6 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
-const clearChatMessageProviderResponseIDsByChatID = `-- name: ClearChatMessageProviderResponseIDsByChatID :exec
-UPDATE chat_messages
-SET provider_response_id = NULL
-WHERE chat_id = $1::uuid
-    AND deleted = false
-    AND provider_response_id IS NOT NULL
-`
-
-func (q *sqlQuerier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, clearChatMessageProviderResponseIDsByChatID, chatID)
-	return err
-}
-
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
@@ -9723,8 +9710,7 @@ INSERT INTO chat_messages (
     context_limit,
     compressed,
     total_cost_micros,
-    runtime_ms,
-    provider_response_id
+    runtime_ms
 )
 SELECT
     $1::uuid,
@@ -9744,8 +9730,7 @@ SELECT
     NULLIF(UNNEST($15::bigint[]), 0),
     UNNEST($16::boolean[]),
     NULLIF(UNNEST($17::bigint[]), 0),
-    NULLIF(UNNEST($18::bigint[]), 0),
-    NULLIF(UNNEST($19::text[]), '')
+    NULLIF(UNNEST($18::bigint[]), 0)
 RETURNING
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision
 `
@@ -9769,7 +9754,6 @@ type InsertChatMessagesParams struct {
 	Compressed          []bool                  `db:"compressed" json:"compressed"`
 	TotalCostMicros     []int64                 `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
-	ProviderResponseID  []string                `db:"provider_response_id" json:"provider_response_id"`
 }
 
 func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
@@ -9792,7 +9776,6 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.Compressed),
 		pq.Array(arg.TotalCostMicros),
 		pq.Array(arg.RuntimeMs),
-		pq.Array(arg.ProviderResponseID),
 	)
 	if err != nil {
 		return nil, err

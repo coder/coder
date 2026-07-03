@@ -34,7 +34,6 @@ type Message struct {
 	ContextLimit        sql.NullInt64
 	TotalCostMicros     sql.NullInt64
 	RuntimeMs           sql.NullInt64
-	ProviderResponseID  sql.NullString
 	APIKeyID            sql.NullString
 }
 
@@ -65,7 +64,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		Compressed:          make([]bool, n),
 		TotalCostMicros:     make([]int64, n),
 		RuntimeMs:           make([]int64, n),
-		ProviderResponseID:  make([]string, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
@@ -93,9 +91,6 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.Compressed[i] = m.Compressed
 		params.TotalCostMicros[i] = nullInt64Or(m.TotalCostMicros, 0)
 		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
-		if m.ProviderResponseID.Valid {
-			params.ProviderResponseID[i] = m.ProviderResponseID.String
-		}
 	}
 	return params
 }

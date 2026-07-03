@@ -102,7 +102,6 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	followup := requests[1]
 	require.NotNil(t, followup.Store)
 	require.False(t, *followup.Store)
-	require.Nil(t, followup.PreviousResponseID)
 	require.NotEmpty(t, followup.Prompt)
 	requireNoResponsesProviderItemReplay(t, followup.Prompt, reasoningID, webSearchID)
 	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
@@ -190,15 +189,13 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	followup := requests[1]
 	require.NotNil(t, followup.Store)
 	require.True(t, *followup.Store)
-	require.Nil(t, followup.PreviousResponseID)
 	require.NotEmpty(t, followup.Prompt)
 	requirePromptItemReferenceOrder(t, followup.Prompt, reasoningID, webSearchID)
 }
 
 type recordedResponsesRequest struct {
-	Prompt             []interface{}
-	Store              *bool
-	PreviousResponseID *string
+	Prompt []interface{}
+	Store  *bool
 }
 
 type responsesRequestRecorder struct {
@@ -215,15 +212,9 @@ func (r *responsesRequestRecorder) record(req *chattest.OpenAIRequest) int {
 		value := *req.Store
 		store = &value
 	}
-	var previousResponseID *string
-	if req.PreviousResponseID != nil {
-		value := *req.PreviousResponseID
-		previousResponseID = &value
-	}
 	r.requests = append(r.requests, recordedResponsesRequest{
-		Prompt:             append([]interface{}(nil), req.Prompt...),
-		Store:              store,
-		PreviousResponseID: previousResponseID,
+		Prompt: append([]interface{}(nil), req.Prompt...),
+		Store:  store,
 	})
 	return len(r.requests)
 }

@@ -28,9 +28,8 @@ import (
 // generationPrepareInput contains the committed state used to prepare one
 // generation action.
 type generationPrepareInput struct {
-	Chat              database.Chat
-	Messages          []database.ChatMessage
-	ChainModeDisabled bool
+	Chat     database.Chat
+	Messages []database.ChatMessage
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -299,16 +298,14 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		return xerrors.New("chatworker: server is required")
 	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
-	chainModeDisabled := false
 	for {
 		locked, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
 		prepareInput := generationPrepareInput{
-			Chat:              locked,
-			Messages:          messages,
-			ChainModeDisabled: chainModeDisabled,
+			Chat:     locked,
+			Messages: messages,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)
@@ -398,12 +395,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					slog.F("error_kind", classified.Kind),
 					slog.F("provider", classified.Provider),
 					slog.F("status_code", classified.StatusCode),
-					slog.F("chain_broken", classified.ChainBroken),
 					slogError(actionErr),
 				)
-				if classified.ChainBroken {
-					chainModeDisabled = true
-				}
 				if err := s.waitGenerationRetry(ctx, decision.delay); err != nil {
 					return xerrors.Errorf("wait generation retry: %w", err)
 				}
@@ -1057,7 +1050,6 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Content:              step.Content,
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
-		ProviderResponseID:   step.ProviderResponseID,
 		Runtime:              step.Runtime,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,
 		ToolResultCreatedAt:  step.ToolResultCreatedAt,

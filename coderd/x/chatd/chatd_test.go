@@ -65,11 +65,10 @@ import (
 )
 
 type recordedOpenAIRequest struct {
-	Messages           []chattest.OpenAIMessage
-	Tools              []string
-	Store              *bool
-	PreviousResponseID *string
-	ContentLength      int64
+	Messages      []chattest.OpenAIMessage
+	Tools         []string
+	Store         *bool
+	ContentLength int64
 }
 
 func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
@@ -130,23 +129,16 @@ func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 		store = &value
 	}
 
-	var previousResponseID *string
-	if req.PreviousResponseID != nil {
-		value := *req.PreviousResponseID
-		previousResponseID = &value
-	}
-
 	var contentLength int64
 	if req.Request != nil {
 		contentLength = req.Request.ContentLength
 	}
 
 	return recordedOpenAIRequest{
-		Messages:           messages,
-		Tools:              tools,
-		Store:              store,
-		PreviousResponseID: previousResponseID,
-		ContentLength:      contentLength,
+		Messages:      messages,
+		Tools:         tools,
+		Store:         store,
+		ContentLength: contentLength,
 	}
 }
 
