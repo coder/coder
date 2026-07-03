@@ -160,9 +160,8 @@ type RunOptions struct {
 	)
 	// Callers should attach correlation fields (chat_id, owner_id, etc.)
 	// using Logger.With before passing the logger in.
-	Logger         slog.Logger
-	Compaction     *CompactionOptions
-	ReloadMessages func(context.Context) ([]fantasy.Message, error)
+	Logger     slog.Logger
+	Compaction *CompactionOptions
 	// PrepareMessages is called at least once before each LLM step
 	// with the current message history. If it returns non-nil, the
 	// returned slice replaces messages for this and all subsequent

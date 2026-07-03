@@ -20,8 +20,7 @@ import (
 // AgentChatContextSentinelPath is the canonical path of the synthetic empty
 // context-file part that legacy chats used to mark skill-only workspace-agent
 // context. New turns no longer emit it; it is retained as the canonical value
-// so historical-message handling and the chatopenai chain-mode tests stay in
-// sync.
+// for historical-message handling.
 const AgentChatContextSentinelPath = ".coder/agent-chat-context-sentinel"
 
 // contextBodyUnmarshalOptions reads the protojson resource bodies written by

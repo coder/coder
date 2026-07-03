@@ -3784,8 +3784,7 @@ func mergeTurnSkills(
 }
 
 // buildSystemPrompt applies system-level prompt injections in the
-// canonical order. It is used by both the initial prompt assembly
-// and the ReloadMessages callback to keep them in sync.
+// canonical order for the initial prompt assembly.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
