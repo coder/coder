@@ -158,7 +158,7 @@ func createChatThroughServer(
 		OrganizationID:     orgID,
 		OwnerID:            userID,
 		APIKeyID:           testAPIKeyID(t, db, userID),
-		Title:              "chain mode test",
+		Title:              "test chat",
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
 		ModelConfigID:      modelID,
 	})

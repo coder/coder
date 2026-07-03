@@ -62,11 +62,9 @@ type PendingToolCall struct {
 	Args       string
 }
 
-// PersistedStep contains the full content of a completed or
-// interrupted agent step. Content includes both assistant blocks
-// (text, reasoning, tool calls) and tool result blocks. The
-// persistence layer is responsible for splitting these into
-// separate database messages by role.
+// PersistedStep is the unit the persistence layer splits into role-separated
+// database messages. Content mixes assistant blocks (text, reasoning, tool
+// calls) and tool result blocks from one completed or interrupted agent step.
 type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage

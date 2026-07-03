@@ -43,9 +43,9 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
-	// Clone per invocation and reset inherited state so chatloop cannot
-	// mutate the Runtime's stored options across calls, and so the nested
-	// call never persists an orphan stored response on the provider side.
+	// Clone per invocation: resetProviderOptionsForNestedCall mutates the
+	// OpenAI Responses entry, and the Runtime's stored options must stay
+	// pristine across calls.
 	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
 	resetProviderOptionsForNestedCall(nestedProviderOptions)
 

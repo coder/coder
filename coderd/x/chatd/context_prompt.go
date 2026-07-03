@@ -17,10 +17,10 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// AgentChatContextSentinelPath is the canonical path of the synthetic empty
-// context-file part that legacy chats used to mark skill-only workspace-agent
-// context. New turns no longer emit it; it is retained as the canonical value
-// for historical-message handling.
+// AgentChatContextSentinelPath is the canonical value for interpreting
+// historical messages that mark skill-only workspace-agent context: legacy
+// chats emitted a synthetic empty context-file part at this path, and new
+// turns no longer do.
 const AgentChatContextSentinelPath = ".coder/agent-chat-context-sentinel"
 
 // contextBodyUnmarshalOptions reads the protojson resource bodies written by

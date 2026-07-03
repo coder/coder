@@ -5896,7 +5896,7 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	generationRequests := filterAnthropicStreamingRequests(requests.all())
 	require.Len(t, generationRequests, 2)
 	recovered := generationRequests[1]
-	require.True(t, strings.Contains(string(recovered.System), `"cache_control":{"type":"ephemeral"}`))
+	require.Contains(t, string(recovered.System), `"cache_control":{"type":"ephemeral"}`)
 	require.Len(t, recovered.Messages, 4)
 	require.False(t, anthropicMessageHasEphemeralCacheControl(t, recovered.Messages[0]))
 	require.False(t, anthropicMessageHasEphemeralCacheControl(t, recovered.Messages[1]))
@@ -12492,6 +12492,7 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 	}
 }
 
+// TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
 // provider-switch contract:
 //
 //  1. A turn using model MA (backed by provider A) produces a
