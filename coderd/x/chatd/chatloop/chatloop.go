@@ -162,15 +162,6 @@ type RunOptions struct {
 	// using Logger.With before passing the logger in.
 	Logger     slog.Logger
 	Compaction *CompactionOptions
-	// PrepareMessages is called at least once before each LLM step
-	// with the current message history. If it returns non-nil, the
-	// returned slice replaces messages for this and all subsequent
-	// steps.
-	// Used to inject system context that becomes available mid-loop
-	// (e.g. AGENTS.md after create_workspace).
-	// NOTE: It may be called more than once per step in case of a
-	// retry, so callbacks should avoid duplicating messages.
-	PrepareMessages func([]fantasy.Message) []fantasy.Message
 
 	// PrepareTools is called once before each LLM step with the
 	// current tool list. If it returns non-nil, the returned slice
@@ -576,11 +567,6 @@ func prepareMessagesForRequest(
 	totalSteps int,
 ) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
 	canonical = messages
-	if opts.PrepareMessages != nil {
-		if updated := opts.PrepareMessages(canonical); updated != nil {
-			canonical = updated
-		}
-	}
 	// Copy messages so provider-specific caching mutations don't leak
 	// back to the canonical message slice.
 	prompt = slices.Clone(canonical)

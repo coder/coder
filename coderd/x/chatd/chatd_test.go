@@ -5896,7 +5896,7 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	generationRequests := filterAnthropicStreamingRequests(requests.all())
 	require.Len(t, generationRequests, 2)
 	recovered := generationRequests[1]
-	require.True(t, anthropicSystemHasEphemeralCacheControl(t, recovered))
+	require.True(t, strings.Contains(string(recovered.System), `"cache_control":{"type":"ephemeral"}`))
 	require.Len(t, recovered.Messages, 4)
 	require.False(t, anthropicMessageHasEphemeralCacheControl(t, recovered.Messages[0]))
 	require.False(t, anthropicMessageHasEphemeralCacheControl(t, recovered.Messages[1]))
@@ -6907,7 +6907,7 @@ func TestActiveServer_AnthropicSanitizesProviderToolBeforeRequest(t *testing.T) 
 	require.NotContains(t, body, "web_search")
 	require.Contains(t, body, "partial")
 	require.Contains(t, body, "continue")
-	requireAnthropicRequestRedactedReasoning(t, generationRequests[1], "redacted-payload")
+	require.Contains(t, body, "redacted-payload")
 }
 
 func TestActiveServer_AnthropicProviderToolPreRequestGuard(t *testing.T) {

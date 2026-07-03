@@ -72,11 +72,6 @@ func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL stri
 	return user, org, model
 }
 
-func anthropicSystemHasEphemeralCacheControl(t *testing.T, req chattest.AnthropicRequest) bool {
-	t.Helper()
-	return strings.Contains(string(req.System), `"cache_control":{"type":"ephemeral"}`)
-}
-
 func anthropicMessageHasEphemeralCacheControl(t *testing.T, message chattest.AnthropicRequestMessage) bool {
 	t.Helper()
 	return strings.Contains(string(message.Content), `"cache_control":{"type":"ephemeral"}`)
@@ -111,13 +106,6 @@ func insertSystemTextMessage(
 	)
 	_, err = db.InsertChatMessages(ctx, params)
 	require.NoError(t, err)
-}
-
-func requireAnthropicRequestRedactedReasoning(t *testing.T, req chattest.AnthropicRequest, redactedData string) {
-	t.Helper()
-	body := anthropicRequestBody(t, req)
-	require.Contains(t, body, "redacted-payload")
-	require.Contains(t, body, redactedData)
 }
 
 func insertOrphanProviderToolCall(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, modelID uuid.UUID) {
