@@ -928,6 +928,9 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 // GetChatByIDForUpdate is the only protection against clobbering a title
 // that changed while the model call ran. The strict mock has no
 // UpdateChatByID expectation, so any persist attempt fails the test.
+// A skipped persist must also not publish a title_change event: the
+// concurrent writer already broadcast the fresher title, and re-publishing
+// the re-read row could deliver a stale title after an even newer rename.
 func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing.T) {
 	t.Parallel()
 
@@ -964,6 +967,17 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	// model call was in flight.
 	landedChat := chat
 	landedChat.Title = "landed-concurrently"
+
+	titleEvents := make(chan codersdk.ChatWatchEvent, 1)
+	cancelSub, err := pubsub.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(ownerID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
+			require.NoError(t, err)
+			titleEvents <- payload
+		}),
+	)
+	require.NoError(t, err)
+	defer cancelSub()
 
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requireOutgoingRequestModel(t, req, modelConfig.Model)
@@ -1042,6 +1056,15 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	require.NoError(t, err)
 	require.Equal(t, landedChat.Title, gotChat.Title,
 		"the concurrently landed title must survive; the generated title must not be persisted")
+
+	// The in-memory pubsub delivers synchronously, so any event published
+	// during RegenerateChatTitle is already buffered by now.
+	select {
+	case event := <-titleEvents:
+		t.Fatalf("unexpected %s event published for skipped regeneration (title %q)",
+			event.Kind, event.Chat.Title)
+	default:
+	}
 }
 
 func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {

@@ -2247,7 +2247,7 @@ func (p *Server) recordManualTitleGenerationFailure(
 		5*time.Second,
 	)
 	defer recordCancel()
-	if _, recordErr := recordManualTitleUsage(
+	if _, _, recordErr := recordManualTitleUsage(
 		recordCtx,
 		p.db,
 		chat,
@@ -2372,7 +2372,7 @@ func (p *Server) proposeChatTitleWithStore(
 
 	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer recordCancel()
-	if _, recordErr := recordManualTitleUsage(
+	if _, _, recordErr := recordManualTitleUsage(
 		recordCtx,
 		store,
 		chat,
@@ -2402,7 +2402,7 @@ func (p *Server) regenerateChatTitleWithStore(
 	recordCtx, recordCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer recordCancel()
 
-	updatedChat, recordErr := recordManualTitleUsage(
+	updatedChat, wroteTitle, recordErr := recordManualTitleUsage(
 		recordCtx,
 		store,
 		chat,
@@ -2417,7 +2417,11 @@ func (p *Server) regenerateChatTitleWithStore(
 		}
 		return database.Chat{}, xerrors.Errorf("record manual title usage: %w", recordErr)
 	}
-	if updatedChat.Title == chat.Title {
+	// Publish only when this regeneration wrote the title. When a
+	// concurrent rename won the race, the rename path already published
+	// the fresher title; re-publishing the re-read row here could
+	// deliver a stale title_change after an even newer rename.
+	if !wroteTitle {
 		return updatedChat, nil
 	}
 
@@ -2741,6 +2745,12 @@ func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsa
 	return chatUsage
 }
 
+// recordManualTitleUsage stores token accounting for a manual title
+// generation and, when newTitle is set, persists it only if the chat
+// title still matches the caller's snapshot. The returned bool reports
+// whether the title was actually written; it is false when a concurrent
+// writer changed the title first or when newTitle matches the current
+// title.
 func recordManualTitleUsage(
 	ctx context.Context,
 	store database.Store,
@@ -2749,10 +2759,10 @@ func recordManualTitleUsage(
 	usage fantasy.Usage,
 	activeAPIKeyID string,
 	newTitle string,
-) (database.Chat, error) {
+) (database.Chat, bool, error) {
 	hasUsage := usage != (fantasy.Usage{})
 	if !hasUsage && newTitle == "" {
-		return chat, nil
+		return chat, false, nil
 	}
 
 	var totalCostMicros *int64
@@ -2760,7 +2770,7 @@ func recordManualTitleUsage(
 		callConfig := codersdk.ChatModelCallConfig{}
 		if len(modelConfig.Options) > 0 {
 			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-				return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
+				return database.Chat{}, false, xerrors.Errorf("parse model call config: %w", err)
 			}
 		}
 		totalCostMicros = chatcost.CalculateTotalCostMicros(
@@ -2776,12 +2786,14 @@ func recordManualTitleUsage(
 	content := "[]"
 
 	updatedChat := chat
+	wroteTitle := false
 	err := store.InTx(func(tx database.Store) error {
 		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("lock chat for manual title usage: %w", err)
 		}
 		updatedChat = lockedChat
+		wroteTitle = false
 		if hasUsage {
 			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 				ChatID:              chat.ID,
@@ -2830,13 +2842,14 @@ func recordManualTitleUsage(
 			if err != nil {
 				return xerrors.Errorf("update chat title: %w", err)
 			}
+			wroteTitle = true
 		}
 		return nil
 	}, nil)
 	if err != nil {
-		return database.Chat{}, err
+		return database.Chat{}, false, err
 	}
-	return updatedChat, nil
+	return updatedChat, wroteTitle, nil
 }
 
 type chatMessage struct {
