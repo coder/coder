@@ -44,6 +44,8 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Title: Fix duplicate key error in coderd migrations\n\n" +
 	"Message: review PR #123 in acme/webapp and flag risky changes\n" +
 	"Title: Review risky changes in PR #123\n\n" +
+	"Message: corrige el error de compilación en main.go\n" +
+	"Title: Corregir error de compilación en main.go\n\n" +
 	"Message: help\n" +
 	"Title: Help request"
 
