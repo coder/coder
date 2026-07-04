@@ -47,11 +47,10 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Message: help\n" +
 	"Title: Help request"
 
-// quickgenTemperature pins title and status-label generation to
-// temperature 0 so repeated runs over the same input produce stable
-// output. Fantasy providers drop the setting with a call warning for
-// models that reject it (OpenAI reasoning models, Anthropic thinking
-// models).
+// quickgenTemperature keeps title and status-label output stable
+// across repeated runs over the same input. Fantasy providers drop
+// this with a call warning for models that reject it (OpenAI
+// reasoning models, Anthropic thinking models).
 const quickgenTemperature = 0.0
 
 const (

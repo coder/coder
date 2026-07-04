@@ -789,6 +789,8 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 
 		body := testutil.TryReceive(t.Context(), t, requests)
 		require.Equal(t, "required", body["tool_choice"])
+		require.Equal(t, quickgenTemperature, body["temperature"],
+			"status-label generation should pin temperature for repeatable output")
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {
