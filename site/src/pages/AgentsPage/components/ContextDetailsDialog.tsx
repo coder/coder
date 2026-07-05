@@ -157,6 +157,30 @@ const TreeLeaf: FC<{
 	);
 };
 
+// Render a section's directory groups: items without a parent directory
+// render as top-level leaves, while grouped items nest under a collapsible
+// directory branch so resources pulled from different roots (for example a
+// repo-root AGENTS.md and a nested one) stay distinguishable.
+const renderDirectoryGroups = <T,>(
+	groups: readonly { readonly dir: string; readonly items: readonly T[] }[],
+	renderItem: (item: T) => ReactNode,
+): ReactNode =>
+	groups.map((group) =>
+		group.dir === "" ? (
+			group.items.map((item) => renderItem(item))
+		) : (
+			<TreeBranch
+				key={group.dir}
+				className="text-content-secondary"
+				icon={<FolderIcon className="size-3 shrink-0" />}
+				label={group.dir}
+				title={group.dir}
+			>
+				{group.items.map((item) => renderItem(item))}
+			</TreeBranch>
+		),
+	);
+
 // Full listing of the chat's pinned context resources, opened from the
 // compact context usage popover. Sections, directory groups, and MCP servers
 // are collapsible and default to expanded.
@@ -171,24 +195,17 @@ export const ContextDetailsDialog: FC<{
 	const isDirty = context?.dirty ?? false;
 	const contextError = context?.error ?? "";
 	const {
-		fileItems,
 		fileGroups,
 		fileBytes,
-		skillItems,
 		skillGroups,
 		skillBytes,
 		mcpConfigItems,
 		mcpServerItems,
 		mcpBytes,
 		issueItems,
+		hasResources,
 	} = normalizeContextResources(context?.resources);
 	const compactionThreshold = getCompactionThresholdPercent(usage);
-	const hasList =
-		fileItems.length > 0 ||
-		skillItems.length > 0 ||
-		mcpConfigItems.length > 0 ||
-		mcpServerItems.length > 0 ||
-		issueItems.length > 0;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -202,10 +219,10 @@ export const ContextDetailsDialog: FC<{
 					</DialogDescription>
 				</DialogHeader>
 				<div className="max-h-[60vh] overflow-y-auto">
-					{hasList ? (
+					{hasResources ? (
 						<TooltipProvider delayDuration={300}>
 							<div className="flex flex-col gap-1">
-								{fileItems.length > 0 && (
+								{fileGroups.length > 0 && (
 									<TreeBranch
 										className="font-medium"
 										label={
@@ -215,38 +232,17 @@ export const ContextDetailsDialog: FC<{
 											</>
 										}
 									>
-										{fileGroups.map((group) =>
-											group.dir === "" ? (
-												group.items.map((file) => (
-													<TreeLeaf
-														key={file.path}
-														icon={<FileIcon className="size-3 shrink-0" />}
-														label={getPathBasename(file.path)}
-														title={file.path}
-													/>
-												))
-											) : (
-												<TreeBranch
-													key={group.dir}
-													className="text-content-secondary"
-													icon={<FolderIcon className="size-3 shrink-0" />}
-													label={group.dir}
-													title={group.dir}
-												>
-													{group.items.map((file) => (
-														<TreeLeaf
-															key={file.path}
-															icon={<FileIcon className="size-3 shrink-0" />}
-															label={getPathBasename(file.path)}
-															title={file.path}
-														/>
-													))}
-												</TreeBranch>
-											),
-										)}
+										{renderDirectoryGroups(fileGroups, (file) => (
+											<TreeLeaf
+												key={file.path}
+												icon={<FileIcon className="size-3 shrink-0" />}
+												label={getPathBasename(file.path)}
+												title={file.path}
+											/>
+										))}
 									</TreeBranch>
 								)}
-								{skillItems.length > 0 && (
+								{skillGroups.length > 0 && (
 									<TreeBranch
 										className="font-medium"
 										label={
@@ -256,37 +252,15 @@ export const ContextDetailsDialog: FC<{
 											</>
 										}
 									>
-										{skillGroups.map((group) =>
-											group.dir === "" ? (
-												group.items.map((skill) => (
-													<TreeLeaf
-														key={skill.source}
-														icon={<ZapIcon className="size-3 shrink-0" />}
-														label={skill.name}
-														title={skill.source}
-														description={skill.description}
-													/>
-												))
-											) : (
-												<TreeBranch
-													key={group.dir}
-													className="text-content-secondary"
-													icon={<FolderIcon className="size-3 shrink-0" />}
-													label={group.dir}
-													title={group.dir}
-												>
-													{group.items.map((skill) => (
-														<TreeLeaf
-															key={skill.source}
-															icon={<ZapIcon className="size-3 shrink-0" />}
-															label={skill.name}
-															title={skill.source}
-															description={skill.description}
-														/>
-													))}
-												</TreeBranch>
-											),
-										)}
+										{renderDirectoryGroups(skillGroups, (skill) => (
+											<TreeLeaf
+												key={skill.source}
+												icon={<ZapIcon className="size-3 shrink-0" />}
+												label={skill.name}
+												title={skill.source}
+												description={skill.description}
+											/>
+										))}
 									</TreeBranch>
 								)}
 								{(mcpConfigItems.length > 0 || mcpServerItems.length > 0) && (

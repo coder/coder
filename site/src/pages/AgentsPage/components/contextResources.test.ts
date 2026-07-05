@@ -77,6 +77,7 @@ describe("normalizeContextResources", () => {
 		expect(normalized.mcpServerItems).toEqual([]);
 		expect(normalized.mcpToolCount).toBe(0);
 		expect(normalized.issueItems).toEqual([]);
+		expect(normalized.hasResources).toBe(false);
 	});
 
 	it("normalizes files, skills, and MCP entries from ok resources only", () => {
@@ -105,6 +106,7 @@ describe("normalizeContextResources", () => {
 			},
 		]);
 		expect(normalized.mcpToolCount).toBe(2);
+		expect(normalized.hasResources).toBe(true);
 	});
 
 	it("groups files and skills by directory in first-seen order", () => {

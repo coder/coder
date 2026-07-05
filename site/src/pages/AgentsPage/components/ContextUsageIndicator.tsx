@@ -89,7 +89,7 @@ export const ContextUsageIndicator: FC<{
 		setOpen(nextOpen);
 	};
 
-	const percentUsed = getPercentUsed(usage ?? null);
+	const percentUsed = getPercentUsed(usage);
 	const hasPercent = percentUsed !== null;
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
@@ -97,7 +97,7 @@ export const ContextUsageIndicator: FC<{
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 100;
 	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const compactionThreshold = getCompactionThresholdPercent(usage ?? null);
+	const compactionThreshold = getCompactionThresholdPercent(usage);
 
 	const context = usage?.context;
 	const isDirty = context?.dirty ?? false;
@@ -111,6 +111,7 @@ export const ContextUsageIndicator: FC<{
 		mcpServerItems,
 		mcpToolCount,
 		issueItems,
+		hasResources,
 	} = normalizeContextResources(context?.resources);
 
 	// Compact count summaries. Zero-count segments are omitted, and the "MCP"
@@ -140,14 +141,7 @@ export const ContextUsageIndicator: FC<{
 
 	// Whether the details dialog has anything to show. When false, the link
 	// row is hidden and clicking the ring is a no-op.
-	const hasDetails =
-		fileItems.length > 0 ||
-		skillItems.length > 0 ||
-		mcpConfigItems.length > 0 ||
-		mcpServerItems.length > 0 ||
-		issueItems.length > 0 ||
-		isDirty ||
-		hasContextError;
+	const hasDetails = hasResources || isDirty || hasContextError;
 
 	const openDetails = () => {
 		if (!hasDetails) {
@@ -173,7 +167,7 @@ export const ContextUsageIndicator: FC<{
 
 	const panelContent = (
 		<div className="text-xs text-content-primary">
-			{formatContextUsageLine(usage ?? null)}
+			{formatContextUsageLine(usage)}
 			{compactionThreshold !== null && (
 				<div className="mt-1 text-content-secondary">
 					{`Compacts at ${compactionThreshold}%`}

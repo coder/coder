@@ -153,7 +153,6 @@ type DirectoryGroup<T> = {
 const groupByDirectory = <T extends { readonly dir: string }>(
 	items: readonly T[],
 ): readonly DirectoryGroup<T>[] => {
-	const order: string[] = [];
 	const byDir = new Map<string, T[]>();
 	for (const item of items) {
 		const existing = byDir.get(item.dir);
@@ -161,10 +160,9 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 			existing.push(item);
 		} else {
 			byDir.set(item.dir, [item]);
-			order.push(item.dir);
 		}
 	}
-	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
+	return [...byDir.entries()].map(([dir, items]) => ({ dir, items }));
 };
 
 interface NormalizedContextResources {
@@ -179,6 +177,8 @@ interface NormalizedContextResources {
 	readonly mcpToolCount: number;
 	readonly mcpBytes: number;
 	readonly issueItems: readonly ContextIssueItem[];
+	// Whether any entry (including issues) exists to show in a full listing.
+	readonly hasResources: boolean;
 }
 
 // Normalize the chat's pinned context resources into the display entries the
@@ -196,8 +196,8 @@ export const normalizeContextResources = (
 			path: resource.source,
 			dir: getPathDirname(resource.source),
 		}))
-		// Drop entries with no usable path so an empty marker never renders as a
-		// nameless "Context files" row.
+		// Drop entries with no usable path or name (here and below) so an empty
+		// marker never renders as a blank row.
 		.filter((file) => file.path.trim().length > 0);
 	const skillItems: readonly ContextSkillItem[] = pinned
 		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
@@ -207,8 +207,6 @@ export const normalizeContextResources = (
 			description: resource.skill_description,
 			dir: getPathDirname(resource.source),
 		}))
-		// Drop entries with no usable name so an empty skill marker never renders
-		// as a blank row.
 		.filter((skill) => skill.name.trim().length > 0);
 	// MCP configs are shown by their full path so multiple .mcp.json files
 	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated; servers
@@ -228,8 +226,6 @@ export const normalizeContextResources = (
 			source: resource.source,
 			tools: resource.tools ?? [],
 		}))
-		// Drop entries with no usable name so an empty MCP marker never renders
-		// as a blank row.
 		.filter((server) => server.name.trim().length > 0);
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
@@ -250,8 +246,6 @@ export const normalizeContextResources = (
 
 	return {
 		fileItems,
-		// Group files and skills by directory so every context root is labeled,
-		// keeping resources pulled from different directories distinguishable.
 		fileGroups: groupByDirectory(fileItems),
 		fileBytes: sumResourceBytes(pinned, ["instruction_file"]),
 		skillItems,
@@ -265,5 +259,11 @@ export const normalizeContextResources = (
 		),
 		mcpBytes: sumResourceBytes(pinned, ["mcp_config", "mcp_server"]),
 		issueItems,
+		hasResources:
+			fileItems.length > 0 ||
+			skillItems.length > 0 ||
+			mcpConfigItems.length > 0 ||
+			mcpServerItems.length > 0 ||
+			issueItems.length > 0,
 	};
 };
