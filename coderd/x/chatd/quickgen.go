@@ -41,9 +41,9 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Message: how do I set up SSO with Okta?\n" +
 	"Title: Set up SSO with Okta\n\n" +
 	"Message: getting `pq: duplicate key value violates unique constraint` when running migrations in coderd\n" +
-	"Title: Fix duplicate key error in coderd migrations\n\n" +
+	"Title: Fix pq duplicate key violation in coderd migrations\n\n" +
 	"Message: review PR #123 in acme/webapp and flag risky changes\n" +
-	"Title: Review risky changes in PR #123\n\n" +
+	"Title: Review risky changes in acme/webapp PR #123\n\n" +
 	"Message: corrige el error de compilación en main.go\n" +
 	"Title: Corregir error de compilación en main.go\n\n" +
 	"Message: help\n" +
