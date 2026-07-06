@@ -2850,9 +2850,12 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 }
 
 // TestRecordToolUsageProviderItemID exercises the RecordToolUsage RPC against a
-// real database and confirms that the item_id (the Responses output item's
-// unique id) is persisted independently of the tool_call_id correlation key,
-// including the hosted-tool case where only item_id is present.
+// real database and confirms that provider_item_id is persisted in its own
+// column for both shapes of Responses-API tool call. Agentic tools carry both
+// an item id and a tool_call_id; hosted tools (e.g. web_search_call) carry only
+// an item id. The hosted case is the important one: it proves the item id is
+// stored even when tool_call_id is absent, so persistence is not gated on the
+// tool_call_id being present, and the two ids are written to their own columns.
 func TestRecordToolUsageProviderItemID(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
@@ -2908,13 +2911,15 @@ func TestRecordToolUsageProviderItemID(t *testing.T) {
 		byItemID[u.ProviderItemID.String] = u
 	}
 
+	// Agentic tool: item id and tool_call_id land in their own columns.
 	agentic, ok := byItemID["fc_item_1"]
 	require.True(t, ok, "agentic tool usage persisted by item ID")
 	require.Equal(t, sql.NullString{String: "call_agentic", Valid: true}, agentic.ProviderToolCallID)
 
+	// Hosted tool: item id is persisted even though the tool_call_id is empty.
 	hosted, ok := byItemID["ws_item_1"]
 	require.True(t, ok, "hosted tool usage persisted by item ID")
-	require.Equal(t, sql.NullString{}, hosted.ProviderToolCallID, "hosted tool has no correlation ID")
+	require.Equal(t, sql.NullString{}, hosted.ProviderToolCallID, "hosted tool has no tool_call_id")
 }
 
 // TestGetAIProviders exercises the row-to-proto mapping over a real database:
