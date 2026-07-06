@@ -610,8 +610,9 @@ const ChatMessageInput = ({
 		: skillsQuery.isSuccess &&
 			!skillsQuery.isFetching &&
 			personalSkills.length === 0;
-	// Resolved-empty suppresses the menu; filtered-empty keeps it open for
-	// the no-match message.
+	// When the loaded skills list is empty, "/" is plain text. When only
+	// the filtered result is empty, keep the menu open for the no-match
+	// message.
 	const skillsMenuOpen = hasSkillsTrigger && !isResolvedEmptySkillsList;
 	const filteredPersonalSkills = skillsTrigger
 		? filterPersonalSkills(personalSkills, skillsTrigger.query)
