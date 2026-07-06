@@ -234,6 +234,31 @@ server, as demonstrated in the example below:
 With these steps, you'll have the Coder documentation hosted on your server and
 accessible for your team to use.
 
+## Template builder
+
+The template builder requires outbound access to `registry.coder.com` for
+`terraform init` to resolve module sources at template composition time.
+
+For fully air-gapped deployments, disable the template builder:
+
+```sh
+CODER_DISABLE_TEMPLATE_BUILDER=true
+```
+
+When the builder is disabled, template creation falls back to the standard
+upload and CLI workflows. The **New Template** button on the **Templates** page
+links to the starter templates page instead of the builder.
+
+For deployments using a self-hosted module registry mirror, set the registry URL
+instead of disabling the builder:
+
+```sh
+CODER_TEMPLATE_BUILDER_REGISTRY_URL=registry.internal.example.com
+```
+
+This makes the builder generate module source paths pointing at your mirror
+rather than `registry.coder.com`.
+
 ## Coder Modules
 
 To use Coder modules in offline installations, you can either:
