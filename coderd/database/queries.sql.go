@@ -13743,7 +13743,7 @@ SELECT COUNT(*) AS count FROM (
 				(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 				($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
 				-- Exclude web events, since we don't know their close time.
-				"type" NOT IN ('workspace_app', 'port_forwarding')
+				"type" NOT IN ('workspace_app', 'port_forwarding', 'tailnet')
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in
@@ -13937,7 +13937,7 @@ WHERE
 			(($13 = 'ongoing' AND disconnect_time IS NULL) OR
 			($13 = 'completed' AND disconnect_time IS NOT NULL)) AND
 			-- Exclude web events, since we don't know their close time.
-			"type" NOT IN ('workspace_app', 'port_forwarding')
+			"type" NOT IN ('workspace_app', 'port_forwarding', 'tailnet')
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in

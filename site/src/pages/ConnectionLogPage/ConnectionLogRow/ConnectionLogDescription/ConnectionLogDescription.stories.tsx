@@ -95,6 +95,15 @@ export const JetBrains: Story = {
 	},
 };
 
+export const Tailnet: Story = {
+	args: {
+		connectionLog: {
+			...MockWebConnectionLog,
+			type: "tailnet",
+		},
+	},
+};
+
 export const WebTerminal: Story = {
 	args: {
 		connectionLog: {
