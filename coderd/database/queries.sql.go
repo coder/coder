@@ -571,7 +571,7 @@ func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) err
 
 const getAIProviderByID = `-- name: GetAIProviderByID :one
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 FROM
     ai_providers
 WHERE
@@ -593,13 +593,14 @@ func (q *sqlQuerier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIPro
 		&i.SettingsKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getAIProviderByIDForReferenceLock = `-- name: GetAIProviderByIDForReferenceLock :one
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 FROM
     ai_providers
 WHERE
@@ -625,13 +626,14 @@ func (q *sqlQuerier) GetAIProviderByIDForReferenceLock(ctx context.Context, id u
 		&i.SettingsKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getAIProviderByName = `-- name: GetAIProviderByName :one
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 FROM
     ai_providers
 WHERE
@@ -653,13 +655,14 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 		&i.SettingsKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
 
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 FROM
     ai_providers
 WHERE
@@ -697,6 +700,7 @@ func (q *sqlQuerier) GetAIProviders(ctx context.Context, arg GetAIProvidersParam
 			&i.SettingsKeyID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Icon,
 		); err != nil {
 			return nil, err
 		}
@@ -717,6 +721,7 @@ INSERT INTO ai_providers (
     type,
     name,
     display_name,
+    icon,
     enabled,
     base_url,
     settings,
@@ -726,13 +731,14 @@ INSERT INTO ai_providers (
     $2::ai_provider_type,
     $3::text,
     $4::text,
-    $5::boolean,
-    $6::text,
+    $5::text,
+    $6::boolean,
     $7::text,
-    $8::text
+    $8::text,
+    $9::text
 )
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 `
 
 type InsertAIProviderParams struct {
@@ -740,6 +746,7 @@ type InsertAIProviderParams struct {
 	Type          AIProviderType `db:"type" json:"type"`
 	Name          string         `db:"name" json:"name"`
 	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
+	Icon          string         `db:"icon" json:"icon"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
 	Settings      sql.NullString `db:"settings" json:"settings"`
@@ -752,6 +759,7 @@ func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderP
 		arg.Type,
 		arg.Name,
 		arg.DisplayName,
+		arg.Icon,
 		arg.Enabled,
 		arg.BaseUrl,
 		arg.Settings,
@@ -770,6 +778,7 @@ func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderP
 		&i.SettingsKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -780,20 +789,22 @@ UPDATE
 SET
     type = $1::ai_provider_type,
     display_name = $2::text,
-    enabled = $3::boolean,
-    base_url = $4::text,
-    settings = $5::text,
-    settings_key_id = $6::text,
+    icon = $3::text,
+    enabled = $4::boolean,
+    base_url = $5::text,
+    settings = $6::text,
+    settings_key_id = $7::text,
     updated_at = NOW()
 WHERE
-    id = $7::uuid AND deleted = FALSE
+    id = $8::uuid AND deleted = FALSE
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 `
 
 type UpdateAIProviderParams struct {
 	Type          AIProviderType `db:"type" json:"type"`
 	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
+	Icon          string         `db:"icon" json:"icon"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
 	Settings      sql.NullString `db:"settings" json:"settings"`
@@ -805,6 +816,7 @@ func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderP
 	row := q.db.QueryRowContext(ctx, updateAIProvider,
 		arg.Type,
 		arg.DisplayName,
+		arg.Icon,
 		arg.Enabled,
 		arg.BaseUrl,
 		arg.Settings,
@@ -824,6 +836,7 @@ func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderP
 		&i.SettingsKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }
@@ -838,7 +851,7 @@ SET
 WHERE
     id = $3::uuid
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon
 `
 
 type UpdateEncryptedAIProviderSettingsParams struct {
@@ -866,6 +879,7 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg 
 		&i.SettingsKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Icon,
 	)
 	return i, err
 }

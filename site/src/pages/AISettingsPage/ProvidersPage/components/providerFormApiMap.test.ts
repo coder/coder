@@ -25,6 +25,7 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	type: "openai",
 	name: "primary-openai",
 	displayName: "Primary OpenAI",
+	icon: "",
 	baseUrl: "https://api.openai.com",
 	model: "",
 	smallFastModel: "",
@@ -39,6 +40,7 @@ const baseBedrockFormValues: ProviderFormValues = {
 	type: "bedrock",
 	name: "primary-bedrock",
 	displayName: "Primary Bedrock",
+	icon: "",
 	baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
 	model: "anthropic.claude-sonnet-4-5",
 	smallFastModel: "anthropic.claude-haiku-4-5",
@@ -53,6 +55,7 @@ const baseCopilotFormValues: ProviderFormValues = {
 	type: "copilot",
 	name: "copilot",
 	displayName: "GitHub Copilot",
+	icon: "",
 	baseUrl: "https://api.business.githubcopilot.com",
 	model: "",
 	smallFastModel: "",
@@ -319,6 +322,22 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.display_name).toBeUndefined();
 		});
 
+		it("trims and sends icon when provided", () => {
+			const req = providerFormValuesToCreate({
+				...baseOpenAIFormValues,
+				icon: "  https://example.com/openai.svg  ",
+			});
+			expect(req.icon).toBe("https://example.com/openai.svg");
+		});
+
+		it("omits icon when blank", () => {
+			const req = providerFormValuesToCreate({
+				...baseOpenAIFormValues,
+				icon: "   ",
+			});
+			expect(req.icon).toBeUndefined();
+		});
+
 		it("trims whitespace from name and baseUrl", () => {
 			const req = providerFormValuesToCreate({
 				...baseOpenAIFormValues,
@@ -543,6 +562,14 @@ describe("providerFormValuesToUpdate", () => {
 			);
 			expect(req.api_keys).toEqual([]);
 		});
+
+		it("sends a trimmed icon so blank clears the stored icon", () => {
+			const req = providerFormValuesToUpdate(
+				{ ...baseOpenAIFormValues, icon: "   " },
+				MockAIProviderOpenAI,
+			);
+			expect(req.icon).toBe("");
+		});
 	});
 
 	describe("Bedrock", () => {
@@ -664,10 +691,14 @@ describe("providerFormValuesToUpdate", () => {
 
 describe("aiProviderToFormValues", () => {
 	it("seeds OpenAI form values from a wire provider", () => {
-		const values = aiProviderToFormValues(MockAIProviderOpenAI);
+		const values = aiProviderToFormValues({
+			...MockAIProviderOpenAI,
+			icon: "https://example.com/openai.svg",
+		});
 		expect(values.type).toBe("openai");
 		expect(values.name).toBe(MockAIProviderOpenAI.name);
 		expect(values.baseUrl).toBe(MockAIProviderOpenAI.base_url);
+		expect(values.icon).toBe("https://example.com/openai.svg");
 		expect(values.apiKey).toBe("");
 	});
 

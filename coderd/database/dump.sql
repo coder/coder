@@ -1495,6 +1495,7 @@ CREATE TABLE ai_providers (
     settings_key_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    icon text DEFAULT ''::text NOT NULL,
     CONSTRAINT ai_providers_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
 );
 
@@ -1507,6 +1508,8 @@ COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows a
 COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
 
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
+
+COMMENT ON COLUMN ai_providers.icon IS 'Optional icon URL for display in provider lists and model pickers.';
 
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,

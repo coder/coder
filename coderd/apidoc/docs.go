@@ -15306,6 +15306,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "icon": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -18105,6 +18108,9 @@ const docTemplate = `{
                 },
                 "enabled": {
                     "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -24841,6 +24847,9 @@ const docTemplate = `{
                 },
                 "enabled": {
                     "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
                 },
                 "settings": {
                     "$ref": "#/definitions/codersdk.AIProviderSettings"

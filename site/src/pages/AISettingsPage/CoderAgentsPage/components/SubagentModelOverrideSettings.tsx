@@ -6,6 +6,7 @@ import { useTemporarySavedState } from "#/components/TemporarySavedState/Tempora
 import type { ModelSelectorOption } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
 import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
 import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
+import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { AgentSettingLayout } from "./AgentSettingLayout";
 
 export interface MutationCallbacks {
@@ -27,7 +28,7 @@ interface SubagentModelOverrideSettingsProps {
 	description?: ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModelConfigs: readonly TypesGen.ChatModelConfig[];
-	providerTypeByID: ReadonlyMap<string, string>;
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelConfigsError: unknown;
 	isLoading: boolean;
 	onSaveModelOverride: (
@@ -44,14 +45,20 @@ interface SubagentModelOverrideSettingsProps {
 
 const toModelSelectorOption = (
 	modelConfig: TypesGen.ChatModelConfig,
-	providerTypeByID: ReadonlyMap<string, string>,
-): ModelSelectorOption => ({
-	id: modelConfig.id,
-	provider: providerTypeByID.get(modelConfig.ai_provider_id) ?? "",
-	model: modelConfig.model,
-	displayName: modelConfig.display_name.trim() || modelConfig.model,
-	contextLimit: modelConfig.context_limit,
-});
+	providerInfoByID: SubagentModelOverrideSettingsProps["providerInfoByID"],
+): ModelSelectorOption => {
+	const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+	return {
+		id: modelConfig.id,
+		provider: providerInfo?.provider ?? "",
+		providerId: modelConfig.ai_provider_id,
+		providerLabel: providerInfo?.displayName,
+		providerIcon: providerInfo?.icon,
+		model: modelConfig.model,
+		displayName: modelConfig.display_name.trim() || modelConfig.model,
+		contextLimit: modelConfig.context_limit,
+	};
+};
 
 export const SubagentModelOverrideSettings: FC<
 	SubagentModelOverrideSettingsProps
@@ -60,7 +67,7 @@ export const SubagentModelOverrideSettings: FC<
 	description,
 	modelOverrideData,
 	enabledModelConfigs,
-	providerTypeByID,
+	providerInfoByID,
 	modelConfigsError,
 	isLoading,
 	onSaveModelOverride,
@@ -75,7 +82,7 @@ export const SubagentModelOverrideSettings: FC<
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
 	const enabledModelOptions = enabledModelConfigs.map((modelConfig) =>
-		toModelSelectorOption(modelConfig, providerTypeByID),
+		toModelSelectorOption(modelConfig, providerInfoByID),
 	);
 
 	const form = useFormik({

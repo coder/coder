@@ -76,7 +76,15 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 							<AnimatedChevronDownIcon />
 						</Button>
 					</PopoverTrigger>
-					<PopoverContent side="bottom" align="end" className="w-min">
+					<PopoverContent
+						side="bottom"
+						align="end"
+						className="w-min"
+						// The popover is portaled in the DOM but still a React child of
+						// InputGroupAddon, whose click handler focuses the text input.
+						// Stop clicks here so the emoji picker keeps focus.
+						onClick={(event) => event.stopPropagation()}
+					>
 						<Suspense fallback={<Loader />}>
 							<EmojiPicker
 								onEmojiSelect={(emoji) => {

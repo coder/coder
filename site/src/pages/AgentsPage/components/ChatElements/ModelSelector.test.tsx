@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { render } from "#/testHelpers/renderHelpers";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
@@ -35,4 +37,43 @@ test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selecto
 	// Keyboard-focus ring should remain.
 	expect(trigger.className).toContain("focus-visible:ring-2");
 	expect(trigger.className).not.toContain("focus-visible:ring-0");
+});
+
+test("groups same-type models by provider instance", async () => {
+	const user = userEvent.setup();
+	render(
+		<ModelSelector
+			options={[
+				{
+					...MockModelSelectorOption,
+					id: "anthropic-primary-sonnet",
+					provider: "anthropic",
+					providerId: "provider-anthropic-primary",
+					providerLabel: "Anthropic",
+					model: "claude-sonnet-4-20250514",
+					displayName: "Claude Sonnet 4",
+				},
+				{
+					...MockModelSelectorOption,
+					id: "anthropic-hyper-opus",
+					provider: "anthropic",
+					providerId: "provider-anthropic-hyper",
+					providerLabel: "Hyper",
+					providerIcon: "/icon/coder.svg",
+					model: "claude-opus-4-20250514",
+					displayName: "Claude Opus 4",
+				},
+			]}
+			value="anthropic-primary-sonnet"
+			onValueChange={vi.fn()}
+		/>,
+	);
+
+	await user.click(screen.getByRole("combobox"));
+	const listbox = await screen.findByRole("listbox");
+
+	expect(within(listbox).getByText("Anthropic")).toBeInTheDocument();
+	expect(within(listbox).getByText("Hyper")).toBeInTheDocument();
+	expect(within(listbox).getByText("Claude Sonnet 4")).toBeInTheDocument();
+	expect(within(listbox).getByText("Claude Opus 4")).toBeInTheDocument();
 });

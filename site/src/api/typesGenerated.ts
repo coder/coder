@@ -285,6 +285,7 @@ export interface AIProvider {
 	readonly type: AIProviderType;
 	readonly name: string;
 	readonly display_name: string;
+	readonly icon: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
 	readonly api_keys: readonly AIProviderKey[];
@@ -440,6 +441,7 @@ export interface AIProviderSummary {
 	readonly type: AIProviderType;
 	readonly name: string;
 	readonly display_name: string;
+	readonly icon: string;
 	readonly enabled: boolean;
 	readonly deleted: boolean;
 }
@@ -2826,6 +2828,7 @@ export interface ChatProviderConfig {
 	readonly id: string;
 	readonly provider: string;
 	readonly display_name: string;
+	readonly icon: string;
 	readonly enabled: boolean;
 	readonly has_api_key: boolean;
 	readonly central_api_key_enabled: boolean;
@@ -3489,6 +3492,7 @@ export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
 	readonly name: string;
 	readonly display_name?: string;
+	readonly icon?: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
 	readonly api_keys?: readonly string[];
@@ -3544,6 +3548,7 @@ export interface CreateChatModelConfigRequest {
 export interface CreateChatProviderConfigRequest {
 	readonly provider: string;
 	readonly display_name?: string;
+	readonly icon?: string;
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
@@ -8826,6 +8831,7 @@ export interface TransitionStats {
  */
 export interface UpdateAIProviderRequest {
 	readonly display_name?: string;
+	readonly icon?: string;
 	readonly enabled?: boolean;
 	readonly base_url?: string;
 	readonly api_keys?: AIProviderKeyMutation[];
@@ -8971,6 +8977,7 @@ export interface UpdateChatPlanModeInstructionsRequest {
  */
 export interface UpdateChatProviderConfigRequest {
 	readonly display_name?: string;
+	readonly icon?: string;
 	readonly api_key?: string;
 	readonly base_url?: string;
 	readonly enabled?: boolean;
@@ -9723,6 +9730,7 @@ export interface UserChatProviderConfig {
 	readonly provider_id: string;
 	readonly provider: string;
 	readonly display_name: string;
+	readonly icon: string;
 	readonly has_user_api_key: boolean;
 	readonly has_central_api_key_fallback: boolean;
 	readonly byok_enabled: boolean;

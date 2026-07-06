@@ -6848,6 +6848,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 			ID:      uuid.New(),
 			Type:    database.AIProviderTypeOpenai,
 			Name:    "test-provider",
+			Icon:    "",
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
 		}
@@ -6860,6 +6861,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		arg := database.UpdateAIProviderParams{
 			ID:      provider.ID,
 			Type:    provider.Type,
+			Icon:    provider.Icon,
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
 		}

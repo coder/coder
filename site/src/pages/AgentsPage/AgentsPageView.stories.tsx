@@ -180,7 +180,7 @@ const AgentsRouteElement = () => (
 			is_malformed: false,
 		}}
 		modelConfigsData={[]}
-		providerTypeByID={new Map()}
+		providerInfoByID={new Map()}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
 		isFetchingModelConfigs={false}
@@ -453,6 +453,7 @@ const meta: Meta<typeof AgentsPageView> = {
 					type: "openai",
 					name: "openai",
 					display_name: "OpenAI",
+					icon: "",
 					enabled: true,
 					deleted: false,
 				},

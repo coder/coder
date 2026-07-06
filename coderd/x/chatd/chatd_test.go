@@ -8718,6 +8718,7 @@ func setOpenAIProviderBaseURL(
 			ID:            provider.ID,
 			Type:          provider.Type,
 			DisplayName:   provider.DisplayName,
+			Icon:          provider.Icon,
 			Enabled:       provider.Enabled,
 			BaseUrl:       baseURL,
 			Settings:      provider.Settings,

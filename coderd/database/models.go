@@ -4657,6 +4657,8 @@ type AIProvider struct {
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+	// Optional icon URL for display in provider lists and model pickers.
+	Icon string `db:"icon" json:"icon"`
 }
 
 // API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.

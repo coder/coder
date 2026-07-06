@@ -13652,6 +13652,9 @@
 				"enabled": {
 					"type": "boolean"
 				},
+				"icon": {
+					"type": "string"
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
@@ -16351,6 +16354,9 @@
 				},
 				"enabled": {
 					"type": "boolean"
+				},
+				"icon": {
+					"type": "string"
 				},
 				"name": {
 					"type": "string"
@@ -22814,6 +22820,9 @@
 				},
 				"enabled": {
 					"type": "boolean"
+				},
+				"icon": {
+					"type": "string"
 				},
 				"settings": {
 					"$ref": "#/definitions/codersdk.AIProviderSettings"

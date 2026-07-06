@@ -3,6 +3,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type ProviderIconProps = {
 	provider: string;
+	icon?: string;
 };
 
 export const getProviderIcon = (provider: string): string | undefined => {
@@ -51,8 +52,11 @@ const getProviderName = (provider: string): string => {
 	}
 };
 
-export const ProviderIcon: React.FC<ProviderIconProps> = ({ provider }) => {
-	const iconSrc = getProviderIcon(provider);
+export const ProviderIcon: React.FC<ProviderIconProps> = ({
+	provider,
+	icon,
+}) => {
+	const iconSrc = icon || getProviderIcon(provider);
 	const name = getProviderName(provider);
 	if (iconSrc === undefined) {
 		return (
