@@ -1343,6 +1343,36 @@ func requireAllKeysRevoked(ctx context.Context, t *testing.T, rawDB database.Sto
 	}
 }
 
+// requireDBCryptKeyActive asserts cipher's dbcrypt_keys row is currently the
+// active (non-revoked) key.
+func requireDBCryptKeyActive(ctx context.Context, t *testing.T, rawDB database.Store, cipher dbcrypt.Cipher) {
+	t.Helper()
+	keys, err := rawDB.GetDBCryptKeys(ctx)
+	require.NoError(t, err)
+	for _, k := range keys {
+		if k.ActiveKeyDigest.Valid && k.ActiveKeyDigest.String == cipher.HexDigest() {
+			return
+		}
+	}
+	t.Fatalf("no active dbcrypt_keys row found for cipher %s", cipher.HexDigest())
+}
+
+// requireDBCryptKeyRevoked asserts cipher's dbcrypt_keys row has been
+// revoked, i.e. its digest moved from active_key_digest to
+// revoked_key_digest.
+func requireDBCryptKeyRevoked(ctx context.Context, t *testing.T, rawDB database.Store, cipher dbcrypt.Cipher) {
+	t.Helper()
+	keys, err := rawDB.GetDBCryptKeys(ctx)
+	require.NoError(t, err)
+	for _, k := range keys {
+		if k.RevokedKeyDigest.Valid && k.RevokedKeyDigest.String == cipher.HexDigest() {
+			require.False(t, k.ActiveKeyDigest.Valid, "revoked cipher must not also be active")
+			return
+		}
+	}
+	t.Fatalf("no revoked dbcrypt_keys row found for cipher %s", cipher.HexDigest())
+}
+
 // TestDeleteUserLinks covers the user_links table (OAuth login access and
 // refresh tokens). Simulates an operator recovering from a lost encryption
 // key, the last-resort case where decrypt/rotate are both impossible:
@@ -1603,4 +1633,164 @@ func TestDeleteUserAIProviderKeys(t *testing.T) {
 	require.Equal(t, "plain-user-key-value", gotPlain.APIKey)
 
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
+}
+
+// TestFullLifecycleAllHandledTables seeds one row in every table
+// Rotate/Decrypt/Delete actually loop over, then drives the operator
+// lifecycle end-to-end in a single database: seed data encrypted under
+// cipher A (Encrypt), rotate to cipher B, decrypt back to plaintext, then
+// delete a freshly re-encrypted row. One database with every handled table
+// populated together, closer to how an operator actually runs these
+// commands back to back, instead of one table at a time.
+//
+// This intentionally excludes crypto_keys, mcp_server_configs, and
+// mcp_server_user_tokens. Rotate/Decrypt don't clear those tables at all
+// (see issue #25381), so seeding them here would fail this test for a
+// reason unrelated to what it's meant to cover: whether the 7 tables
+// cliutil.go already handles stay consistent with each other across a full
+// rotate-decrypt-delete sequence.
+func TestFullLifecycleAllHandledTables(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	log := testutil.Logger(t)
+
+	ciphersA, err := dbcrypt.NewCiphers([]byte(testutil.MustRandString(t, 32)))
+	require.NoError(t, err)
+	ciphersB, err := dbcrypt.NewCiphers([]byte(testutil.MustRandString(t, 32)))
+	require.NoError(t, err)
+	cipherA, cipherB := ciphersA[0], ciphersB[0]
+
+	cryptDBA, err := dbcrypt.New(ctx, rawDB, cipherA)
+	require.NoError(t, err)
+
+	// --- Encrypt: seed one row per handled table under cipher A ---
+	liveUser := dbgen.User(t, rawDB, database.User{})
+	provider := dbgen.AIProvider(t, cryptDBA, database.AIProvider{
+		Settings: sql.NullString{String: "settings-value", Valid: true},
+	})
+
+	seededLink := dbgen.UserLink(t, cryptDBA, database.UserLink{
+		UserID:            liveUser.ID,
+		LoginType:         liveUser.LoginType,
+		OAuthAccessToken:  "access-token",
+		OAuthRefreshToken: "refresh-token",
+	})
+	seededExtLink := dbgen.ExternalAuthLink(t, cryptDBA, database.ExternalAuthLink{
+		UserID:            liveUser.ID,
+		ProviderID:        "fake",
+		OAuthAccessToken:  "ext-access-token",
+		OAuthRefreshToken: "ext-refresh-token",
+	})
+	seededSecret := dbgen.UserSecret(t, cryptDBA, database.UserSecret{
+		UserID:   liveUser.ID,
+		Name:     "my-secret",
+		Value:    "super-secret-value",
+		EnvName:  "MY_SECRET_ENV",
+		FilePath: "~/my-secret-path",
+	})
+	seededSSHKey := dbgen.GitSSHKey(t, cryptDBA, database.GitSSHKey{
+		UserID:     liveUser.ID,
+		PrivateKey: "private-key",
+		PublicKey:  "public-key",
+	})
+	seededProviderKey := dbgen.AIProviderKey(t, cryptDBA, database.AIProviderKey{
+		ProviderID: provider.ID,
+		APIKey:     "provider-api-key",
+	})
+	seededUserProviderKey := upsertUserAIProviderKey(ctx, t, cryptDBA, liveUser.ID, provider.ID, "user-api-key")
+
+	require.Equal(t, cipherA.HexDigest(), provider.SettingsKeyID.String, "sanity check: ai_providers seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededLink.OAuthAccessTokenKeyID.String, "sanity check: user_links seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededExtLink.OAuthAccessTokenKeyID.String, "sanity check: external_auth_links seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededSecret.ValueKeyID.String, "sanity check: user_secrets seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededSSHKey.PrivateKeyKeyID.String, "sanity check: gitsshkeys seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededProviderKey.ApiKeyKeyID.String, "sanity check: ai_provider_keys seeded under cipher A")
+	require.Equal(t, cipherA.HexDigest(), seededUserProviderKey.ApiKeyKeyID.String, "sanity check: user_ai_provider_keys seeded under cipher A")
+
+	// --- Rotate: cipher A -> cipher B ---
+	err = dbcrypt.Rotate(ctx, log, sqlDB, []dbcrypt.Cipher{cipherB, cipherA})
+	require.NoError(t, err, "rotate should succeed and revoke cipher A even with every handled table populated at once")
+	requireDBCryptKeyRevoked(ctx, t, rawDB, cipherA)
+	requireDBCryptKeyActive(ctx, t, rawDB, cipherB)
+
+	links, err := rawDB.GetUserLinksByUserID(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	require.Equal(t, cipherB.HexDigest(), links[0].OAuthAccessTokenKeyID.String)
+	require.Equal(t, "access-token", decryptRawString(t, cipherB, links[0].OAuthAccessToken))
+
+	extLinks, err := rawDB.GetExternalAuthLinksByUserID(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.Len(t, extLinks, 1)
+	require.Equal(t, cipherB.HexDigest(), extLinks[0].OAuthAccessTokenKeyID.String)
+
+	secrets, err := rawDB.ListUserSecretsWithValues(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	require.Equal(t, cipherB.HexDigest(), secrets[0].ValueKeyID.String)
+	require.Equal(t, "super-secret-value", decryptRawString(t, cipherB, secrets[0].Value))
+
+	sshKey, err := rawDB.GetGitSSHKey(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.Equal(t, cipherB.HexDigest(), sshKey.PrivateKeyKeyID.String)
+
+	gotProvider, err := rawDB.GetAIProviderByID(ctx, provider.ID)
+	require.NoError(t, err)
+	require.Equal(t, cipherB.HexDigest(), gotProvider.SettingsKeyID.String)
+
+	gotProviderKey, err := rawDB.GetAIProviderKeyByID(ctx, seededProviderKey.ID)
+	require.NoError(t, err)
+	require.Equal(t, cipherB.HexDigest(), gotProviderKey.ApiKeyKeyID.String)
+
+	userProviderKeys, err := rawDB.GetUserAIProviderKeys(ctx)
+	require.NoError(t, err)
+	var foundUserProviderKey bool
+	for _, k := range userProviderKeys {
+		if k.ID == seededUserProviderKey.ID {
+			require.Equal(t, cipherB.HexDigest(), k.ApiKeyKeyID.String)
+			foundUserProviderKey = true
+		}
+	}
+	require.True(t, foundUserProviderKey, "seeded user_ai_provider_keys row must still exist after rotate")
+
+	// --- Decrypt: cipher B -> plaintext ---
+	err = dbcrypt.Decrypt(ctx, log, sqlDB, []dbcrypt.Cipher{cipherB})
+	require.NoError(t, err, "decrypt should succeed and revoke cipher B even with every handled table populated at once")
+	requireDBCryptKeyRevoked(ctx, t, rawDB, cipherB)
+
+	links, err = rawDB.GetUserLinksByUserID(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.False(t, links[0].OAuthAccessTokenKeyID.Valid)
+	require.Equal(t, "access-token", links[0].OAuthAccessToken)
+
+	secrets, err = rawDB.ListUserSecretsWithValues(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1)
+	require.False(t, secrets[0].ValueKeyID.Valid)
+	require.Equal(t, "super-secret-value", secrets[0].Value)
+
+	// --- Delete: seed one more row under a fresh cipher, then wipe it ---
+	cipherC := newCipher(t)
+	cryptDBC, err := dbcrypt.New(ctx, rawDB, cipherC)
+	require.NoError(t, err)
+	seededPostDecryptSecret := dbgen.UserSecret(t, cryptDBC, database.UserSecret{
+		UserID:   liveUser.ID,
+		Name:     "post-decrypt-secret",
+		Value:    "another-secret-value",
+		EnvName:  "POST_DECRYPT_ENV",
+		FilePath: "~/post-decrypt-path",
+	})
+	require.Equal(t, cipherC.HexDigest(), seededPostDecryptSecret.ValueKeyID.String, "sanity check: post-decrypt secret seeded under cipher C")
+
+	err = dbcrypt.Delete(ctx, log, sqlDB)
+	require.NoError(t, err, "delete should succeed and revoke every remaining active key")
+
+	secrets, err = rawDB.ListUserSecretsWithValues(ctx, liveUser.ID)
+	require.NoError(t, err)
+	require.Len(t, secrets, 1, "only the never-re-encrypted secret should remain")
+	require.Equal(t, "my-secret", secrets[0].Name)
+	require.Equal(t, "super-secret-value", secrets[0].Value)
+
+	requireAllKeysRevoked(ctx, t, rawDB)
 }
