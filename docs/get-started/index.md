@@ -215,34 +215,43 @@ lines of output, so you might have to scroll up to find it.
 > [!TIP]
 > If you use an AI coding assistant, the [coder-templates](https://github.com/coder/registry/blob/main/.agents/skills/coder-templates/SKILL.md) agent skill can guide you through creating and customizing templates with best practices built-in.
 
-Templates define what's in your development environment. The following is a basic example:
+Templates define what's in your development environment. The template builder
+guides you through creating one without writing any Terraform.
 
-1. Select **Templates** → **New Template**.
+1. Select **Templates** > **New Template**. The template builder opens.
 
-2. Select the **Coder Quickstart** template from the list of starter templates.
+1. Select the **Docker** base template from the list.
 
-   **Note:** running this template requires Docker to be running in the background, so make sure Docker is running!
+   > [!NOTE]
+   > This template requires Docker to be running in the background, so make sure Docker is running.
 
-3. Name your template.
-   The **Display name** and **Description** are pre-filled from the starter template, so you can keep the defaults or replace them:
-   - **Name**: `quickstart`
-   - **Display name**: `Coder Quickstart`
-   - **Description**: `Get started with Coder by picking your languages, editors, and a repo`
+1. Skip or configure any base template parameters, then select modules to add
+   IDEs and tools to your template. For example, add **code-server** to get
+   VS Code in the browser. You can skip module selection for now and add
+   modules later.
 
-4. Select **Save**.
+1. On the final step, name your template:
+   - **Name**: `my-docker-template`
+   - **Display name** and **Description**: fill in as you like.
 
-   ![Create template](../images/screenshots/create-quickstart-template.png)
+1. Select **Create Template**. Coder composes and validates the Terraform
+   configuration, then creates your template.
+
+   ![Template builder base selection step](../images/templatebuilder_01_bases.png)
 
 **What just happened?**
-You defined a template, a reusable blueprint for dev environments, in your Coder deployment.
-It's now stored in your organization's template list, where you and any teammates in the same organization can create workspaces from it.
+The template builder selected a base infrastructure template, composed it with
+any modules you chose, and generated a valid Terraform configuration. Coder
+validated the configuration server-side, then created a reusable template in
+your organization's template list. You and any teammates in the same
+organization can now create workspaces from it.
 
 <details>
 <summary>What happens under the hood?</summary>
 
 A Coder template is a [Terraform](https://developer.hashicorp.com/terraform/intro) configuration, and Coder is built on top of Terraform.
 When you create a workspace from this template, a Coder [provisioner](../admin/infrastructure/architecture.md#provisionerd) runs a Terraform job from the template's configuration to build your environment.
-For the Coder Quickstart template, that job starts a Docker container, connects the Coder agent, and runs a startup script that installs the programming languages and editors you choose in the next step.
+For the Docker base template, that job starts a Docker container with the Coder agent pre-configured, along with any modules you selected.
 
 To learn how Coder uses Terraform to provision and run workspaces, refer to the [architecture overview](../admin/infrastructure/architecture.md).
 
@@ -254,19 +263,15 @@ Now it's time to launch a workspace.
 
 1. After the template is ready, select **+ Create Workspace**.
 
-2. Give the workspace a name. If you need a suggestion for a workspace, you can select the automatically generated name next to the **Need a suggestion?** label.
+1. Give the workspace a name. If you need a suggestion, you can select the
+   automatically generated name next to the **Need a suggestion?** label.
 
-3. In this window are [parameters](../admin/templates/extending-templates/parameters.md) that customize the workspace's behavior. Set the following based on your needs:
+1. If the template has any
+   [parameters](../admin/templates/extending-templates/parameters.md), fill
+   them in. Parameters vary by template and the modules you selected in the
+   builder.
 
-   - **Programming Languages**: the languages to pre-install in your workspace. You can use more than one if you want.
-   - **IDEs & Editors**: the IDEs and editors you want to configure for quick access once the workspace is running. You can choose more than one if you want.
-   - **Git Repository (Optional)**: the Git repository you want to clone into your workspace. Leave this field blank to skip it.
-
-   **Note:** If you use any of the JetBrains IDEs as your preferred IDE (such as PyCharm, GoLand, or RustRover), select **JetBrains IDEs** as the value. A new parameter will appear, with which you can choose your preferred JetBrains IDE.
-
-     ![Workspace creation screen](../images/screenshots/create-workspace.png)_Workspace creation screen_
-
-4. Launch your workspace by selecting **Create workspace**.
+1. Select **Create workspace**.
 
 After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
 
@@ -275,7 +280,7 @@ After a short wait (10-15 seconds on most modern computers), Coder will start yo
 ## Step 6: Connect your IDE
 
 Each button in the workspace view is a different **agent app**.
-The buttons you see reflect the editors you selected in the **IDEs & Editors** parameter in [Step 5](#step-5-launch-your-workspace).
+The buttons in the UI reflect the modules you added in the template builder (such as code-server, Claude Code, or any of the JetBrains editors).
 Select your preferred IDE from the list of agent apps.
 
 This guide uses **VS Code Desktop**, which opens the workspace in the VS Code installed on your local machine, using the Coder extension.
