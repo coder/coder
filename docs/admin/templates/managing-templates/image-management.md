@@ -1,7 +1,7 @@
 # Image Management
 
 While Coder provides example
-[base container images](https://github.com/coder/enterprise-images) for
+[base container images](https://github.com/coder/images) for
 workspaces, it's often best to create custom images that matches the needs of
 your users. This document serves a guide to operational maturity with some best
 practices around managing workspaces images for Coder.
@@ -32,7 +32,7 @@ to consider:
 - Consider creating (and starting the container with) a non-root user
 
 See Coder's
-[example base image](https://github.com/coder/enterprise-images/tree/main/images/minimal)
+[example base image](https://github.com/coder/images/tree/main/images/minimal)
 for reference.
 
 ## Create general-purpose golden image(s) with standard tooling
@@ -61,6 +61,7 @@ most cases) with a well-defined scope.
 
 Examples:
 
+- [Coder's Universal Image](https://github.com/coder/images/tree/main/images/universal): a catch-all image with many languages and tools preinstalled. Runs as the `coder` user, so it works with Coder templates out of the box. See [coder/images](https://github.com/coder/images) for more example images, including language-specific ones.
 - [Universal Dev Containers Image](https://github.com/devcontainers/images/tree/main/src/universal)
 
 ## Allow developers to bring their own images and customizations with Dev Containers
