@@ -3,6 +3,7 @@ package support_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/support"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -199,6 +201,33 @@ func TestRun(t *testing.T) {
 	})
 }
 
+func TestRunWorkspaceLogPaths(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.NoError(t, os.WriteFile(filepath.Join(home, "workspace-service.log"), []byte("workspace service log"), 0o600))
+
+	cfg := coderdtest.DeploymentValues(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: cfg,
+		Logger:           ptr.Ref(slog.Make(sloghuman.Sink(io.Discard))),
+	})
+	admin := coderdtest.CreateFirstUser(t, client)
+	ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
+
+	bun, err := support.Run(ctx, &support.Deps{
+		Client:            client,
+		Log:               testutil.Logger(t).Named("bundle"),
+		WorkspaceID:       ws.ID,
+		AgentID:           agt.ID,
+		WorkspaceLogPaths: []string{"$HOME/workspace-service.log"},
+	})
+	require.NoError(t, err)
+
+	assertWorkspaceLogFilesArchive(t, bun.Agent.LogFilesArchive, "files/workspace-service.log", "workspace service log")
+}
+
 func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig) {
 	t.Helper()
 	for _, opt := range dc.Options {
@@ -280,6 +309,19 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	coderdtest.NewWorkspaceAgentWaiter(t, client, wbr.Workspace.ID).Wait()
 
 	return ws, agt
+}
+
+func assertWorkspaceLogFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {
+	t.Helper()
+
+	require.NotEmpty(t, data)
+	entries := testutil.ReadZip(t, data)
+	require.Equal(t, wantContent, string(entries[wantEntry]))
+
+	var manifest workspacesdk.DebugLogFilesManifest
+	require.NoError(t, json.Unmarshal(entries["manifest.json"], &manifest))
+	require.Len(t, manifest.Files, 1)
+	require.Equal(t, wantEntry, manifest.Files[0].ArchivePath)
 }
 
 func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {

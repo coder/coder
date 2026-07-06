@@ -98,6 +98,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
+	DebugLogFiles(ctx context.Context, req DebugLogFilesRequest) ([]byte, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -448,6 +449,66 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/manifest", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	bs, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read response body: %w", err)
+	}
+	return bs, nil
+}
+
+// DebugLogFilesRequest configures a workspace-side log file collection.
+type DebugLogFilesRequest struct {
+	Paths []string `json:"paths"`
+}
+
+// DebugLogFilesManifest is the manifest.json of the archive returned by
+// DebugLogFiles.
+type DebugLogFilesManifest struct {
+	Requested []string                     `json:"requested"`
+	Files     []DebugLogFilesManifestEntry `json:"files"`
+	Errors    []DebugLogFilesManifestError `json:"errors"`
+	Truncated bool                         `json:"truncated"`
+	Limits    DebugLogFilesLimits          `json:"limits"`
+}
+
+// DebugLogFilesManifestEntry describes one file collected into the archive.
+type DebugLogFilesManifestEntry struct {
+	Requested    string    `json:"requested"`
+	Path         string    `json:"path"`
+	ArchivePath  string    `json:"archive_path"`
+	Size         int64     `json:"size"`
+	ModTime      time.Time `json:"mod_time"`
+	BytesWritten int64     `json:"bytes_written"`
+	Truncated    bool      `json:"truncated"`
+}
+
+// DebugLogFilesManifestError records a path that could not be collected.
+type DebugLogFilesManifestError struct {
+	Requested string `json:"requested"`
+	Path      string `json:"path,omitempty"`
+	Reason    string `json:"reason"`
+}
+
+// DebugLogFilesLimits are the collection limits the agent applied.
+type DebugLogFilesLimits struct {
+	MaxFiles        int   `json:"max_files"`
+	MaxGlobMatches  int   `json:"max_glob_matches"`
+	MaxBytesPerFile int64 `json:"max_bytes_per_file"`
+	MaxTotalBytes   int64 `json:"max_total_bytes"`
+}
+
+// DebugLogFiles returns a zip archive of explicitly requested workspace logs.
+func (c *agentConn) DebugLogFiles(ctx context.Context, req DebugLogFilesRequest) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/debug/log-files", req)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}

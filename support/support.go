@@ -90,6 +90,7 @@ type Agent struct {
 	ConnectionInfo      *workspacesdk.AgentConnectionInfo              `json:"connection_info"`
 	ListeningPorts      *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
 	Logs                []byte                                         `json:"logs"`
+	LogFilesArchive     []byte                                         `json:"log_files_archive"`
 	ClientMagicsockHTML []byte                                         `json:"client_magicsock_html"`
 	AgentMagicsockHTML  []byte                                         `json:"agent_magicsock_html"`
 	Manifest            *agentsdk.Manifest                             `json:"manifest"`
@@ -142,6 +143,8 @@ type Deps struct {
 	WorkspacesTotalCap int
 	// TemplateID optionally specifies a template to capture (active version).
 	TemplateID uuid.UUID
+	// WorkspaceLogPaths are log paths or globs the agent collects from inside the remote workspace.
+	WorkspaceLogPaths []string
 	// CollectPprof toggles server and agent pprof collection.
 	CollectPprof bool
 }
@@ -536,7 +539,7 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	return w
 }
 
-func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Agent {
+func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceLogPaths []string) Agent {
 	var (
 		a  Agent
 		eg errgroup.Group
@@ -573,7 +576,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 
 	// to simplify control flow, fetching information directly from
 	// the agent is handled in a separate function
-	closer := connectedAgentInfo(ctx, client, log, agentID, &eg, &a)
+	closer := connectedAgentInfo(ctx, client, log, agentID, workspaceLogPaths, &eg, &a)
 	defer closer()
 
 	if err := eg.Wait(); err != nil {
@@ -583,7 +586,7 @@ func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, ag
 	return a
 }
 
-func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, eg *errgroup.Group, a *Agent) (closer func()) {
+func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, workspaceLogPaths []string, eg *errgroup.Group, a *Agent) (closer func()) {
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
 			Logger:         log.Named("dial-agent"),
@@ -674,6 +677,23 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 		a.Logs = logBytes
 		return nil
 	})
+
+	if len(workspaceLogPaths) > 0 {
+		eg.Go(func() error {
+			logFilesArchive, err := conn.DebugLogFiles(ctx, workspacesdk.DebugLogFilesRequest{
+				Paths: workspaceLogPaths,
+			})
+			if err != nil {
+				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+					log.Warn(ctx, "workspace log file collection is unsupported by this agent")
+					return nil
+				}
+				return xerrors.Errorf("fetch workspace log files: %w", err)
+			}
+			a.LogFilesArchive = logFilesArchive
+			return nil
+		})
+	}
 
 	eg.Go(func() error {
 		lps, err := conn.ListeningPorts(ctx)
@@ -1089,7 +1109,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID)
+		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID, d.WorkspaceLogPaths)
 		b.Agent = ai
 		return nil
 	})
