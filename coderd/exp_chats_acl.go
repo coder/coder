@@ -211,6 +211,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
 	} else {
+		// api.ctx, not the request ctx, so disconnects don't drop notifications.
 		newChat := aReq.New
 		go func() {
 			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {
