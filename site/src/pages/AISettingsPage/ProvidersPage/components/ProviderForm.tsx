@@ -14,6 +14,7 @@ import { Label } from "#/components/Label/Label";
 import { Link as DocsLink } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
@@ -22,6 +23,7 @@ export type ProviderFormValues = {
 	type: AIProviderType | "";
 	name: string;
 	displayName: string;
+	icon: string;
 	baseUrl: string;
 	model: string;
 	smallFastModel: string;
@@ -64,6 +66,7 @@ const defaultInitialValues: ProviderFormValues = {
 	type: "anthropic",
 	name: "",
 	displayName: "",
+	icon: "",
 	baseUrl: "",
 	model: "",
 	smallFastModel: "",
@@ -132,6 +135,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
@@ -162,6 +166,7 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(
@@ -199,6 +204,7 @@ const makeCopilotSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
@@ -251,6 +257,8 @@ type ProviderFormProps = {
 	/** Masked rendering of the saved openai/anthropic key (e.g. `sk-***...ABCD`). Falls back to a generic mask when omitted. */
 	openAiAnthropicMaskedApiKey?: string;
 	initialValues?: Partial<ProviderFormValues>;
+	/** Fires whenever the icon field changes, so page headers can preview it. */
+	onIconChange?: (icon: string) => void;
 	onSubmit?: (values: ProviderFormValues) => void;
 	isLoading?: boolean;
 	submitError?: unknown;
@@ -279,6 +287,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	openAiAnthropicSavedApiKey = false,
 	openAiAnthropicMaskedApiKey,
 	initialValues,
+	onIconChange,
 	onSubmit,
 	isLoading = false,
 	submitError,
@@ -321,6 +330,25 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
+
+	const handleIconChange = (value: string) => {
+		void form.setFieldValue("icon", value);
+		onIconChange?.(value);
+	};
+
+	const iconField = (
+		<div className="flex flex-col gap-2">
+			<Label htmlFor="icon">Icon</Label>
+			<div className="text-xs text-content-secondary">
+				Optional. URL or emoji shown for this provider.
+			</div>
+			<IconPickerField
+				id="icon"
+				value={form.values.icon}
+				onChange={handleIconChange}
+			/>
+		</div>
+	);
 
 	const typeSelectValue = form.values.type;
 
@@ -403,6 +431,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								className="w-full"
 							/>
 						</div>
+						{iconField}
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
@@ -462,6 +491,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								className="w-full"
 							/>
 						</div>
+						{iconField}
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}

@@ -12,6 +12,7 @@ import {
 	parseBedrockRegionFromBaseUrl,
 	SAVED_CREDENTIAL_MASK,
 } from "./ProviderForm";
+import { getProviderIcon } from "./ProviderIcon";
 
 /** Drop placeholder masks so they don't round-trip back to the API. */
 const sanitizeCredential = (
@@ -137,9 +138,11 @@ export const providerFormValuesToCreate = (
 	values: ProviderFormValues,
 ): CreateAIProviderRequest => {
 	const displayName = values.displayName.trim();
+	const icon = values.icon.trim();
 	const base: Omit<CreateAIProviderRequest, "type"> = {
 		name: values.name.trim(),
 		...(displayName ? { display_name: displayName } : {}),
+		...(icon ? { icon } : {}),
 		base_url: values.baseUrl.trim(),
 		enabled: values.enabled,
 	};
@@ -188,6 +191,7 @@ export const providerFormValuesToUpdate = (
 ): UpdateAIProviderRequest => {
 	const base: UpdateAIProviderRequest = {
 		display_name: values.displayName.trim(),
+		icon: values.icon.trim(),
 		enabled: values.enabled,
 		base_url: values.baseUrl.trim(),
 	};
@@ -246,6 +250,7 @@ export const aiProviderToFormValues = (
 			type: "bedrock",
 			name: provider.name,
 			displayName,
+			icon: provider.icon || (getProviderIcon("bedrock") ?? ""),
 			baseUrl: provider.base_url,
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
@@ -261,15 +266,18 @@ export const aiProviderToFormValues = (
 			type: "copilot",
 			name: provider.name,
 			displayName,
+			icon: provider.icon || (getProviderIcon("copilot") ?? ""),
 			baseUrl: provider.base_url,
 			enabled: provider.enabled,
 		};
 	}
 
+	const displayType = getProviderDisplayType(provider);
 	return {
-		type: getProviderDisplayType(provider),
+		type: displayType,
 		name: provider.name,
 		displayName,
+		icon: provider.icon || (getProviderIcon(displayType) ?? ""),
 		baseUrl: provider.base_url,
 		apiKey: "",
 		enabled: provider.enabled,

@@ -41,13 +41,6 @@ type Story = StoryObj<typeof ChatTopBar>;
 
 export const Default: Story = {};
 
-export const RegeneratingTitle: Story = {
-	args: {
-		...Default.args,
-		isRegeneratingTitle: true,
-	},
-};
-
 export const SharedChat: Story = {
 	args: {
 		isSharedChat: true,

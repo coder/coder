@@ -33,6 +33,9 @@ type chatWorker struct {
 // newChatWorker constructs a chat worker. The worker is idle until Start is
 // called.
 func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) {
+	if server == nil {
+		return nil, xerrors.New("chatworker: server is required")
+	}
 	withDefaults, err := opts.withDefaults()
 	if err != nil {
 		return nil, err

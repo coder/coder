@@ -848,12 +848,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().SoftDeleteContextFileMessages(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("ClearChatMessageProviderResponseIDsByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().ClearChatMessageProviderResponseIDsByChatID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
-	}))
 	s.Run("GetChatCostPerChat", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetChatCostPerChatParams{
 			OwnerID:   uuid.New(),
@@ -6854,6 +6848,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 			ID:      uuid.New(),
 			Type:    database.AIProviderTypeOpenai,
 			Name:    "test-provider",
+			Icon:    "",
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
 		}
@@ -6866,6 +6861,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		arg := database.UpdateAIProviderParams{
 			ID:      provider.ID,
 			Type:    provider.Type,
+			Icon:    provider.Icon,
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
 		}

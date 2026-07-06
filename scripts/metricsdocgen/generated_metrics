@@ -291,7 +291,7 @@ coderd_chatd_steps_total{provider="",model=""} 0
 coderd_chatd_stream_buffer_dropped_total 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
-coderd_chatd_stream_retries_total{provider="",model="",kind="",chain_broken=""} 0
+coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
 # HELP coderd_chatd_tool_errors_total Total tool calls that returned an error result.
 # TYPE coderd_chatd_tool_errors_total counter
 coderd_chatd_tool_errors_total{provider="",model="",tool_name=""} 0

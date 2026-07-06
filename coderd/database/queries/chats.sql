@@ -836,8 +836,7 @@ INSERT INTO chat_messages (
     context_limit,
     compressed,
     total_cost_micros,
-    runtime_ms,
-    provider_response_id
+    runtime_ms
 )
 SELECT
     @chat_id::uuid,
@@ -857,8 +856,7 @@ SELECT
     NULLIF(UNNEST(@context_limit::bigint[]), 0),
     UNNEST(@compressed::boolean[]),
     NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
-    NULLIF(UNNEST(@runtime_ms::bigint[]), 0),
-    NULLIF(UNNEST(@provider_response_id::text[]), '')
+    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
 RETURNING
     *;
 
@@ -2597,13 +2595,6 @@ WHERE agent_id = @agent_id::uuid
     -- Excludes completed and error (terminal states).
     AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
 ORDER BY updated_at DESC;
-
--- name: ClearChatMessageProviderResponseIDsByChatID :exec
-UPDATE chat_messages
-SET provider_response_id = NULL
-WHERE chat_id = @chat_id::uuid
-    AND deleted = false
-    AND provider_response_id IS NOT NULL;
 
 -- name: SoftDeleteContextFileMessages :exec
 UPDATE chat_messages SET deleted = true

@@ -398,7 +398,6 @@ func TestGenerator(t *testing.T) {
 			ContextLimit:        sql.NullInt64{Int64: 77, Valid: true},
 			Compressed:          true,
 			TotalCostMicros:     sql.NullInt64{Int64: 88, Valid: true},
-			ProviderResponseID:  sql.NullString{String: "resp-123", Valid: true},
 		})
 		require.Equal(t, database.ChatMessageRoleAssistant, msg2.Role)
 		require.True(t, msg2.Content.Valid)
@@ -412,7 +411,6 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, sql.NullInt64{Int64: 77, Valid: true}, msg2.ContextLimit)
 		require.True(t, msg2.Compressed)
 		require.Equal(t, sql.NullInt64{Int64: 88, Valid: true}, msg2.TotalCostMicros)
-		require.Equal(t, sql.NullString{String: "resp-123", Valid: true}, msg2.ProviderResponseID)
 	})
 
 	t.Run("MCPServerConfig", func(t *testing.T) {

@@ -15,12 +15,16 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
 
 export interface ModelSelectorOption {
 	id: string;
 	provider: string;
+	providerId?: string;
+	providerLabel?: string;
+	providerIcon?: string;
 	model: string;
 	displayName: string;
 	contextLimit?: number;
@@ -50,6 +54,11 @@ const formatContextLimit = (tokens: number): string => {
 	const k = Math.round(tokens / 1_000);
 	return `${k}K`;
 };
+
+const getProviderLabel = (
+	option: ModelSelectorOption,
+	formatProviderLabel: (provider: string) => string,
+) => option.providerLabel?.trim() || formatProviderLabel(option.provider);
 
 const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
 	[
@@ -92,17 +101,18 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
 		for (const option of options) {
-			const providerLabel = formatProviderLabel(option.provider);
+			const providerLabel = getProviderLabel(option, formatProviderLabel);
 			if (query && !getSearchText(option, providerLabel).includes(query)) {
 				continue;
 			}
 
-			const providerOptions = grouped.get(option.provider);
+			const groupKey = option.providerId?.trim() || option.provider;
+			const providerOptions = grouped.get(groupKey);
 			if (providerOptions) {
 				providerOptions.push(option);
 				continue;
 			}
-			grouped.set(option.provider, [option]);
+			grouped.set(groupKey, [option]);
 		}
 
 		return Array.from(grouped.entries());
@@ -173,29 +183,45 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
-						{optionsByProvider.map(([provider, providerOptions], index) => (
-							<CommandGroup
-								key={provider}
-								heading={formatProviderLabel(provider)}
-								className={cn(
-									"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
-									index > 0 &&
-										"border-0 border-t border-solid border-border-default",
-								)}
-							>
-								{providerOptions.map((option) => (
-									<ModelOptionItem
-										key={option.id}
-										option={option}
-										isSelected={option.id === value}
-										onSelect={() => {
-											onValueChange(option.id);
-											handleOpenChange(false);
-										}}
-									/>
-								))}
-							</CommandGroup>
-						))}
+						{optionsByProvider.map(([providerKey, providerOptions], index) => {
+							const firstOption = providerOptions[0];
+							const providerLabel = getProviderLabel(
+								firstOption,
+								formatProviderLabel,
+							);
+							return (
+								<CommandGroup
+									key={providerKey}
+									heading={
+										<span className="flex items-center gap-1.5">
+											<ProviderIcon
+												provider={firstOption.provider}
+												icon={firstOption.providerIcon}
+												className="size-3.5"
+											/>
+											<span>{providerLabel}</span>
+										</span>
+									}
+									className={cn(
+										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
+										index > 0 &&
+											"border-0 border-t border-solid border-border-default",
+									)}
+								>
+									{providerOptions.map((option) => (
+										<ModelOptionItem
+											key={option.id}
+											option={option}
+											isSelected={option.id === value}
+											onSelect={() => {
+												onValueChange(option.id);
+												handleOpenChange(false);
+											}}
+										/>
+									))}
+								</CommandGroup>
+							);
+						})}
 					</CommandList>
 				</Command>
 			</PopoverContent>

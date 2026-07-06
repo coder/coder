@@ -180,7 +180,7 @@ const AgentsRouteElement = () => (
 			is_malformed: false,
 		}}
 		modelConfigsData={[]}
-		providerTypeByID={new Map()}
+		providerInfoByID={new Map()}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
 		isFetchingModelConfigs={false}
@@ -365,10 +365,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	requestArchiveAndDeleteWorkspace: fn(),
 	requestPinAgent: fn(),
 	requestUnpinAgent: fn(),
-	onRegenerateTitle: fn(async () => "Generated title"),
 	onProposeTitle: fn(async () => "Proposed title"),
 	onRenameTitle: fn(async () => {}),
-	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,
 	sidebarFilters: defaultSidebarFilters,
@@ -455,6 +453,7 @@ const meta: Meta<typeof AgentsPageView> = {
 					type: "openai",
 					name: "openai",
 					display_name: "OpenAI",
+					icon: "",
 					enabled: true,
 					deleted: false,
 				},

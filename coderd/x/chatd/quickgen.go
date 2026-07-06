@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -34,7 +35,25 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Do not answer the user or describe the title-writing task. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
 	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
-	"Sentence case. No quotes, emoji, markdown, or trailing punctuation."
+	"Write the title in the same language as the user's message. " +
+	"Sentence case. No quotes, emoji, markdown, or trailing punctuation.\n\n" +
+	"Examples:\n" +
+	"Message: how do I set up SSO with Okta?\n" +
+	"Title: Set up SSO with Okta\n\n" +
+	"Message: getting `pq: duplicate key value violates unique constraint` when running migrations in coderd\n" +
+	"Title: Fix pq duplicate key violation in coderd migrations\n\n" +
+	"Message: review PR #123 in acme/webapp and flag risky changes\n" +
+	"Title: Review risky changes in acme/webapp PR #123\n\n" +
+	"Message: corrige el error de compilación en main.go\n" +
+	"Title: Corregir error de compilación en main.go\n\n" +
+	"Message: help\n" +
+	"Title: Help request"
+
+// quickgenTemperature keeps title and status-label output stable
+// across repeated runs over the same input. Fantasy providers drop
+// this with a call warning for models that reject it (OpenAI
+// reasoning models, Anthropic thinking models).
+const quickgenTemperature = 0.0
 
 const (
 	// maxConversationContextRunes caps the conversation sample in manual
@@ -504,6 +523,7 @@ func generateStructuredTitleWithUsage(
 			SchemaName:        "propose_title",
 			SchemaDescription: "Propose a short chat title.",
 			MaxOutputTokens:   &maxOutputTokens,
+			Temperature:       ptr.Ref(quickgenTemperature),
 		})
 		return genErr
 	}, nil)
@@ -774,6 +794,7 @@ func renderManualTitlePrompt(
 	write("- Do not answer the user or describe the title-writing task.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
 	write("- If the conversation is short or vague, stay close to the user's wording.\n")
+	write("- Write the title in the same language as the user's messages.\n")
 	write("- Sentence case. No quotes, emoji, markdown, or trailing punctuation.\n")
 	return prompt.String()
 }
@@ -936,6 +957,7 @@ func generateStructuredTurnStatusLabel(
 			SchemaName:        "propose_turn_status_label",
 			SchemaDescription: "Propose a compact chat status label.",
 			MaxOutputTokens:   &maxOutputTokens,
+			Temperature:       ptr.Ref(quickgenTemperature),
 		})
 		return genErr
 	}, nil)

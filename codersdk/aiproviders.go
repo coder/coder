@@ -195,6 +195,7 @@ type AIProvider struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
 	DisplayName string             `json:"display_name"`
+	Icon        string             `json:"icon"`
 	Enabled     bool               `json:"enabled"`
 	BaseURL     string             `json:"base_url"`
 	APIKeys     []AIProviderKey    `json:"api_keys"`
@@ -222,6 +223,7 @@ type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
 	DisplayName string             `json:"display_name,omitempty"`
+	Icon        string             `json:"icon,omitempty"`
 	Enabled     bool               `json:"enabled"`
 	BaseURL     string             `json:"base_url"`
 	APIKeys     []string           `json:"api_keys,omitempty"`
@@ -300,6 +302,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 // clears all keys.
 type UpdateAIProviderRequest struct {
 	DisplayName *string                  `json:"display_name,omitempty"`
+	Icon        *string                  `json:"icon,omitempty"`
 	Enabled     *bool                    `json:"enabled,omitempty"`
 	BaseURL     *string                  `json:"base_url,omitempty"`
 	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
@@ -338,7 +341,7 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 
 // IsEmpty reports whether the patch carries no fields.
 func (req UpdateAIProviderRequest) IsEmpty() bool {
-	return req.DisplayName == nil && req.Enabled == nil && req.BaseURL == nil && req.APIKeys == nil && req.Settings == nil
+	return req.DisplayName == nil && req.Icon == nil && req.Enabled == nil && req.BaseURL == nil && req.APIKeys == nil && req.Settings == nil
 }
 
 func validateAIProviderName(name string) []ValidationError {

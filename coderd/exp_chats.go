@@ -6631,6 +6631,7 @@ func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderS
 		Type:        codersdk.AIProviderType(provider.Type),
 		Name:        provider.Name,
 		DisplayName: displayName,
+		Icon:        provider.Icon,
 		Enabled:     provider.Enabled,
 		Deleted:     provider.Deleted,
 	}

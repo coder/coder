@@ -203,6 +203,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 			Type:        database.AIProviderType(req.Type),
 			Name:        req.Name,
 			DisplayName: sql.NullString{String: req.DisplayName, Valid: req.DisplayName != ""},
+			Icon:        req.Icon,
 			Enabled:     req.Enabled,
 			BaseUrl:     req.BaseURL,
 			Settings:    settings,
@@ -363,6 +364,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			ID:          old.ID,
 			Type:        old.Type,
 			DisplayName: displayName,
+			Icon:        ptr.NilToDefault(req.Icon, old.Icon),
 			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
 			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),
 			Settings:    settings,
@@ -492,8 +494,8 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 }
 
 // publishAIProvidersChanged notifies subscribers (aibridged,
-// aibridgeproxyd) that the live provider set changed and they should
-// refetch from the database. Pubsub failures are logged but not
+// aibridgeproxyd, chatd) that the live provider set changed and they
+// should refetch from the database. Pubsub failures are logged but not
 // propagated: subscribers refresh authoritatively from the DB, so a
 // dropped notification only delays convergence.
 func (api *API) publishAIProvidersChanged(ctx context.Context) {

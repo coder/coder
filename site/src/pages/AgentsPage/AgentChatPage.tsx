@@ -710,7 +710,6 @@ const AgentChatPage: FC = () => {
 		isArchiving,
 		archivingChatId,
 		onOpenRenameDialog,
-		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
@@ -746,10 +745,6 @@ const AgentChatPage: FC = () => {
 			return value;
 		});
 	};
-
-	const isRegeneratingThisChat = agentId
-		? regeneratingTitleChatIds.includes(agentId)
-		: false;
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -1702,7 +1697,6 @@ const AgentChatPage: FC = () => {
 			}
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
 			isChildChat={parentChatID !== undefined}
-			isRegeneratingTitle={isRegeneratingThisChat}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
 			scrollToBottomRef={scrollToBottomRef}

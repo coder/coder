@@ -3,6 +3,8 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type ProviderIconProps = {
 	provider: string;
+	icon?: string;
+	className?: string;
 };
 
 export const getProviderIcon = (provider: string): string | undefined => {
@@ -51,13 +53,20 @@ const getProviderName = (provider: string): string => {
 	}
 };
 
-export const ProviderIcon: React.FC<ProviderIconProps> = ({ provider }) => {
-	const iconSrc = getProviderIcon(provider);
+export const ProviderIcon: React.FC<ProviderIconProps> = ({
+	provider,
+	icon,
+	className = "size-icon-sm",
+}) => {
+	const iconSrc = icon || getProviderIcon(provider);
 	const name = getProviderName(provider);
 	if (iconSrc === undefined) {
 		return (
-			<Building2Icon className="size-icon-sm flex-shrink-0" aria-label={name} />
+			<Building2Icon
+				className={`${className} flex-shrink-0`}
+				aria-label={name}
+			/>
 		);
 	}
-	return <ExternalImage src={iconSrc} alt={name} className="size-icon-sm" />;
+	return <ExternalImage src={iconSrc} alt={name} className={className} />;
 };

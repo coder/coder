@@ -146,7 +146,9 @@ const UpdateProviderPageView: React.FC = () => {
 					<Avatar
 						variant="icon"
 						size="lg"
-						src={getProviderIcon(getProviderDisplayType(provider))}
+						src={
+							provider.icon || getProviderIcon(getProviderDisplayType(provider))
+						}
 					/>
 					<SettingsHeaderTitle>
 						<span className="block min-w-0 truncate">

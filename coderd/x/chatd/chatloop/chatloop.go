@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -63,16 +62,13 @@ type PendingToolCall struct {
 	Args       string
 }
 
-// PersistedStep contains the full content of a completed or
-// interrupted agent step. Content includes both assistant blocks
-// (text, reasoning, tool calls) and tool result blocks. The
-// persistence layer is responsible for splitting these into
-// separate database messages by role.
+// PersistedStep is the unit the persistence layer splits into role-separated
+// database messages. Content mixes assistant blocks (text, reasoning, tool
+// calls) and tool result blocks from one completed or interrupted agent step.
 type PersistedStep struct {
-	Content            []fantasy.Content
-	Usage              fantasy.Usage
-	ContextLimit       sql.NullInt64
-	ProviderResponseID string
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -162,19 +158,8 @@ type RunOptions struct {
 	)
 	// Callers should attach correlation fields (chat_id, owner_id, etc.)
 	// using Logger.With before passing the logger in.
-	Logger           slog.Logger
-	Compaction       *CompactionOptions
-	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
-	DisableChainMode func()
-	// PrepareMessages is called at least once before each LLM step
-	// with the current message history. If it returns non-nil, the
-	// returned slice replaces messages for this and all subsequent
-	// steps.
-	// Used to inject system context that becomes available mid-loop
-	// (e.g. AGENTS.md after create_workspace).
-	// NOTE: It may be called more than once per step in case of a
-	// retry, so callbacks should avoid duplicating messages.
-	PrepareMessages func([]fantasy.Message) []fantasy.Message
+	Logger     slog.Logger
+	Compaction *CompactionOptions
 
 	// PrepareTools is called once before each LLM step with the
 	// current tool list. If it returns non-nil, the returned slice
@@ -436,7 +421,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Content:              result.content,
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
-		ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:              opts.Clock.Since(stepStart),
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,
@@ -581,11 +565,6 @@ func prepareMessagesForRequest(
 	totalSteps int,
 ) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
 	canonical = messages
-	if opts.PrepareMessages != nil {
-		if updated := opts.PrepareMessages(canonical); updated != nil {
-			canonical = updated
-		}
-	}
 	// Copy messages so provider-specific caching mutations don't leak
 	// back to the canonical message slice.
 	prompt = slices.Clone(canonical)
