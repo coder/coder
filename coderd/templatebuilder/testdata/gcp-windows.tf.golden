@@ -11,6 +11,11 @@ terraform {
 
 provider "coder" {}
 
+variable "project_id" {
+  description = "Which Google Compute Project should your workspace live in?"
+  default     = "test-project_id"
+}
+
 # See https://registry.coder.com/modules/coder/gcp-region
 module "gcp_region" {
   source = "registry.coder.com/coder/gcp-region/coder"
@@ -24,7 +29,7 @@ module "gcp_region" {
 
 provider "google" {
   zone    = module.gcp_region.value
-  project = "REQUIRED"
+  project = var.project_id
 }
 
 data "coder_workspace" "me" {}

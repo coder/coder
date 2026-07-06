@@ -87,9 +87,10 @@ func TestCompose(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, result.MainTF)
-		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
-		require.Contains(t, string(result.MainTF), `"my-gcp-project"`)
-		require.NotContains(t, string(result.MainTF), `var.project_id`)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `default     = "my-gcp-project"`)
+		require.Contains(t, mainTF, `project = var.project_id`)
 	})
 
 	t.Run("GCPWindowsBase", func(t *testing.T) {
@@ -101,9 +102,10 @@ func TestCompose(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, result.MainTF)
-		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
-		require.Contains(t, string(result.MainTF), `"my-gcp-project"`)
-		require.NotContains(t, string(result.MainTF), `var.project_id`)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `default     = "my-gcp-project"`)
+		require.Contains(t, mainTF, `project = var.project_id`)
 	})
 
 	t.Run("GCPMissingRequiredBaseVariable", func(t *testing.T) {

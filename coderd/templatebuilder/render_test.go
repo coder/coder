@@ -2,6 +2,7 @@ package templatebuilder_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,26 @@ import (
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")
+
+// testRenderContext builds a BaseRenderContext from defaults and fills
+// in deterministic test values for any required variables that have no
+// default. This keeps the all-bases test loops working without silently
+// producing broken HCL.
+func testRenderContext(exampleID string) templatebuilder.BaseRenderContext {
+	rc := templatebuilder.DefaultBaseRenderContext(exampleID)
+	if rc.Variables == nil {
+		rc.Variables = make(map[string]string)
+	}
+	for _, v := range templatebuilder.BaseVariables(exampleID) {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if _, ok := rc.Variables[v.Name]; !ok {
+			rc.Variables[v.Name] = fmt.Sprintf("%q", "test-"+v.Name)
+		}
+	}
+	return rc
+}
 
 func TestRenderBaseTemplate(t *testing.T) {
 	t.Parallel()
@@ -297,7 +318,7 @@ func TestAllBasesRenderAndExtractAgent(t *testing.T) {
 	for _, id := range templatebuilder.BaseTemplateIDs() {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
-			renderCtx := templatebuilder.DefaultBaseRenderContext(id)
+			renderCtx := testRenderContext(id)
 			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", renderCtx)
 			require.NoError(t, err, "base %q should render without error", id)
 			require.NotEmpty(t, rendered)
@@ -330,7 +351,7 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		t.Run(tc.exampleID, func(t *testing.T) {
 			t.Parallel()
 
-			renderCtx := templatebuilder.DefaultBaseRenderContext(tc.exampleID)
+			renderCtx := testRenderContext(tc.exampleID)
 			rendered, err := templatebuilder.RenderBaseTemplate(tc.exampleID, "main.tf.tmpl", renderCtx)
 			require.NoError(t, err)
 			require.NotEmpty(t, rendered)

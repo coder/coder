@@ -227,11 +227,6 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 		}
 		if len(v.Default) > 0 && isSimpleJSONValue(v.Default) {
 			vars[v.Name] = string(v.Default)
-		} else if v.Required {
-			// Provide a placeholder so Go template rendering
-			// succeeds. The compose path validates that real
-			// values are supplied before rendering.
-			vars[v.Name] = `"REQUIRED"`
 		}
 	}
 
