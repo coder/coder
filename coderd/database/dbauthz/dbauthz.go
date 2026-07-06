@@ -671,10 +671,11 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "dbpurge"},
 				DisplayName: "DB Purge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:               {policy.ActionDelete},
-					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
-					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
-					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
+					rbac.ResourceSystem.Type:                      {policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:         {policy.ActionDelete},
+					rbac.ResourceApiKey.Type:                      {policy.ActionDelete},
+					rbac.ResourceAibridgeInterception.Type:        {policy.ActionDelete},
+					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionDelete},
 					// Chat auto-archive sets archived=true on inactive chats.
 					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
 					// Purge old boundary logs past the retention period.
@@ -2387,6 +2388,13 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
+}
+
+func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 }
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
