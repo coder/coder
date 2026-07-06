@@ -3,12 +3,12 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"maps"
 	"net/http"
 	"slices"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	slog "cdr.dev/slog/v3"
@@ -163,7 +163,6 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		oldChat = current
 		oldChat.UserACL = maps.Clone(current.UserACL)
-		oldChat.GroupACL = maps.Clone(current.GroupACL)
 
 		for id, role := range req.UserRoles {
 			if role == codersdk.ChatRoleDeleted {
@@ -249,18 +248,13 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 
 	//nolint:gocritic // Notifier actor is required to enqueue notifications.
 	notifierCtx := dbauthz.AsNotifier(ctx)
-	var eg errgroup.Group
-	eg.SetLimit(10)
+	var errs []error
 	for _, userID := range recipientIDs {
-		eg.Go(func() error {
-			_, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiator.ID.String(), newChat.ID)
-			if err != nil {
-				return xerrors.Errorf("enqueue chat shared notification: %w", err)
-			}
-			return nil
-		})
+		if _, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiator.ID.String(), newChat.ID); err != nil {
+			errs = append(errs, xerrors.Errorf("enqueue chat shared notification: %w", err))
+		}
 	}
-	return len(recipientIDs), eg.Wait()
+	return len(recipientIDs), errors.Join(errs...)
 }
 
 func (api *API) directChatReaders(ctx context.Context, chat database.Chat) map[uuid.UUID]struct{} {
