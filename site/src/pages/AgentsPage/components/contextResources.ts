@@ -158,13 +158,22 @@ type DirectoryGroup<T> = {
 	readonly items: readonly T[];
 };
 
+// Manual grouping because Map.groupBy is unavailable in the browserslist
+// targets (Safari 16, Chrome 110). Map iteration preserves first-seen order.
 const groupByDirectory = <T extends { readonly dir: string }>(
 	items: readonly T[],
-): readonly DirectoryGroup<T>[] =>
-	[...Map.groupBy(items, (item) => item.dir)].map(([dir, items]) => ({
-		dir,
-		items,
-	}));
+): readonly DirectoryGroup<T>[] => {
+	const byDir = new Map<string, T[]>();
+	for (const item of items) {
+		const group = byDir.get(item.dir);
+		if (group) {
+			group.push(item);
+		} else {
+			byDir.set(item.dir, [item]);
+		}
+	}
+	return [...byDir].map(([dir, items]) => ({ dir, items }));
+};
 
 interface NormalizedContextResources {
 	readonly fileItems: readonly ContextFileItem[];
