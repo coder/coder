@@ -1095,9 +1095,7 @@ var (
 	ErrChatArchived = xerrors.New("chat is archived")
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
 	// is configured, so chatd cannot resolve a model for the request.
-	ErrNoDefaultChatModelConfig = xerrors.New(
-		"no default chat model config is configured",
-	)
+	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
