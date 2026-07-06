@@ -5,6 +5,7 @@ import type {
 	ChatContextResourceStatus,
 	ChatContextTool,
 } from "#/api/typesGenerated";
+import { formatTokenCount as formatTokenCountBase } from "#/utils/analytics";
 import { getPathBasename, getPathDirname } from "../utils/path";
 
 export interface AgentContextUsage {
@@ -22,8 +23,6 @@ export interface AgentContextUsage {
 	readonly context?: ChatContext;
 }
 
-// Normalized context entries, sourced from the chat's pinned context
-// resources and shared by the compact usage popover and the details dialog.
 type ContextFileItem = { readonly path: string; readonly dir: string };
 type ContextSkillItem = {
 	readonly source: string;
@@ -56,11 +55,31 @@ export const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	mcp_server: "MCP server",
 };
 
+export const RESOURCE_STATUS_LABELS: Record<ChatContextResourceStatus, string> =
+	{
+		ok: "ok",
+		excluded: "excluded",
+		invalid: "invalid",
+		oversize: "too large",
+		unreadable: "unreadable",
+	};
+
+// Explanations shown when the backend omits a per-resource error message, so
+// an issue row never renders without a diagnosis.
+const STATUS_EXPLANATIONS: Partial<Record<ChatContextResourceStatus, string>> =
+	{
+		oversize: "File exceeds the context size limit.",
+		unreadable: "File could not be read.",
+		excluded: "Resource was excluded by configuration.",
+		invalid: "Resource configuration is invalid.",
+	};
+
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
+// Adds undefined handling on top of the shared token formatter.
 export const formatTokenCount = (value: number | undefined): string =>
-	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+	hasFiniteTokenValue(value) ? formatTokenCountBase(value) : "--";
 
 const formatTokenCountCompact = (value: number | undefined): string => {
 	if (!hasFiniteTokenValue(value)) {
@@ -77,8 +96,7 @@ const formatTokenCountCompact = (value: number | undefined): string => {
 	return String(value);
 };
 
-// Percent (0-100) of the context window consumed, or null when either the
-// used tokens or the limit is unknown.
+// Null when either the used tokens or the limit is unknown.
 export const getPercentUsed = (
 	usage: AgentContextUsage | null,
 ): number | null => {
@@ -100,9 +118,8 @@ export const formatContextUsageLine = (
 	return `${Math.round(percent)}% - ${formatTokenCountCompact(usage.usedTokens)} / ${formatTokenCountCompact(usage.contextLimitTokens)} context used`;
 };
 
-// Compaction threshold percent to display, or null when it is unset or the
-// usage percent itself is unknown.
-export const getCompactionThresholdPercent = (
+// Null when the threshold is unset or the usage percent itself is unknown.
+export const getCompressionThresholdPercent = (
 	usage: AgentContextUsage | null,
 ): number | null => {
 	if (
@@ -119,9 +136,8 @@ export const getCompactionThresholdPercent = (
 export const countLabel = (count: number, noun: string): string =>
 	`${count} ${noun}${count === 1 ? "" : "s"}`;
 
-// Sum the byte size of the OK resources in the given kinds so each section
-// can show how much context it costs. Non-OK resources are excluded because
-// they are not injected into the prompt.
+// Non-OK resources are excluded because they are not injected into the
+// prompt.
 const sumResourceBytes = (
 	resources: readonly ChatContextResource[],
 	kinds: readonly ChatContextResourceKind[],
@@ -134,31 +150,21 @@ const sumResourceBytes = (
 		0,
 	);
 
-// A set of context resources that share a parent directory. Lists are grouped
-// by directory so resources pulled from different roots (for example a
-// repo-root AGENTS.md and a nested one) stay distinguishable instead of
+// Grouping by directory keeps resources pulled from different roots (for
+// example a repo-root AGENTS.md and a nested one) distinguishable instead of
 // collapsing to identical basenames.
 type DirectoryGroup<T> = {
 	readonly dir: string;
 	readonly items: readonly T[];
 };
 
-// Group items by their precomputed dir, preserving first-seen order so the
-// list layout stays stable across renders.
 const groupByDirectory = <T extends { readonly dir: string }>(
 	items: readonly T[],
-): readonly DirectoryGroup<T>[] => {
-	const byDir = new Map<string, T[]>();
-	for (const item of items) {
-		const existing = byDir.get(item.dir);
-		if (existing) {
-			existing.push(item);
-		} else {
-			byDir.set(item.dir, [item]);
-		}
-	}
-	return [...byDir.entries()].map(([dir, items]) => ({ dir, items }));
-};
+): readonly DirectoryGroup<T>[] =>
+	[...Map.groupBy(items, (item) => item.dir)].map(([dir, items]) => ({
+		dir,
+		items,
+	}));
 
 interface NormalizedContextResources {
 	readonly fileItems: readonly ContextFileItem[];
@@ -176,8 +182,6 @@ interface NormalizedContextResources {
 	readonly hasResources: boolean;
 }
 
-// Normalize the chat's pinned context resources into the display entries the
-// compact popover (counts) and the details dialog (full tree) are built from.
 export const normalizeContextResources = (
 	resources: readonly ChatContextResource[] | undefined,
 ): NormalizedContextResources => {
@@ -234,7 +238,7 @@ export const normalizeContextResources = (
 				resource.source,
 			kind: resource.kind,
 			status: resource.status,
-			error: resource.error ?? "",
+			error: resource.error || STATUS_EXPLANATIONS[resource.status] || "",
 			source: resource.source,
 		}))
 		.filter((issue) => issue.name.trim().length > 0);

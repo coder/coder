@@ -222,7 +222,7 @@ export const Dirty: Story = {
 		expect(dialog.getByText("Context changed")).toBeInTheDocument();
 		expect(
 			dialog.getByText(
-				"The workspace context changed since this chat was pinned.",
+				"The workspace context changed, so this chat's context files may be outdated.",
 			),
 		).toBeInTheDocument();
 
@@ -230,6 +230,23 @@ export const Dirty: Story = {
 			dialog.getByRole("button", { name: "Refresh context" }),
 		);
 		expect(args.onRefreshContext).toHaveBeenCalledTimes(1);
+	},
+};
+
+// Drift with no resources at all: the dialog still opens (via the warning
+// footer) and renders the empty-resources message.
+export const DirtyNoResources: Story = {
+	args: {
+		usage: {
+			usedTokens: 12_000,
+			contextLimitTokens: 200_000,
+			context: { dirty: true, resources: [] },
+		},
+	},
+	play: async () => {
+		const dialog = await getDialog();
+		expect(dialog.getByText("No context resources.")).toBeInTheDocument();
+		expect(dialog.getByText("Context changed")).toBeInTheDocument();
 	},
 };
 

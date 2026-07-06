@@ -35,9 +35,10 @@ import {
 	type AgentContextUsage,
 	countLabel,
 	formatContextUsageLine,
-	getCompactionThresholdPercent,
+	getCompressionThresholdPercent,
 	normalizeContextResources,
 	RESOURCE_KIND_LABELS,
+	RESOURCE_STATUS_LABELS,
 } from "./contextResources";
 
 // Warning (drifted pin) or error (failed snapshot) notice with the refresh
@@ -63,7 +64,7 @@ export const ContextSyncStatus: FC<{
 			<span className="text-content-secondary">
 				{hasContextError
 					? contextError
-					: "The workspace context changed since this chat was pinned."}
+					: "The workspace context changed, so this chat's context files may be outdated."}
 			</span>
 			{onRefreshContext && (
 				<div className="flex flex-wrap gap-2">
@@ -191,7 +192,7 @@ export const ContextDetailsDialog: FC<{
 		issueItems,
 		hasResources,
 	} = normalizeContextResources(context?.resources);
-	const compactionThreshold = getCompactionThresholdPercent(usage);
+	const compressionThreshold = getCompressionThresholdPercent(usage);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,8 +201,8 @@ export const ContextDetailsDialog: FC<{
 					<DialogTitle>Context details</DialogTitle>
 					<DialogDescription>
 						{formatContextUsageLine(usage)}
-						{compactionThreshold !== null &&
-							` · Compacts at ${compactionThreshold}%`}
+						{compressionThreshold !== null &&
+							` · Compacts at ${compressionThreshold}%`}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="max-h-[60vh] overflow-y-auto">
@@ -316,9 +317,9 @@ export const ContextDetailsDialog: FC<{
 												title={issue.source}
 											>
 												<span className="truncate text-content-primary">
-													{issue.name}{" "}
+													{`${issue.name} `}
 													<span className="text-content-secondary">
-														({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+														{`(${RESOURCE_KIND_LABELS[issue.kind]}: ${RESOURCE_STATUS_LABELS[issue.status]})`}
 													</span>
 												</span>
 												{issue.error && (
@@ -334,7 +335,7 @@ export const ContextDetailsDialog: FC<{
 						</TooltipProvider>
 					) : (
 						<p className="m-0 text-xs text-content-secondary">
-							No context resources pinned.
+							No context resources.
 						</p>
 					)}
 				</div>

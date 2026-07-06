@@ -3,7 +3,7 @@ import type { ChatContextResource } from "#/api/typesGenerated";
 import {
 	countLabel,
 	formatContextUsageLine,
-	getCompactionThresholdPercent,
+	getCompressionThresholdPercent,
 	getPercentUsed,
 	normalizeContextResources,
 } from "./contextResources";
@@ -131,7 +131,7 @@ describe("normalizeContextResources", () => {
 
 	it("sums bytes per section from ok resources only", () => {
 		const normalized = normalizeContextResources(resources);
-		// The too_large instruction file is not injected, so it does not count.
+		// The oversize instruction file is not injected, so it does not count.
 		expect(normalized.fileBytes).toBe(500);
 		// The invalid skill does not count either.
 		expect(normalized.skillBytes).toBe(150);
@@ -149,11 +149,13 @@ describe("normalizeContextResources", () => {
 				error: "name mismatch",
 				source: "/home/coder/test/.agents/skills/moo",
 			},
+			// A missing backend error falls back to a status explanation so the
+			// issue row never renders without a diagnosis.
 			{
 				name: "huge.md",
 				kind: "instruction_file",
 				status: "oversize",
-				error: "",
+				error: "File exceeds the context size limit.",
 				source: "/home/coder/huge.md",
 			},
 		]);
@@ -202,20 +204,20 @@ describe("usage formatting", () => {
 
 	it("only reports a compaction threshold alongside a known usage percent", () => {
 		expect(
-			getCompactionThresholdPercent({
+			getCompressionThresholdPercent({
 				usedTokens: 12_000,
 				contextLimitTokens: 200_000,
 				compressionThreshold: 80,
 			}),
 		).toBe(80);
 		expect(
-			getCompactionThresholdPercent({
+			getCompressionThresholdPercent({
 				usedTokens: 12_000,
 				compressionThreshold: 80,
 			}),
 		).toBeNull();
 		expect(
-			getCompactionThresholdPercent({
+			getCompressionThresholdPercent({
 				usedTokens: 12_000,
 				contextLimitTokens: 200_000,
 				compressionThreshold: 0,

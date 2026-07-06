@@ -6,8 +6,8 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { useIsMobileViewport } from "#/hooks/useIsMobileViewport";
 import { cn } from "#/utils/cn";
-import { isMobileViewport } from "#/utils/mobile";
 import {
 	ContextDetailsDialog,
 	ContextSyncStatus,
@@ -17,7 +17,7 @@ import {
 	countLabel,
 	formatContextUsageLine,
 	formatTokenCount,
-	getCompactionThresholdPercent,
+	getCompressionThresholdPercent,
 	getPercentUsed,
 	normalizeContextResources,
 } from "./contextResources";
@@ -50,6 +50,7 @@ export const ContextUsageIndicator: FC<{
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
+	const mobile = useIsMobileViewport();
 	const [open, setOpen] = useState(false);
 	const [detailsOpen, setDetailsOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -82,7 +83,7 @@ export const ContextUsageIndicator: FC<{
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 100;
 	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const compactionThreshold = getCompactionThresholdPercent(usage);
+	const compressionThreshold = getCompressionThresholdPercent(usage);
 
 	const context = usage?.context;
 	const isDirty = context?.dirty ?? false;
@@ -104,7 +105,7 @@ export const ContextUsageIndicator: FC<{
 	const fileSkillSegments = [
 		fileItems.length > 0 && countLabel(fileItems.length, "context file"),
 		skillItems.length > 0 && countLabel(skillItems.length, "skill"),
-	].filter((segment): segment is string => segment !== false);
+	].filter((segment) => segment !== false);
 	const mcpSegments = [
 		mcpConfigItems.length > 0 &&
 			countLabel(mcpConfigItems.length, "MCP config"),
@@ -114,11 +115,18 @@ export const ContextUsageIndicator: FC<{
 				mcpConfigItems.length > 0 ? "server" : "MCP server",
 			),
 		mcpToolCount > 0 && countLabel(mcpToolCount, "tool"),
-	].filter((segment): segment is string => segment !== false);
+	].filter((segment) => segment !== false);
 
 	// Whether the details dialog has anything to show. When false, the link
 	// row is hidden and clicking the ring is a no-op.
 	const hasDetails = hasResources || isDirty || hasContextError;
+
+	// Reset stale dialog state when the details disappear (for example while
+	// switching chats), so the next chat's details cannot pop the dialog open
+	// without user action.
+	if (detailsOpen && !(usage && hasDetails)) {
+		setDetailsOpen(false);
+	}
 
 	const openDetails = () => {
 		if (!hasDetails) {
@@ -137,7 +145,9 @@ export const ContextUsageIndicator: FC<{
 	if (isDirty) {
 		ariaLabelParts.push("Context changed.");
 	}
-	if (hasDetails) {
+	// On mobile a tap opens the popover, not the dialog, so the click hint
+	// only applies to desktop.
+	if (hasDetails && !mobile) {
 		ariaLabelParts.push("Click to open context details.");
 	}
 	const ariaLabel = ariaLabelParts.join(" ");
@@ -145,9 +155,9 @@ export const ContextUsageIndicator: FC<{
 	const panelContent = (
 		<div className="text-xs text-content-primary">
 			{formatContextUsageLine(usage)}
-			{compactionThreshold !== null && (
+			{compressionThreshold !== null && (
 				<div className="mt-1 text-content-secondary">
-					{`Compacts at ${compactionThreshold}%`}
+					{`Compacts at ${compressionThreshold}%`}
 				</div>
 			)}
 			{(fileSkillSegments.length > 0 || mcpSegments.length > 0) && (
@@ -184,8 +194,6 @@ export const ContextUsageIndicator: FC<{
 			)}
 		</div>
 	);
-
-	const mobile = isMobileViewport();
 
 	// On mobile the tap toggles the popover via PopoverTrigger, so the ring
 	// itself gets no click handler there; on desktop clicking the ring opens
@@ -257,9 +265,10 @@ export const ContextUsageIndicator: FC<{
 					// Prevent the popover from stealing focus, which would
 					// interfere with the chat input.
 					onOpenAutoFocus={mobile ? undefined : (e) => e.preventDefault()}
-					// Keep focus where it is when the popover closes so it cannot
-					// steal focus from the details dialog as it opens.
-					onCloseAutoFocus={(e) => e.preventDefault()}
+					// On desktop, keep focus where it is when the popover closes so
+					// it cannot steal focus from the details dialog as it opens. On
+					// mobile, let Radix restore focus to the trigger.
+					onCloseAutoFocus={mobile ? undefined : (e) => e.preventDefault()}
 				>
 					{panelContent}
 				</PopoverContent>
