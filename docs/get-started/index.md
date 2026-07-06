@@ -232,8 +232,7 @@ guides you through creating one without writing any Terraform.
 
 1. On the final step, name your template:
    - **Name**: `my-docker-template`
-   - **Display name** and **Description**: fill in as you like, or keep the
-     defaults.
+   - **Display name** and **Description**: fill in as you like.
 
 1. Select **Create Template**. Coder composes and validates the Terraform
    configuration, then creates your template.

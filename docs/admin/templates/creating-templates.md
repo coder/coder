@@ -43,7 +43,7 @@ The builder walks you through up to five steps:
    selected. Required variables without defaults must be filled in before you
    can proceed. Modules that require secrets (such as API keys) display a
    notice that developers will be prompted for the value at workspace creation
-   time. The builder never collects or stores secrets.
+   time.
 
    ![Configure module settings](../../images/templatebuilder_03_module_customization.png)
 
