@@ -290,6 +290,60 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), "interpolation")
 	})
 
+	t.Run("DockerDefaultContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF), `"codercom/example-base:ubuntu"`)
+	})
+
+	t.Run("DockerCustomContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			BaseVariableValues: map[string]string{
+				"container_image": "myregistry/myimage:v2",
+			},
+		})
+		require.NoError(t, err)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `"myregistry/myimage:v2"`)
+		require.NotContains(t, mainTF, `codercom/example-base:ubuntu`)
+	})
+
+	t.Run("KubernetesDefaultContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "kubernetes",
+			RegistryURL:    "https://registry.coder.com",
+			BaseVariableValues: map[string]string{
+				"namespace": "default",
+			},
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF), `"codercom/example-base:ubuntu"`)
+	})
+
+	t.Run("KubernetesCustomContainerImage", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "kubernetes",
+			RegistryURL:    "https://registry.coder.com",
+			BaseVariableValues: map[string]string{
+				"namespace":       "default",
+				"container_image": "custom/workspace:latest",
+			},
+		})
+		require.NoError(t, err)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `"custom/workspace:latest"`)
+		require.NotContains(t, mainTF, `codercom/example-base:ubuntu`)
+	})
+
 	t.Run("MissingRequiredVariable", func(t *testing.T) {
 		t.Parallel()
 		// git-clone has a required "url" variable with no default.
