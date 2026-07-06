@@ -90,11 +90,15 @@ type AIProviderSettings struct {
 	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
 	Bedrock *AIProviderBedrockSettings `json:"-"`
+	// WIF, when set, indicates this provider authenticates via Anthropic
+	// Workload Identity Federation. Only meaningful for
+	// AIProviderTypeAnthropic.
+	WIF *AIProviderWIFSettings `json:"-"`
 }
 
 // IsZero reports whether the settings carry no type-specific data.
 func (s AIProviderSettings) IsZero() bool {
-	return s.Bedrock == nil
+	return s.Bedrock == nil && s.WIF == nil
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
@@ -103,6 +107,8 @@ func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
 	case s.Bedrock != nil:
 		return marshalSettings(*s.Bedrock)
+	case s.WIF != nil:
+		return marshalSettings(*s.WIF)
 	default:
 		return []byte("null"), nil
 	}
@@ -136,6 +142,17 @@ func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 			return xerrors.Errorf("decode bedrock settings: %w", err)
 		}
 		s.Bedrock = &b
+		return nil
+	case AIProviderSettingsTypeWIF:
+		if header.Version != AIProviderWIFSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderWIFSettingsVersion)
+		}
+		var w AIProviderWIFSettings
+		if err := json.Unmarshal(data, &w); err != nil {
+			return xerrors.Errorf("decode WIF settings: %w", err)
+		}
+		s.WIF = &w
 		return nil
 	default:
 		return xerrors.Errorf("unknown settings type %q", header.Type)
@@ -295,6 +312,30 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		}
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
+	}
+	if req.Settings.WIF != nil && req.Type != AIProviderTypeAnthropic {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings are only valid for type=anthropic",
+		})
+	}
+	if req.Settings.WIF != nil && req.Settings.Bedrock != nil {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF and Bedrock settings are mutually exclusive",
+		})
+	}
+	if req.Settings.WIF != nil && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings and api_keys are mutually exclusive",
+		})
+	}
+	if req.Settings.WIF != nil && !req.Settings.WIF.IsConfigured() {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings require federation_rule_id, organization_id, and identity_token_file",
+		})
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{

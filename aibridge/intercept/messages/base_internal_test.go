@@ -286,10 +286,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 		newInterception func(payload RequestPayload) *interceptionBase
 	}{
 		{name: "blocking", newInterception: func(payload RequestPayload) *interceptionBase {
-			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+			return &NewBlockingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, nil, http.Header{}, nil).interceptionBase
 		}},
 		{name: "streaming", newInterception: func(payload RequestPayload) *interceptionBase {
-			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, http.Header{}, nil).interceptionBase
+			return &NewStreamingInterceptor(uuid.New(), payload, intercept.Config{}, nil, runtime, nil, http.Header{}, nil).interceptionBase
 		}},
 	}
 
