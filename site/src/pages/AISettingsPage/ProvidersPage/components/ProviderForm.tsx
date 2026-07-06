@@ -336,6 +336,20 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		onIconChange?.(value);
 	};
 
+	const iconField = (
+		<div className="flex flex-col gap-2">
+			<Label htmlFor="icon">Icon</Label>
+			<div className="text-xs text-content-secondary">
+				Optional. URL or emoji shown for this provider.
+			</div>
+			<IconPickerField
+				id="icon"
+				value={form.values.icon}
+				onChange={handleIconChange}
+			/>
+		</div>
+	);
+
 	const typeSelectValue = form.values.type;
 
 	// Clears the field once if it's still showing the seeded mask;
@@ -417,18 +431,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								className="w-full"
 							/>
 						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="icon">Icon</Label>
-							<div className="text-xs text-content-secondary">
-								Optional. URL or emoji shown for this provider.
-							</div>
-							<IconPickerField
-								id="icon"
-								value={form.values.icon}
-								onChange={handleIconChange}
-								onPickEmoji={handleIconChange}
-							/>
-						</div>
+						{iconField}
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
@@ -488,18 +491,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								className="w-full"
 							/>
 						</div>
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="icon">Icon</Label>
-							<div className="text-xs text-content-secondary">
-								Optional. URL or emoji shown for this provider.
-							</div>
-							<IconPickerField
-								id="icon"
-								value={form.values.icon}
-								onChange={handleIconChange}
-								onPickEmoji={handleIconChange}
-							/>
-						</div>
+						{iconField}
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}

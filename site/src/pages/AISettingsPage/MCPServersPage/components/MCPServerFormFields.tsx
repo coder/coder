@@ -155,9 +155,6 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 								value={form.values.iconURL}
 								placeholder="file location"
 								onChange={(value) => void form.setFieldValue("iconURL", value)}
-								onPickEmoji={(value) =>
-									void form.setFieldValue("iconURL", value)
-								}
 								disabled={isDisabled}
 							/>
 						</Field>

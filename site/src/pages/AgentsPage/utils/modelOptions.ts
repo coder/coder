@@ -204,9 +204,9 @@ export const providerTypeByIDFromConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
 ): ReadonlyMap<string, string> =>
 	new Map(
-		(providerConfigs ?? []).map((providerConfig) => [
-			providerConfig.id,
-			providerConfig.provider,
+		Array.from(providerInfoByIDFromConfigs(providerConfigs), ([id, info]) => [
+			id,
+			info.provider,
 		]),
 	);
 
@@ -217,10 +217,10 @@ export const providerTypeByIDFromUserConfigs = (
 		| undefined,
 ): ReadonlyMap<string, string> =>
 	new Map(
-		(providerConfigs ?? []).map((providerConfig) => [
-			providerConfig.provider_id,
-			providerConfig.provider,
-		]),
+		Array.from(
+			providerInfoByIDFromUserConfigs(providerConfigs),
+			([id, info]) => [id, info.provider],
+		),
 	);
 
 export const getModelOptionsFromConfigs = (

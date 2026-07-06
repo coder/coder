@@ -193,14 +193,25 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								firstOption,
 								formatProviderLabel,
 							);
+							const iconSrc =
+								firstOption.providerIcon ||
+								getProviderIcon(firstOption.provider);
 							return (
 								<CommandGroup
 									key={providerKey}
 									heading={
-										<ProviderGroupHeading
-											option={firstOption}
-											label={providerLabel}
-										/>
+										<span className="flex items-center gap-1.5">
+											{iconSrc ? (
+												<ExternalImage
+													src={iconSrc}
+													alt=""
+													className="size-3.5"
+												/>
+											) : (
+												<Building2Icon className="size-3.5" aria-hidden />
+											)}
+											<span>{providerLabel}</span>
+										</span>
 									}
 									className={cn(
 										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
@@ -226,28 +237,6 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				</Command>
 			</PopoverContent>
 		</Popover>
-	);
-};
-
-interface ProviderGroupHeadingProps {
-	option: ModelSelectorOption;
-	label: string;
-}
-
-const ProviderGroupHeading: FC<ProviderGroupHeadingProps> = ({
-	option,
-	label,
-}) => {
-	const iconSrc = option.providerIcon || getProviderIcon(option.provider);
-	return (
-		<span className="flex items-center gap-1.5">
-			{iconSrc ? (
-				<ExternalImage src={iconSrc} alt="" className="size-3.5" />
-			) : (
-				<Building2Icon className="size-3.5" aria-hidden />
-			)}
-			<span>{label}</span>
-		</span>
 	);
 };
 

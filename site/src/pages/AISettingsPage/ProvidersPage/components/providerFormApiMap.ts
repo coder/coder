@@ -272,13 +272,12 @@ export const aiProviderToFormValues = (
 		};
 	}
 
+	const displayType = getProviderDisplayType(provider);
 	return {
-		type: getProviderDisplayType(provider),
+		type: displayType,
 		name: provider.name,
 		displayName,
-		icon:
-			provider.icon ||
-			(getProviderIcon(getProviderDisplayType(provider)) ?? ""),
+		icon: provider.icon || (getProviderIcon(displayType) ?? ""),
 		baseUrl: provider.base_url,
 		apiKey: "",
 		enabled: provider.enabled,

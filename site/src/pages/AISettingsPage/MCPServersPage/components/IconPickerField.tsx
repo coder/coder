@@ -22,7 +22,6 @@ interface IconPickerFieldProps {
 	placeholder?: string;
 	disabled?: boolean;
 	onChange: (value: string) => void;
-	onPickEmoji: (value: string) => void;
 }
 
 export const IconPickerField: FC<IconPickerFieldProps> = ({
@@ -31,7 +30,6 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 	placeholder,
 	disabled,
 	onChange,
-	onPickEmoji,
 }) => {
 	const [open, setOpen] = useState(false);
 	const hasIcon = value !== "";
@@ -89,7 +87,7 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 							<EmojiPicker
 								onEmojiSelect={(emoji) => {
 									const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
-									onPickEmoji(picked);
+									onChange(picked);
 									setOpen(false);
 								}}
 							/>

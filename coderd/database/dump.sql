@@ -1509,8 +1509,6 @@ COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-spe
 
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 
-COMMENT ON COLUMN ai_providers.icon IS 'Optional icon URL for display in provider lists and model pickers.';
-
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
