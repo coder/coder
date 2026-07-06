@@ -210,11 +210,11 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
 	} else {
-		// api.ctx, not the request ctx, so disconnects don't drop notifications.
+		// api.ctx, not the request ctx, so a disconnect no longer cancels the fan-out once it starts.
 		newChat := aReq.New
 		go func() {
 			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {
-				api.Logger.Warn(api.ctx, "failed to enqueue chat shared notification", slog.Error(err), slog.F("chat_id", newChat.ID), slog.F("recipient_count", count))
+				api.Logger.Warn(api.ctx, "failed to enqueue one or more chat shared notifications", slog.Error(err), slog.F("chat_id", newChat.ID), slog.F("attempted_recipients", count))
 			}
 		}()
 	}
