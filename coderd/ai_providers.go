@@ -492,8 +492,8 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 }
 
 // publishAIProvidersChanged notifies subscribers (aibridged,
-// aibridgeproxyd) that the live provider set changed and they should
-// refetch from the database. Pubsub failures are logged but not
+// aibridgeproxyd, chatd) that the live provider set changed and they
+// should refetch from the database. Pubsub failures are logged but not
 // propagated: subscribers refresh authoritatively from the DB, so a
 // dropped notification only delays convergence.
 func (api *API) publishAIProvidersChanged(ctx context.Context) {

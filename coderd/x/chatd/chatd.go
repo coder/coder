@@ -179,6 +179,7 @@ type Server struct {
 	debugSvcInit                   sync.Once
 	configCache                    *chatConfigCache
 	configCacheUnsubscribe         func()
+	providerCacheUnsubscribe       func()
 
 	usageTracker      *workspacestats.UsageTracker
 	clock             quartz.Clock
@@ -3303,8 +3304,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 				return
 			}
 			switch ev.Kind {
-			case coderdpubsub.ChatConfigEventProviders:
-				p.configCache.InvalidateProviders()
 			case coderdpubsub.ChatConfigEventModelConfig:
 				p.configCache.InvalidateModelConfig(ev.EntityID)
 			case coderdpubsub.ChatConfigEventUserPrompt:
@@ -3318,6 +3317,22 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		p.logger.Error(ctx, "subscribe to chat config events", slog.Error(err))
 	} else {
 		p.configCacheUnsubscribe = cancelConfigSub
+	}
+
+	cancelProviderSub, err := p.pubsub.SubscribeWithErr(
+		coderdpubsub.AIProvidersChangedChannel,
+		func(cbCtx context.Context, _ []byte, err error) {
+			if err != nil {
+				p.logger.Warn(cbCtx, "ai providers changed event error", slog.Error(err))
+				return
+			}
+			p.configCache.InvalidateProviders()
+		},
+	)
+	if err != nil {
+		p.logger.Error(ctx, "subscribe to ai providers changed events", slog.Error(err))
+	} else {
+		p.providerCacheUnsubscribe = cancelProviderSub
 	}
 
 	p.ctx = ctx
@@ -4904,6 +4919,10 @@ func (p *Server) Close() error {
 	p.closeInflightAdmission()
 	if unsub := p.configCacheUnsubscribe; unsub != nil {
 		p.configCacheUnsubscribe = nil
+		unsub()
+	}
+	if unsub := p.providerCacheUnsubscribe; unsub != nil {
+		p.providerCacheUnsubscribe = nil
 		unsub()
 	}
 	if p.chatWorker != nil {
