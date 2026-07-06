@@ -9657,10 +9657,8 @@ export interface UserAIBudgetOverride {
 
 // From codersdk/aibridge.go
 /**
- * UserAIBudgetSummary is the effective AI budget applying to a user:
- * which group the spend is attributed to, what the limit is, and how
- * it was resolved. When no budget applies, all fields except UserID
- * are null.
+ * UserAIBudgetSummary is the effective AI budget for a user. When no
+ * budget applies, all fields except UserID are null.
  */
 export interface UserAIBudgetSummary {
 	readonly user_id: string;

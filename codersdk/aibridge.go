@@ -13,7 +13,7 @@ import (
 )
 
 // AIBudgetLimitSource identifies which tier produced the user's
-// effective group.
+// effective budget limit.
 type AIBudgetLimitSource string
 
 const (
@@ -25,10 +25,8 @@ const (
 	AIBudgetLimitSourceGroup AIBudgetLimitSource = "group"
 )
 
-// UserAIBudgetSummary is the effective AI budget applying to a user:
-// which group the spend is attributed to, what the limit is, and how
-// it was resolved. When no budget applies, all fields except UserID
-// are null.
+// UserAIBudgetSummary is the effective AI budget for a user. When no
+// budget applies, all fields except UserID are null.
 type UserAIBudgetSummary struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the group the spend is attributed to. Null when
