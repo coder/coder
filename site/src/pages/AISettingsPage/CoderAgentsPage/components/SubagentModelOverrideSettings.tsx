@@ -3,7 +3,6 @@ import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
-import type { ModelSelectorOption } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
 import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
 import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
@@ -43,23 +42,6 @@ interface SubagentModelOverrideSettingsProps {
 	disabled?: boolean;
 }
 
-const toModelSelectorOption = (
-	modelConfig: TypesGen.ChatModelConfig,
-	providerInfoByID: SubagentModelOverrideSettingsProps["providerInfoByID"],
-): ModelSelectorOption => {
-	const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
-	return {
-		id: modelConfig.id,
-		provider: providerInfo?.provider ?? "",
-		providerId: modelConfig.ai_provider_id,
-		providerLabel: providerInfo?.displayName,
-		providerIcon: providerInfo?.icon,
-		model: modelConfig.model,
-		displayName: modelConfig.display_name.trim() || modelConfig.model,
-		contextLimit: modelConfig.context_limit,
-	};
-};
-
 export const SubagentModelOverrideSettings: FC<
 	SubagentModelOverrideSettingsProps
 > = ({
@@ -81,9 +63,19 @@ export const SubagentModelOverrideSettings: FC<
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
-	const enabledModelOptions = enabledModelConfigs.map((modelConfig) =>
-		toModelSelectorOption(modelConfig, providerInfoByID),
-	);
+	const enabledModelOptions = enabledModelConfigs.map((modelConfig) => {
+		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
+		return {
+			id: modelConfig.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: modelConfig.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: modelConfig.model,
+			displayName: modelConfig.display_name.trim() || modelConfig.model,
+			contextLimit: modelConfig.context_limit,
+		};
+	});
 
 	const form = useFormik({
 		enableReinitialize: true,

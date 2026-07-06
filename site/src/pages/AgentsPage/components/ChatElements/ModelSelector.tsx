@@ -1,4 +1,4 @@
-import { Building2Icon, CheckIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -10,13 +10,12 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
 
@@ -60,9 +59,6 @@ const getProviderLabel = (
 	option: ModelSelectorOption,
 	formatProviderLabel: (provider: string) => string,
 ) => option.providerLabel?.trim() || formatProviderLabel(option.provider);
-
-const getProviderGroupKey = (option: ModelSelectorOption) =>
-	option.providerId?.trim() || option.provider;
 
 const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
 	[
@@ -110,7 +106,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 				continue;
 			}
 
-			const groupKey = getProviderGroupKey(option);
+			const groupKey = option.providerId?.trim() || option.provider;
 			const providerOptions = grouped.get(groupKey);
 			if (providerOptions) {
 				providerOptions.push(option);
@@ -193,23 +189,16 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								firstOption,
 								formatProviderLabel,
 							);
-							const iconSrc =
-								firstOption.providerIcon ||
-								getProviderIcon(firstOption.provider);
 							return (
 								<CommandGroup
 									key={providerKey}
 									heading={
 										<span className="flex items-center gap-1.5">
-											{iconSrc ? (
-												<ExternalImage
-													src={iconSrc}
-													alt=""
-													className="size-3.5"
-												/>
-											) : (
-												<Building2Icon className="size-3.5" aria-hidden />
-											)}
+											<ProviderIcon
+												provider={firstOption.provider}
+												icon={firstOption.providerIcon}
+												className="size-3.5"
+											/>
 											<span>{providerLabel}</span>
 										</span>
 									}

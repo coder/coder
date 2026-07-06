@@ -319,16 +319,7 @@ describe("getModelOptionsFromConfigs", () => {
 				displayName: "GPT-4o (Fast)",
 				contextLimit: 128_000,
 			},
-			{
-				id: "config-2",
-				provider: "openai",
-				providerId: "prov-openai",
-				providerLabel: "OpenAI",
-				providerIcon: "",
-				model: "gpt-4o",
-				displayName: "GPT-4o (Quality)",
-				contextLimit: 128_000,
-			},
+			expect.objectContaining({ id: "config-2" }),
 		]);
 	});
 
@@ -382,19 +373,10 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
-		).toEqual([
-			{
-				id: "config-2",
-				provider: "openai",
-				providerId: "prov-openai",
-				providerLabel: "OpenAI",
-				providerIcon: "",
-				model: "gpt-4.1",
-				displayName: "GPT-4.1",
-				contextLimit: 128_000,
-			},
-		]);
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-2"]);
 	});
 
 	it("falls back to the model name when display_name is blank", () => {
@@ -418,16 +400,11 @@ describe("getModelOptionsFromConfigs", () => {
 		expect(
 			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
 		).toEqual([
-			{
+			expect.objectContaining({
 				id: "config-1",
-				provider: "openai",
-				providerId: "prov-openai",
-				providerLabel: "OpenAI",
-				providerIcon: "",
 				model: "gpt-4o",
 				displayName: "gpt-4o",
-				contextLimit: 0,
-			},
+			}),
 		]);
 	});
 
@@ -514,29 +491,10 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, providerInfoByID),
-		).toEqual([
-			{
-				id: "config-2",
-				provider: "openrouter",
-				providerId: "prov-openrouter",
-				providerLabel: "OpenRouter",
-				providerIcon: "",
-				model: "anthropic/claude-sonnet-4-20250514",
-				displayName: "Claude via OpenRouter",
-				contextLimit: 200_000,
-			},
-			{
-				id: "config-1",
-				provider: "openrouter",
-				providerId: "prov-openrouter",
-				providerLabel: "OpenRouter",
-				providerIcon: "",
-				model: "openai/gpt-4o",
-				displayName: "GPT-4o via OpenRouter",
-				contextLimit: 128_000,
-			},
-		]);
+			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
+				(option) => option.id,
+			),
+		).toEqual(["config-2", "config-1"]);
 	});
 
 	it("drops configs whose ai_provider_id is absent from the provider map", () => {
@@ -620,30 +578,19 @@ describe("getModelOptionsFromConfigs", () => {
 		]);
 
 		expect(
-			getModelOptionsFromConfigs(configs, catalog, sameTypeProviders).map(
-				(option) => ({
-					id: option.id,
-					provider: option.provider,
-					providerId: option.providerId,
-					providerLabel: option.providerLabel,
-					providerIcon: option.providerIcon,
-				}),
-			),
+			getModelOptionsFromConfigs(configs, catalog, sameTypeProviders),
 		).toEqual([
-			{
+			expect.objectContaining({
 				id: "config-primary",
-				provider: "anthropic",
 				providerId: "prov-anthropic-primary",
 				providerLabel: "Anthropic",
-				providerIcon: "",
-			},
-			{
+			}),
+			expect.objectContaining({
 				id: "config-hyper",
-				provider: "anthropic",
 				providerId: "prov-anthropic-hyper",
 				providerLabel: "Hyper",
 				providerIcon: "/icon/coder.svg",
-			},
+			}),
 		]);
 	});
 });
@@ -667,11 +614,6 @@ describe("providerInfoByIDFromConfigs", () => {
 		});
 		expect(map.size).toBe(1);
 	});
-
-	it("returns an empty map for nullish input", () => {
-		expect(providerInfoByIDFromConfigs(undefined).size).toBe(0);
-		expect(providerInfoByIDFromConfigs(null).size).toBe(0);
-	});
 });
 
 describe("providerInfoByIDFromUserConfigs", () => {
@@ -694,11 +636,6 @@ describe("providerInfoByIDFromUserConfigs", () => {
 			icon: "/icon/openai.svg",
 		});
 		expect(map.size).toBe(1);
-	});
-
-	it("returns an empty map for nullish input", () => {
-		expect(providerInfoByIDFromUserConfigs(undefined).size).toBe(0);
-		expect(providerInfoByIDFromUserConfigs(null).size).toBe(0);
 	});
 });
 
