@@ -464,6 +464,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_allowed_hosts": [
+        "string"
+      ],
       "redirect_url": {
         "forceQuery": true,
         "fragment": "string",

@@ -1625,7 +1625,8 @@ CREATE TABLE aibridge_tool_usages (
     invocation_error text,
     metadata jsonb,
     created_at timestamp with time zone NOT NULL,
-    provider_tool_call_id text
+    provider_tool_call_id text,
+    provider_item_id text
 );
 
 COMMENT ON TABLE aibridge_tool_usages IS 'Audit log of tool calls in intercepted requests in AI Bridge';
@@ -1637,6 +1638,8 @@ COMMENT ON COLUMN aibridge_tool_usages.server_url IS 'The name of the MCP server
 COMMENT ON COLUMN aibridge_tool_usages.injected IS 'Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).';
 
 COMMENT ON COLUMN aibridge_tool_usages.invocation_error IS 'Only injected tools are invoked.';
+
+COMMENT ON COLUMN aibridge_tool_usages.provider_item_id IS 'Specific to the OpenAI Responses API: the unique id of the output item that carried the tool call. Distinct from provider_tool_call_id (the call_id correlation key), which is empty for hosted tools. Empty for the chat completions and Anthropic messages APIs, which have no separate item id.';
 
 CREATE TABLE aibridge_user_prompts (
     id uuid NOT NULL,

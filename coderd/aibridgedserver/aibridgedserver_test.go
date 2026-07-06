@@ -2219,6 +2219,7 @@ func TestRecordToolUsage(t *testing.T) {
 					InterceptionId:  uuid.NewString(),
 					MsgId:           "msg_123",
 					ToolCallId:      "call_xyz",
+					ItemId:          "fc_item_xyz",
 					ServerUrl:       ptr.Ref("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
@@ -2248,6 +2249,7 @@ func TestRecordToolUsage(t *testing.T) {
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
 							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
 							!assert.Equal(t, sql.NullString{String: "call_xyz", Valid: true}, p.ProviderToolCallID, "provider tool call ID") ||
+							!assert.Equal(t, sql.NullString{String: "fc_item_xyz", Valid: true}, p.ProviderItemID, "provider item ID") ||
 							!assert.Equal(t, req.GetTool(), p.Tool, "tool") ||
 							!assert.Equal(t, dbServerURL, p.ServerUrl, "server URL") ||
 							!assert.Equal(t, req.GetInput(), p.Input, "input") ||
@@ -2845,6 +2847,79 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: bID, Valid: true}, intcC.ThreadParentID)
 	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcC.ThreadRootID)
+}
+
+// TestRecordToolUsageProviderItemID exercises the RecordToolUsage RPC against a
+// real database and confirms that provider_item_id is persisted in its own
+// column for both shapes of Responses-API tool call. Agentic tools carry both
+// an item id and a tool_call_id; hosted tools (e.g. web_search_call) carry only
+// an item id. The hosted case is the important one: it proves the item id is
+// stored even when tool_call_id is absent, so persistence is not gated on the
+// tool_call_id being present, and the two ids are written to their own columns.
+func TestRecordToolUsageProviderItemID(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	user := dbgen.User(t, db, database.User{})
+
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	intcID := uuid.New()
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:          intcID.String(),
+		ApiKeyId:    uuid.NewString(),
+		InitiatorId: user.ID.String(),
+		Provider:    "openai",
+		Model:       "gpt-5",
+		StartedAt:   timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Agentic tool: both item_id and tool_call_id are present.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: intcID.String(),
+		MsgId:          "resp_1",
+		ToolCallId:     "call_agentic",
+		ItemId:         "fc_item_1",
+		Tool:           "function_call",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Hosted tool: only item_id is present, tool_call_id is empty.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: intcID.String(),
+		MsgId:          "resp_1",
+		ItemId:         "ws_item_1",
+		Tool:           "web_search_call",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	usages, err := db.GetAIBridgeToolUsagesByInterceptionID(ctx, intcID)
+	require.NoError(t, err)
+	require.Len(t, usages, 2)
+
+	byItemID := make(map[string]database.AIBridgeToolUsage, len(usages))
+	for _, u := range usages {
+		require.True(t, u.ProviderItemID.Valid, "item ID should be persisted for %q", u.Tool)
+		byItemID[u.ProviderItemID.String] = u
+	}
+
+	// Agentic tool: item id and tool_call_id land in their own columns.
+	agentic, ok := byItemID["fc_item_1"]
+	require.True(t, ok, "agentic tool usage persisted by item ID")
+	require.Equal(t, sql.NullString{String: "call_agentic", Valid: true}, agentic.ProviderToolCallID)
+
+	// Hosted tool: item id is persisted even though the tool_call_id is empty.
+	hosted, ok := byItemID["ws_item_1"]
+	require.True(t, ok, "hosted tool usage persisted by item ID")
+	require.Equal(t, sql.NullString{}, hosted.ProviderToolCallID, "hosted tool has no tool_call_id")
 }
 
 // TestGetAIProviders exercises the row-to-proto mapping over a real database:

@@ -113,6 +113,10 @@ message RecordToolUsageRequest {
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
+  // Specific to the OpenAI Responses API: the unique id of the output item that
+  // carried the tool call, distinct from tool_call_id (the call_id correlation
+  // key). Empty for chat completions and Anthropic messages.
+  string item_id = 11;
 }
 message RecordToolUsageResponse {}
 

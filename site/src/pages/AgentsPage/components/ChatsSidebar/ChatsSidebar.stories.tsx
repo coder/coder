@@ -104,7 +104,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		isSearchDialogOpen: false,
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
-		regeneratingTitleChatIds: [],
 		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
@@ -942,66 +941,6 @@ export const SearchDialogKeyboardShortcutHandlesRenameInput: Story = {
 		await waitFor(() => {
 			expect(searchInput).toHaveFocus();
 		});
-	},
-};
-
-export const RenameChatAvailableDuringRegeneration: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "regenerating-chat",
-				title: "Regenerating agent",
-				updated_at: recentTimestamp,
-			}),
-			buildChat({
-				id: "idle-chat",
-				title: "Idle agent",
-				updated_at: recentTimestamp,
-			}),
-		],
-		regeneratingTitleChatIds: ["regenerating-chat"],
-		onProposeTitle: fn(async () => "Proposed replacement"),
-		onRenameTitle: fn(async () => {}),
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
-
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: "Open actions for Regenerating agent",
-			}),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Rename chat" }),
-		).toBeInTheDocument();
-
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(
-				body.queryByRole("menuitem", { name: "Rename chat" }),
-			).not.toBeInTheDocument();
-		});
-
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: "Open actions for Idle agent",
-			}),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Rename chat" }),
-		).toBeInTheDocument();
 	},
 };
 

@@ -31,7 +31,6 @@ import {
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
-	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
@@ -321,12 +320,6 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to reorder pinned agents."));
 		},
 	});
-	const regenerateTitleMutation = useMutation({
-		...regenerateChatTitle(queryClient),
-		onError: (error: unknown) => {
-			toast.error(getErrorMessage(error, "Failed to generate new title."));
-		},
-	});
 	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
@@ -334,13 +327,6 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
-	const regeneratingTitleChatIdsRef = useRef<ReadonlySet<string>>(new Set());
-	const [regeneratingTitleChatIds, setRegeneratingTitleChatIds] = useState<
-		readonly string[]
-	>([]);
-	const regeneratingTitlePromisesRef = useRef(
-		new Map<string, Promise<string>>(),
-	);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const catalogModelOptions = getModelOptionsFromConfigs(
 		chatModelConfigsQuery.data,
@@ -488,48 +474,6 @@ const AgentsPage: FC = () => {
 	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
-	};
-	const addRegeneratingTitleChatId = (chatId: string) => {
-		if (!chatId || regeneratingTitleChatIdsRef.current.has(chatId)) {
-			return false;
-		}
-		const next = new Set(regeneratingTitleChatIdsRef.current);
-		next.add(chatId);
-		regeneratingTitleChatIdsRef.current = next;
-		setRegeneratingTitleChatIds(Array.from(next));
-		return true;
-	};
-	const removeRegeneratingTitleChatId = (chatId: string) => {
-		if (!regeneratingTitleChatIdsRef.current.has(chatId)) {
-			return;
-		}
-		const next = new Set(regeneratingTitleChatIdsRef.current);
-		next.delete(chatId);
-		regeneratingTitleChatIdsRef.current = next;
-		setRegeneratingTitleChatIds(Array.from(next));
-	};
-	const requestRegenerateTitle = (chatId: string): Promise<string> => {
-		const existing = regeneratingTitlePromisesRef.current.get(chatId);
-		if (existing) {
-			return existing;
-		}
-		addRegeneratingTitleChatId(chatId);
-		const clearRegenerateTitleTracking = () => {
-			regeneratingTitlePromisesRef.current.delete(chatId);
-			removeRegeneratingTitleChatId(chatId);
-		};
-		const promise = regenerateTitleMutation.mutateAsync(chatId).then(
-			(updated) => {
-				clearRegenerateTitleTracking();
-				return updated.title;
-			},
-			(error) => {
-				clearRegenerateTitleTracking();
-				throw error;
-			},
-		);
-		regeneratingTitlePromisesRef.current.set(chatId, promise);
-		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
 		const result = await proposeTitleMutation.mutateAsync(chatId);
@@ -743,10 +687,8 @@ const AgentsPage: FC = () => {
 				requestPinAgent={requestPinAgent}
 				requestUnpinAgent={requestUnpinAgent}
 				requestReorderPinnedAgent={requestReorderPinnedAgent}
-				onRegenerateTitle={requestRegenerateTitle}
 				onProposeTitle={requestProposeTitle}
 				onRenameTitle={requestRenameTitle}
-				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				isPersonalModelOverridesEnabled={
 					personalModelOverridesQuery.data?.enabled
