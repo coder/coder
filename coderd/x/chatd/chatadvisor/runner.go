@@ -43,9 +43,8 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
-	// Clone per invocation: resetProviderOptionsForNestedCall mutates the
-	// OpenAI Responses entry, and the Runtime's stored options must stay
-	// pristine across calls.
+	// resetProviderOptionsForNestedCall mutates its argument; give it a
+	// clone so the Runtime's stored options stay unchanged across calls.
 	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
 	resetProviderOptionsForNestedCall(nestedProviderOptions)
 

@@ -403,7 +403,8 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 
 	// Parent's OpenAI Responses entry must still carry its Store setting;
-	// the advisor's nested chatloop run must not have mutated the shared pointer.
+	// the advisor must have mutated only its per-call clone, never the
+	// shared pointer.
 	require.NotNil(t, parentOpts.Store)
 	require.True(t, *parentOpts.Store)
 }
@@ -419,9 +420,9 @@ func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 		fantasyopenai.Name: parentOpts,
 	}
 
-	// Snapshot Store at stream time, before chatloop has any chance to
-	// mutate the shared map. Comparing across calls proves the advisor
-	// observes consistent (non-persisted) options each invocation.
+	// Snapshot Store at stream time to capture exactly what each call sent.
+	// Comparing across calls proves the advisor observes consistent
+	// (non-persisted) options each invocation.
 	type observedOpts struct {
 		store *bool
 	}
@@ -464,8 +465,8 @@ func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 
 	require.Len(t, observed, 2)
 	for i, snap := range observed {
-		// Store must be explicitly disabled so the advisor call does not
-		// persist an orphan response on the provider side.
+		// Store must be explicitly disabled so the advisor call leaves no
+		// stored response behind on the provider.
 		require.NotNil(t, snap.store, "call %d did not disable Store", i)
 		require.False(t, *snap.store, "call %d ran with Store enabled", i)
 	}

@@ -3783,8 +3783,9 @@ func mergeTurnSkills(
 	)
 }
 
-// buildSystemPrompt applies system-level prompt injections in
-// canonical order.
+// buildSystemPrompt applies system-level prompt injections in a fixed
+// order: subagent instruction, chat instruction, skill index, user prompt,
+// then mode overlay prompts.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,

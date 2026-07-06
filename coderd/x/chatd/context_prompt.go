@@ -17,12 +17,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// AgentChatContextSentinelPath is the canonical value for interpreting
-// historical messages that mark skill-only workspace-agent context: legacy
-// chats emitted a synthetic empty context-file part at this path, and new
-// turns no longer do.
-const AgentChatContextSentinelPath = ".coder/agent-chat-context-sentinel"
-
 // contextBodyUnmarshalOptions reads the protojson resource bodies written by
 // the agent context push (coderd/agentapi/context.go). DiscardUnknown keeps
 // the reader forward compatible as new body fields are added to the proto.
