@@ -210,10 +210,9 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
 	} else {
-		// api.ctx, not the request ctx, so a disconnect no longer cancels the fan-out once it starts.
 		newChat := aReq.New
 		go func() {
-			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {
+			if count, err := api.notifyChatShared(oldChat, newChat, initiator); err != nil {
 				api.Logger.Warn(api.ctx, "failed to enqueue one or more chat shared notifications", slog.Error(err), slog.F("chat_id", newChat.ID), slog.F("attempted_recipients", count))
 			}
 		}()
@@ -222,9 +221,9 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiator database.User) (int, error) {
-	oldReaders := api.directChatReaders(ctx, oldChat)
-	newReaders := api.directChatReaders(ctx, newChat)
+func (api *API) notifyChatShared(oldChat database.Chat, newChat database.Chat, initiator database.User) (int, error) {
+	oldReaders := api.directChatReaders(oldChat)
+	newReaders := api.directChatReaders(newChat)
 
 	added, _ := slice.SymmetricDifference(oldReaders, newReaders)
 	recipientIDs := make([]uuid.UUID, 0, len(added))
@@ -245,7 +244,7 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	}
 
 	//nolint:gocritic // Notifier actor is required to enqueue notifications.
-	notifierCtx := dbauthz.AsNotifier(ctx)
+	notifierCtx := dbauthz.AsNotifier(api.ctx)
 	var errs []error
 	for _, userID := range recipientIDs {
 		if _, err := api.NotificationsEnqueuer.Enqueue(notifierCtx, userID, notifications.TemplateChatShared, labels, initiator.ID.String(), newChat.ID); err != nil {
@@ -255,7 +254,7 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	return len(recipientIDs), errors.Join(errs...)
 }
 
-func (api *API) directChatReaders(ctx context.Context, chat database.Chat) []uuid.UUID {
+func (api *API) directChatReaders(chat database.Chat) []uuid.UUID {
 	readers := []uuid.UUID{chat.OwnerID}
 	for rawUserID, entry := range chat.UserACL {
 		if !slices.Contains(entry.Permissions, policy.ActionRead) {
@@ -263,7 +262,7 @@ func (api *API) directChatReaders(ctx context.Context, chat database.Chat) []uui
 		}
 		userID, err := uuid.Parse(rawUserID)
 		if err != nil {
-			api.Logger.Warn(ctx, "skip chat ACL entry with invalid user UUID", slog.F("chat_id", chat.ID), slog.F("user_id", rawUserID), slog.Error(err))
+			api.Logger.Warn(api.ctx, "skip chat ACL entry with invalid user UUID", slog.F("chat_id", chat.ID), slog.F("user_id", rawUserID), slog.Error(err))
 			continue
 		}
 		readers = append(readers, userID)
