@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -41,10 +42,8 @@ type Server struct {
 	tracer trace.Tracer
 	wg     sync.WaitGroup
 
-	// initConnectionCh will receive when the daemon connects to coderd for the
-	// first time.
-	initConnectionCh   chan struct{}
-	initConnectionOnce sync.Once
+	// connected tracks whether the DRPC connection to coderd is currently active.
+	connected atomic.Bool
 
 	// lifecycleCtx is canceled when we start closing or when the
 	// connection loop exits permanently.
@@ -62,13 +61,12 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 
 	ctx, cancel := context.WithCancelCause(ctx)
 	daemon := &Server{
-		logger:           logger,
-		tracer:           tracer,
-		clientDialer:     rpcDialer,
-		clientCh:         make(chan DRPCClient),
-		lifecycleCtx:     ctx,
-		cancelFn:         cancel,
-		initConnectionCh: make(chan struct{}),
+		logger:       logger,
+		tracer:       tracer,
+		clientDialer: rpcDialer,
+		clientCh:     make(chan DRPCClient),
+		lifecycleCtx: ctx,
+		cancelFn:     cancel,
 
 		requestBridgePool: pool,
 	}
@@ -135,17 +133,17 @@ connectLoop:
 		// failure (paired with the warning logged above).
 		s.logger.Info(s.lifecycleCtx, "successfully connected to coderd")
 		retrier.Reset()
-		s.initConnectionOnce.Do(func() {
-			close(s.initConnectionCh)
-		})
+		s.connected.Store(true)
 
 		// Serve the client until we are closed or it disconnects.
 		for {
 			select {
 			case <-s.lifecycleCtx.Done():
+				s.connected.Store(false)
 				client.DRPCConn().Close()
 				return
 			case <-client.DRPCConn().Closed():
+				s.connected.Store(false)
 				logConnect(s.lifecycleCtx, "connection to coderd closed")
 				continue connectLoop
 			case s.clientCh <- client:
@@ -199,6 +197,11 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 	}
 
 	return reqBridge, nil
+}
+
+// Ready reports whether the server currently has an active DRPC connection to coderd.
+func (s *Server) Ready() bool {
+	return s.connected.Load()
 }
 
 // isShutdown returns whether the Server is shutdown or not.

@@ -136,6 +136,20 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			mux.Handle("/api/v2/ai-gateway/", mw(http.StripPrefix("/api/v2/ai-gateway", srv)))
 			mux.Handle("/", mw(srv))
 
+			// healthz: returns 200 once the HTTP server is listening.
+			mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// readyz: returns 200 only when the DRPC connection to coderd is established.
+			mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
+				if srv.Ready() {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				w.WriteHeader(http.StatusServiceUnavailable)
+			})
+
 			listener, err := net.Listen("tcp", httpAddress)
 			if err != nil {
 				return xerrors.Errorf("listen on %q: %w", httpAddress, err)
