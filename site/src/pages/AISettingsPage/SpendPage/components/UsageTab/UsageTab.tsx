@@ -82,6 +82,7 @@ export const UsageTab: FC<UsageTabProps> = ({
 					<DateRangePicker
 						value={displayDateRange}
 						onChange={onDateRangeChange}
+						todayEndBoundary="end-of-day"
 					/>
 				}
 			/>

@@ -77,26 +77,34 @@ const buildDefaultPresets = (now?: Date): DateRangePreset[] => {
 	];
 };
 
+type TodayEndBoundary = "end-of-hour" | "end-of-day";
+
 interface DateRangePickerProps {
 	value: DateRangeValue;
 	onChange: (value: DateRangeValue) => void;
 	now?: Date;
 	presets?: DateRangePreset[];
 	size?: ButtonProps["size"];
+	todayEndBoundary?: TodayEndBoundary;
 }
 
 /**
- * Normalise a calendar selection into the API-friendly boundary format
- * that the old component produced: startDate at midnight, endDate either
- * rounded up to the next hour (if it falls on today) or to the start of
- * the following day.
+ * Normalise a calendar selection into an API-friendly boundary format:
+ * startDate at midnight, endDate rounded up to the next hour for today
+ * when requested or to the start of the following day.
  */
-function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+function toBoundary(
+	from: Date,
+	to: Date,
+	now: Date,
+	todayEndBoundary: TodayEndBoundary,
+): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
-	const end = dayjs(to).isSame(currentTime, "day")
-		? currentTime.startOf("hour").add(1, "hour").toDate()
-		: dayjs(to).startOf("day").add(1, "day").toDate();
+	const end =
+		dayjs(to).isSame(currentTime, "day") && todayEndBoundary === "end-of-hour"
+			? currentTime.startOf("hour").add(1, "hour").toDate()
+			: dayjs(to).startOf("day").add(1, "day").toDate();
 	return { startDate: start, endDate: end };
 }
 
@@ -121,6 +129,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
+	todayEndBoundary = "end-of-hour",
 }) => {
 	const [open, setOpen] = useState(false);
 	const currentTime = now ?? new Date();
@@ -135,7 +144,14 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 
 	const commit = () => {
 		if (selection?.from && selection?.to) {
-			onChange(toBoundary(selection.from, selection.to, now ?? new Date()));
+			onChange(
+				toBoundary(
+					selection.from,
+					selection.to,
+					now ?? new Date(),
+					todayEndBoundary,
+				),
+			);
 		}
 		setOpen(false);
 	};
@@ -143,8 +159,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	const handlePreset = (preset: DateRangePreset) => {
 		const { from, to } = preset.range();
 		setSelection({ from, to });
-		// Presets are a complete selection — commit immediately.
-		onChange(toBoundary(from, to, now ?? new Date()));
+		onChange(toBoundary(from, to, now ?? new Date(), todayEndBoundary));
 		setOpen(false);
 	};
 

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { useState } from "react";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { DateRangePicker, type DateRangeValue } from "./DateRangePicker";
 
 const fixedNow = dayjs("2025-03-15T12:00:00Z");
@@ -93,6 +93,51 @@ export const SelectPreset: Story = {
 		expect(updatedTrigger.textContent).not.toContain(
 			dayjs(defaultValue.startDate).format("MMM D, YYYY"),
 		);
+	},
+};
+
+export const SelectTodayPreset: Story = {
+	args: {
+		value: defaultValue,
+		now: fixedNow.toDate(),
+		onChange: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(await body.findByText("Today"));
+
+		await waitFor(() => {
+			expect(args.onChange).toHaveBeenCalledWith({
+				startDate: fixedNow.startOf("day").toDate(),
+				endDate: fixedNow.startOf("hour").add(1, "hour").toDate(),
+			});
+		});
+	},
+};
+
+export const SelectTodayPresetWithEndOfDayBoundary: Story = {
+	args: {
+		value: defaultValue,
+		now: fixedNow.toDate(),
+		onChange: fn(),
+		todayEndBoundary: "end-of-day",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(canvas.getByRole("button"));
+		await userEvent.click(await body.findByText("Today"));
+
+		await waitFor(() => {
+			expect(args.onChange).toHaveBeenCalledWith({
+				startDate: fixedNow.startOf("day").toDate(),
+				endDate: fixedNow.startOf("day").add(1, "day").toDate(),
+			});
+		});
 	},
 };
 

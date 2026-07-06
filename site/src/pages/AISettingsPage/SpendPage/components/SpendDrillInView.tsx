@@ -54,6 +54,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 				<DateRangePicker
 					value={displayDateRange}
 					onChange={onDateRangeChange}
+					todayEndBoundary="end-of-day"
 				/>
 			}
 		/>
