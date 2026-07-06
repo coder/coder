@@ -271,7 +271,6 @@ type GenerateCompactionOptions struct {
 	ContextLimitFallback int64
 	SummaryPrompt        string
 	SystemSummaryPrefix  string
-	Timeout              time.Duration
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
 
