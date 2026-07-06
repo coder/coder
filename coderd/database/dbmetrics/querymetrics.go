@@ -818,12 +818,12 @@ func (m queryMetricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) err
 	return r0
 }
 
-func (m queryMetricsStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) error {
+func (m queryMetricsStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
+	r0, r1 := m.s.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceBuildOrchestrations").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldWorkspaceBuildOrchestrations").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {

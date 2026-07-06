@@ -35299,7 +35299,7 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 	return err
 }
 
-const deleteOldWorkspaceBuildOrchestrations = `-- name: DeleteOldWorkspaceBuildOrchestrations :exec
+const deleteOldWorkspaceBuildOrchestrations = `-- name: DeleteOldWorkspaceBuildOrchestrations :execrows
 WITH deletable AS (
     SELECT
         id
@@ -35322,9 +35322,12 @@ type DeleteOldWorkspaceBuildOrchestrationsParams struct {
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
-func (q *sqlQuerier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceBuildOrchestrations, arg.BeforeTime, arg.LimitCount)
-	return err
+func (q *sqlQuerier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldWorkspaceBuildOrchestrations, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getNextPendingWorkspaceBuildOrchestrationForUpdate = `-- name: GetNextPendingWorkspaceBuildOrchestrationForUpdate :one

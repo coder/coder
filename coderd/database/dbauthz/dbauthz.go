@@ -2390,9 +2390,9 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
 }
 
-func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) error {
+func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 }

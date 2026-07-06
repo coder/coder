@@ -129,6 +129,11 @@ func TestMetrics(t *testing.T) {
 		})
 		require.GreaterOrEqual(t, auditLogs, 0)
 
+		workspaceBuildOrchestrations := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
+			"record_type": "workspace_build_orchestrations",
+		})
+		require.GreaterOrEqual(t, workspaceBuildOrchestrations, 0)
+
 		chats := promhelp.CounterValue(t, reg, "coderd_dbpurge_records_purged_total", prometheus.Labels{
 			"record_type": "chats",
 		})
@@ -247,7 +252,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -298,7 +303,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldNotificationMessages(gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().ExpirePrebuildsAPIKeys(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
@@ -1215,11 +1220,12 @@ func TestDeleteOldWorkspaceBuildOrchestrations(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: old workspace build orchestrations are deleted with LimitCount 1
-	err = db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+	deleted, err := db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
 		BeforeTime: cutoff,
 		LimitCount: 1,
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
 
 	// Then: only the oldest terminal row is deleted.
 	assertOrchestrationDeleted(ctx, t, rawDB, oldCompletedParent.ID)
@@ -1229,11 +1235,12 @@ func TestDeleteOldWorkspaceBuildOrchestrations(t *testing.T) {
 	assertOrchestrationExists(ctx, t, rawDB, recentCompletedParent.ID, recentCompleted.ID)
 
 	// When: old workspace build orchestrations are deleted again.
-	err = db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+	deleted, err = db.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
 		BeforeTime: cutoff,
 		LimitCount: 10,
 	})
 	require.NoError(t, err)
+	require.EqualValues(t, 2, deleted)
 
 	// Then: the remaining old terminal rows are deleted.
 	assertOrchestrationDeleted(ctx, t, rawDB, oldFailedParent.ID)

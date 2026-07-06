@@ -115,7 +115,7 @@ WHERE
     AND status = 'pending'
 RETURNING *;
 
--- name: DeleteOldWorkspaceBuildOrchestrations :exec
+-- name: DeleteOldWorkspaceBuildOrchestrations :execrows
 WITH deletable AS (
     SELECT
         id

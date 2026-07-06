@@ -1382,11 +1382,12 @@ func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentStats(ctx any) *gomock.C
 }
 
 // DeleteOldWorkspaceBuildOrchestrations mocks base method.
-func (m *MockStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) error {
+func (m *MockStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOldWorkspaceBuildOrchestrations", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteOldWorkspaceBuildOrchestrations indicates an expected call of DeleteOldWorkspaceBuildOrchestrations.
