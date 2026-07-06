@@ -14,10 +14,11 @@ via their browser to access their Workspaces.
 Developers provision their own ephemeral Workspaces in minutes using pre-defined
 Templates that include approved tooling and infrastructure.
 
-![Template administrators can either create a new Template from scratch or choose a Starter Template](../images/screenshots/starter-templates.png)
+![Template administrators create templates using the template builder, which guides them through selecting base infrastructure and adding modules.](../images/templatebuilder_01_bases.png)
 
-Template administrators can either create a new Template from scratch or choose
-a Starter Template.
+Template administrators create templates using the template builder, which
+guides them through selecting base infrastructure and adding modules. Templates
+can also be created from scratch or uploaded directly.
 
 ![Templates define the underlying infrastructure that Coder Workspaces run on.](../images/screenshots/terraform.png)
 

@@ -73,6 +73,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				MsgID:      "resp_0da6045a8b68fa5200695fa23dcc2c81a19c849f627abf8a31",
 				Tool:       "add",
 				ToolCallID: "call_CJSaa2u51JG996575oVljuNq",
+				ItemID:     "fc_0da6045a8b68fa5200695fa23e198081a19bf68887d47ae93d",
 				Args:       map[string]any{"a": float64(3), "b": float64(5)},
 				Injected:   false,
 			},
@@ -113,6 +114,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				MsgID:      "resp_09c614364030cdf000696942589da081a0af07f5859acb7308",
 				Tool:       "code_exec",
 				ToolCallID: "call_haf8njtwrVZ1754Gm6fjAtuA",
+				ItemID:     "ctc_09c614364030cdf0006969425bf33481a09cc0f9522af2d980",
 				Args:       "print(\"hello world\")",
 				Injected:   false,
 			},
@@ -123,6 +125,33 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 128,
 					"total_tokens":     212,
+				},
+			},
+			expectedClient: aibridge.ClientUnknown,
+		},
+		{
+			// web_search_call is a hosted tool executed server-side by the
+			// provider. It carries an item id but no call_id, so the recorded
+			// ToolCallID must be empty and the ItemID must be the output item's
+			// id.
+			name:                 "blocking_web_search",
+			fixture:              fixtures.OaiResponsesBlockingWebSearch,
+			expectModel:          "gpt-5.4",
+			expectPromptRecorded: "Search the web for the Example domain.",
+			expectToolRecorded: &recorder.ToolUsageRecord{
+				MsgID:      "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Tool:       "web_search_call",
+				ToolCallID: "",
+				ItemID:     "ws_0b8f5f61bf0dee5f016a43ac7947bc819c945bff3bf2bcdbc9",
+				Injected:   false,
+			},
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Input:  50,
+				Output: 30,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     80,
 				},
 			},
 			expectedClient: aibridge.ClientUnknown,
@@ -205,6 +234,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				MsgID:      "resp_0c3fb28cfcf463a500695fa2f0239481a095ec6ce3dfe4d458",
 				Tool:       "add",
 				ToolCallID: "call_7VaiUXZYuuuwWwviCrckxq6t",
+				ItemID:     "fc_0c3fb28cfcf463a500695fa2f0b0a881a0890103ba88b0628e",
 				Args:       map[string]any{"a": float64(3), "b": float64(5)},
 				Injected:   false,
 			},
@@ -247,6 +277,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				MsgID:      "resp_0c26996bc41c2a0500696942e83634819fb71b2b8ff8a4a76c",
 				Tool:       "code_exec",
 				ToolCallID: "call_2gSnF58IEhXLwlbnqbm5XKMd",
+				ItemID:     "ctc_0c26996bc41c2a0500696942ee6db8819fa6e841317eecbfb2",
 				Args:       "print(\"hello world\")",
 				Injected:   false,
 			},
@@ -257,6 +288,34 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 320,
 					"total_tokens":     404,
+				},
+			},
+			expectedClient: aibridge.ClientUnknown,
+		},
+		{
+			// web_search_call is a hosted tool executed server-side by the
+			// provider. It carries an item id but no call_id, so the recorded
+			// ToolCallID must be empty and the ItemID must be the output item's
+			// id.
+			name:                 "streaming_web_search",
+			fixture:              fixtures.OaiResponsesStreamingWebSearch,
+			streaming:            true,
+			expectModel:          "gpt-5.4",
+			expectPromptRecorded: "Search the web for the Example domain.",
+			expectToolRecorded: &recorder.ToolUsageRecord{
+				MsgID:      "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Tool:       "web_search_call",
+				ToolCallID: "",
+				ItemID:     "ws_0b8f5f61bf0dee5f016a43ac7947bc819c945bff3bf2bcdbc9",
+				Injected:   false,
+			},
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_0b8f5f61bf0dee5f016a43ac7294d8819ca794d13e1744ac2b",
+				Input:  50,
+				Output: 30,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     80,
 				},
 			},
 			expectedClient: aibridge.ClientUnknown,

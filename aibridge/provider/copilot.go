@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
+	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -28,6 +29,7 @@ const (
 	// Copilot exposes an OpenAI-compatible API, including for Anthropic models.
 	routeCopilotChatCompletions = "/chat/completions"
 	routeCopilotResponses       = "/responses"
+	routeCopilotMessages        = "/v1/messages"
 )
 
 var copilotOpenErrorResponse = func() []byte {
@@ -82,6 +84,7 @@ func (*Copilot) BridgedRoutes() []string {
 	return []string{
 		routeCopilotChatCompletions,
 		routeCopilotResponses,
+		routeCopilotMessages,
 	}
 }
 
@@ -170,6 +173,22 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
 			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
+		}
+
+	case routeCopilotMessages:
+		payload, err := io.ReadAll(r.Body)
+		if err != nil {
+			return nil, xerrors.Errorf("read body: %w", err)
+		}
+		reqPayload, err := messages.NewRequestPayload(payload)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal request body: %w", err)
+		}
+
+		if reqPayload.Stream() {
+			interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
+		} else {
+			interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, nil, r.Header, tracer)
 		}
 
 	default:

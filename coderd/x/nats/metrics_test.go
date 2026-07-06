@@ -58,8 +58,13 @@ func TestPubsub_Metrics(t *testing.T) {
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_nats_pubsub_messages_total", "normal") &&
 			testutil.PromCounterHasValue(t, metrics, float64(len(data))+latencyBytes, "coder_nats_pubsub_received_bytes_total") &&
 			testutil.PromCounterHasValue(t, metrics, float64(len(data))+latencyBytes, "coder_nats_pubsub_published_bytes_total") &&
-			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_nats_pubsub_send_latency_seconds") &&
-			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_nats_pubsub_receive_latency_seconds") &&
+			// The latency gauges can be exactly 0 on Windows, whose monotonic
+			// clock advances in coarse (up to 15.6ms) ticks; a sub-tick publish
+			// measures a zero duration. An absent gauge reads as -1, so >= 0
+			// still proves the gauge was gathered, and the measures_total/errs
+			// counters below prove measurement ran and succeeded.
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in >= 0 }, "coder_nats_pubsub_send_latency_seconds") &&
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in >= 0 }, "coder_nats_pubsub_receive_latency_seconds") &&
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_nats_pubsub_latency_measures_total") &&
 			!testutil.PromCounterGathered(t, metrics, "coder_nats_pubsub_latency_measure_errs_total")
 	}, testutil.WaitShort, testutil.IntervalFast)
@@ -95,8 +100,10 @@ func TestPubsub_Metrics(t *testing.T) {
 			testutil.PromCounterHasValue(t, metrics, 1, "coder_nats_pubsub_messages_total", "colossal") &&
 			testutil.PromCounterHasValue(t, metrics, float64(colossalSize+len(data))+latencyBytes, "coder_nats_pubsub_received_bytes_total") &&
 			testutil.PromCounterHasValue(t, metrics, float64(colossalSize+len(data))+latencyBytes, "coder_nats_pubsub_published_bytes_total") &&
-			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_nats_pubsub_send_latency_seconds") &&
-			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_nats_pubsub_receive_latency_seconds") &&
+			// Zero latency is accepted for coarse clocks; see the comment on
+			// the first Eventually above.
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in >= 0 }, "coder_nats_pubsub_send_latency_seconds") &&
+			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in >= 0 }, "coder_nats_pubsub_receive_latency_seconds") &&
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_nats_pubsub_latency_measures_total") &&
 			!testutil.PromCounterGathered(t, metrics, "coder_nats_pubsub_latency_measure_errs_total")
 	}, testutil.WaitShort, testutil.IntervalFast)

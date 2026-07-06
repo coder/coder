@@ -48,13 +48,12 @@ type OpenAIWebSearchCall struct {
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
-	Model              string          `json:"model"`
-	Messages           []OpenAIMessage `json:"messages"`
-	Stream             bool            `json:"stream,omitempty"`
-	Tools              []OpenAITool    `json:"tools,omitempty"`
-	Prompt             []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
-	Store              *bool           `json:"store,omitempty"`
-	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
+	Model    string          `json:"model"`
+	Messages []OpenAIMessage `json:"messages"`
+	Stream   bool            `json:"stream,omitempty"`
+	Tools    []OpenAITool    `json:"tools,omitempty"`
+	Prompt   []interface{}   `json:"prompt,omitempty"` // Responses API input or prompt.
+	Store    *bool           `json:"store,omitempty"`
 	// RawBody holds the original request body so callers can inspect
 	// fields the typed struct does not expose, such as the Responses
 	// API "input" payload. It is populated before JSON decoding.

@@ -4602,6 +4602,8 @@ type AIBridgeToolUsage struct {
 	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
+	// Specific to the OpenAI Responses API: the unique id of the output item that carried the tool call. Distinct from provider_tool_call_id (the call_id correlation key), which is empty for hosted tools. Empty for the chat completions and Anthropic messages APIs, which have no separate item id.
+	ProviderItemID sql.NullString `db:"provider_item_id" json:"provider_item_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge
@@ -4655,6 +4657,7 @@ type AIProvider struct {
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+	Icon          string         `db:"icon" json:"icon"`
 }
 
 // API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
@@ -4676,6 +4679,18 @@ type AISeatState struct {
 	LastEventType        AISeatUsageReason `db:"last_event_type" json:"last_event_type"`
 	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
 	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
+}
+
+// Daily AI spend per user and effective group.
+type AIUserDailySpend struct {
+	// The user who incurred the spend.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The group this spend is attributed to for budget purposes.
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	// UTC calendar day the spend was incurred.
+	Day time.Time `db:"day" json:"day"`
+	// Accumulated spend in micro-units (1 unit = 1,000,000).
+	SpendMicros int64 `db:"spend_micros" json:"spend_micros"`
 }
 
 type APIKey struct {
@@ -4953,7 +4968,6 @@ type ChatMessage struct {
 
 type ChatModelConfig struct {
 	ID                   uuid.UUID       `db:"id" json:"id"`
-	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`

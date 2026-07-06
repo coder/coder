@@ -38,7 +38,6 @@ func newTriggerFixture(t *testing.T) *triggerFixture {
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  "openai",
 		IsDefault: true,
 	})
 	f := &testFixture{

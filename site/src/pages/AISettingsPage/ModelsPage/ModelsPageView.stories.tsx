@@ -25,6 +25,11 @@ const meta: Meta<typeof ModelsPageView> = {
 			MockAnthropicProviderState,
 			MockBedrockProviderState,
 		],
+		providerTypeByID: new Map<string, string>([
+			["prov-openai", "openai"],
+			["prov-anthropic", "anthropic"],
+			["prov-bedrock", "bedrock"],
+		]),
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

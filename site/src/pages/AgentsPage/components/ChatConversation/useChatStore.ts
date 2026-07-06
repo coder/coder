@@ -50,6 +50,7 @@ interface UseChatStoreOptions {
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
+	aiGatewayDisabled?: boolean;
 }
 
 export const useChatStore = (
@@ -67,6 +68,7 @@ export const useChatStore = (
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
+		aiGatewayDisabled = false,
 	} = options;
 
 	const queryClient = useQueryClient();
@@ -358,7 +360,7 @@ export const useChatStore = (
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
-		if (!chatID || !initialDataLoaded) {
+		if (!chatID || !initialDataLoaded || aiGatewayDisabled) {
 			return;
 		}
 
@@ -714,6 +716,7 @@ export const useChatStore = (
 			activeChatIDRef.current = null;
 		};
 	}, [
+		aiGatewayDisabled,
 		chatID,
 		initialDataLoaded,
 		queryClient,

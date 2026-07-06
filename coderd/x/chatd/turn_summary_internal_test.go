@@ -43,7 +43,6 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -138,7 +137,6 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
@@ -222,7 +220,6 @@ func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
-		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},

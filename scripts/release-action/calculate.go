@@ -51,9 +51,11 @@ var branchRe = regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 // ref is the branch name from the "Use workflow from" dropdown
 // (github.ref_name). commitSHA is an optional override; when empty
 // the tool defaults to HEAD of the ref.
-func calculateNextVersion(releaseType, ref, commitSHA string) (calculateResult, error) {
-	// Ensure we have up-to-date remote state.
-	if _, err := gitOutput("fetch", "--tags", "--force", "origin"); err != nil {
+func calculateNextVersion(exec CommandExecutor, releaseType, ref, commitSHA string) (calculateResult, error) {
+	// Ensure we have up-to-date remote state. Fetching only updates
+	// local remote-tracking refs, so it runs even in dry-run mode to
+	// keep version calculation accurate.
+	if _, err := gitOutput(exec, "fetch", "--tags", "--force", "origin"); err != nil {
 		return nil, xerrors.Errorf("git fetch: %w", err)
 	}
 
@@ -66,21 +68,21 @@ func calculateNextVersion(releaseType, ref, commitSHA string) (calculateResult, 
 			return nil, xerrors.Errorf("rc must be run from main or a release/X.Y branch, got %q", ref)
 		}
 		if isMain {
-			return calculateRCFromMainReleaseRequest(ref, commitSHA)
+			return calculateRCFromMainReleaseRequest(exec, ref, commitSHA)
 		}
-		return calculateRCFromBranchReleaseRequest(ref, commitSHA)
+		return calculateRCFromBranchReleaseRequest(exec, ref, commitSHA)
 
 	case "release":
 		if !isReleaseBranch {
 			return nil, xerrors.Errorf("release must be run from a release/X.Y branch, got %q", ref)
 		}
-		return createRegularReleaseRequest(ref)
+		return createRegularReleaseRequest(exec, ref)
 
 	case "create-release-branch":
 		if !isMain {
 			return nil, xerrors.Errorf("create-release-branch must be run from main, got %q", ref)
 		}
-		return calculateCreateBranchRequest(ref, commitSHA)
+		return calculateCreateBranchRequest(exec, ref, commitSHA)
 
 	default:
 		return nil, xerrors.Errorf("unknown release type %q (expected rc, release, or create-release-branch)", releaseType)
@@ -90,14 +92,23 @@ func calculateNextVersion(releaseType, ref, commitSHA string) (calculateResult, 
 // resolveCommit returns the commit SHA to tag. If commitSHA is
 // provided it is validated and returned; otherwise HEAD of the
 // ref is used.
-func resolveCommit(ref, commitSHA string) (string, error) {
+func resolveCommit(exec CommandExecutor, ref, commitSHA string) (string, error) {
 	if commitSHA != "" {
 		if !isHexSHA(commitSHA) {
 			return "", xerrors.Errorf("invalid commit SHA %q: must be a hex string", commitSHA)
 		}
-		return commitSHA, nil
+		// Resolve to a full commit SHA. The idempotency checks in
+		// createAndPushTag/createAndPushBranch compare targetRef
+		// against full SHAs (git rev-parse of an existing tag,
+		// ls-remote branch output), so a short SHA passed via the
+		// commit input would never match and would break re-runs.
+		sha, err := gitOutput(exec, "rev-parse", "--verify", commitSHA+"^{commit}")
+		if err != nil {
+			return "", xerrors.Errorf("resolve commit %s: %w", commitSHA, err)
+		}
+		return sha, nil
 	}
-	sha, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", ref))
+	sha, err := gitOutput(exec, "rev-parse", fmt.Sprintf("origin/%s", ref))
 	if err != nil {
 		return "", xerrors.Errorf("resolve HEAD of %s: %w", ref, err)
 	}
@@ -105,18 +116,18 @@ func resolveCommit(ref, commitSHA string) (string, error) {
 }
 
 // calculateRCFromMainReleaseRequest tags an RC from a commit on main.
-func calculateRCFromMainReleaseRequest(ref, commitSHA string) (ReleaseRequest, error) {
-	targetRef, err := resolveCommit(ref, commitSHA)
+func calculateRCFromMainReleaseRequest(exec CommandExecutor, ref, commitSHA string) (ReleaseRequest, error) {
+	targetRef, err := resolveCommit(exec, ref, commitSHA)
 	if err != nil {
 		return ReleaseRequest{}, err
 	}
 
 	// Verify commit is an ancestor of origin/main.
-	if err := gitRun("merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
+	if err := gitRun(exec, "merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
 		return ReleaseRequest{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
 	}
 
-	allTags, err := listSemverTags()
+	allTags, err := listSemverTags(exec)
 	if err != nil {
 		return ReleaseRequest{}, err
 	}
@@ -158,7 +169,7 @@ func calculateRCFromMainReleaseRequest(ref, commitSHA string) (ReleaseRequest, e
 }
 
 // calculateRCFromBranchReleaseRequest tags an RC from the tip of a release branch.
-func calculateRCFromBranchReleaseRequest(ref, commitSHA string) (ReleaseRequest, error) {
+func calculateRCFromBranchReleaseRequest(exec CommandExecutor, ref, commitSHA string) (ReleaseRequest, error) {
 	m := branchRe.FindStringSubmatch(ref)
 	if m == nil {
 		return ReleaseRequest{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
@@ -167,17 +178,17 @@ func calculateRCFromBranchReleaseRequest(ref, commitSHA string) (ReleaseRequest,
 	major, _ := strconv.Atoi(m[1])
 	minor, _ := strconv.Atoi(m[2])
 
-	targetRef, err := resolveCommit(ref, commitSHA)
+	targetRef, err := resolveCommit(exec, ref, commitSHA)
 	if err != nil {
 		return ReleaseRequest{}, err
 	}
 
 	// Fail if there are open PRs targeting this release branch.
-	if err := checkOpenPRs(ref); err != nil {
+	if err := checkOpenPRs(exec, ref); err != nil {
 		return ReleaseRequest{}, err
 	}
 
-	allTags, err := listSemverTags()
+	allTags, err := listSemverTags(exec)
 	if err != nil {
 		return ReleaseRequest{}, err
 	}
@@ -215,7 +226,7 @@ func calculateRCFromBranchReleaseRequest(ref, commitSHA string) (ReleaseRequest,
 
 // createRegularReleaseRequest calculates the next release (non-RC) version from
 // a release branch. Uses HEAD of the branch.
-func createRegularReleaseRequest(ref string) (ReleaseRequest, error) {
+func createRegularReleaseRequest(exec CommandExecutor, ref string) (ReleaseRequest, error) {
 	m := branchRe.FindStringSubmatch(ref)
 	if m == nil {
 		return ReleaseRequest{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
@@ -225,17 +236,17 @@ func createRegularReleaseRequest(ref string) (ReleaseRequest, error) {
 	minor, _ := strconv.Atoi(m[2])
 
 	// Resolve branch HEAD.
-	headSHA, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", ref))
+	headSHA, err := gitOutput(exec, "rev-parse", fmt.Sprintf("origin/%s", ref))
 	if err != nil {
 		return ReleaseRequest{}, xerrors.Errorf("resolve branch %s: %w", ref, err)
 	}
 
 	// Fail if there are open PRs targeting this release branch.
-	if err := checkOpenPRs(ref); err != nil {
+	if err := checkOpenPRs(exec, ref); err != nil {
 		return ReleaseRequest{}, err
 	}
 
-	allTags, err := listSemverTags()
+	allTags, err := listSemverTags(exec)
 	if err != nil {
 		return ReleaseRequest{}, err
 	}
@@ -264,18 +275,18 @@ func createRegularReleaseRequest(ref string) (ReleaseRequest, error) {
 
 // calculateCreateBranchRequest creates a release branch and tags the next
 // RC in one atomic step. Must be run from main.
-func calculateCreateBranchRequest(ref, commitSHA string) (CreateBranchRequest, error) {
-	targetRef, err := resolveCommit(ref, commitSHA)
+func calculateCreateBranchRequest(exec CommandExecutor, ref, commitSHA string) (CreateBranchRequest, error) {
+	targetRef, err := resolveCommit(exec, ref, commitSHA)
 	if err != nil {
 		return CreateBranchRequest{}, err
 	}
 
 	// Verify commit is an ancestor of origin/main.
-	if err := gitRun("merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
+	if err := gitRun(exec, "merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
 		return CreateBranchRequest{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
 	}
 
-	allTags, err := listSemverTags()
+	allTags, err := listSemverTags(exec)
 	if err != nil {
 		return CreateBranchRequest{}, err
 	}
@@ -291,7 +302,7 @@ func calculateCreateBranchRequest(ref, commitSHA string) (CreateBranchRequest, e
 	branchName := fmt.Sprintf("release/%d.%d", nextMajor, nextMinor)
 
 	// Check that the branch doesn't already exist.
-	if _, err := gitOutput("rev-parse", "--verify", fmt.Sprintf("origin/%s", branchName)); err == nil {
+	if _, err := gitOutput(exec, "rev-parse", "--verify", fmt.Sprintf("origin/%s", branchName)); err == nil {
 		return CreateBranchRequest{}, xerrors.Errorf("branch %s already exists", branchName)
 	}
 
@@ -417,8 +428,8 @@ func versionIsLess(a, b version) bool {
 }
 
 // listSemverTags returns all semver tags from the repo.
-func listSemverTags() ([]version, error) {
-	out, err := gitOutput("tag", "--list", "v*")
+func listSemverTags(exec CommandExecutor) ([]version, error) {
+	out, err := gitOutput(exec, "tag", "--list", "v*")
 	if err != nil {
 		return nil, xerrors.Errorf("list tags: %w", err)
 	}

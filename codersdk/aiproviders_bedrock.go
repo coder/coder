@@ -35,6 +35,11 @@ type AIProviderBedrockSettings struct {
 	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
 	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string `json:"role_arn,omitempty"`
+	// ExternalID is the STS external ID sent on the AssumeRole call when
+	// RoleARN is set. The server generates and owns it: create and update
+	// reject any client-supplied value that differs from the stored one (an
+	// update may echo the stored value back).
+	ExternalID string `json:"external_id,omitempty"`
 }
 
 // IsConfigured reports whether any load-bearing Bedrock field is set,

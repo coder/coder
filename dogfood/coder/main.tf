@@ -123,8 +123,9 @@ data "coder_parameter" "repo_base_dir" {
 data "coder_parameter" "image_type" {
   type        = "string"
   name        = "Coder Image"
-  default     = "codercom/oss-dogfood:latest"
+  default     = "ubuntu-latest"
   description = "The Docker image used to run your workspace."
+  mutable     = true
   option {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 26.04"

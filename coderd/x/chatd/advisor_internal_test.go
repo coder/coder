@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -107,7 +107,6 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (fantasy.LanguageModel, codersdk.ChatModelCallConfig) {
@@ -117,7 +116,6 @@ func (p *Server) resolveAdvisorModelOverrideOrFallback(
 		advisorCfg,
 		fallbackModel,
 		fallbackCallConfig,
-		providerKeys,
 		modelOpts,
 		logger,
 	)
@@ -134,7 +132,6 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 	advisorCfg codersdk.AdvisorConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackCallConfig codersdk.ChatModelCallConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) *chatadvisor.Runtime {
@@ -144,7 +141,6 @@ func (p *Server) newAdvisorRuntimeOrFallback(
 		advisorCfg,
 		fallbackModel,
 		fallbackCallConfig,
-		providerKeys,
 		modelOpts,
 		logger,
 	)
@@ -178,7 +174,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -202,7 +197,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
@@ -232,7 +226,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: uuid.New()},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
@@ -248,7 +241,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
-					Provider:    "openai",
 					Model:       "gpt-5.2",
 					Enabled:     true,
 					CreatedAt:   time.Unix(0, 0).UTC(),
@@ -266,7 +258,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
 			modelBuildOptions{},
 			logger,
 		)
@@ -283,7 +274,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
-					Provider:    "openai",
 					Model:       "gpt-5.2",
 					Enabled:     true,
 					CreatedAt:   time.Unix(0, 0).UTC(),
@@ -310,7 +300,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -322,6 +311,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
+		providerID := uuid.New()
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
 		})
@@ -329,18 +319,24 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		store := &advisorOverrideStubStore{
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
-					ID:          configID,
-					Provider:    "openai",
-					Model:       "gpt-5.2",
-					Enabled:     true,
-					CreatedAt:   time.Unix(0, 0).UTC(),
-					UpdatedAt:   time.Unix(0, 0).UTC(),
-					Options:     rawOptions,
-					DisplayName: "gpt-5.2",
+					ID:           configID,
+					Model:        "gpt-5.2",
+					Enabled:      true,
+					CreatedAt:    time.Unix(0, 0).UTC(),
+					UpdatedAt:    time.Unix(0, 0).UTC(),
+					Options:      rawOptions,
+					DisplayName:  "gpt-5.2",
+					AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 				}, nil
+			},
+			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
+				return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
+		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+		})})
 
 		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
@@ -348,8 +344,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
-			modelBuildOptions{},
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
 		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel,
@@ -363,7 +358,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		require.NotNil(t, gotCfg.Temperature)
 		require.InDelta(t, 0.42, *gotCfg.Temperature, 1e-9)
 	})
-
 	t.Run("AIProviderIDResolvesOverrideProviderKeys", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -373,7 +367,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:           configID,
-					Provider:     "openai",
 					Model:        "gpt-5.2",
 					Enabled:      true,
 					CreatedAt:    time.Unix(0, 0).UTC(),
@@ -383,11 +376,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 				}, nil
 			},
 			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
-				return database.AIProvider{
-					ID:      providerID,
-					Type:    database.AIProviderTypeOpenai,
-					Enabled: true,
-				}, nil
+				return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
 			},
 			getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
 				return []database.AIProviderKey{{
@@ -397,6 +386,9 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
+		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(&aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+		})})
 
 		gotModel, gotCfg := p.resolveAdvisorModelOverrideOrFallback(
 			ctx,
@@ -404,8 +396,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			codersdk.AdvisorConfig{ModelConfigID: configID},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
-			modelBuildOptions{},
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 			logger,
 		)
 		require.NotEqual(t, fantasy.LanguageModel(fallbackModel), gotModel)
@@ -426,7 +417,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{
 				ID:           configID,
-				Provider:     "openai",
 				Model:        "gpt-5.2",
 				Enabled:      true,
 				DisplayName:  "gpt-5.2",
@@ -441,7 +431,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		},
 	}
 	p := newAdvisorTestServer(ctx, t, store)
-	p.aiGatewayRoutingEnabled = true
 
 	ctx = aibridge.WithDelegatedAPIKeyID(ctx, uuid.NewString())
 	model, _, err := p.resolveAdvisorModelOverride(
@@ -450,7 +439,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		codersdk.AdvisorConfig{ModelConfigID: configID},
 		&chattest.FakeModel{ProviderName: "stub", ModelName: "stub"},
 		codersdk.ChatModelCallConfig{},
-		chatprovider.ProviderAPIKeys{},
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 		slog.Make(),
 	)
@@ -565,7 +553,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -590,7 +577,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)
@@ -613,7 +599,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			},
 			fallbackModel,
 			fallbackCallConfig,
-			chatprovider.ProviderAPIKeys{},
 			modelBuildOptions{},
 			logger,
 		)

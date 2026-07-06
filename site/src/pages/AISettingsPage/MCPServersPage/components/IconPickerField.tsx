@@ -22,7 +22,6 @@ interface IconPickerFieldProps {
 	placeholder?: string;
 	disabled?: boolean;
 	onChange: (value: string) => void;
-	onPickEmoji: (value: string) => void;
 }
 
 export const IconPickerField: FC<IconPickerFieldProps> = ({
@@ -31,7 +30,6 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 	placeholder,
 	disabled,
 	onChange,
-	onPickEmoji,
 }) => {
 	const [open, setOpen] = useState(false);
 	const hasIcon = value !== "";
@@ -76,12 +74,20 @@ export const IconPickerField: FC<IconPickerFieldProps> = ({
 							<AnimatedChevronDownIcon />
 						</Button>
 					</PopoverTrigger>
-					<PopoverContent side="bottom" align="end" className="w-min">
+					<PopoverContent
+						side="bottom"
+						align="end"
+						className="w-min"
+						// The popover is portaled in the DOM but still a React child of
+						// InputGroupAddon, whose click handler focuses the text input.
+						// Stop clicks here so the emoji picker keeps focus.
+						onClick={(event) => event.stopPropagation()}
+					>
 						<Suspense fallback={<Loader />}>
 							<EmojiPicker
 								onEmojiSelect={(emoji) => {
 									const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
-									onPickEmoji(picked);
+									onChange(picked);
 									setOpen(false);
 								}}
 							/>

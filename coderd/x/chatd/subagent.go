@@ -161,39 +161,6 @@ func personalModelOverrideContextForSubagent(
 	}
 }
 
-func validateModelConfigAndResolveProvider(
-	modelConfig database.ChatModelConfig,
-) (database.ChatModelConfig, string, error) {
-	if !modelConfig.Enabled {
-		return database.ChatModelConfig{}, "", sql.ErrNoRows
-	}
-	providerName, _, err := chatprovider.ResolveModelWithProviderHint(
-		modelConfig.Model,
-		modelConfig.Provider,
-	)
-	if err != nil {
-		return database.ChatModelConfig{}, "", xerrors.Errorf(
-			"%w: %v",
-			errInvalidModelOverrideMetadata,
-			err,
-		)
-	}
-	return modelConfig, providerName, nil
-}
-
-func enabledProviderContainsName(
-	providers []database.AIProvider,
-	providerName string,
-) bool {
-	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
-	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
-			return true
-		}
-	}
-	return false
-}
-
 func userCanUseProviderKeys(
 	providerKeys chatprovider.ProviderAPIKeys,
 	providerName string,
@@ -542,18 +509,8 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 		}
 		return modelConfig, providerName, nil
 	}
-	modelConfig, providerName, err := validateModelConfigAndResolveProvider(modelConfig)
-	if err != nil {
-		return database.ChatModelConfig{}, "", err
-	}
-	enabledProviders, err := p.configCache.EnabledProviders(ctx)
-	if err != nil {
-		return database.ChatModelConfig{}, "", err
-	}
-	if !enabledProviderContainsName(enabledProviders, providerName) {
-		return database.ChatModelConfig{}, "", sql.ErrNoRows
-	}
-	return modelConfig, providerName, nil
+	// Active configs carry a provider FK; resolved above. Missing FK means no usable config.
+	return database.ChatModelConfig{}, "", sql.ErrNoRows
 }
 
 func (p *Server) subagentTools(

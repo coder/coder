@@ -49,7 +49,7 @@ const generalModelConfig = buildModelConfig({
 
 const claudeSonnetModelConfig = buildModelConfig({
 	id: "model-claude-sonnet-4",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-sonnet-4",
 	display_name: "Claude Sonnet 4",
 	context_limit: 200_000,
@@ -64,7 +64,7 @@ const titleModelConfig = buildModelConfig({
 
 const exploreFallbackModelConfig = buildModelConfig({
 	id: "model-explore-blank-display",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-sonnet-4-20250514",
 	display_name: "",
 	context_limit: 200_000,
@@ -87,7 +87,7 @@ const titleDisabledModelConfig = buildModelConfig({
 
 const exploreDisabledModelConfig = buildModelConfig({
 	id: "model-explore-disabled",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-haiku-legacy",
 	display_name: "Claude Haiku Legacy",
 	enabled: false,
@@ -104,6 +104,14 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	exploreDisabledModelConfig,
 ];
 
+const providerInfoByID = new Map([
+	["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	[
+		"provider-anthropic",
+		{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+	],
+]);
+
 const buildArgs = (
 	overrides: Partial<CoderAgentsPageViewProps> = {},
 ): CoderAgentsPageViewProps => ({
@@ -118,6 +126,7 @@ const buildArgs = (
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
+	providerInfoByID,
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
 	isFetchingModelConfigs: false,
