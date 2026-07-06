@@ -26,6 +26,8 @@ setup to log in.
 Select **Templates** then **New Template**. The template builder opens and
 displays a list of base infrastructure templates.
 
+![Template builder base selection](../images/templatebuilder_01_bases.png)
+
 ## 3. Select a base template
 
 Select the **Docker Containers** base template. This provides a working
@@ -37,6 +39,8 @@ The builder shows a list of available modules grouped by category. You can add
 IDEs like **code-server** (VS Code in the browser) or tools like **git-clone**.
 For your first template, you can skip this step and add modules later.
 
+![Template builder module selection](../images/templatebuilder_02_modules.png)
+
 Select **Continue** to proceed.
 
 ## 5. Create your template
@@ -44,6 +48,8 @@ Select **Continue** to proceed.
 On the final step, fill in **Name** and **Display name**, then select
 **Create Template**. Coder composes the Terraform configuration, validates it,
 and creates your template.
+
+![Template builder customizations](../images/templatebuilder_04_customizations.png)
 
 ## 6. Modify your template
 
