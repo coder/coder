@@ -7,6 +7,15 @@
 	},
 	"variables": [
 		{
+			"name": "container_image",
+			"type": "string",
+			"description": "Container image for workspaces. The image determines which tools and languages are available in the workspace by default. See the template README for guidance on choosing an image.",
+			"default": "codercom/example-base:ubuntu",
+			"required": false,
+			"sensitive": false,
+			"computed": false
+		},
+		{
 			"name": "use_kubeconfig",
 			"type": "bool",
 			"description": "Use host kubeconfig. Set to true if the Coder host is running outside the Kubernetes cluster for workspaces.",
