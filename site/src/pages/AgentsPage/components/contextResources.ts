@@ -49,7 +49,6 @@ type ContextIssueItem = {
 	readonly source: string;
 };
 
-// Human-readable label per resource kind, used in the issues list.
 export const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
 	instruction_file: "file",
 	skill: "skill",
@@ -91,8 +90,6 @@ export const getPercentUsed = (
 	return (used / limit) * 100;
 };
 
-// One-line usage summary shown in both the compact popover and the details
-// dialog header.
 export const formatContextUsageLine = (
 	usage: AgentContextUsage | null,
 ): string => {
@@ -119,8 +116,6 @@ export const getCompactionThresholdPercent = (
 	return usage.compressionThreshold;
 };
 
-// "1 skill" / "3 skills" count labels for the compact popover summary lines
-// and the per-server tool counts in the details dialog.
 export const countLabel = (count: number, noun: string): string =>
 	`${count} ${noun}${count === 1 ? "" : "s"}`;
 

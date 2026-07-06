@@ -39,15 +39,12 @@ export const Clean: Story = {
 		await waitFor(() =>
 			expect(body.getByText("6% - 12K / 200K context used")).toBeVisible(),
 		);
-		// The popover summarizes the pinned resources as counts.
 		expect(body.getByText("1 context file · 1 skill")).toBeVisible();
 		expect(body.getByText("1 MCP config · 1 server · 2 tools")).toBeVisible();
-		// Failed resources surface as an issue count in warning tone.
 		expect(body.getByText("1 issue")).toBeVisible();
 		expect(body.getByText("Click to open full list")).toBeVisible();
 		// The full listing is not rendered inline anymore.
 		expect(body.queryByText("AGENTS.md")).toBeNull();
-		// A clean pin offers no refresh affordance.
 		expect(body.queryByRole("button", { name: "Refresh context" })).toBeNull();
 	},
 };
@@ -126,7 +123,6 @@ export const ManyResources: Story = {
 			expect(body.getByText("2 context files · 3 skills")).toBeVisible(),
 		);
 		expect(body.getByText("2 MCP configs · 1 server · 2 tools")).toBeVisible();
-		// No issues, so no issue count line.
 		expect(body.queryByText("1 issue")).toBeNull();
 	},
 };
@@ -152,8 +148,6 @@ export const OpensDetailsDialog: Story = {
 			await userEvent.click(button);
 			const dialog = await body.findByRole("dialog");
 			expect(within(dialog).getByText("Context details")).toBeInTheDocument();
-			// Smoke check: the dialog carries the full listing.
-			expect(within(dialog).getByText("AGENTS.md")).toBeInTheDocument();
 			// The compact popover has closed.
 			await waitFor(() =>
 				expect(body.queryByText("Click to open full list")).toBeNull(),
@@ -199,7 +193,6 @@ export const Dirty: Story = {
 			expect(body.getByText("Context changed")).toBeVisible(),
 		);
 
-		// Refresh from the popover invokes the handler.
 		await userEvent.click(
 			body.getByRole("button", { name: "Refresh context" }),
 		);

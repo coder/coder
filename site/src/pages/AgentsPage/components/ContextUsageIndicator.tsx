@@ -51,9 +51,6 @@ export const ContextUsageIndicator: FC<{
 	isRefreshingContext?: boolean;
 }> = ({ usage, onRefreshContext, isRefreshingContext }) => {
 	const [open, setOpen] = useState(false);
-	// Whether the full-list details dialog is open. The popover and the dialog
-	// are mutually exclusive: opening the dialog closes the popover and blocks
-	// hover from re-opening it underneath the dialog.
 	const [detailsOpen, setDetailsOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -74,19 +71,7 @@ export const ContextUsageIndicator: FC<{
 
 	const handleMouseEnter = () => {
 		cancelClose();
-		if (!detailsOpen) {
-			setOpen(true);
-		}
-	};
-
-	// Every popover-open path is gated on the dialog being closed so hover or
-	// tap events firing while the dialog opens cannot re-open the popover
-	// underneath it.
-	const handlePopoverOpenChange = (nextOpen: boolean) => {
-		if (nextOpen && detailsOpen) {
-			return;
-		}
-		setOpen(nextOpen);
+		setOpen(true);
 	};
 
 	const percentUsed = getPercentUsed(usage);
@@ -116,28 +101,20 @@ export const ContextUsageIndicator: FC<{
 
 	// Compact count summaries. Zero-count segments are omitted, and the "MCP"
 	// prefix attaches to the first MCP segment present.
-	const fileSkillSegments: string[] = [];
-	if (fileItems.length > 0) {
-		fileSkillSegments.push(countLabel(fileItems.length, "context file"));
-	}
-	if (skillItems.length > 0) {
-		fileSkillSegments.push(countLabel(skillItems.length, "skill"));
-	}
-	const mcpSegments: string[] = [];
-	if (mcpConfigItems.length > 0) {
-		mcpSegments.push(countLabel(mcpConfigItems.length, "MCP config"));
-	}
-	if (mcpServerItems.length > 0) {
-		mcpSegments.push(
+	const fileSkillSegments = [
+		fileItems.length > 0 && countLabel(fileItems.length, "context file"),
+		skillItems.length > 0 && countLabel(skillItems.length, "skill"),
+	].filter((segment): segment is string => segment !== false);
+	const mcpSegments = [
+		mcpConfigItems.length > 0 &&
+			countLabel(mcpConfigItems.length, "MCP config"),
+		mcpServerItems.length > 0 &&
 			countLabel(
 				mcpServerItems.length,
 				mcpConfigItems.length > 0 ? "server" : "MCP server",
 			),
-		);
-	}
-	if (mcpToolCount > 0) {
-		mcpSegments.push(countLabel(mcpToolCount, "tool"));
-	}
+		mcpToolCount > 0 && countLabel(mcpToolCount, "tool"),
+	].filter((segment): segment is string => segment !== false);
 
 	// Whether the details dialog has anything to show. When false, the link
 	// row is hidden and clicking the ring is a no-op.
@@ -254,47 +231,32 @@ export const ContextUsageIndicator: FC<{
 		/>
 	);
 
-	// On mobile, a tap toggles the popover and the link row opens the details
-	// dialog. On desktop, hover opens the popover like a dropdown menu and
-	// clicking the ring (or the link row) opens the details dialog.
-	if (mobile) {
-		return (
-			<>
-				<Popover open={open} onOpenChange={handlePopoverOpenChange}>
-					<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-					<PopoverContent
-						side="top"
-						className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
-						// Keep focus where it is when the popover closes so it cannot
-						// steal focus from the details dialog as it opens.
-						onCloseAutoFocus={(e) => e.preventDefault()}
-					>
-						{panelContent}
-					</PopoverContent>
-				</Popover>
-				{detailsDialog}
-			</>
-		);
-	}
-
 	return (
 		<>
-			<Popover open={open} onOpenChange={handlePopoverOpenChange}>
-				{/* An anchor rather than a trigger: hover alone controls the
-				    popover, leaving click free to open the details dialog. */}
-				<PopoverAnchor asChild>
-					<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
-						{triggerButton}
-					</div>
-				</PopoverAnchor>
+			<Popover open={open} onOpenChange={setOpen}>
+				{mobile ? (
+					<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+				) : (
+					// An anchor rather than a trigger: hover alone controls the
+					// popover, leaving click free to open the details dialog.
+					<PopoverAnchor asChild>
+						<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+							{triggerButton}
+						</div>
+					</PopoverAnchor>
+				)}
 				<PopoverContent
 					side="top"
-					className="w-auto max-w-72 px-3 py-2"
-					onMouseEnter={cancelClose}
-					onMouseLeave={scheduleClose}
+					className={cn(
+						"w-auto max-w-72 px-3 py-2",
+						mobile &&
+							"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
+					)}
+					onMouseEnter={mobile ? undefined : cancelClose}
+					onMouseLeave={mobile ? undefined : scheduleClose}
 					// Prevent the popover from stealing focus, which would
 					// interfere with the chat input.
-					onOpenAutoFocus={(e) => e.preventDefault()}
+					onOpenAutoFocus={mobile ? undefined : (e) => e.preventDefault()}
 					// Keep focus where it is when the popover closes so it cannot
 					// steal focus from the details dialog as it opens.
 					onCloseAutoFocus={(e) => e.preventDefault()}

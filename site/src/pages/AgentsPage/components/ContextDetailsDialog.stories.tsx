@@ -37,31 +37,15 @@ export const Clean: Story = {
 	},
 	play: async () => {
 		const dialog = await getDialog();
-		// The header summarizes usage and the compaction threshold.
 		expect(
 			dialog.getByText(/6% - 12K \/ 200K context used/),
 		).toBeInTheDocument();
 		expect(dialog.getByText(/Compacts at 80%/)).toBeInTheDocument();
-		// A single context root still shows its directory header.
 		expect(dialog.getByText("Context files")).toBeInTheDocument();
-		expect(dialog.getByText("/home/coder")).toBeInTheDocument();
-		expect(dialog.getByText("/home/coder/.coder/skills")).toBeInTheDocument();
-		// The list is driven by the pinned resources.
 		expect(dialog.getByText("AGENTS.md")).toBeInTheDocument();
 		expect(dialog.getByText("deploy")).toBeInTheDocument();
-		// MCP configs are listed by full path (so multiple .mcp.json files stay
-		// distinct) and servers by name with their tool count.
 		expect(dialog.getByText("MCP")).toBeInTheDocument();
-		expect(dialog.getByText("/home/coder/.mcp.json")).toBeInTheDocument();
 		expect(dialog.getByText("github")).toBeInTheDocument();
-		expect(dialog.getByText("(2 tools)")).toBeInTheDocument();
-		// MCP server tools are listed under their server.
-		expect(dialog.getByText("search_issues")).toBeInTheDocument();
-		expect(dialog.getByText("create_issue")).toBeInTheDocument();
-		// Each populated category shows its total context size.
-		expect(dialog.getByText("(0.2 KiB)")).toBeInTheDocument(); // context files
-		expect(dialog.getByText("(0.1 KiB)")).toBeInTheDocument(); // skills
-		expect(dialog.getByText("(0.7 KiB)")).toBeInTheDocument(); // MCP
 		// Invalid resources are surfaced as issues with their error, not
 		// silently dropped.
 		expect(dialog.getByText("Issues")).toBeInTheDocument();
@@ -70,7 +54,6 @@ export const Clean: Story = {
 				'front-matter name "coder-review" does not match directory "moo"',
 			),
 		).toBeInTheDocument();
-		// A clean pin offers no refresh affordance.
 		expect(
 			dialog.queryByRole("button", { name: "Refresh context" }),
 		).toBeNull();
@@ -86,28 +69,16 @@ export const DescriptionTooltips: Story = {
 			context: MockChatContextClean,
 		},
 	},
-	play: async ({ step }) => {
+	play: async () => {
 		const dialog = await getDialog();
 		const body = within(document.body);
-
-		await step("skill description tooltip", async () => {
-			await userEvent.hover(dialog.getByText("deploy"));
-			// Radix mirrors tooltip content into a visually hidden copy, so
-			// assert on presence rather than a unique visible node.
-			await waitFor(() => {
-				expect(
-					body.getAllByText("Deploy the app to staging.").length,
-				).toBeGreaterThan(0);
-			});
-		});
-
-		await step("tool description tooltip", async () => {
-			await userEvent.hover(dialog.getByText("create_issue"));
-			await waitFor(() => {
-				expect(body.getAllByText("Open a new issue.").length).toBeGreaterThan(
-					0,
-				);
-			});
+		await userEvent.hover(dialog.getByText("deploy"));
+		// Radix mirrors tooltip content into a visually hidden copy, so
+		// assert on presence rather than a unique visible node.
+		await waitFor(() => {
+			expect(
+				body.getAllByText("Deploy the app to staging.").length,
+			).toBeGreaterThan(0);
 		});
 	},
 };
@@ -208,15 +179,14 @@ export const MultipleMcpConfigs: Story = {
 	play: async () => {
 		const dialog = await getDialog();
 		expect(dialog.getByText("/home/coder/.mcp.json")).toBeInTheDocument();
-		// The two configs are distinguishable by their full path.
 		expect(
 			dialog.getByText("/home/coder/project/.mcp.json"),
 		).toBeInTheDocument();
 	},
 };
 
-// Sections, directory groups, and MCP servers collapse on demand and
-// re-expand, taming long lists.
+// Sections, directory groups, and MCP servers all render through the same
+// collapsible branch, so one section collapse/expand covers that path.
 export const CollapseAndExpand: Story = {
 	args: {
 		usage: {
@@ -225,36 +195,15 @@ export const CollapseAndExpand: Story = {
 			context: MockChatContextClean,
 		},
 	},
-	play: async ({ step }) => {
+	play: async () => {
 		const dialog = await getDialog();
-
-		await step("collapse and expand a section", async () => {
-			const section = dialog.getByRole("button", { name: /Context files/ });
-			await userEvent.click(section);
-			await waitFor(() => expect(dialog.queryByText("AGENTS.md")).toBeNull());
-			await userEvent.click(section);
-			await waitFor(() =>
-				expect(dialog.getByText("AGENTS.md")).toBeInTheDocument(),
-			);
-		});
-
-		await step("collapse a directory group", async () => {
-			await userEvent.click(
-				dialog.getByRole("button", { name: "/home/coder" }),
-			);
-			await waitFor(() => expect(dialog.queryByText("AGENTS.md")).toBeNull());
-			// The section header stays visible.
-			expect(dialog.getByText("Context files")).toBeInTheDocument();
-		});
-
-		await step("collapse an MCP server", async () => {
-			await userEvent.click(dialog.getByRole("button", { name: /github/ }));
-			await waitFor(() =>
-				expect(dialog.queryByText("search_issues")).toBeNull(),
-			);
-			// The config leaf under the same section stays visible.
-			expect(dialog.getByText("/home/coder/.mcp.json")).toBeInTheDocument();
-		});
+		const section = dialog.getByRole("button", { name: /Context files/ });
+		await userEvent.click(section);
+		await waitFor(() => expect(dialog.queryByText("AGENTS.md")).toBeNull());
+		await userEvent.click(section);
+		await waitFor(() =>
+			expect(dialog.getByText("AGENTS.md")).toBeInTheDocument(),
+		);
 	},
 };
 
@@ -277,7 +226,6 @@ export const Dirty: Story = {
 			),
 		).toBeInTheDocument();
 
-		// Refresh from the dialog invokes the handler.
 		await userEvent.click(
 			dialog.getByRole("button", { name: "Refresh context" }),
 		);

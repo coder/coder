@@ -51,30 +51,26 @@ export const ContextSyncStatus: FC<{
 	const hasContextError = contextError !== "";
 	return (
 		<div className="flex flex-col gap-1.5">
-			{hasContextError ? (
-				<span className="flex items-center gap-1.5 font-medium text-content-destructive">
-					<TriangleAlertIcon className="size-3 shrink-0" />
-					Context error
-				</span>
-			) : (
-				<span className="flex items-center gap-1.5 font-medium text-content-warning">
-					<TriangleAlertIcon className="size-3 shrink-0" />
-					Context changed
-				</span>
-			)}
-			{hasContextError ? (
-				<span className="text-content-secondary">{contextError}</span>
-			) : (
-				<span className="text-content-secondary">
-					The workspace context changed since this chat was pinned.
-				</span>
-			)}
+			<span
+				className={cn(
+					"flex items-center gap-1.5 font-medium",
+					hasContextError ? "text-content-destructive" : "text-content-warning",
+				)}
+			>
+				<TriangleAlertIcon className="size-3 shrink-0" />
+				{hasContextError ? "Context error" : "Context changed"}
+			</span>
+			<span className="text-content-secondary">
+				{hasContextError
+					? contextError
+					: "The workspace context changed since this chat was pinned."}
+			</span>
 			{onRefreshContext && (
 				<div className="flex flex-wrap gap-2">
 					<Button
 						size="sm"
 						disabled={isRefreshingContext}
-						onClick={() => onRefreshContext()}
+						onClick={onRefreshContext}
 					>
 						<Spinner loading={isRefreshingContext} />
 						Refresh context
@@ -85,8 +81,6 @@ export const ContextSyncStatus: FC<{
 	);
 };
 
-// Dimmed "(N.N KiB)" size suffix for a section header, omitted when the
-// section has no measurable size.
 const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
 	bytes > 0 ? (
 		<span className="ml-1 font-normal text-content-secondary">
@@ -94,13 +88,10 @@ const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
 		</span>
 	) : null;
 
-// Collapsible branch of the details tree: a disclosure row with a rotating
-// chevron whose children render indented one level below.
 const TreeBranch: FC<{
 	label: ReactNode;
 	icon?: ReactNode;
 	title?: string;
-	// Extra classes for the disclosure row, e.g. section emphasis or tone.
 	className?: string;
 	children: ReactNode;
 }> = ({ label, icon, title, className, children }) => (
@@ -125,8 +116,6 @@ const TreeBranch: FC<{
 	</Collapsible>
 );
 
-// Leaf row of the details tree. When a description is present the row gains
-// a tooltip to its right, matching the compact popover's previous behavior.
 const TreeLeaf: FC<{
 	icon: ReactNode;
 	label: string;
@@ -181,9 +170,6 @@ const renderDirectoryGroups = <T,>(
 		),
 	);
 
-// Full listing of the chat's pinned context resources, opened from the
-// compact context usage popover. Sections, directory groups, and MCP servers
-// are collapsible and default to expanded.
 export const ContextDetailsDialog: FC<{
 	usage: AgentContextUsage;
 	open: boolean;
