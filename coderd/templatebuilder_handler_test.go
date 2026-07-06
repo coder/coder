@@ -66,7 +66,8 @@ func TestTemplateBuilderBases(t *testing.T) {
 			{
 				id:           "gcp-windows",
 				expectedOS:   "windows",
-				hasVariables: false,
+				hasVariables: true,
+				expectedVars: []string{"project_id"},
 			},
 		}
 
