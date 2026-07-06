@@ -6,10 +6,12 @@ workspaces, it's often best to create custom images that match the needs of
 your users. This document serves as a guide to operational maturity with some
 best practices around managing workspace images for Coder.
 
-1. Create a minimal base image
-2. Create golden image(s) with standard tooling
-3. Create project-specific images for common use cases
-4. Let developers customize their own environment
+After following this tutorial, you'll accomplish the following:
+
+1. Create a minimal base image.
+2. Create golden images with standard tooling.
+3. Create project-specific images for common use cases.
+4. Let developers customize their own environment.
 
 An image is just one of the many properties defined within the template.
 Templates can pull images from a public image registry (e.g. Docker Hub) or an
@@ -19,7 +21,7 @@ directly into a template's image variable or parameter.
 ## Create a minimal base image
 
 While you may not use this directly in Coder templates, it's useful to have a
-minimal base image: a small image that contains only the necessary
+minimal base image as a small image that contains only the necessary
 dependencies to work in your network and work with Coder. Here are some things
 to consider:
 
@@ -37,7 +39,7 @@ Examples:
 - [`codercom/example-minimal:ubuntu`](https://github.com/coder/images/tree/main/images/minimal): only the necessary dependencies for a Coder workspace to bootstrap
 - [`codercom/example-base:ubuntu`](https://github.com/coder/images/tree/main/images/base): a slightly more padded starting point with common utilities preinstalled
 
-## Create golden image(s) with standard tooling
+## Create golden images with standard tooling
 
 Building on the base image, it's often practical to have a few golden images
 that contain standard tooling for developers. These images should contain a
@@ -69,9 +71,8 @@ Examples:
 ## Create project-specific images for common use cases
 
 Beyond golden images, create images scoped to a specific project, language, or
-use case (e.g. a Go backend, a Node.js frontend, or a data science stack).
-These images stay smaller and faster to pull than a kitchen-sink image, and
-give each team exactly the tooling they need.
+use case (e.g., a Go backend, a Node.js frontend, or a data science stack).
+These images stay smaller and faster to pull than one larger image that tries to install all dependencies.
 
 Examples:
 
@@ -79,7 +80,7 @@ Examples:
   [`codercom/example-java:ubuntu`](https://github.com/coder/images/tree/main/images/java),
   [`codercom/example-node:ubuntu`](https://github.com/coder/images/tree/main/images/node):
   Coder's example language-specific images, all running as the `coder` user.
-  See [coder/images](https://github.com/coder/images) for the full list.
+  Refer to [coder/images](https://github.com/coder/images) for the full list.
 - [`codercom/oss-dogfood:latest`](https://github.com/coder/coder/tree/main/dogfood):
   the image Coder's own engineers use to develop Coder. A good reference for a
   project-specific image tailored to a specific team or monorepo setup.
@@ -88,13 +89,13 @@ Examples:
 
 Even with well-scoped images, developers will often need tooling that is
 specific to their project or personal workflow. Instead of maintaining an
-image for every combination, let developers layer their own customizations
+image for every combination, developers can layer their own customizations
 on top of a smaller image:
 
 - [Dev Containers](https://containers.dev): developers define their project's
   dependencies in a `devcontainer.json` in their Git repository, and Coder
-  builds the environment on top of your base image. See
+  builds the environment on top of your base image. Visit
   [configure a template for Dev Containers](../../integrations/devcontainers/integration.md).
 - [mise](https://mise.jdx.dev/): developers install and pin language runtimes
-  and CLI tools at workspace startup without rebuilding the image. See the
+  and CLI tools at workspace startup without rebuilding the image. Visit the
   [install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md).

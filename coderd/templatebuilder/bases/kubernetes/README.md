@@ -30,7 +30,9 @@ Some options to consider:
 - [`codercom/example-base:ubuntu`](https://github.com/coder/images/tree/main/images/base) (default): minimal and lightweight, but may not include many tools developers expect by default
 - [`codercom/example-universal:ubuntu`](https://github.com/coder/images/tree/main/images/universal): catch-all image with many languages and tools available, but larger and slower to pull
 
-More language-specific images (Go, Java, Node.js, and more) are available in [coder/images](https://github.com/coder/images), and the [devcontainers/images](https://github.com/devcontainers/images) collection is another good source of ready-made development images. You can also build your own image to pre-bake the exact tools your team needs. See [Coder's image management docs](https://coder.com/docs/admin/templates/managing-templates/image-management) for additional guidance.
+More language-specific images (Go, Java, Node.js, and more) are available in [coder/images](https://github.com/coder/images), and the [devcontainers/images](https://github.com/devcontainers/images) collection is another good source of ready-made development images.
+You can also build your own image to pre-bake the exact tools your team needs.
+Visit [Coder's image management docs](https://coder.com/docs/admin/templates/managing-templates/image-management) for additional guidance.
 
 ### Authentication
 
