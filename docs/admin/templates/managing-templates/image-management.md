@@ -32,11 +32,10 @@ to consider:
   `docker`, `bash`, `jq`, and/or internal tooling
 - Consider creating (and starting the container with) a non-root user
 
-See Coder's
-[example minimal image](https://github.com/coder/images/tree/main/images/minimal)
-for reference, or the
-[example base image](https://github.com/coder/images/tree/main/images/base)
-for a slightly more padded starting point with common utilities preinstalled.
+Examples:
+
+- [Coder's minimal image](https://github.com/coder/images/tree/main/images/minimal): only the necessary dependencies for a Coder workspace to bootstrap
+- [Coder's base image](https://github.com/coder/images/tree/main/images/base): a slightly more padded starting point with common utilities preinstalled
 
 ## Create general-purpose golden image(s) with standard tooling
 
@@ -82,9 +81,6 @@ Examples:
 - [Coder's dogfood image](https://github.com/coder/coder/tree/main/dogfood):
   the image Coder's own engineers use to develop Coder. A good reference for a
   project-specific image tailored to a specific team or monorepo setup
-- Rather than baking every tool into the image, you can also layer tools onto
-  a smaller image with [mise](https://mise.jdx.dev/). See the
-  [install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md)
 
 ## Allow developers to bring their own images and customizations with Dev Containers
 
@@ -94,3 +90,7 @@ specification allows developers to define their projects dependencies within a
 `devcontainer.json` in their Git repository.
 
 - [Configure a template for Dev Containers](../../integrations/devcontainers/integration.md)
+
+Alternatively, rather than baking every tool into the image, developers can
+layer tools onto a smaller image with [mise](https://mise.jdx.dev/). See the
+[install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md).
