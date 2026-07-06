@@ -9,8 +9,7 @@ practices around managing workspaces images for Coder.
 1. Create a minimal base image
 2. Create golden image(s) with standard tooling
 3. Create project-specific images for common use cases
-4. Allow developers to bring their own images and customizations with Dev
-   Containers
+4. Let developers customize their own environment
 
 An image is just one of the many properties defined within the template.
 Templates can pull images from a public image registry (e.g. Docker Hub) or an
@@ -82,15 +81,17 @@ Examples:
   the image Coder's own engineers use to develop Coder. A good reference for a
   project-specific image tailored to a specific team or monorepo setup
 
-## Allow developers to bring their own images and customizations with Dev Containers
+## Let developers customize their own environment
 
-While golden images are great for general use cases, developers will often need
-specific tooling for their projects. The [Dev Container](https://containers.dev)
-specification allows developers to define their projects dependencies within a
-`devcontainer.json` in their Git repository.
+Even with well-scoped images, developers will often need tooling that is
+specific to their project or personal workflow. Instead of maintaining an
+image for every combination, let developers layer their own customizations
+on top of a smaller image:
 
-- [Configure a template for Dev Containers](../../integrations/devcontainers/integration.md)
-
-Alternatively, rather than baking every tool into the image, developers can
-layer tools onto a smaller image with [mise](https://mise.jdx.dev/). See the
-[install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md).
+- [Dev Containers](https://containers.dev): developers define their project's
+  dependencies in a `devcontainer.json` in their Git repository, and Coder
+  builds the environment on top of your base image. See
+  [configure a template for Dev Containers](../../integrations/devcontainers/integration.md).
+- [mise](https://mise.jdx.dev/): developers install and pin language runtimes
+  and CLI tools at workspace startup without rebuilding the image. See the
+  [install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md).
