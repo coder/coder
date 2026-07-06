@@ -207,13 +207,10 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load under the request actor; the notifier actor cannot read users.
 	initiator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to load chat share initiator", slog.Error(err), slog.F("chat_id", chat.ID))
 	} else {
-		// Fan out on the server context, not the request, so a client
-		// disconnect after the ACL commit does not drop notifications.
 		newChat := aReq.New
 		go func() {
 			if count, err := api.notifyChatShared(api.ctx, oldChat, newChat, initiator); err != nil {

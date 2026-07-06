@@ -214,10 +214,6 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	requireSDKError(t, err, http.StatusNotFound)
 }
 
-// TestChatACLSharingNotifiesDirectReadersOnly verifies that only users granted
-// read through the user ACL are notified. Members who gain access solely
-// through a group grant are not notified, and the initiator is never
-// self-notified even when the direct grant would otherwise include them.
 func TestChatACLSharingNotifiesDirectReadersOnly(t *testing.T) {
 	t.Parallel()
 
