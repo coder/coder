@@ -33,8 +33,10 @@ to consider:
 - Consider creating (and starting the container with) a non-root user
 
 See Coder's
-[example base image](https://github.com/coder/images/tree/main/images/minimal)
-for reference.
+[example minimal image](https://github.com/coder/images/tree/main/images/minimal)
+for reference, or the
+[example base image](https://github.com/coder/images/tree/main/images/base)
+for a slightly more padded starting point with common utilities preinstalled.
 
 ## Create general-purpose golden image(s) with standard tooling
 
@@ -77,6 +79,9 @@ Examples:
 - [coder/images](https://github.com/coder/images): Coder's example
   language-specific images (Go, Java, Node.js, and more), all running as the
   `coder` user
+- [Coder's dogfood image](https://github.com/coder/coder/tree/main/dogfood):
+  the image Coder's own engineers use to develop Coder. A good reference for a
+  project-specific image tailored to a specific team or monorepo setup
 - Rather than baking every tool into the image, you can also layer tools onto
   a smaller image with [mise](https://mise.jdx.dev/). See the
   [install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md)
