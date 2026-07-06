@@ -11,7 +11,7 @@ Chat sharing lets you give other users or groups read-only access to a Coder Age
 1. Click **Add member** to grant **Read** access.
 1. Copy the chat URL from your browser and send it to the recipients.
 
-Coder does not create a separate share link or notify recipients. Recipients need the chat URL for initial access.
+Coder does not create a separate share link. Users you share with directly receive a **Chat Shared** notification with a link to open the chat. Members who gain access only through a group are not notified, so send them the chat URL for initial access.
 
 ## Shared chat access
 
