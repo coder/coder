@@ -1703,6 +1703,7 @@ const (
 	ConnectionTypeReconnectingPty ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	ConnectionTypeTailnet         ConnectionType = "tailnet"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1747,7 +1748,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeJetbrains,
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
-		ConnectionTypePortForwarding:
+		ConnectionTypePortForwarding,
+		ConnectionTypeTailnet:
 		return true
 	}
 	return false
@@ -1761,6 +1763,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
+		ConnectionTypeTailnet,
 	}
 }
 
@@ -5067,9 +5070,9 @@ type ConnectionLog struct {
 	Ip               pqtype.Inet    `db:"ip" json:"ip"`
 	// Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.
 	Code sql.NullInt32 `db:"code" json:"code"`
-	// Null for SSH events. For web connections, this is the User-Agent header from the request.
+	// Null for agent-reported (SSH) events. For HTTP-initiated connections (workspace_app, port_forwarding, tailnet), this is the User-Agent header from the request.
 	UserAgent sql.NullString `db:"user_agent" json:"user_agent"`
-	// Null for SSH events. For web connections, this is the ID of the user that made the request.
+	// Null for agent-reported (SSH) events. For HTTP-initiated connections (workspace_app, port_forwarding, tailnet), this is the ID of the user that made the request.
 	UserID uuid.NullUUID `db:"user_id" json:"user_id"`
 	// Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.
 	SlugOrPort sql.NullString `db:"slug_or_port" json:"slug_or_port"`

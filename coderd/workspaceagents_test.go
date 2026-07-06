@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -914,6 +915,49 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+func TestWorkspaceAgentClientCoordinate_ConnectionLog(t *testing.T) {
+	t.Parallel()
+	connLogger := connectionlog.NewFake()
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ConnectionLogger: connLogger,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("client"),
+		})
+	require.NoError(t, err)
+	defer conn.Close()
+	conn.AwaitReachable(ctx)
+
+	require.Eventually(t, func() bool {
+		return connLogger.Contains(t, database.UpsertConnectionLogParams{
+			OrganizationID:   user.OrganizationID,
+			WorkspaceOwnerID: user.UserID,
+			WorkspaceID:      r.Workspace.ID,
+			WorkspaceName:    r.Workspace.Name,
+			AgentName:        resources[0].Agents[0].Name,
+			Type:             database.ConnectionTypeTailnet,
+			UserID: uuid.NullUUID{
+				UUID:  user.UserID,
+				Valid: true,
+			},
+		})
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {

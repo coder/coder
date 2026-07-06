@@ -357,7 +357,8 @@ CREATE TYPE connection_type AS ENUM (
     'jetbrains',
     'reconnecting_pty',
     'workspace_app',
-    'port_forwarding'
+    'port_forwarding',
+    'tailnet'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -2181,9 +2182,9 @@ CREATE TABLE connection_logs (
 
 COMMENT ON COLUMN connection_logs.code IS 'Either the HTTP status code of the web request, or the exit code of an SSH connection. For non-web connections, this is Null until we receive a disconnect event for the same connection_id.';
 
-COMMENT ON COLUMN connection_logs.user_agent IS 'Null for SSH events. For web connections, this is the User-Agent header from the request.';
+COMMENT ON COLUMN connection_logs.user_agent IS 'Null for agent-reported (SSH) events. For HTTP-initiated connections (workspace_app, port_forwarding, tailnet), this is the User-Agent header from the request.';
 
-COMMENT ON COLUMN connection_logs.user_id IS 'Null for SSH events. For web connections, this is the ID of the user that made the request.';
+COMMENT ON COLUMN connection_logs.user_id IS 'Null for agent-reported (SSH) events. For HTTP-initiated connections (workspace_app, port_forwarding, tailnet), this is the ID of the user that made the request.';
 
 COMMENT ON COLUMN connection_logs.slug_or_port IS 'Null for SSH events. For web connections, this is the slug of the app or the port number being forwarded.';
 
