@@ -49,6 +49,7 @@ export const Clean: Story = {
 		// Invalid resources are surfaced as issues with their error, not
 		// silently dropped.
 		expect(dialog.getByText("Issues")).toBeInTheDocument();
+		expect(dialog.getByText(/skill: invalid/)).toBeInTheDocument();
 		expect(
 			dialog.getByText(
 				'front-matter name "coder-review" does not match directory "moo"',

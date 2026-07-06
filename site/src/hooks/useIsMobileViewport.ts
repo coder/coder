@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { isMobileViewport, mobileViewportMediaQuery } from "#/utils/mobile";
 
 const subscribeMobileViewport = (onStoreChange: () => void) => {
-	const mediaQuery = window.matchMedia(mobileViewportMediaQuery);
+	const mediaQuery = matchMedia(mobileViewportMediaQuery);
 	mediaQuery.addEventListener("change", onStoreChange);
 	return () => mediaQuery.removeEventListener("change", onStoreChange);
 };

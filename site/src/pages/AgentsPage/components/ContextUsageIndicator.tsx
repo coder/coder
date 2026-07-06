@@ -195,9 +195,6 @@ export const ContextUsageIndicator: FC<{
 		</div>
 	);
 
-	// On mobile the tap toggles the popover via PopoverTrigger, so the ring
-	// itself gets no click handler there; on desktop clicking the ring opens
-	// the details dialog directly.
 	const triggerButton = (
 		<button
 			type="button"

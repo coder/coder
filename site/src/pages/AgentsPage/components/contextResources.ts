@@ -216,9 +216,7 @@ export const normalizeContextResources = (
 			dir: getPathDirname(resource.source),
 		}))
 		.filter((skill) => skill.name.trim().length > 0);
-	// MCP configs are shown by their full path so multiple .mcp.json files
-	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated; servers
-	// are keyed by name and carry their tools.
+	// Full paths disambiguate multiple .mcp.json files.
 	const mcpConfigItems: readonly ContextMcpConfigItem[] = pinned
 		.filter(
 			(resource) => resource.kind === "mcp_config" && resource.status === "ok",
@@ -235,9 +233,6 @@ export const normalizeContextResources = (
 			tools: resource.tools ?? [],
 		}))
 		.filter((server) => server.name.trim().length > 0);
-	// Pinned resources the agent could not use (invalid skill, unreadable or
-	// oversize file) are surfaced as issues with their error so the failure is
-	// visible rather than a silent omission.
 	const issueItems: readonly ContextIssueItem[] = pinned
 		.filter((resource) => resource.status !== "ok")
 		.map((resource) => ({
