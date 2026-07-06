@@ -517,6 +517,14 @@ export interface AIProviderConfig {
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
+	/**
+	 * WIF fields (only applicable when Type == "anthropic").
+	 */
+	readonly wif_federation_rule_id?: string;
+	readonly wif_organization_id?: string;
+	readonly wif_identity_token_file?: string;
+	readonly wif_service_account_id?: string;
+	readonly wif_workspace_id?: string;
 }
 
 // From codersdk/aiproviders.go
@@ -571,6 +579,13 @@ export interface AIProviderSettings {}
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
+// From codersdk/aiproviders_wif.go
+/**
+ * AIProviderSettingsTypeWIF is the _type discriminator value for
+ * AIProviderWIFSettings.
+ */
+export const AIProviderSettingsTypeWIF = "wif";
+
 // From codersdk/aiproviders.go
 /**
  * AIProviderStatus carries non-fatal routing warnings. Direct
@@ -617,6 +632,48 @@ export const AIProviderTypes: AIProviderType[] = [
 	"openrouter",
 	"vercel",
 ];
+
+// From codersdk/aiproviders_wif.go
+/**
+ * AIProviderWIFSettings configures providers that authenticate via
+ * Anthropic Workload Identity Federation. The gateway exchanges an
+ * OIDC identity token for a short-lived Anthropic access token
+ * instead of using static API keys.
+ */
+export interface AIProviderWIFSettings {
+	/**
+	 * FederationRuleID is the tagged ID (fdrl_...) of the Anthropic
+	 * federation rule governing this exchange. Required.
+	 */
+	readonly federation_rule_id: string;
+	/**
+	 * OrganizationID is the UUID of the Anthropic organization.
+	 * Required.
+	 */
+	readonly organization_id: string;
+	/**
+	 * IdentityTokenFile is the path to a file containing the OIDC
+	 * identity token (JWT). The file is re-read on every exchange.
+	 * Required.
+	 */
+	readonly identity_token_file: string;
+	/**
+	 * ServiceAccountID is the optional svac_... tagged ID for
+	 * target_type=SERVICE_ACCOUNT federation rules.
+	 */
+	readonly service_account_id?: string;
+	/**
+	 * WorkspaceID is the optional wrkspc_... tagged ID or "default".
+	 */
+	readonly workspace_id?: string;
+}
+
+// From codersdk/aiproviders_wif.go
+/**
+ * AIProviderWIFSettingsVersion is the current schema version of
+ * AIProviderWIFSettings.
+ */
+export const AIProviderWIFSettingsVersion = 1;
 
 // From codersdk/aibridge.go
 /**

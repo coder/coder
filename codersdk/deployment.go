@@ -5103,6 +5103,13 @@ type AIProviderConfig struct {
 	BedrockAccessKeySecrets []string `json:"-"`
 	BedrockModel            string   `json:"bedrock_model,omitempty"`
 	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
+
+	// WIF fields (only applicable when Type == "anthropic").
+	WIFFederationRuleID  string `json:"wif_federation_rule_id,omitempty"`
+	WIFOrganizationID    string `json:"wif_organization_id,omitempty"`
+	WIFIdentityTokenFile string `json:"wif_identity_token_file,omitempty"`
+	WIFServiceAccountID  string `json:"wif_service_account_id,omitempty"`
+	WIFWorkspaceID       string `json:"wif_workspace_id,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {

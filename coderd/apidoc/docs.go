@@ -17998,6 +17998,22 @@ const docTemplate = `{
                 "type": {
                     "description": "Type is the provider type. Valid values are: \"openai\",\n\"anthropic\", \"azure\", \"bedrock\", \"google\", \"openai-compat\",\n\"openrouter\", \"vercel\", \"copilot\".",
                     "type": "string"
+                },
+                "wif_federation_rule_id": {
+                    "description": "WIF fields (only applicable when Type == \"anthropic\").",
+                    "type": "string"
+                },
+                "wif_identity_token_file": {
+                    "type": "string"
+                },
+                "wif_organization_id": {
+                    "type": "string"
+                },
+                "wif_service_account_id": {
+                    "type": "string"
+                },
+                "wif_workspace_id": {
+                    "type": "string"
                 }
             }
         },

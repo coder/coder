@@ -3246,6 +3246,7 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// them prevents silently-ignored credentials.
 		isBedrockType := providerType == database.AIProviderTypeBedrock
 		isAnthropicType := providerType == database.AIProviderTypeAnthropic
+		isWIF := p.WIFFederationRuleID != "" || p.WIFOrganizationID != "" || p.WIFIdentityTokenFile != ""
 		if !isAnthropicType && !isBedrockType && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
 				i, p.Type, database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock)
@@ -3272,6 +3273,26 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// any DB work happens at server startup.
 		if isAnthropicType && len(p.Keys) > 0 && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if isWIF && !isAnthropicType {
+			return nil, xerrors.Errorf("provider %d (%s): FEDERATION_RULE_ID/ORGANIZATION_ID/IDENTITY_TOKEN_FILE fields are only supported with TYPE %q",
+				i, p.Type, database.AIProviderTypeAnthropic)
+		}
+
+		if isWIF && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): WIF and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if isWIF && len(p.Keys) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and WIF fields are mutually exclusive",
+				i, p.Type)
+		}
+
+		if isWIF && (p.WIFFederationRuleID == "" || p.WIFOrganizationID == "" || p.WIFIdentityTokenFile == "") {
+			return nil, xerrors.Errorf("provider %d (%s): WIF requires FEDERATION_RULE_ID, ORGANIZATION_ID, and IDENTITY_TOKEN_FILE to all be set",
 				i, p.Type)
 		}
 
@@ -3401,6 +3422,16 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
+		case "FEDERATION_RULE_ID":
+			provider.WIFFederationRuleID = v.Value
+		case "ORGANIZATION_ID":
+			provider.WIFOrganizationID = v.Value
+		case "IDENTITY_TOKEN_FILE":
+			provider.WIFIdentityTokenFile = v.Value
+		case "SERVICE_ACCOUNT_ID":
+			provider.WIFServiceAccountID = v.Value
+		case "WORKSPACE_ID":
+			provider.WIFWorkspaceID = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
 				slog.F("env", fullName),

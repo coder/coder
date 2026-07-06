@@ -37,6 +37,7 @@ func NewBlockingInterceptor(
 	cfg intercept.Config,
 	cred intercept.Credential,
 	bedrock *BedrockRuntime,
+	wif *WIFRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -46,6 +47,7 @@ func NewBlockingInterceptor(
 		cfg:           cfg,
 		cred:          cred,
 		bedrock:       bedrock,
+		wif:           wif,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}

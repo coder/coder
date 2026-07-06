@@ -1215,6 +1215,15 @@ func aiProviderToProto(row database.AIProvider, keys []database.AIProviderKey) (
 			Protocol:        string(settings.Bedrock.Protocol),
 		}
 	}
+	if settings.WIF != nil {
+		p.Wif = &proto.AIProviderKindWIF{
+			FederationRuleId:  settings.WIF.FederationRuleID,
+			OrganizationId:    settings.WIF.OrganizationID,
+			IdentityTokenFile: settings.WIF.IdentityTokenFile,
+			ServiceAccountId:  settings.WIF.ServiceAccountID,
+			WorkspaceId:       settings.WIF.WorkspaceID,
+		}
+	}
 
 	return p, nil
 }

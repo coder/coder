@@ -21,10 +21,34 @@ type Anthropic struct {
 	BaseURL string
 	// KeyPool holds the centralized keys, with automatic key failover. BYOK
 	// credentials are resolved per request from the incoming headers.
-	KeyPool          *keypool.Pool
+	KeyPool *keypool.Pool
+	// WIF configures Workload Identity Federation. Mutually exclusive
+	// with KeyPool; at most one of WIF and KeyPool may be set.
+	WIF              *AnthropicWIF
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
+}
+
+// AnthropicWIF carries configuration for Anthropic Workload Identity
+// Federation. When set on the Anthropic provider, the gateway exchanges
+// an OIDC identity token for a short-lived Anthropic access token
+// instead of using static API keys.
+type AnthropicWIF struct {
+	// FederationRuleID is the tagged ID (fdrl_...) of the Anthropic
+	// federation rule governing this exchange. Required.
+	FederationRuleID string
+	// OrganizationID is the UUID of the Anthropic organization.
+	// Required.
+	OrganizationID string
+	// IdentityTokenFile is the path to a file containing the OIDC
+	// identity token (JWT). The file is re-read on every exchange.
+	// Required.
+	IdentityTokenFile string
+	// ServiceAccountID is the optional svac_... tagged ID.
+	ServiceAccountID string
+	// WorkspaceID is the optional wrkspc_... tagged ID or "default".
+	WorkspaceID string
 }
 
 // BedrockProtocol selects which AWS Bedrock wire protocol a provider targets.

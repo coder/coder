@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -31,6 +32,8 @@ type Anthropic struct {
 	cfg config.Anthropic
 	// bedrock is nil for non-Bedrock providers.
 	bedrock *messages.BedrockRuntime
+	// wif is nil for non-WIF providers.
+	wif *messages.WIFRuntime
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -85,9 +88,27 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
 	}
 
+	var wifRT *messages.WIFRuntime
+	if cfg.WIF != nil {
+		wifOpt := option.WithFederationTokenProvider(
+			option.IdentityTokenFile(cfg.WIF.IdentityTokenFile),
+			option.FederationOptions{
+				FederationRuleID: cfg.WIF.FederationRuleID,
+				OrganizationID:   cfg.WIF.OrganizationID,
+				ServiceAccountID: cfg.WIF.ServiceAccountID,
+				WorkspaceID:      cfg.WIF.WorkspaceID,
+			},
+		)
+		wifRT = &messages.WIFRuntime{
+			Opts:             []option.RequestOption{wifOpt},
+			FederationRuleID: cfg.WIF.FederationRuleID,
+		}
+	}
+
 	return &Anthropic{
 		cfg:     cfg,
 		bedrock: bedrock,
+		wif:     wifRT,
 	}, nil
 }
 
@@ -153,9 +174,9 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, cfg, cred, p.bedrock, p.wif, r.Header, tracer)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, r.Header, tracer)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, cfg, cred, p.bedrock, p.wif, r.Header, tracer)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
@@ -182,6 +203,9 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	}
 	if p.cfg.KeyPool != nil {
 		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+	}
+	if p.wif != nil {
+		return intercept.AnthropicWIF{FederationRuleID: p.wif.FederationRuleID}, nil
 	}
 	if p.bedrock != nil {
 		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil

@@ -97,7 +97,7 @@ func SeedAIProvidersFromEnv(
 		}
 
 		for _, dp := range desired {
-			settings, err := encodeAIProviderSettings(codersdk.AIProviderSettings{Bedrock: dp.Bedrock})
+			settings, err := encodeAIProviderSettings(codersdk.AIProviderSettings{Bedrock: dp.Bedrock, WIF: dp.WIF})
 			if err != nil {
 				return xerrors.Errorf("encode settings for %q: %w", dp.Name, err)
 			}
@@ -137,6 +137,7 @@ func SeedAIProvidersFromEnv(
 					Type:    existingType,
 					BaseURL: existing.BaseUrl,
 					Bedrock: existingSettings.Bedrock,
+					WIF:     existingSettings.WIF,
 					Keys:    existingKeys,
 				}
 				existingHash := computeProviderHash(existingDP.canonical())
@@ -220,10 +221,11 @@ func SeedAIProvidersFromEnv(
 // Model and SmallFastModel are excluded: they're tunables, and their
 // serpent defaults shift across releases.
 type canonicalAIProvider struct {
-	Type          string `json:"type"`
-	BaseURL       string `json:"base_url"`
-	BedrockRegion string `json:"bedrock_region"`
-	KeysHash      string `json:"keys_hash"`
+	Type                string `json:"type"`
+	BaseURL             string `json:"base_url"`
+	BedrockRegion       string `json:"bedrock_region"`
+	WIFFederationRuleID string `json:"wif_federation_rule_id"`
+	KeysHash            string `json:"keys_hash"`
 }
 
 // desiredAIProvider is a normalized provider description sourced from
@@ -240,7 +242,10 @@ type desiredAIProvider struct {
 	// Bedrock holds the Bedrock-specific settings when the provider
 	// targets AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
-	Hash    string
+	// WIF holds the WIF-specific settings when the provider uses
+	// Anthropic Workload Identity Federation; nil otherwise.
+	WIF  *codersdk.AIProviderWIFSettings
+	Hash string
 }
 
 func (d desiredAIProvider) canonical() canonicalAIProvider {
@@ -250,6 +255,9 @@ func (d desiredAIProvider) canonical() canonicalAIProvider {
 	}
 	if d.Bedrock != nil {
 		c.BedrockRegion = d.Bedrock.Region
+	}
+	if d.WIF != nil {
+		c.WIFFederationRuleID = d.WIF.FederationRuleID
 	}
 	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock)
 	return c
@@ -412,6 +420,16 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 				// BASE_URL later doesn't trigger drift. Empty is fine:
 				// the runtime derives the endpoint from the region.
 				dp.BaseURL = p.BedrockBaseURL
+			}
+		}
+		// WIF fields apply only to Anthropic providers.
+		if dp.Type == database.AIProviderTypeAnthropic && p.WIFFederationRuleID != "" {
+			dp.WIF = &codersdk.AIProviderWIFSettings{
+				FederationRuleID:  p.WIFFederationRuleID,
+				OrganizationID:    p.WIFOrganizationID,
+				IdentityTokenFile: p.WIFIdentityTokenFile,
+				ServiceAccountID:  p.WIFServiceAccountID,
+				WorkspaceID:       p.WIFWorkspaceID,
 			}
 		}
 		// Non-Bedrock, non-Copilot providers carry their bearer keys in

@@ -74,6 +74,16 @@ type BedrockRuntime struct {
 	Creds aws.CredentialsProvider
 }
 
+// WIFRuntime carries pre-built SDK options for Anthropic Workload
+// Identity Federation. The SDK handles token exchange, caching, and
+// refresh internally.
+type WIFRuntime struct {
+	// Opts are the SDK request options that enable WIF authentication.
+	Opts []option.RequestOption
+	// FederationRuleID is kept for credential hint logging.
+	FederationRuleID string
+}
+
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
@@ -82,6 +92,8 @@ type interceptionBase struct {
 	cred intercept.Credential
 	// bedrock is nil for non-Bedrock providers.
 	bedrock *BedrockRuntime
+	// wif is nil for non-WIF providers.
+	wif *WIFRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -285,6 +297,12 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		default:
 			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)
 		}
+	}
+
+	// WIF: inject pre-built SDK options that handle token exchange,
+	// caching, and refresh internally.
+	if i.wif != nil {
+		opts = append(opts, i.wif.Opts...)
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 

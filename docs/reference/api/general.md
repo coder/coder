@@ -227,7 +227,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
             "name": "string",
-            "type": "string"
+            "type": "string",
+            "wif_federation_rule_id": "string",
+            "wif_identity_token_file": "string",
+            "wif_organization_id": "string",
+            "wif_service_account_id": "string",
+            "wif_workspace_id": "string"
           }
         ],
         "rate_limit": 0,

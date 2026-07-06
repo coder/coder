@@ -42,6 +42,7 @@ func NewStreamingInterceptor(
 	cfg intercept.Config,
 	cred intercept.Credential,
 	bedrock *BedrockRuntime,
+	wif *WIFRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingInterception {
@@ -51,6 +52,7 @@ func NewStreamingInterceptor(
 		cfg:           cfg,
 		cred:          cred,
 		bedrock:       bedrock,
+		wif:           wif,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}
@@ -160,6 +162,15 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	}
 
 	isFirst := true
+
+	// relayedBlockCount tracks how many content blocks have been relayed
+	// to the client across all upstream iterations. Upstream content
+	// block indices restart at zero on each agentic continuation and
+	// skip swallowed injected-tool blocks, so relayed content_block_*
+	// events are renumbered to stay consistent with the single message
+	// the client observes. Strict SDK accumulators reject out-of-order
+	// indices.
+	var relayedBlockCount int64
 newStream:
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
@@ -228,6 +239,11 @@ newStream:
 		// is stream-wide and stays true once iteration 1 has
 		// sent any event downstream.
 		var iterationStarted bool
+
+		// blockIndexMap maps upstream content block indices to the
+		// client-facing indices assigned in this iteration. Reset per
+		// stream because upstream indices restart at zero.
+		blockIndexMap := make(map[int64]int64)
 
 		for stream.Next() {
 			iterationStarted = true
@@ -505,8 +521,28 @@ newStream:
 				}
 			}
 
+			// Renumber content block indices for the client-facing
+			// stream. Events swallowed above never reach this point, so
+			// every content_block_start seen here is relayed and claims
+			// the next client index.
+			relayIndex := event.Index
+			switch event.Type {
+			case string(constant.ValueOf[constant.ContentBlockStart]()):
+				idx, ok := blockIndexMap[event.Index]
+				if !ok {
+					idx = relayedBlockCount
+					relayedBlockCount++
+					blockIndexMap[event.Index] = idx
+				}
+				relayIndex = idx
+			case string(constant.ValueOf[constant.ContentBlockDelta]()), string(constant.ValueOf[constant.ContentBlockStop]()):
+				if idx, ok := blockIndexMap[event.Index]; ok {
+					relayIndex = idx
+				}
+			}
+
 			// Overwrite response identifier since proxy obscures injected tool call invocations.
-			payload, err := i.marshalEvent(event)
+			payload, err := i.marshalEvent(event, relayIndex)
 			if err != nil {
 				logger.Warn(ctx, "failed to marshal event", slog.Error(err), slog.F("event", event.RawJSON()))
 				lastErr = xerrors.Errorf("marshal event: %w", err)
@@ -631,7 +667,7 @@ func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Lo
 	return nil
 }
 
-func (i *StreamingInterception) marshalEvent(event anthropic.MessageStreamEventUnion) ([]byte, error) {
+func (i *StreamingInterception) marshalEvent(event anthropic.MessageStreamEventUnion, relayIndex int64) ([]byte, error) {
 	sj, err := sjson.Set(event.RawJSON(), "message.id", i.ID().String())
 	if err != nil {
 		return nil, xerrors.Errorf("marshal event id failed: %w", err)
@@ -640,6 +676,19 @@ func (i *StreamingInterception) marshalEvent(event anthropic.MessageStreamEventU
 	sj, err = sjson.Set(sj, "usage.output_tokens", event.Usage.OutputTokens)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal event usage failed: %w", err)
+	}
+
+	// Rewrite the content block index on content_block_* events so the
+	// client sees monotonically consistent indices across spliced
+	// upstream streams.
+	switch event.Type {
+	case string(constant.ValueOf[constant.ContentBlockStart]()),
+		string(constant.ValueOf[constant.ContentBlockDelta]()),
+		string(constant.ValueOf[constant.ContentBlockStop]()):
+		sj, err = sjson.Set(sj, "index", relayIndex)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal event index failed: %w", err)
+		}
 	}
 
 	return i.encodeForStream([]byte(sj), event.Type), nil

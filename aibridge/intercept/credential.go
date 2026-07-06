@@ -75,6 +75,22 @@ func (b Bedrock) Hint() string {
 	return utils.MaskSecret(b.AccessKey)
 }
 
+// hintWIFKey is the placeholder hint for WIF credentials.
+const hintWIFKey = "<wif federation>"
+
+// AnthropicWIF authenticates via Anthropic Workload Identity Federation.
+// The token exchange is handled externally; this credential carries the
+// federation rule ID for logging and the bearer token injected at
+// request time.
+type AnthropicWIF struct {
+	FederationRuleID string
+}
+
+func (AnthropicWIF) Kind() CredentialKind { return CredentialKindCentralized }
+func (AnthropicWIF) AuthHeader() string   { return AuthHeaderAuthorization }
+func (AnthropicWIF) Hint() string         { return hintWIFKey }
+func (a AnthropicWIF) Length() int        { return len(a.FederationRuleID) }
+
 // CentralizedPool authenticates with a provider-managed key pool and fails over
 // across keys.
 type CentralizedPool struct {
@@ -115,6 +131,7 @@ func (c *CentralizedPool) NextKey(w *keypool.Walker) (*keypool.Key, *keypool.Err
 var (
 	_ Credential = BYOK{}
 	_ Credential = Bedrock{}
+	_ Credential = AnthropicWIF{}
 	_ Credential = &CentralizedPool{}
 )
 

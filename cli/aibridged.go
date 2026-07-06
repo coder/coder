@@ -218,6 +218,15 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.Protocol = codersdk.AIProviderBedrockProtocol(b.GetProtocol())
 		spec.Bedrock = new(bedrock)
 	}
+	if w := pp.GetWif(); w != nil {
+		spec.WIF = &codersdk.AIProviderWIFSettings{
+			FederationRuleID:  w.GetFederationRuleId(),
+			OrganizationID:    w.GetOrganizationId(),
+			IdentityTokenFile: w.GetIdentityTokenFile(),
+			ServiceAccountID:  w.GetServiceAccountId(),
+			WorkspaceID:       w.GetWorkspaceId(),
+		}
+	}
 	return spec
 }
 
@@ -235,6 +244,9 @@ type aiProviderSpec struct {
 	// Bedrock holds Bedrock-specific settings when the provider targets
 	// AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
+	// WIF holds WIF-specific settings when the provider uses Anthropic
+	// Workload Identity Federation; nil otherwise.
+	WIF *codersdk.AIProviderWIFSettings
 }
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
@@ -290,11 +302,21 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		if spec.Type == database.AIProviderTypeBedrock && bedrock == nil {
 			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
 		}
+		var wifCfg *config.AnthropicWIF
+		if spec.WIF != nil && spec.WIF.IsConfigured() {
+			wifCfg = &config.AnthropicWIF{
+				FederationRuleID:  spec.WIF.FederationRuleID,
+				OrganizationID:    spec.WIF.OrganizationID,
+				IdentityTokenFile: spec.WIF.IdentityTokenFile,
+				ServiceAccountID:  spec.WIF.ServiceAccountID,
+				WorkspaceID:       spec.WIF.WorkspaceID,
+			}
+		}
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
 		// the settings blob, not bearer keys. A bearer-token Anthropic
 		// without any key cannot make upstream calls.
-		if bedrock == nil && len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, and BYOK is not enabled")
+		if bedrock == nil && wifCfg == nil && len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
+			return nil, xerrors.New("anthropic provider has no api keys, no bedrock credentials, no WIF configuration, and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(spec.Keys) > 0 {
@@ -308,6 +330,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			Name:             spec.Name,
 			BaseURL:          spec.BaseURL,
 			KeyPool:          pool,
+			WIF:              wifCfg,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
