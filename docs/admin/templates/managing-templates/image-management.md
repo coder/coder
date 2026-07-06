@@ -1,10 +1,10 @@
 # Image Management
 
 While Coder provides example
-[base container images](https://github.com/coder/images) for
-workspaces, it's often best to create custom images that matches the needs of
-your users. This document serves a guide to operational maturity with some best
-practices around managing workspaces images for Coder.
+[container images](https://github.com/coder/images) for
+workspaces, it's often best to create custom images that match the needs of
+your users. This document serves as a guide to operational maturity with some
+best practices around managing workspace images for Coder.
 
 1. Create a minimal base image
 2. Create golden image(s) with standard tooling
@@ -13,12 +13,13 @@ practices around managing workspaces images for Coder.
 
 An image is just one of the many properties defined within the template.
 Templates can pull images from a public image registry (e.g. Docker Hub) or an
-internal one, thanks to Terraform.
+internal one, thanks to Terraform. Each image reference below can be dropped
+directly into a template's image variable or parameter.
 
 ## Create a minimal base image
 
 While you may not use this directly in Coder templates, it's useful to have a
-minimal base image is a small image that contains only the necessary
+minimal base image: a small image that contains only the necessary
 dependencies to work in your network and work with Coder. Here are some things
 to consider:
 
@@ -33,16 +34,16 @@ to consider:
 
 Examples:
 
-- [Coder's minimal image](https://github.com/coder/images/tree/main/images/minimal): only the necessary dependencies for a Coder workspace to bootstrap
-- [Coder's base image](https://github.com/coder/images/tree/main/images/base): a slightly more padded starting point with common utilities preinstalled
+- [`codercom/example-minimal:ubuntu`](https://github.com/coder/images/tree/main/images/minimal): only the necessary dependencies for a Coder workspace to bootstrap
+- [`codercom/example-base:ubuntu`](https://github.com/coder/images/tree/main/images/base): a slightly more padded starting point with common utilities preinstalled
 
-## Create general-purpose golden image(s) with standard tooling
+## Create golden image(s) with standard tooling
 
-It's often practical to have a few golden images that contain standard tooling
-for developers. These images should contain a number of languages (e.g. Python,
-Java, TypeScript), IDEs (VS Code, JetBrains, PyCharm), and other tools (e.g.
-`docker`). Unlike project-specific images (which are also important), general
-purpose images are great for:
+Building on the base image, it's often practical to have a few golden images
+that contain standard tooling for developers. These images should contain a
+number of languages (e.g. Python, Java, TypeScript), IDEs (VS Code, JetBrains,
+PyCharm), and other tools (e.g. `docker`). Unlike project-specific images
+(which are also important), general purpose images are great for:
 
 - **Scripting:** Developers may just want to hop in a Coder workspace to run
   basic scripts or queries.
@@ -62,8 +63,8 @@ most cases) with a well-defined scope.
 
 Examples:
 
-- [Coder's Universal Image](https://github.com/coder/images/tree/main/images/universal): a catch-all image with many languages and tools preinstalled. Runs as the `coder` user, so it works with Coder templates out of the box. See [coder/images](https://github.com/coder/images) for more example images, including language-specific ones.
-- [Universal Dev Containers Image](https://github.com/devcontainers/images/tree/main/src/universal)
+- [`codercom/example-universal:ubuntu`](https://github.com/coder/images/tree/main/images/universal): a catch-all image with many languages and tools preinstalled. Runs as the `coder` user, so it works with Coder templates out of the box.
+- [`mcr.microsoft.com/devcontainers/universal`](https://github.com/devcontainers/images/tree/main/src/universal): the Universal Dev Containers image
 
 ## Create project-specific images for common use cases
 
@@ -74,12 +75,14 @@ give each team exactly the tooling they need.
 
 Examples:
 
-- [coder/images](https://github.com/coder/images): Coder's example
-  language-specific images (Go, Java, Node.js, and more), all running as the
-  `coder` user
-- [Coder's dogfood image](https://github.com/coder/coder/tree/main/dogfood):
+- [`codercom/example-golang:ubuntu`](https://github.com/coder/images/tree/main/images/golang),
+  [`codercom/example-java:ubuntu`](https://github.com/coder/images/tree/main/images/java),
+  [`codercom/example-node:ubuntu`](https://github.com/coder/images/tree/main/images/node):
+  Coder's example language-specific images, all running as the `coder` user.
+  See [coder/images](https://github.com/coder/images) for the full list.
+- [`codercom/oss-dogfood:latest`](https://github.com/coder/coder/tree/main/dogfood):
   the image Coder's own engineers use to develop Coder. A good reference for a
-  project-specific image tailored to a specific team or monorepo setup
+  project-specific image tailored to a specific team or monorepo setup.
 
 ## Let developers customize their own environment
 
