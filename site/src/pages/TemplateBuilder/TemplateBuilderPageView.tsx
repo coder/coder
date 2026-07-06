@@ -1,4 +1,10 @@
-import { type FC, type ReactNode, useReducer, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useCallback,
+	useReducer,
+	useState,
+} from "react";
 
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -51,6 +57,7 @@ interface TemplateBuilderPageViewProps {
 	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
 	createError: Error | null;
 	isCreating: boolean;
+	onClearCreateError?: () => void;
 }
 
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
@@ -59,6 +66,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	onCreateTemplate,
 	createError,
 	isCreating,
+	onClearCreateError,
 }) => {
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const [stepIndex, setStepIndex] = useState(0);
@@ -85,6 +93,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 
 	const handleBack = () => {
+		if (currentStep.id === "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
 		window.scrollTo(0, 0);
 		setStepIndex(prevIndex);
 	};
@@ -97,6 +109,13 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		window.scrollTo(0, 0);
 		setStepIndex(nextIndex);
 	};
+
+	const handleProvisionerStatusChange = useCallback(
+		(value: boolean | undefined) => {
+			dispatch({ type: "SET_HAS_PROVISIONERS", value });
+		},
+		[],
+	);
 
 	const handleDeselectModule = (moduleId: string) => {
 		// If the only module gets deselected, go back to module selection
@@ -142,6 +161,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							dispatch,
 							moduleVarMap,
 							createError,
+							handleProvisionerStatusChange,
 						)}
 					</div>
 
@@ -193,6 +213,7 @@ function renderStepContent(
 	dispatch: (action: WizardAction) => void,
 	moduleVarMap: Record<string, Record<string, string>>,
 	createError: Error | null,
+	onProvisionerStatusChange: (value: boolean | undefined) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -253,6 +274,7 @@ function renderStepContent(
 								value,
 							})
 						}
+						onProvisionerStatusChange={onProvisionerStatusChange}
 					/>
 				</>
 			);
@@ -284,7 +306,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "";
+			return state.name.trim() !== "" && state.hasProvisioners !== false;
 		default:
 			return true;
 	}
