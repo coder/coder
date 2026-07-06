@@ -404,7 +404,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					Go back
 				</button>
 			</div>
-			<div className="flex flex-col gap-6 max-w-screen-md mx-auto pb-96">
+			<div className="flex flex-col gap-6 w-full max-w-screen-md mx-auto pb-96">
 				<header className="flex flex-col items-start gap-3 mt-10">
 					<div className="flex items-center gap-2 justify-between w-full">
 						<span className="flex items-center gap-2">
