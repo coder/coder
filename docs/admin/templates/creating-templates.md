@@ -94,8 +94,7 @@ The template builder's first step also links to alternative creation paths:
 
 ### CLI
 
-You can use the [Coder CLI](../../install/cli.md) to create templates from
-starter templates.
+You can use the [Coder CLI](../../install/cli.md) to manage templates for Coder.
 
 After [logging in](../../reference/cli/login.md) to your deployment, create a
 folder to store your templates:
