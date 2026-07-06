@@ -65,14 +65,14 @@ func TestDefaultBaseRenderContext(t *testing.T) {
 	t.Run("Docker", func(t *testing.T) {
 		t.Parallel()
 		rc := templatebuilder.DefaultBaseRenderContext("docker")
-		require.Equal(t, "codercom/enterprise-base:ubuntu", rc.ContainerImage)
+		require.Equal(t, "codercom/example-base:ubuntu", rc.ContainerImage)
 		require.Nil(t, rc.ImageOptions)
 	})
 
 	t.Run("Kubernetes", func(t *testing.T) {
 		t.Parallel()
 		rc := templatebuilder.DefaultBaseRenderContext("kubernetes")
-		require.Equal(t, "codercom/enterprise-base:ubuntu", rc.ContainerImage)
+		require.Equal(t, "codercom/example-base:ubuntu", rc.ContainerImage)
 		require.Nil(t, rc.ImageOptions)
 	})
 

@@ -3,7 +3,7 @@
 	"display_name": "Kubernetes",
 	"os": "linux",
 	"default_context": {
-		"container_image": "codercom/enterprise-base:ubuntu"
+		"container_image": "codercom/example-base:ubuntu"
 	},
 	"variables": [
 		{
