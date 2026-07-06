@@ -78,36 +78,44 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, result.ExtraFiles, "cloud-init/userdata.sh.tftpl")
 	})
 
-	t.Run("GCPWindowsBase", func(t *testing.T) {
+	t.Run("GCPLinuxBaseWithProjectID", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "gcp-windows",
-			RegistryURL:    "https://registry.coder.com",
+			BaseTemplateID:     "gcp-linux",
+			BaseVariableValues: map[string]string{"project_id": "my-gcp-project"},
+			RegistryURL:        "https://registry.coder.com",
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, result.MainTF)
-		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
-	})
-
-	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
-		t.Parallel()
-		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "azure-linux",
-			RegistryURL:    "https://registry.coder.com",
-		})
-		require.NoError(t, err)
-		require.Contains(t, result.ExtraFiles, "cloud-init/cloud-config.yaml.tftpl")
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `default     = "my-gcp-project"`)
+		require.Contains(t, mainTF, `project = var.project_id`)
 	})
 
 	t.Run("GCPWindowsBase", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
-			BaseTemplateID: "gcp-windows",
-			RegistryURL:    "https://registry.coder.com",
+			BaseTemplateID:     "gcp-windows",
+			BaseVariableValues: map[string]string{"project_id": "my-gcp-project"},
+			RegistryURL:        "https://registry.coder.com",
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, result.MainTF)
-		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
+		mainTF := string(result.MainTF)
+		require.Contains(t, mainTF, `resource "coder_agent" "main"`)
+		require.Contains(t, mainTF, `default     = "my-gcp-project"`)
+		require.Contains(t, mainTF, `project = var.project_id`)
+	})
+
+	t.Run("GCPMissingRequiredBaseVariable", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "gcp-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `variable "project_id" is required`)
 	})
 
 	t.Run("AzureLinuxExtraFiles", func(t *testing.T) {
