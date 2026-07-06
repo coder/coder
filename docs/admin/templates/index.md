@@ -26,7 +26,7 @@ The fastest way to get started is with the
 composes a working template from a base infrastructure template and optional
 registry modules. Starter templates for popular platforms (AWS, Kubernetes,
 Docker, and others) are available as base templates in the builder, or through
-the [CLI](./creating-templates.md#from-a-starter-template-cli).
+the [CLI](./creating-templates.md#cli).
 
 ## Extending templates
 
