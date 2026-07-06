@@ -4079,6 +4079,49 @@ func TestWatchAllWorkspaceBuilds(t *testing.T) {
 	require.Equal(t, workspace2.ID, update.WorkspaceID)
 }
 
+func TestWatchAllWorkspaceBuildsAuthorization(t *testing.T) {
+	t.Parallel()
+
+	// Enable the workspace build updates experiment.
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	t.Run("MemberForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		// A plain member has no deployment-wide workspace read permission and
+		// must not be able to open the all-builds stream.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := memberClient.WatchAllWorkspaceBuilds(ctx)
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("TemplateAdminAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		// Template admins have site-wide workspace read and may open the stream.
+		taClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		decoder, err := taClient.WatchAllWorkspaceBuilds(ctx)
+		require.NoError(t, err)
+		defer decoder.Close()
+	})
+}
+
 func mustLocation(t *testing.T, location string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(location)
