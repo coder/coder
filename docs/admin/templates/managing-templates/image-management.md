@@ -8,7 +8,8 @@ practices around managing workspaces images for Coder.
 
 1. Create a minimal base image
 2. Create golden image(s) with standard tooling
-3. Allow developers to bring their own images and customizations with Dev
+3. Create project-specific images for common use cases
+4. Allow developers to bring their own images and customizations with Dev
    Containers
 
 An image is just one of the many properties defined within the template.
@@ -63,6 +64,22 @@ Examples:
 
 - [Coder's Universal Image](https://github.com/coder/images/tree/main/images/universal): a catch-all image with many languages and tools preinstalled. Runs as the `coder` user, so it works with Coder templates out of the box. See [coder/images](https://github.com/coder/images) for more example images, including language-specific ones.
 - [Universal Dev Containers Image](https://github.com/devcontainers/images/tree/main/src/universal)
+
+## Create project-specific images for common use cases
+
+Beyond golden images, create images scoped to a specific project, language, or
+use case (e.g. a Go backend, a Node.js frontend, or a data science stack).
+These images stay smaller and faster to pull than a kitchen-sink image, and
+give each team exactly the tooling they need.
+
+Examples:
+
+- [coder/images](https://github.com/coder/images): Coder's example
+  language-specific images (Go, Java, Node.js, and more), all running as the
+  `coder` user
+- [Dev Containers image catalog](https://hub.docker.com/r/microsoft/devcontainers):
+  browsable catalog of language and framework-specific images maintained in
+  [devcontainers/images](https://github.com/devcontainers/images)
 
 ## Allow developers to bring their own images and customizations with Dev Containers
 
