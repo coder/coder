@@ -2412,6 +2412,16 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	if customCacheDir != "" {
 		cachePath = filepath.Join(customCacheDir, "postgres")
 	}
+	// In tests, every server invocation gets a fresh config root, so the
+	// default cache path never has the Postgres binary archive and each test
+	// re-downloads it from Maven, which rate-limits CI runners. Share one
+	// archive cache across invocations instead. CI restores this directory
+	// from the actions cache.
+	if flag.Lookup("test.v") != nil {
+		if dir := os.Getenv("EMBEDDED_PG_CACHE_DIR"); dir != "" {
+			cachePath = dir
+		}
+	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 
 	// If the port is not defined, an available port will be found dynamically. This has
