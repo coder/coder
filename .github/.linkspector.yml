@@ -36,5 +36,9 @@ ignorePatterns:
   - pattern: "openai.com"
   # merriam-webster.com returns 403 from GitHub runner IPs
   - pattern: "merriam-webster.com"
+  # npmjs.com returns 403 to CI/datacenter IPs (incl. GitHub runners)
+  # regardless of user agent. The npm registry API is the authoritative
+  # existence check for these packages.
+  - pattern: "npmjs.com"
 aliveStatusCodes:
   - 200
