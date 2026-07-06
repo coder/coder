@@ -4,7 +4,7 @@ Templates are written in
 [Terraform](https://developer.hashicorp.com/terraform/intro) and define the
 underlying infrastructure that all Coder workspaces run on.
 
-The [template builder](./creating-templates.md#using-the-template-builder) is
+The [template builder](./creating-templates.md#template-builder) is
 the recommended way to create templates. It guides you through selecting base
 infrastructure, adding modules, and configuring your template without writing
 Terraform.
@@ -22,7 +22,7 @@ common cloud providers.
 ## Create a template
 
 The fastest way to get started is with the
-[template builder](./creating-templates.md#using-the-template-builder), which
+[template builder](./creating-templates.md#template-builder), which
 composes a working template from a base infrastructure template and optional
 registry modules. Starter templates for popular platforms (AWS, Kubernetes,
 Docker, and others) are available as base templates in the builder, or through

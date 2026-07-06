@@ -16,7 +16,7 @@ You can give different users and groups access to templates with
 
 ## Creating templates
 
-The [template builder](../creating-templates.md#using-the-template-builder) is
+The [template builder](../creating-templates.md#template-builder) is
 the recommended way to create templates. It guides you through selecting a base
 infrastructure template, adding modules (IDEs, tools, integrations), and
 configuring template settings without writing Terraform.

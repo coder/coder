@@ -3,7 +3,13 @@
 Users with the `Template Administrator` role or above can create templates
 within Coder.
 
-## Using the template builder
+## From a starter template
+
+In most cases, it is best to start with a starter template.
+
+<div class="tabs">
+
+### Template builder
 
 The template builder is the recommended way to create templates in Coder. It
 guides you through selecting a base infrastructure template, adding modules
@@ -12,8 +18,6 @@ Terraform.
 
 The template builder is enabled by default. When you select **New Template** on
 the **Templates** page, the builder opens automatically.
-
-### How it works
 
 The builder walks you through up to five steps:
 
@@ -59,13 +63,11 @@ standard Terraform HCL that you can edit later through the dashboard or CLI.
 > restricted-egress deployments, see
 > [Air-gapped deployments](../../install/airgap.md#template-builder).
 
-### Module conflicts
-
 If you select modules that are known to conflict with each other, the builder
 displays a warning. Module conflicts do not block template creation, but you
 should review the warning before proceeding.
 
-### Disabling the template builder
+#### Disabling the template builder
 
 Operators can disable the template builder by setting the
 `CODER_DISABLE_TEMPLATE_BUILDER` environment variable or the
@@ -77,7 +79,7 @@ Deployments using a self-hosted module registry mirror can set
 `CODER_TEMPLATE_BUILDER_REGISTRY_URL` to point generated module source paths at
 the mirror instead of `registry.coder.com`.
 
-### Alternative creation methods
+#### Alternative creation methods
 
 The template builder's first step also links to alternative creation paths:
 
@@ -90,10 +92,10 @@ The template builder's first step also links to alternative creation paths:
   [Coder Registry](https://registry.coder.com/templates) for community and
   official templates.
 
-## From a starter template (CLI)
+### CLI
 
 You can use the [Coder CLI](../../install/cli.md) to create templates from
-starter templates without the builder UI.
+starter templates.
 
 After [logging in](../../reference/cli/login.md) to your deployment, create a
 folder to store your templates:
@@ -145,6 +147,8 @@ coder templates edit universal-template \
 
 Follow the [change management](./managing-templates/change-management.md) guide
 to manage templates via GitOps.
+
+</div>
 
 ## From an existing template
 

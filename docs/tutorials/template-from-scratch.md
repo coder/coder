@@ -2,7 +2,7 @@
 
 > [!TIP]
 > If you want to create a template without writing Terraform, use the
-> [template builder](../admin/templates/creating-templates.md#using-the-template-builder)
+> [template builder](../admin/templates/creating-templates.md#template-builder)
 > instead. The builder guides you through selecting base infrastructure and
 > adding modules through a visual interface.
 
