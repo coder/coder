@@ -19,7 +19,7 @@ Terraform.
 The template builder is enabled by default. When you select **New Template** on
 the **Templates** page, the builder opens automatically.
 
-The builder walks you through up to five steps:
+The builder guides you through up to five steps:
 
 1. **Select base infrastructure**: Choose a starter template for your target
    platform (e.g. Docker, AWS EC2, Kubernetes). Each base template provides a
@@ -28,7 +28,7 @@ The builder walks you through up to five steps:
    ![Select a base infrastructure template in the template builder](../../images/templatebuilder_01_bases.png)
 
 1. **Base template parameters** *(optional)*: If the selected base template
-   declares configurable variables, this step lets you supply values for them.
+   declares configurable variables, you can supply values for them here.
    If the base template has no parameters, this step is skipped automatically.
 
 1. **Select modules**: Pick from a curated list of
@@ -60,7 +60,7 @@ standard Terraform HCL that you can edit later through the dashboard or CLI.
 > [!NOTE]
 > The template builder requires outbound access to `registry.coder.com` so
 > that `terraform init` can resolve module sources. For air-gapped or
-> restricted-egress deployments, see
+> restricted-egress deployments, visit
 > [Air-gapped deployments](../../install/airgap.md#template-builder).
 
 If you select modules that are known to conflict with each other, the builder

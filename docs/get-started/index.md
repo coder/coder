@@ -218,12 +218,12 @@ lines of output, so you might have to scroll up to find it.
 Templates define what's in your development environment. The template builder
 guides you through creating one without writing any Terraform.
 
-1. Select **Templates** then **New Template**. The template builder opens.
+1. Select **Templates** > **New Template**. The template builder opens.
 
 1. Select the **Docker** base template from the list.
 
-   **Note:** this template requires Docker to be running in the background, so
-   make sure Docker is running!
+   > [!NOTE]
+   > This template requires Docker to be running in the background, so make sure Docker is running.
 
 1. Skip or configure any base template parameters, then select modules to add
    IDEs and tools to your template. For example, add **code-server** to get
@@ -280,9 +280,8 @@ After a short wait (10-15 seconds on most modern computers), Coder will start yo
 ## Step 6: Connect your IDE
 
 Each button in the workspace view is a different **agent app**.
-The buttons you see reflect the modules you added in the template builder (such
-as code-server or VS Code Desktop). Select your preferred IDE from the list of
-agent apps.
+The buttons in the UI reflect the modules you added in the template builder (such as code-server, Claude Code, or any of the JetBrains editors).
+Select your preferred IDE from the list of agent apps.
 
 This guide uses **VS Code Desktop**, which opens the workspace in the VS Code installed on your local machine, using the Coder extension.
 To stay in the browser instead, select the browser-based VS Code option.

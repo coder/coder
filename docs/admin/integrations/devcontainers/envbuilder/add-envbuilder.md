@@ -14,13 +14,11 @@ choose a template from the
 
 ## Dashboard
 
-1. In the Coder dashboard, select **Templates** then **New Template**. The
-   template builder opens.
-1. The template builder does not currently include devcontainer-compatible base
-   templates. Select **Upload an existing template** at the bottom of the page
-   to upload your Terraform files directly.
-1. Upload your `.zip` or `.tar.gz` file, enter the details, then select
-   **Create template**.
+1. In the Coder dashboard, select **Templates** > **New Template**.
+   The template builder opens.
+1. The template builder does not currently include dev-container-compatible base templates.
+   Select **Upload an existing template** at the bottom of the page to upload your Terraform files directly.
+1. Upload your `.zip` or `.tar.gz` file, enter the details, then select **Create template**.
 1. Edit the template files to fit your deployment.
 
 ## CLI
