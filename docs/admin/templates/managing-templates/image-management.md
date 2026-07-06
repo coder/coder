@@ -77,9 +77,9 @@ Examples:
 - [coder/images](https://github.com/coder/images): Coder's example
   language-specific images (Go, Java, Node.js, and more), all running as the
   `coder` user
-- [Dev Containers image catalog](https://hub.docker.com/r/microsoft/devcontainers):
-  browsable catalog of language and framework-specific images maintained in
-  [devcontainers/images](https://github.com/devcontainers/images)
+- Rather than baking every tool into the image, you can also layer tools onto
+  a smaller image with [mise](https://mise.jdx.dev/). See the
+  [install command-line tools guide](../../../get-started/customize-your-template/install-command-line-tools.md)
 
 ## Allow developers to bring their own images and customizations with Dev Containers
 
@@ -88,5 +88,4 @@ specific tooling for their projects. The [Dev Container](https://containers.dev)
 specification allows developers to define their projects dependencies within a
 `devcontainer.json` in their Git repository.
 
-- [Configure a template for Dev Containers](../../integrations/devcontainers/integration.md) (recommended)
-- [Learn about Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (alternative for environments without Docker)
+- [Configure a template for Dev Containers](../../integrations/devcontainers/integration.md)
