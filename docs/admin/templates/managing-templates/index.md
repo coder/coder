@@ -41,7 +41,7 @@ by our users
 
 ## Editing templates
 
-Our starter templates are meant to be modified for your use cases. You can edit
+Our templates are meant to be modified for your use cases. You can edit
 any template's files directly in the Coder dashboard.
 
 ![Editing a template](../../../images/templates/choosing-edit-template.gif)
