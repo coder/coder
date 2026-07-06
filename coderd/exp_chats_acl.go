@@ -226,11 +226,9 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	oldReaders := api.directChatReaders(ctx, oldChat)
 	newReaders := api.directChatReaders(ctx, newChat)
 
-	recipientIDs := make([]uuid.UUID, 0, len(newReaders))
-	for userID := range newReaders {
-		if _, alreadyReader := oldReaders[userID]; alreadyReader {
-			continue
-		}
+	added, _ := slice.SymmetricDifference(oldReaders, newReaders)
+	recipientIDs := make([]uuid.UUID, 0, len(added))
+	for _, userID := range added {
 		if userID == initiator.ID {
 			continue
 		}
@@ -257,8 +255,8 @@ func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, new
 	return len(recipientIDs), errors.Join(errs...)
 }
 
-func (api *API) directChatReaders(ctx context.Context, chat database.Chat) map[uuid.UUID]struct{} {
-	readers := map[uuid.UUID]struct{}{chat.OwnerID: {}}
+func (api *API) directChatReaders(ctx context.Context, chat database.Chat) []uuid.UUID {
+	readers := []uuid.UUID{chat.OwnerID}
 	for rawUserID, entry := range chat.UserACL {
 		if !slices.Contains(entry.Permissions, policy.ActionRead) {
 			continue
@@ -268,9 +266,9 @@ func (api *API) directChatReaders(ctx context.Context, chat database.Chat) map[u
 			api.Logger.Warn(ctx, "skip chat ACL entry with invalid user UUID", slog.F("chat_id", chat.ID), slog.F("user_id", rawUserID), slog.Error(err))
 			continue
 		}
-		readers[userID] = struct{}{}
+		readers = append(readers, userID)
 	}
-	return readers
+	return slice.Unique(readers)
 }
 
 func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatUser, bool) {
