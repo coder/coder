@@ -928,9 +928,8 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 // GetChatByIDForUpdate is the only protection against clobbering a title
 // that changed while the model call ran. The strict mock has no
 // UpdateChatByID expectation, so any persist attempt fails the test.
-// A skipped persist must also not publish a title_change event: the
-// concurrent writer already broadcast the fresher title, and re-publishing
-// the re-read row could deliver a stale title after an even newer rename.
+// A skipped persist must also not publish a title_change event; the
+// wroteTitle comment in regenerateChatTitleWithStore explains why.
 func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing.T) {
 	t.Parallel()
 

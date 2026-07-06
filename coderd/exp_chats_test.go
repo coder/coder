@@ -8602,8 +8602,9 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Legacy pending rows are never acquired by workers, so manual
-		// title regeneration must still proceed.
+		// Pending chats are never acquired
+		// (GetChatWorkerAcquisitionCandidates excludes the status), so
+		// manual title regeneration must still proceed.
 		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, "Test Chat", updated.Title)
@@ -8770,8 +8771,9 @@ func TestProposeChatTitle(t *testing.T) {
 		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
-		// Legacy pending rows are never acquired by workers, so title
-		// proposal must still proceed.
+		// Pending chats are never acquired
+		// (GetChatWorkerAcquisitionCandidates excludes the status), so
+		// title proposal must still proceed.
 		resp, err := client.ProposeChatTitle(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, "Test Chat", resp.Title)

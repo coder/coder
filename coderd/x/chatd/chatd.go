@@ -1094,9 +1094,9 @@ var (
 	// tool-result submissions).
 	ErrChatArchived = xerrors.New("chat is archived")
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
-	// exists, so chatd cannot resolve a model for the request.
+	// is configured, so chatd cannot resolve a model for the request.
 	ErrNoDefaultChatModelConfig = xerrors.New(
-		"no default chat model config is available",
+		"no default chat model config is configured",
 	)
 )
 
@@ -2748,9 +2748,9 @@ func fantasyUsageToChatMessageUsage(usage fantasy.Usage) codersdk.ChatMessageUsa
 // recordManualTitleUsage stores token accounting for a manual title
 // generation and, when newTitle is set, persists it only if the chat
 // title still matches the caller's snapshot. The returned bool reports
-// whether the title was actually written; it is false when a concurrent
-// writer changed the title first or when newTitle matches the current
-// title.
+// whether the title was actually written; it is false when newTitle is
+// empty, when a concurrent writer changed the title first, or when
+// newTitle matches the current title.
 func recordManualTitleUsage(
 	ctx context.Context,
 	store database.Store,
