@@ -70,10 +70,8 @@ jobs:
         with:
           install-args: "terraform"
 
-      # Tests that boot `coder server` with built-in PostgreSQL download the
-      # Postgres binary archive from Maven, which rate-limits CI runners.
-      # setup-embedded-pg-cache-paths exports EMBEDDED_PG_CACHE_DIR, which
-      # startBuiltinPostgres uses as a shared archive cache in tests.
+      # Exports EMBEDDED_PG_CACHE_DIR, which startBuiltinPostgres uses as a
+      # shared binary archive cache in tests.
       - name: Setup Embedded Postgres Cache Paths
         id: embedded-pg-cache
         if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
