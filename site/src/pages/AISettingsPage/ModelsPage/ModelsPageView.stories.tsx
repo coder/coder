@@ -115,9 +115,6 @@ export const NoMatchingModels: Story = {
 	},
 };
 
-// The management view must keep showing enabled configs whose provider is
-// disabled so admins can find and fix them, even though model selectors
-// hide those configs.
 export const DisabledProviderModelsStillListed: Story = {
 	args: {
 		models: [mockGPT5, mockProviderDisabledModel],

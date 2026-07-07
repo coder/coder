@@ -1193,6 +1193,23 @@ func (api *API) validateUserChatModelConfigAvailable(
 	}
 }
 
+// validateExplicitChatModelConfigAvailable rejects explicitly requested
+// models the user cannot use (for example when the model or its provider
+// is disabled) instead of admitting the request and failing later at
+// runtime. A nil ID keeps the chat's current model and is validated by
+// the daemon's fallback logic.
+func (api *API) validateExplicitChatModelConfigAvailable(
+	ctx context.Context,
+	userID uuid.UUID,
+	modelConfigID uuid.UUID,
+) (int, *codersdk.Response) {
+	if modelConfigID == uuid.Nil {
+		return 0, nil
+	}
+	_, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, modelConfigID)
+	return status, resp
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Create chat
@@ -3336,16 +3353,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		modelConfigID = *req.ModelConfigID
 	}
-	// Reject explicitly requested models the user cannot use (for example
-	// when the model or its provider is disabled) instead of admitting the
-	// message and failing later at runtime. A nil ID keeps the chat's
-	// current model and is validated by the daemon's fallback logic.
-	if modelConfigID != uuid.Nil {
-		status, resp := api.validateUserChatModelConfigAvailable(ctx, apiKey.UserID, modelConfigID)
-		if resp != nil {
-			httpapi.Write(ctx, rw, status, *resp)
-			return
-		}
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, modelConfigID); resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
 	}
 
 	reasoningEffort := req.ReasoningEffort
@@ -3512,16 +3522,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	if req.ModelConfigID != nil {
 		editModelConfigID = *req.ModelConfigID
 	}
-	// Reject explicitly requested models the user cannot use (for example
-	// when the model or its provider is disabled) instead of admitting the
-	// edit and failing later at runtime. A nil ID keeps the chat's current
-	// model and is validated by the daemon's fallback logic.
-	if editModelConfigID != uuid.Nil {
-		status, resp := api.validateUserChatModelConfigAvailable(ctx, apiKey.UserID, editModelConfigID)
-		if resp != nil {
-			httpapi.Write(ctx, rw, status, *resp)
-			return
-		}
+	if status, resp := api.validateExplicitChatModelConfigAvailable(ctx, apiKey.UserID, editModelConfigID); resp != nil {
+		httpapi.Write(ctx, rw, status, *resp)
+		return
 	}
 
 	editReasoningEffort := req.ReasoningEffort
@@ -4840,9 +4843,6 @@ func (api *API) resolveCreateChatModelConfigID(
 				Message: "Invalid model config ID.",
 			}
 		}
-		// Reject explicitly requested models the user cannot use (for
-		// example when the model or its provider is disabled) instead of
-		// admitting the chat and failing later at runtime.
 		if _, status, resp := api.validateUserChatModelConfigAvailable(ctx, userID, *req.ModelConfigID); resp != nil {
 			return uuid.Nil, nil, status, resp
 		}

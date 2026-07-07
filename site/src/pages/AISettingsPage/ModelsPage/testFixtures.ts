@@ -113,8 +113,7 @@ const MockDisabledProviderConfig: ChatProviderConfig = {
 	enabled: false,
 };
 
-// Enabled model config under a disabled provider. Management views must
-// keep showing it while model selectors must hide it.
+// Enabled model config under a disabled provider.
 export const mockProviderDisabledModel: ChatModelConfig = {
 	...mockGPT5,
 	id: "model-provider-disabled",

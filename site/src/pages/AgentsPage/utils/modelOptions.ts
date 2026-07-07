@@ -253,7 +253,13 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	for (const config of configs) {
+	// Skip models whose provider row is disabled. The catalog check below
+	// is keyed by provider type, so it cannot exclude a disabled instance
+	// when another provider of the same type is enabled.
+	for (const config of filterConfigsWithEnabledProvider(
+		configs,
+		providerInfoByID,
+	)) {
 		if (!config.enabled) {
 			continue;
 		}
@@ -263,12 +269,6 @@ export const getModelOptionsFromConfigs = (
 		const provider = asString(providerInfo?.provider).trim().toLowerCase();
 		const model = config.model.trim();
 		if (!configID || !providerInfo || !provider || !model) {
-			continue;
-		}
-		// Skip models whose provider row is disabled. The catalog check
-		// below is keyed by provider type, so it cannot exclude a disabled
-		// instance when another provider of the same type is enabled.
-		if (providerInfo.enabled === false) {
 			continue;
 		}
 		if (!availableProviders.has(provider)) {

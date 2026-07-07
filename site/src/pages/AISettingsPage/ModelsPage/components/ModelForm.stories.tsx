@@ -144,8 +144,6 @@ export const AddHidesDisabledProviders: Story = {
 			.getAllByRole("option")
 			.map((option) => option.textContent?.trim());
 		await expect(optionNames).toEqual(["OpenAI", "Anthropic"]);
-		// The backend rejects creating configs under disabled providers, so
-		// the create flow must not offer them.
 		await expect(
 			screen.queryByRole("option", { name: /Secondary/ }),
 		).not.toBeInTheDocument();

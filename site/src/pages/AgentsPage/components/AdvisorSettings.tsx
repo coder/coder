@@ -9,10 +9,7 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
-import {
-	filterConfigsWithEnabledProvider,
-	type ProviderInfo,
-} from "#/pages/AgentsPage/utils/modelOptions";
+import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { pickReasoningEffort } from "#/pages/AgentsPage/utils/reasoningEffort";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
 import { cn } from "#/utils/cn";
@@ -29,7 +26,8 @@ interface AdvisorSettingsProps {
 	isAdvisorConfigLoading: boolean;
 	isAdvisorConfigFetching: boolean;
 	isAdvisorConfigLoadError: boolean;
-	modelConfigs: readonly ChatModelConfig[];
+	// Subset of modelConfigs whose config and provider are both enabled.
+	enabledModelConfigs: readonly ChatModelConfig[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
@@ -123,7 +121,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	isAdvisorConfigLoading,
 	isAdvisorConfigFetching,
 	isAdvisorConfigLoadError,
-	modelConfigs,
+	enabledModelConfigs,
 	providerInfoByID,
 	modelConfigsError,
 	isLoadingModelConfigs,
@@ -137,31 +135,25 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	const maxOutputTokensId = useId();
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedAdvisorConfig = advisorConfigData !== undefined;
-	// Offer only models that can actually serve requests: the config and
-	// its provider row must both be enabled.
-	const enabledModelConfigs = filterConfigsWithEnabledProvider(
-		modelConfigs.filter((config) => config.enabled),
-		providerInfoByID,
-	);
 	const enabledModelOptions = enabledModelConfigs.map((config) => {
-			const providerInfo = providerInfoByID.get(config.ai_provider_id);
-			const reasoningEffort = config.model_config?.reasoning_effort;
-			const reasoningEfforts = config.reasoning_efforts ?? [];
-			return {
-				id: config.id,
-				provider: providerInfo?.provider ?? "",
-				providerId: config.ai_provider_id,
-				providerLabel: providerInfo?.displayName,
-				providerIcon: providerInfo?.icon,
-				model: config.model,
-				displayName: config.display_name.trim() || config.model,
-				contextLimit: config.context_limit,
-				...(reasoningEffort?.default
-					? { reasoningEffortDefault: reasoningEffort.default }
-					: {}),
-				...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
-			};
-		});
+		const providerInfo = providerInfoByID.get(config.ai_provider_id);
+		const reasoningEffort = config.model_config?.reasoning_effort;
+		const reasoningEfforts = config.reasoning_efforts ?? [];
+		return {
+			id: config.id,
+			provider: providerInfo?.provider ?? "",
+			providerId: config.ai_provider_id,
+			providerLabel: providerInfo?.displayName,
+			providerIcon: providerInfo?.icon,
+			model: config.model,
+			displayName: config.display_name.trim() || config.model,
+			contextLimit: config.context_limit,
+			...(reasoningEffort?.default
+				? { reasoningEffortDefault: reasoningEffort.default }
+				: {}),
+			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
+		};
+	});
 
 	const form = useFormik<AdvisorSettingsFormValues>({
 		enableReinitialize: true,
