@@ -15,11 +15,27 @@ import (
 // the model prompt.
 const syntheticPasteTitleBudget = 16 * 1024
 
+// titlePasteBytePrefix caps, in bytes, how much of a pasted-text blob
+// is copied to a string for title derivation. Four bytes per rune (the
+// UTF-8 maximum) guarantees the prefix still spans at least
+// syntheticPasteTitleBudget complete runes, so TitleText's rune
+// truncation yields the same result it would on the full content.
+const titlePasteBytePrefix = 4 * syntheticPasteTitleBudget
+
+// TitlePasteText converts a pasted-text blob to TitleText input,
+// copying at most titlePasteBytePrefix bytes instead of the whole
+// blob. Every caller that builds a pasteText map must use it so all
+// derivation paths feed TitleText identical strings.
+func TitlePasteText(data []byte) string {
+	return string(data[:min(len(data), titlePasteBytePrefix)])
+}
+
 // TitleText derives title-generation input from message parts. Text
 // and file-reference parts are joined in part order. When they yield
 // nothing, the content of synthetic pasted-text attachments is used
 // instead, looked up in pasteText by file ID and truncated to
-// syntheticPasteTitleBudget runes per file.
+// syntheticPasteTitleBudget runes per file. Map values must come from
+// TitlePasteText.
 //
 // The chat-creation fallback title and both title-generation paths
 // must derive their input through this function: auto-titling only

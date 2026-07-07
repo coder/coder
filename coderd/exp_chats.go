@@ -6342,7 +6342,7 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if titleSource == "" && len(pasteData) > 0 {
 		pasteText := make(map[uuid.UUID]string, len(pasteData))
 		for id, data := range pasteData {
-			pasteText[id] = string(data)
+			pasteText[id] = chatprompt.TitlePasteText(data)
 		}
 		titleSource = chatprompt.TitleText(content, pasteText)
 	}

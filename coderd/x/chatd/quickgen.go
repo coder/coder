@@ -615,10 +615,10 @@ func titleInput(
 
 // titlePasteText resolves synthetic pasted-text attachment content for
 // visible user messages whose text and file-reference parts alone
-// yield no title input. The result maps file IDs to raw file content
-// for chatprompt.TitleText. It returns nil without touching the
-// database when every user message already has text, so typical chats
-// never incur a file fetch.
+// yield no title input. The result maps file IDs to bounded content
+// prefixes (see chatprompt.TitlePasteText) for chatprompt.TitleText.
+// It returns nil without touching the database when every user message
+// already has text, so typical chats never incur a file fetch.
 func titlePasteText(
 	ctx context.Context,
 	store database.Store,
@@ -651,7 +651,7 @@ func titlePasteText(
 	}
 	pasteText := make(map[uuid.UUID]string, len(files))
 	for _, file := range files {
-		pasteText[file.ID] = string(file.Data)
+		pasteText[file.ID] = chatprompt.TitlePasteText(file.Data)
 	}
 	return pasteText, nil
 }

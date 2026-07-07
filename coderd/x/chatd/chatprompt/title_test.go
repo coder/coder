@@ -1,6 +1,7 @@
 package chatprompt_test
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -131,6 +132,45 @@ func TestTitleText_TruncatesPasteContentRuneSafe(t *testing.T) {
 
 	require.Len(t, []rune(got), chatprompt.SyntheticPasteTitleBudgetForTest)
 	require.True(t, strings.HasPrefix(content, got))
+}
+
+func TestTitlePasteText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShortDataCopiedWhole", func(t *testing.T) {
+		t.Parallel()
+
+		require.Equal(t, "hello paste", chatprompt.TitlePasteText([]byte("hello paste")))
+	})
+
+	t.Run("LongDataBounded", func(t *testing.T) {
+		t.Parallel()
+
+		data := bytes.Repeat([]byte("a"), chatprompt.TitlePasteBytePrefixForTest+4096)
+		require.Len(t, chatprompt.TitlePasteText(data), chatprompt.TitlePasteBytePrefixForTest)
+	})
+
+	t.Run("MatchesFullContentDerivation", func(t *testing.T) {
+		t.Parallel()
+
+		pasteFileID := uuid.New()
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+		}
+		// Three-byte runes make the byte-prefix cut land mid-rune
+		// (titlePasteBytePrefix % 3 != 0); TitleText's rune truncation
+		// must still produce the same result as the full content.
+		content := strings.Repeat("€", chatprompt.TitlePasteBytePrefixForTest/3+16)
+		bounded := chatprompt.TitleText(parts, map[uuid.UUID]string{
+			pasteFileID: chatprompt.TitlePasteText([]byte(content)),
+		})
+		full := chatprompt.TitleText(parts, map[uuid.UUID]string{
+			pasteFileID: content,
+		})
+
+		require.Equal(t, full, bounded)
+		require.Len(t, []rune(bounded), chatprompt.SyntheticPasteTitleBudgetForTest)
+	})
 }
 
 func TestSyntheticPasteFileIDs(t *testing.T) {
