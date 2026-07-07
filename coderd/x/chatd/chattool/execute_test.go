@@ -417,10 +417,8 @@ func TestExecuteTool(t *testing.T) {
 	t.Run("MissingShellError", func(t *testing.T) {
 		t.Parallel()
 
-		// The agent returns the raw exec.LookPath failure as the error
-		// detail when the workspace has no sh binary. The rendering
-		// differs by OS: %PATH% on Windows, $PATH on POSIX. The tool must
-		// append guidance to both; the matched fragment omits the suffix.
+		// OS rendering differs (%PATH% vs $PATH); the fragment
+		// omits the suffix to match both.
 		tests := []struct {
 			name       string
 			input      string
@@ -430,14 +428,20 @@ func TestExecuteTool(t *testing.T) {
 			{
 				name:       "ForegroundWindows",
 				input:      `{"command":"echo hi"}`,
-				agentErr:   `unexpected status code 500: Failed to start process.\n\tError: start process: exec: "sh": executable file not found in %PATH%`,
+				agentErr:   "unexpected status code 500: Failed to start process.\n\tError: start process: exec: \"sh\": executable file not found in %PATH%",
 				wantPrefix: "start process:",
 			},
 			{
 				name:       "BackgroundWindows",
 				input:      `{"command":"echo hi","run_in_background":true}`,
-				agentErr:   `unexpected status code 500: Failed to start process.\n\tError: start process: exec: "sh": executable file not found in %PATH%`,
+				agentErr:   "unexpected status code 500: Failed to start process.\n\tError: start process: exec: \"sh\": executable file not found in %PATH%",
 				wantPrefix: "start background process:",
+			},
+			{
+				name:       "ForegroundPOSIX",
+				input:      `{"command":"echo hi"}`,
+				agentErr:   "unexpected status code 500: Failed to start process.\n\tError: start process: exec: \"sh\": executable file not found in $PATH",
+				wantPrefix: "start process:",
 			},
 		}
 		for _, tt := range tests {
@@ -466,7 +470,6 @@ func TestExecuteTool(t *testing.T) {
 				// The result keeps the original error for debugging.
 				assert.Contains(t, result.Error, tt.wantPrefix)
 				assert.Contains(t, result.Error, `exec: "sh": executable file not found`)
-				// Actionable guidance the model can relay to the user.
 				assert.Contains(t, result.Error, "Git Bash")
 				assert.Contains(t, result.Error, "https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement")
 			})

@@ -50,17 +50,13 @@ var fileDumpPatterns = []*regexp.Regexp{
 }
 
 const (
-	// shNotFoundFragment matches the exec.LookPath failure the agent
-	// returns when the workspace has no POSIX sh. The fragment omits
-	// the trailing path token because Go renders it as %PATH% on
-	// Windows and $PATH elsewhere. It matches only transport errors
-	// from StartProcess, never command output, so a command that
-	// prints this text cannot trigger the guidance.
+	// shNotFoundFragment omits the trailing path variable
+	// (%PATH% vs $PATH) for OS portability. Only transport
+	// errors from StartProcess contain it, never command output.
 	shNotFoundFragment = `exec: "sh": executable file not found`
 
-	// shNotFoundGuidance gives the model actionable instructions to
-	// relay instead of a raw exec failure. enrichStartError appends it
-	// to the error. Keep the docs anchor in sync with
+	// shNotFoundGuidance is model-facing remediation text, relayed
+	// to the user. Keep the docs anchor in sync with
 	// docs/ai-coder/agents/architecture.md.
 	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
 		"Coder Agents run commands with \"sh -c\". On Windows, install sh " +
