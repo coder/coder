@@ -2588,6 +2588,16 @@ func (p *Server) prepareManualTitleDebugRun(
 	finishDebugRun := func(error) {}
 
 	route, routeErr := p.resolveModelRouteForConfig(ctx, chat.OwnerID, modelConfig, keys)
+	var routeProvider string
+	if routeErr == nil {
+		routeProvider, _ = route.providerHint()
+	} else if modelConfig.AIProviderID.Valid {
+		// Route resolution failed, but the linked provider still identifies the
+		// type for the debug run record. Best-effort: leave empty if disabled.
+		if provider, err := p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID); err == nil {
+			routeProvider = string(provider.Type)
+		}
+	}
 	debugOpts := modelOpts
 	debugOpts.RecordHTTP = true
 	var debugModelErr error
@@ -2606,21 +2616,19 @@ func (p *Server) prepareManualTitleDebugRun(
 	case debugModelErr != nil:
 		p.logger.Warn(ctx, "failed to create debug-aware manual title model",
 			slog.F("chat_id", chat.ID),
-			slog.F("provider", modelConfig.Provider),
 			slog.F("model", modelConfig.Model),
 			slog.Error(debugModelErr),
 		)
 	case debugModel == nil:
 		p.logger.Warn(ctx, "manual title debug model creation returned nil",
 			slog.F("chat_id", chat.ID),
-			slog.F("provider", modelConfig.Provider),
 			slog.F("model", modelConfig.Model),
 		)
 	default:
 		titleModel = chatdebug.WrapModel(debugModel, debugSvc, chatdebug.RecorderOptions{
 			ChatID:   chat.ID,
 			OwnerID:  chat.OwnerID,
-			Provider: modelConfig.Provider,
+			Provider: routeProvider,
 			Model:    modelConfig.Model,
 		})
 	}
@@ -2651,7 +2659,7 @@ func (p *Server) prepareManualTitleDebugRun(
 	debugRun, createRunErr := debugSvc.CreateRun(createRunCtx, chatdebug.CreateRunParams{
 		ChatID:              chat.ID,
 		ModelConfigID:       modelConfig.ID,
-		Provider:            modelConfig.Provider,
+		Provider:            routeProvider,
 		Model:               modelConfig.Model,
 		Kind:                chatdebug.KindTitleGeneration,
 		Status:              chatdebug.StatusInProgress,
@@ -2663,7 +2671,6 @@ func (p *Server) prepareManualTitleDebugRun(
 	if createRunErr != nil {
 		p.logger.Warn(ctx, "failed to create manual title debug run",
 			slog.F("chat_id", chat.ID),
-			slog.F("provider", modelConfig.Provider),
 			slog.F("model", modelConfig.Model),
 			slog.Error(createRunErr),
 		)
@@ -2789,7 +2796,6 @@ func (p *Server) resolveManualTitleModel(
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
-			slog.F("provider", config.Provider),
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)
@@ -2804,7 +2810,6 @@ func (p *Server) resolveManualTitleModel(
 	if err != nil {
 		p.logger.Debug(ctx, "manual title preferred model unavailable",
 			slog.F("chat_id", chat.ID),
-			slog.F("provider", config.Provider),
 			slog.F("model", config.Model),
 			slog.Error(err),
 		)

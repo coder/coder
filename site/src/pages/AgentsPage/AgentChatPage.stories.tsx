@@ -816,6 +816,21 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-1",
+					type: "openai",
+					name: "openai",
+					display_name: "OpenAI",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
+			},
+		]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };

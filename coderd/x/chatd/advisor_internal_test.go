@@ -248,7 +248,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
-					Provider:    "openai",
 					Model:       "gpt-5.2",
 					Enabled:     true,
 					CreatedAt:   time.Unix(0, 0).UTC(),
@@ -283,7 +282,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:          configID,
-					Provider:    "openai",
 					Model:       "gpt-5.2",
 					Enabled:     true,
 					CreatedAt:   time.Unix(0, 0).UTC(),
@@ -322,6 +320,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		configID := uuid.New()
+		providerID := uuid.New()
 		rawOptions, err := json.Marshal(codersdk.ChatModelCallConfig{
 			Temperature: func() *float64 { v := 0.42; return &v }(),
 		})
@@ -329,15 +328,28 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		store := &advisorOverrideStubStore{
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
-					ID:          configID,
-					Provider:    "openai",
-					Model:       "gpt-5.2",
-					Enabled:     true,
-					CreatedAt:   time.Unix(0, 0).UTC(),
-					UpdatedAt:   time.Unix(0, 0).UTC(),
-					Options:     rawOptions,
-					DisplayName: "gpt-5.2",
+					ID:           configID,
+					Model:        "gpt-5.2",
+					Enabled:      true,
+					CreatedAt:    time.Unix(0, 0).UTC(),
+					UpdatedAt:    time.Unix(0, 0).UTC(),
+					Options:      rawOptions,
+					DisplayName:  "gpt-5.2",
+					AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 				}, nil
+			},
+			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
+				return database.AIProvider{
+					ID:      providerID,
+					Type:    database.AIProviderTypeOpenai,
+					Enabled: true,
+				}, nil
+			},
+			getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
+				return []database.AIProviderKey{{
+					ProviderID: providerID,
+					APIKey:     "sk-test",
+				}}, nil
 			},
 		}
 		p := newAdvisorTestServer(ctx, t, store)
@@ -373,7 +385,6 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 				return database.ChatModelConfig{
 					ID:           configID,
-					Provider:     "openai",
 					Model:        "gpt-5.2",
 					Enabled:      true,
 					CreatedAt:    time.Unix(0, 0).UTC(),
@@ -426,7 +437,6 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{
 				ID:           configID,
-				Provider:     "openai",
 				Model:        "gpt-5.2",
 				Enabled:      true,
 				DisplayName:  "gpt-5.2",

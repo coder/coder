@@ -73,7 +73,6 @@ func CreateOpenAICompatChatModelConfig(
 	contextLimit := int64(4096)
 	isDefault := true
 	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     TestChatProviderOpenAICompat,
 		AIProviderID: &provider.ID,
 		Model:        TestChatModelOpenAICompat,
 		ContextLimit: &contextLimit,

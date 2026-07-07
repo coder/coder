@@ -133,7 +133,6 @@ func newWorkerTestFixture(t *testing.T) *workerTestFixture {
 		BaseUrl:     "http://example.invalid",
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  "openai",
 		IsDefault: true,
 	})
 	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})

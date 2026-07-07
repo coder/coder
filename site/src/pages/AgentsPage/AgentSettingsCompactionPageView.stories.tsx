@@ -10,7 +10,7 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 	modelConfigsData: [
 		{
 			id: "model-config-1",
-			provider: "openai",
+			ai_provider_id: "prov-openai",
 			model: "gpt-4.1-mini",
 			display_name: "GPT 4.1 Mini",
 			enabled: true,
@@ -21,6 +21,7 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 			updated_at: "2026-03-12T12:00:00.000Z",
 		},
 	] as TypesGen.ChatModelConfig[],
+	providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
 	thresholds: [

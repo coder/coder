@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 
 	"charm.land/fantasy"
@@ -83,7 +84,7 @@ func (p *Server) directProviderHintAndProviderForConfig(
 	modelConfig database.ChatModelConfig,
 ) (string, *database.AIProvider, error) {
 	if !modelConfig.AIProviderID.Valid {
-		return modelConfig.Provider, nil, nil
+		return "", nil, sql.ErrNoRows
 	}
 	provider, err := p.enabledAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
 	if err != nil {

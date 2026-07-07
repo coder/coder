@@ -27,6 +27,7 @@ interface SubagentModelOverrideSettingsProps {
 	description?: ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModelConfigs: readonly TypesGen.ChatModelConfig[];
+	providerTypeByID: ReadonlyMap<string, string>;
 	modelConfigsError: unknown;
 	isLoading: boolean;
 	onSaveModelOverride: (
@@ -43,9 +44,10 @@ interface SubagentModelOverrideSettingsProps {
 
 const toModelSelectorOption = (
 	modelConfig: TypesGen.ChatModelConfig,
+	providerTypeByID: ReadonlyMap<string, string>,
 ): ModelSelectorOption => ({
 	id: modelConfig.id,
-	provider: modelConfig.provider,
+	provider: providerTypeByID.get(modelConfig.ai_provider_id) ?? "",
 	model: modelConfig.model,
 	displayName: modelConfig.display_name.trim() || modelConfig.model,
 	contextLimit: modelConfig.context_limit,
@@ -58,6 +60,7 @@ export const SubagentModelOverrideSettings: FC<
 	description,
 	modelOverrideData,
 	enabledModelConfigs,
+	providerTypeByID,
 	modelConfigsError,
 	isLoading,
 	onSaveModelOverride,
@@ -71,7 +74,9 @@ export const SubagentModelOverrideSettings: FC<
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
-	const enabledModelOptions = enabledModelConfigs.map(toModelSelectorOption);
+	const enabledModelOptions = enabledModelConfigs.map((modelConfig) =>
+		toModelSelectorOption(modelConfig, providerTypeByID),
+	);
 
 	const form = useFormik({
 		enableReinitialize: true,
