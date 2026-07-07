@@ -45,7 +45,7 @@ export const forDarkThemes: ExternalImageModeStyles = {
 
 export const forLightThemes: ExternalImageModeStyles = {
 	// darken icons a little to make sure they have good contrast with the background
-	monochrome: { filter: "grayscale(100%) contrast(0%) brightness(70%)" },
+	monochrome: { filter: "grayscale(100%) contrast(0%) brightness(40%)" },
 	// do nothing to full-color icons
 	fullcolor: undefined,
 	// black on a dark background 🆘: invert, and then correct colors
