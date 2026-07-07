@@ -369,7 +369,7 @@ const TableLoader: FC = () => {
 				</TableCell>
 				<TableCell className="w-0 ">
 					<div className="flex gap-1 justify-end">
-						<Skeleton className="h-10 w-10" />
+						<Skeleton className="size-10" />
 						<Button size="icon-lg" variant="subtle" disabled>
 							<EllipsisVerticalIcon aria-hidden="true" />
 						</Button>

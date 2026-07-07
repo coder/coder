@@ -528,9 +528,9 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOffIcon className="h-4 w-4" />
+						<EyeOffIcon className="size-4" />
 					) : (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="size-4" />
 					)}
 				</Button>
 			)}
@@ -582,9 +582,9 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOffIcon className="h-4 w-4" />
+						<EyeOffIcon className="size-4" />
 					) : (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="size-4" />
 					)}
 				</Button>
 			)}

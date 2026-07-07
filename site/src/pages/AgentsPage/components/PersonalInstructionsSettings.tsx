@@ -113,7 +113,7 @@ export const PersonalInstructionsSettings: FC<
 								type="submit"
 								disabled={isAnyPromptSaving || !form.dirty}
 							>
-								{isSavingUserPrompt && <Spinner loading className="h-4 w-4" />}
+								{isSavingUserPrompt && <Spinner loading className="size-4" />}
 								Save
 							</Button>
 						</>

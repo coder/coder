@@ -147,7 +147,7 @@ export const UserOverrideDialog: FC<UserOverrideDialogProps> = ({
 						Cancel
 					</Button>
 					<Button type="button" onClick={onSave} disabled={saveDisabled}>
-						{upsertPending ? <Spinner loading className="h-4 w-4" /> : null}
+						{upsertPending ? <Spinner loading className="size-4" /> : null}
 						{isEditing ? "Update budget" : "Add user"}
 					</Button>
 				</DialogFooter>
