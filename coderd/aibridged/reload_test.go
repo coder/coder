@@ -3,6 +3,7 @@ package aibridged_test
 import (
 	"context"
 	"io"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -126,7 +127,7 @@ func TestWatchProviderReload(t *testing.T) {
 		}).AnyTimes()
 
 	calls := &recordingReloader{}
-	clientFunc := func() (aibridged.DRPCClient, error) { return mockClient, nil }
+	clientFunc := func(context.Context) (aibridged.DRPCClient, error) { return mockClient, nil }
 
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
@@ -165,7 +166,7 @@ func TestWatchProviderReloadReconnects(t *testing.T) {
 		}).AnyTimes()
 
 	calls := &recordingReloader{}
-	clientFunc := func() (aibridged.DRPCClient, error) { return mockClient, nil }
+	clientFunc := func(context.Context) (aibridged.DRPCClient, error) { return mockClient, nil }
 
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
@@ -174,6 +175,33 @@ func TestWatchProviderReloadReconnects(t *testing.T) {
 	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
 		"reload must continue after the stream drops and reconnects")
 
+	watchCancel()
+	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
+}
+
+func TestWatchProviderReloadCancelUnblocksClient(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, nil)
+
+	// clientFn blocks until its context is canceled, modeling
+	// Server.ClientContext waiting for the daemon to connect to coderd. Only
+	// watchCancel is exercised (no stream activity, no daemon close), so the
+	// loop can return only if clientFn honors the context it receives.
+	var once sync.Once
+	entered := make(chan struct{})
+	clientFunc := func(clientCtx context.Context) (aibridged.DRPCClient, error) {
+		once.Do(func() { close(entered) })
+		<-clientCtx.Done()
+		return nil, clientCtx.Err()
+	}
+
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- aibridged.WatchProviderReload(watchCtx, clientFunc, &recordingReloader{}, logger) }()
+
+	testutil.TryReceive(ctx, t, entered)
 	watchCancel()
 	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
 }
@@ -197,12 +225,10 @@ func TestWatchProviderReloadRetriesDialFailure(t *testing.T) {
 
 	calls := &recordingReloader{}
 
-	// The first dial fails; the second succeeds. This exercises the
-	// connected=false backoff path: a failed dial must not reset the backoff
-	// and must not trigger a reload, but the loop must keep retrying until the
-	// dial succeeds.
+	// The first dial fails; the second succeeds, and the loop must keep
+	// retrying until the dial succeeds and a reload fires.
 	var attempt atomic.Int32
-	clientFunc := func() (aibridged.DRPCClient, error) {
+	clientFunc := func(context.Context) (aibridged.DRPCClient, error) {
 		if attempt.Add(1) == 1 {
 			return nil, xerrors.New("dial failed")
 		}
@@ -230,8 +256,8 @@ func TestWatchProviderReloadContinuesAfterReloadError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClient := aibridgedmock.NewMockDRPCClient(ctrl)
 
-	events := make(chan error, 8)
-	for range 4 {
+	events := make(chan error, 3)
+	for range 3 {
 		events <- nil
 	}
 	mockClient.EXPECT().WatchAIProviders(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -241,7 +267,7 @@ func TestWatchProviderReloadContinuesAfterReloadError(t *testing.T) {
 
 	// Fails its first two reloads, then succeeds.
 	reloader := &failNReloader{n: 2}
-	clientFunc := func() (aibridged.DRPCClient, error) { return mockClient, nil }
+	clientFunc := func(context.Context) (aibridged.DRPCClient, error) { return mockClient, nil }
 
 	watchCtx, watchCancel := context.WithCancel(ctx)
 	done := make(chan error, 1)

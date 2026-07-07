@@ -103,12 +103,11 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 
 			// Fetch the initial provider set from coderd, retrying until
 			// success. Subsequent changes are delivered by the watch loop
-			// started below.
-			clientFn := func() (aibridged.DRPCClient, error) {
-				return srv.ClientContext(signalCtx)
-			}
+			// started below. The reloader's client acquisition honors the
+			// context of each Reload call, so loadProviders is bounded by
+			// signalCtx and the watch loop by watchCtx.
 			providerLogger := logger.Named("aibridge.providers")
-			reloader := agpl.NewPoolRPCReloader(pool, clientFn, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
+			reloader := agpl.NewPoolRPCReloader(pool, srv.ClientContext, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
 			if err := loadProviders(signalCtx, reloader, providerLogger, srv.Done()); err != nil {
 				if signalCtx.Err() != nil {
 					logger.Info(signalCtx, "shutting down standalone AI Gateway")
@@ -124,18 +123,15 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			watchCtx, watchCancel := context.WithCancel(signalCtx)
 			var watchWG sync.WaitGroup
 			watchWG.Go(func() {
-				if err := aibridged.WatchProviderReload(watchCtx, srv.Client, reloader, providerLogger); err != nil && watchCtx.Err() == nil {
+				// srv.ClientContext observes watchCtx, so watchCancel below
+				// unblocks a pending client acquisition and drains this
+				// goroutine without relying on srv.Close.
+				if err := aibridged.WatchProviderReload(watchCtx, srv.ClientContext, reloader, providerLogger); err != nil && watchCtx.Err() == nil {
 					providerLogger.Warn(watchCtx, "ai provider watch loop exited", slog.Error(err))
 				}
 			})
 			defer func() {
 				watchCancel()
-				// srv.Close cancels the daemon lifecycle context, which is the
-				// only context WatchProviderReload's blocking Client() call
-				// observes. Without it, a watch goroutine waiting to reconnect
-				// would not unblock and Wait would hang on the HTTP error path.
-				// Close is idempotent, so the deferred srv.Close above is safe.
-				_ = srv.Close()
 				watchWG.Wait()
 			}()
 

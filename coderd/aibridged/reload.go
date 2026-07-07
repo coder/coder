@@ -69,14 +69,13 @@ func SubscribeProviderReload(
 // perform an initial load; the caller is responsible for any blocking load
 // before serving.
 //
-// It runs until ctx is canceled, then returns ctx.Err(). Cancellation requires
-// both ctx and the underlying ClientFunc to unblock: during reconnection
-// clientFn may block on its own lifecycle (e.g. Server.Client waits on the
-// daemon lifecycle context), so canceling ctx alone does not unblock a pending
-// clientFn call.
+// It runs until ctx is canceled, then returns ctx.Err(). clientFn receives ctx,
+// so a client acquisition that blocks (e.g. Server.ClientContext waiting for
+// the daemon to connect to coderd) unblocks when ctx is canceled, leaving no
+// goroutine behind.
 func WatchProviderReload(
 	ctx context.Context,
-	clientFn ClientFunc,
+	clientFn ClientFuncWithContext,
 	reloader ProviderReloader,
 	logger slog.Logger,
 ) error {
@@ -110,9 +109,9 @@ func WatchProviderReload(
 // watchProviderReloadOnce opens a single WatchAIProviders stream and reloads on
 // each signal until the stream fails. received reports whether at least one
 // signal was received before the error.
-func watchProviderReloadOnce(ctx context.Context, clientFn ClientFunc, reloader ProviderReloader, logger slog.Logger) (received bool, err error) {
-	// clientFn() blocks until the daemon is connected to coderd.
-	c, err := clientFn()
+func watchProviderReloadOnce(ctx context.Context, clientFn ClientFuncWithContext, reloader ProviderReloader, logger slog.Logger) (received bool, err error) {
+	// clientFn blocks until the daemon connects to coderd or ctx is canceled.
+	c, err := clientFn(ctx)
 	if err != nil {
 		return false, xerrors.Errorf("get ai-gateway client: %w", err)
 	}
