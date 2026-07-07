@@ -1,4 +1,4 @@
-package main
+package v2
 
 // gitOutput runs a read-only git command and returns trimmed stdout.
 func gitOutput(exec CommandExecutor, args ...string) (string, error) {

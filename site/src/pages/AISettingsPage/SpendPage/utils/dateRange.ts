@@ -16,6 +16,19 @@ function isMidnight(date: Date): boolean {
 	);
 }
 
+export function toExclusiveEndOfDayDateRange(
+	dateRange: DateRangeValue,
+): DateRangeValue {
+	if (isMidnight(dateRange.endDate)) {
+		return dateRange;
+	}
+
+	return {
+		startDate: dateRange.startDate,
+		endDate: dayjs(dateRange.endDate).startOf("day").add(1, "day").toDate(),
+	};
+}
+
 /**
  * When the user picks an explicit date range whose end boundary is
  * midnight of the following day, adjust it by −1 ms so the

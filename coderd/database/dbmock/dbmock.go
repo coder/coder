@@ -1337,6 +1337,21 @@ func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentStats(ctx any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentStats), ctx)
 }
 
+// DeleteOldWorkspaceBuildOrchestrations mocks base method.
+func (m *MockStore) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldWorkspaceBuildOrchestrations", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldWorkspaceBuildOrchestrations indicates an expected call of DeleteOldWorkspaceBuildOrchestrations.
+func (mr *MockStoreMockRecorder) DeleteOldWorkspaceBuildOrchestrations(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceBuildOrchestrations", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceBuildOrchestrations), ctx, arg)
+}
+
 // DeleteOrganizationMember mocks base method.
 func (m *MockStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
 	m.ctrl.T.Helper()
@@ -4331,6 +4346,21 @@ func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID u
 func (mr *MockStoreMockRecorder) GetMCPServerUserTokensByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerUserTokensByUserID", reflect.TypeOf((*MockStore)(nil).GetMCPServerUserTokensByUserID), ctx, userID)
+}
+
+// GetNextPendingWorkspaceBuildOrchestrationForUpdate mocks base method.
+func (m *MockStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNextPendingWorkspaceBuildOrchestrationForUpdate", ctx)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNextPendingWorkspaceBuildOrchestrationForUpdate indicates an expected call of GetNextPendingWorkspaceBuildOrchestrationForUpdate.
+func (mr *MockStoreMockRecorder) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNextPendingWorkspaceBuildOrchestrationForUpdate", reflect.TypeOf((*MockStore)(nil).GetNextPendingWorkspaceBuildOrchestrationForUpdate), ctx)
 }
 
 // GetNotificationMessagesByStatus mocks base method.
@@ -8471,6 +8501,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceBuild(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceBuild", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceBuild), ctx, arg)
 }
 
+// InsertWorkspaceBuildOrchestration mocks base method.
+func (m *MockStore) InsertWorkspaceBuildOrchestration(ctx context.Context, arg database.InsertWorkspaceBuildOrchestrationParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceBuildOrchestration", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceBuildOrchestration indicates an expected call of InsertWorkspaceBuildOrchestration.
+func (mr *MockStoreMockRecorder) InsertWorkspaceBuildOrchestration(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceBuildOrchestration", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceBuildOrchestration), ctx, arg)
+}
+
 // InsertWorkspaceBuildParameters mocks base method.
 func (m *MockStore) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	m.ctrl.T.Helper()
@@ -11164,6 +11209,66 @@ func (m *MockStore) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Con
 func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildNotifiedAutostopDeadline", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildNotifiedAutostopDeadline), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationCanceledByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationCanceledByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationCanceledByID indicates an expected call of UpdateWorkspaceBuildOrchestrationCanceledByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationCanceledByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationCanceledByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationCompletedByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationCompletedByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationCompletedByID indicates an expected call of UpdateWorkspaceBuildOrchestrationCompletedByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationCompletedByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationCompletedByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationFailedByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationFailedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationFailedByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationFailedByID indicates an expected call of UpdateWorkspaceBuildOrchestrationFailedByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationFailedByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationFailedByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationFailedByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildOrchestrationRetryByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationRetryByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildOrchestrationRetryByID", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceBuildOrchestrationRetryByID indicates an expected call of UpdateWorkspaceBuildOrchestrationRetryByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildOrchestrationRetryByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildOrchestrationRetryByID), ctx, arg)
 }
 
 // UpdateWorkspaceBuildProvisionerStateByID mocks base method.

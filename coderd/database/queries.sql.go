@@ -35141,6 +35141,359 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 	return err
 }
 
+const deleteOldWorkspaceBuildOrchestrations = `-- name: DeleteOldWorkspaceBuildOrchestrations :execrows
+WITH deletable AS (
+    SELECT
+        id
+    FROM
+        workspace_build_orchestrations
+    WHERE
+        status IN ('completed', 'failed', 'canceled')
+        AND updated_at < $1::timestamptz
+    ORDER BY
+        updated_at ASC
+    LIMIT $2::int
+)
+DELETE FROM workspace_build_orchestrations
+USING deletable
+WHERE workspace_build_orchestrations.id = deletable.id
+`
+
+type DeleteOldWorkspaceBuildOrchestrationsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldWorkspaceBuildOrchestrations, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getNextPendingWorkspaceBuildOrchestrationForUpdate = `-- name: GetNextPendingWorkspaceBuildOrchestrationForUpdate :one
+SELECT
+    wbo.id, wbo.created_at, wbo.updated_at, wbo.workspace_id, wbo.parent_build_id, wbo.child_build_id, wbo.child_transition, wbo.child_template_version_id, wbo.child_template_version_preset_id, wbo.child_rich_parameter_values, wbo.child_log_level, wbo.child_reason, wbo.attempt_count, wbo.next_retry_after, wbo.status, wbo.error
+FROM
+    workspace_build_orchestrations wbo
+    JOIN workspace_builds wb ON wbo.parent_build_id = wb.id
+    JOIN provisioner_jobs pj ON wb.job_id = pj.id
+WHERE
+    wbo.status = 'pending'
+    AND (
+        wbo.next_retry_after IS NULL
+        OR wbo.next_retry_after <= NOW()
+    )
+    -- Include all terminal parent states so pending orchestration
+    -- rows are processed and resolved even when no child build should
+    -- be created.
+    AND pj.job_status IN ('succeeded', 'failed', 'canceled')
+ORDER BY
+    wbo.created_at ASC
+LIMIT 1
+FOR UPDATE OF wbo SKIP LOCKED
+`
+
+// Must be called from within a transaction. The row lock is released
+// when the transaction ends.
+func (q *sqlQuerier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, getNextPendingWorkspaceBuildOrchestrationForUpdate)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const insertWorkspaceBuildOrchestration = `-- name: InsertWorkspaceBuildOrchestration :one
+INSERT INTO workspace_build_orchestrations (
+    id,
+    created_at,
+    updated_at,
+    parent_build_id,
+    workspace_id,
+    child_transition,
+    child_template_version_id,
+    child_template_version_preset_id,
+    child_rich_parameter_values,
+    child_log_level,
+    child_reason,
+    status,
+    error
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    (SELECT workspace_id FROM workspace_builds WHERE id = $4),
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    'pending',
+    NULL
+)
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type InsertWorkspaceBuildOrchestrationParams struct {
+	ID                           uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                    time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time           `db:"updated_at" json:"updated_at"`
+	ParentBuildID                uuid.UUID           `db:"parent_build_id" json:"parent_build_id"`
+	ChildTransition              WorkspaceTransition `db:"child_transition" json:"child_transition"`
+	ChildTemplateVersionID       uuid.NullUUID       `db:"child_template_version_id" json:"child_template_version_id"`
+	ChildTemplateVersionPresetID uuid.NullUUID       `db:"child_template_version_preset_id" json:"child_template_version_preset_id"`
+	ChildRichParameterValues     json.RawMessage     `db:"child_rich_parameter_values" json:"child_rich_parameter_values"`
+	ChildLogLevel                string              `db:"child_log_level" json:"child_log_level"`
+	ChildReason                  NullBuildReason     `db:"child_reason" json:"child_reason"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceBuildOrchestration(ctx context.Context, arg InsertWorkspaceBuildOrchestrationParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceBuildOrchestration,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.ParentBuildID,
+		arg.ChildTransition,
+		arg.ChildTemplateVersionID,
+		arg.ChildTemplateVersionPresetID,
+		arg.ChildRichParameterValues,
+		arg.ChildLogLevel,
+		arg.ChildReason,
+	)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationCanceledByID = `-- name: UpdateWorkspaceBuildOrchestrationCanceledByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    status = 'canceled',
+    next_retry_after = NULL,
+    error = NULL,
+    updated_at = $1
+WHERE
+    id = $2
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationCanceledByIDParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationCanceledByID, arg.UpdatedAt, arg.ID)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationCompletedByID = `-- name: UpdateWorkspaceBuildOrchestrationCompletedByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    child_build_id = $1,
+    status = 'completed',
+    next_retry_after = NULL,
+    error = NULL,
+    updated_at = $2
+WHERE
+    id = $3
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationCompletedByIDParams struct {
+	ChildBuildID uuid.NullUUID `db:"child_build_id" json:"child_build_id"`
+	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationCompletedByID, arg.ChildBuildID, arg.UpdatedAt, arg.ID)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationFailedByID = `-- name: UpdateWorkspaceBuildOrchestrationFailedByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    status = 'failed',
+    next_retry_after = NULL,
+    error = $1,
+    updated_at = $2
+WHERE
+    id = $3
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationFailedByIDParams struct {
+	Error     sql.NullString `db:"error" json:"error"`
+	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationFailedByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationFailedByID, arg.Error, arg.UpdatedAt, arg.ID)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationRetryByID = `-- name: UpdateWorkspaceBuildOrchestrationRetryByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    attempt_count = attempt_count + 1,
+    next_retry_after = CASE
+        WHEN attempt_count + 1 >= $1::int THEN NULL
+        ELSE $2::timestamptz
+    END,
+    status = CASE
+        WHEN attempt_count + 1 >= $1::int THEN 'failed'
+        ELSE status
+    END,
+    error = $3,
+    updated_at = $4
+WHERE
+    id = $5
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationRetryByIDParams struct {
+	MaxAttemptCount int32          `db:"max_attempt_count" json:"max_attempt_count"`
+	NextRetryAfter  time.Time      `db:"next_retry_after" json:"next_retry_after"`
+	Error           sql.NullString `db:"error" json:"error"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	ID              uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationRetryByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationRetryByID,
+		arg.MaxAttemptCount,
+		arg.NextRetryAfter,
+		arg.Error,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
 const getUserWorkspaceBuildParameters = `-- name: GetUserWorkspaceBuildParameters :many
 SELECT name, value
 FROM (

@@ -1,4 +1,4 @@
-package main
+package v2 //nolint:testpackage // Tests unexported release helpers.
 
 import (
 	"bytes"
