@@ -14,7 +14,7 @@ coder ai-gateway start [flags]
 ```console
 Runs a standalone replica of the AI Gateway. Standalone replicas serve LLM client traffic on a dedicated HTTP listener and connect to coderd using the Coder deployment URL and an AI Gateway key.
 
-Set --url or CODER_URL to the Coder deployment address, and set --key or CODER_AI_GATEWAY_KEY to the AI Gateway key. A user login or session token is not required.
+Set --url or CODER_URL to the Coder deployment address, and set --key (CODER_AI_GATEWAY_KEY) or --key-file (CODER_AI_GATEWAY_KEY_FILE). A user login or session token is not required.
 ```
 
 ## Options
@@ -27,6 +27,15 @@ Set --url or CODER_URL to the Coder deployment address, and set --key or CODER_A
 | Environment | <code>$CODER_AI_GATEWAY_KEY</code> |
 
 The AI Gateway key used to authenticate to coderd.
+
+### --key-file
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_AI_GATEWAY_KEY_FILE</code> |
+
+Path to a file containing the AI Gateway key used to authenticate to coderd.
 
 ### --http-address
 

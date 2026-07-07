@@ -4,6 +4,8 @@ package cli
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -129,12 +131,67 @@ func TestLoadProviders_AIBridgedDoneStopsRetry(t *testing.T) {
 	require.Equal(t, int32(1), reloader.calls.Load())
 }
 
+func TestResolveAIGatewayKey(t *testing.T) {
+	t.Parallel()
+
+	keyFile := filepath.Join(t.TempDir(), "gateway.key")
+	require.NoError(t, os.WriteFile(keyFile, []byte("file-key\n"), 0o600))
+
+	tests := []struct {
+		name    string
+		key     string
+		keyFile string
+		want    string
+		wantErr string
+	}{
+		{
+			name:    "Nothing set",
+			wantErr: keyFlagsMissingErr,
+		},
+		{
+			name: "Key",
+			key:  "flag-key",
+			want: "flag-key",
+		},
+		{
+			name:    "KeyFile",
+			keyFile: keyFile,
+			want:    "file-key",
+		},
+		{
+			name:    "MutuallyExclusive",
+			key:     "flag-key",
+			keyFile: keyFile,
+			wantErr: keyFlagsExclusiveErr,
+		},
+		{
+			name:    "MissingKeyFile",
+			keyFile: filepath.Join(t.TempDir(), "missing.key"),
+			wantErr: "read AI Gateway key file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := resolveAIGatewayKey(tc.key, tc.keyFile)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestAIGatewayStart_DeploymentOptions(t *testing.T) {
 	t.Parallel()
 
 	cmd := (&RootCmd{}).aiGatewayStart()
 
-	// Standalone Gateway only consumes options used in LLM traffic.
+	// Standalone Gateway only consumes deployment options used in LLM traffic.
 	// Coderd-only settings such as provider seeds, retention,
 	// structured logging, and Coder MCP injection must stay server-only.
 	var got []string

@@ -2,6 +2,7 @@ package aibridged
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -34,6 +35,18 @@ import (
 // On a failed upgrade the coderd HTTP error is returned as a
 // *codersdk.Error so [Server.connect] can distinguish fatal
 // auth/entitlement failures from transient ones.
+func readAIGatewayServeError(res *http.Response) error {
+	err := codersdk.ReadBodyAsError(res)
+
+	var sdkErr *codersdk.Error
+	if errors.As(err, &sdkErr) && res.StatusCode == http.StatusUnauthorized {
+		// /ai-gateway/serve authenticates with an AI Gateway key, not a user
+		// session. Generic user-login helpers are misleading here.
+		sdkErr.Helper = ""
+	}
+	return err
+}
+
 func NewWebsocketDialer(serverURL *url.URL, transport http.RoundTripper, key string) Dialer {
 	return func(ctx context.Context) (DRPCClient, error) {
 		serveURL, err := serverURL.Parse("/api/v2/ai-gateway/serve")
@@ -61,7 +74,7 @@ func NewWebsocketDialer(serverURL *url.URL, transport http.RoundTripper, key str
 			if res == nil {
 				return nil, err
 			}
-			return nil, codersdk.ReadBodyAsError(res)
+			return nil, readAIGatewayServeError(res)
 		}
 		config := yamux.DefaultConfig()
 		config.LogOutput = io.Discard

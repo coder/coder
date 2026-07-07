@@ -135,32 +135,36 @@ func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {
 	require.NoError(t, client.DeleteAIGatewayKey(ctx, revoked.ID))
 
 	tests := []struct {
-		name        string
-		key         string
-		version     string
-		wantStatus  int
-		wantMessage string
+		name             string
+		key              string
+		version          string
+		wantStatus       int
+		wantMessage      string
+		forbidErrMessage string
 	}{
 		{
-			name:        "MissingKey",
-			key:         "",
-			version:     aibridgedproto.CurrentVersion.String(),
-			wantStatus:  http.StatusUnauthorized,
-			wantMessage: "AI Gateway key required.",
+			name:             "MissingKey",
+			key:              "",
+			version:          aibridgedproto.CurrentVersion.String(),
+			wantStatus:       http.StatusUnauthorized,
+			wantMessage:      "AI Gateway key required.",
+			forbidErrMessage: "Try logging in",
 		},
 		{
-			name:        "InvalidKey",
-			key:         "not-a-real-key",
-			version:     aibridgedproto.CurrentVersion.String(),
-			wantStatus:  http.StatusUnauthorized,
-			wantMessage: "AI Gateway key invalid.",
+			name:             "InvalidKey",
+			key:              "not-a-real-key",
+			version:          aibridgedproto.CurrentVersion.String(),
+			wantStatus:       http.StatusUnauthorized,
+			wantMessage:      "AI Gateway key invalid.",
+			forbidErrMessage: "Try logging in",
 		},
 		{
-			name:        "RevokedKey",
-			key:         revoked.Key,
-			version:     aibridgedproto.CurrentVersion.String(),
-			wantStatus:  http.StatusUnauthorized,
-			wantMessage: "AI Gateway key invalid.",
+			name:             "RevokedKey",
+			key:              revoked.Key,
+			version:          aibridgedproto.CurrentVersion.String(),
+			wantStatus:       http.StatusUnauthorized,
+			wantMessage:      "AI Gateway key invalid.",
+			forbidErrMessage: "Try logging in",
 		},
 		{
 			name:        "IncompatibleVersion",
@@ -187,6 +191,9 @@ func TestAIGatewayServeKeyAndVersionValidationErr(t *testing.T) {
 			require.ErrorAs(t, err, &sdkErr)
 			require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
 			require.Contains(t, sdkErr.Error(), tc.wantMessage)
+			if tc.forbidErrMessage != "" {
+				require.NotContains(t, sdkErr.Error(), tc.forbidErrMessage)
+			}
 		})
 	}
 }

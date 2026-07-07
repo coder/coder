@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,12 +28,16 @@ import (
 
 const (
 	shutdownTimeout = 5 * time.Minute
+
+	keyFlagsExclusiveErr = "--key and --key-file options are mutually exclusive"
+	keyFlagsMissingErr   = "an AI Gateway key is required, set --key (CODER_AI_GATEWAY_KEY) or --key-file (CODER_AI_GATEWAY_KEY_FILE)"
 )
 
 // aiGatewayStart runs the AI Gateway as a standalone process.
 func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	var (
 		key         string
+		keyFile     string
 		httpAddress string
 		tlsCertFile string
 		tlsKeyFile  string
@@ -47,19 +53,22 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			"serve LLM client traffic on a dedicated HTTP listener and connect " +
 			"to coderd using the Coder deployment URL and an AI Gateway key.\n\n" +
 			"Set --url or CODER_URL to the Coder deployment address, and set " +
-			"--key or CODER_AI_GATEWAY_KEY to the AI Gateway key. A user login " +
-			"or session token is not required.",
+			"--key (CODER_AI_GATEWAY_KEY) or --key-file " +
+			"(CODER_AI_GATEWAY_KEY_FILE). A user login or session token is " +
+			"not required.",
 		Handler: func(inv *serpent.Invocation) error {
 			signalCtx, stop := inv.SignalNotifyContext(inv.Context(), agpl.StopSignals...)
 			defer stop()
 
-			if key == "" {
-				return xerrors.New("an AI Gateway key is required, set --key or CODER_AI_GATEWAY_KEY")
+			resolvedKey, err := resolveAIGatewayKey(key, keyFile)
+			if err != nil {
+				return err
 			}
+
 			// TLS is opt-in and requires both files; setting only one is
 			// an error. Default is plain HTTP.
 			if (tlsCertFile == "") != (tlsKeyFile == "") {
-				return xerrors.New("--tls-cert-file and --tls-key-file must be provided together")
+				return xerrors.New("--tls-cert-file and --tls-key-file options must be provided together")
 			}
 
 			serverURL, transport, err := r.ResolveClientConnection()
@@ -90,7 +99,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.Errorf("create request pool: %w", err)
 			}
 
-			dialer := aibridged.NewWebsocketDialer(serverURL, transport, key)
+			dialer := aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey)
 			aibridgedCtx, aibridgedCancel := context.WithCancel(context.Background())
 			defer aibridgedCancel()
 			srv, err := aibridged.New(aibridgedCtx, pool, dialer, logger.Named("aibridged"), tracer)
@@ -185,6 +194,12 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			Value:       serpent.StringOf(&key),
 		},
 		{
+			Flag:        "key-file",
+			Env:         "CODER_AI_GATEWAY_KEY_FILE",
+			Description: "Path to a file containing the AI Gateway key used to authenticate to coderd.",
+			Value:       serpent.StringOf(&keyFile),
+		},
+		{
 			Flag:        "http-address",
 			Env:         "CODER_AI_GATEWAY_HTTP_ADDRESS",
 			Description: "The bind address to serve incoming AI Gateway client traffic.",
@@ -241,6 +256,25 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	cmd.Options = append(cmd.Options, aiGatewayOpts...)
 
 	return cmd
+}
+
+// resolveAIGatewayKey resolves key from --key or --key-file flags.
+// If both are set, an error is returned. If neither is set, an empty string is returned.
+func resolveAIGatewayKey(key string, keyFile string) (string, error) {
+	if key != "" && keyFile != "" {
+		return "", xerrors.New(keyFlagsExclusiveErr)
+	}
+	if key == "" && keyFile == "" {
+		return "", xerrors.New(keyFlagsMissingErr)
+	}
+	if keyFile == "" {
+		return key, nil
+	}
+	data, err := os.ReadFile(keyFile)
+	if err != nil {
+		return "", xerrors.Errorf("read AI Gateway key file %q: %w", keyFile, err)
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 // loadProviders performs the standalone gateway's initial provider

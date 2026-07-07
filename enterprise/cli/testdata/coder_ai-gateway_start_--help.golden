@@ -9,9 +9,9 @@ USAGE:
   client traffic on a dedicated HTTP listener and connect to coderd using the
   Coder deployment URL and an AI Gateway key.
   
-  Set --url or CODER_URL to the Coder deployment address, and set --key or
-  CODER_AI_GATEWAY_KEY to the AI Gateway key. A user login or session token is
-  not required.
+  Set --url or CODER_URL to the Coder deployment address, and set --key
+  (CODER_AI_GATEWAY_KEY) or --key-file (CODER_AI_GATEWAY_KEY_FILE). A user login
+  or session token is not required.
 
 OPTIONS:
       --http-address string, $CODER_AI_GATEWAY_HTTP_ADDRESS (default: 127.0.0.1:4001)
@@ -19,6 +19,10 @@ OPTIONS:
 
       --key string, $CODER_AI_GATEWAY_KEY
           The AI Gateway key used to authenticate to coderd.
+
+      --key-file string, $CODER_AI_GATEWAY_KEY_FILE
+          Path to a file containing the AI Gateway key used to authenticate to
+          coderd.
 
       --tls-cert-file string, $CODER_AI_GATEWAY_TLS_CERT_FILE
           Path to a PEM-encoded TLS certificate. Enables TLS termination when
