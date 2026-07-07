@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -84,6 +85,39 @@ func (*mockDRPCConn) NewStream(ctx context.Context, rpc string, enc drpc.Encodin
 	return nil, nil
 }
 
+func sdkError(status int, message string) error {
+	return codersdk.ReadBodyAsError(&http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewBufferString(`{"message":"` + message + `"}`)),
+	})
+}
+
+func TestClient_TransientDialErrorRetries(t *testing.T) {
+	t.Parallel()
+
+	var calls atomic.Int32
+	ctrl := gomock.NewController(t)
+	client := mock.NewMockDRPCClient(ctrl)
+	client.EXPECT().DRPCConn().AnyTimes().Return(&mockDRPCConn{})
+	pool := mock.NewMockPooler(ctrl)
+	pool.EXPECT().Shutdown(gomock.Any()).MinTimes(1).Return(nil)
+	dialFc := func(context.Context) (aibridged.DRPCClient, error) {
+		if calls.Add(1) == 1 {
+			return nil, sdkError(http.StatusInternalServerError, "internal error")
+		}
+		return client, nil
+	}
+
+	srv, err := aibridged.New(t.Context(), pool, dialFc, slogtest.Make(t, nil), testTracer)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
+
+	_, err = srv.ClientContext(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.Equal(t, int32(2), calls.Load())
+}
+
 func TestServeHTTP_FailureModes(t *testing.T) {
 	t.Parallel()
 
@@ -137,11 +171,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		{
 			name: "fatal bad request dial error",
 			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
-				return nil, codersdk.ReadBodyAsError(&http.Response{
-					StatusCode: http.StatusBadRequest,
-					Header:     http.Header{"Content-Type": []string{"application/json"}},
-					Body:       io.NopCloser(bytes.NewBufferString(`{"message":"bad request"}`)),
-				})
+				return nil, sdkError(http.StatusBadRequest, "bad request")
 			},
 			ignoreLogs:     true,
 			expectedErr:    aibridged.ErrConnect,
@@ -150,11 +180,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		{
 			name: "fatal unauthorized dial error",
 			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
-				return nil, codersdk.ReadBodyAsError(&http.Response{
-					StatusCode: http.StatusUnauthorized,
-					Header:     http.Header{"Content-Type": []string{"application/json"}},
-					Body:       io.NopCloser(bytes.NewBufferString(`{"message":"unauthorized"}`)),
-				})
+				return nil, sdkError(http.StatusUnauthorized, "unauthorized")
 			},
 			ignoreLogs:     true,
 			expectedErr:    aibridged.ErrConnect,
@@ -163,11 +189,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		{
 			name: "fatal forbidden dial error",
 			dialerFn: func(context.Context) (aibridged.DRPCClient, error) {
-				return nil, codersdk.ReadBodyAsError(&http.Response{
-					StatusCode: http.StatusForbidden,
-					Header:     http.Header{"Content-Type": []string{"application/json"}},
-					Body:       io.NopCloser(bytes.NewBufferString(`{"message":"forbidden"}`)),
-				})
+				return nil, sdkError(http.StatusForbidden, "forbidden")
 			},
 			ignoreLogs:     true,
 			expectedErr:    aibridged.ErrConnect,

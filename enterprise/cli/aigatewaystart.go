@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	shutdownTimeout = 15 * time.Second
+	shutdownTimeout = 5 * time.Minute
 )
 
 // aiGatewayStart runs the AI Gateway as a standalone process.
@@ -45,11 +45,10 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 		Short: "Run a standalone AI Gateway server",
 		Long: "Runs a standalone replica of the AI Gateway. Standalone replicas " +
 			"serve LLM client traffic on a dedicated HTTP listener and connect " +
-			"to a Coder deployment over DRPC.\n\n" +
+			"to coderd using the Coder deployment URL and an AI Gateway key.\n\n" +
 			"Set --url or CODER_URL to the Coder deployment address, and set " +
-			"--key or CODER_AI_GATEWAY_KEY to the AI Gateway key used for " +
-			"gateway-to-coderd authentication. A user login or session token is " +
-			"not required.",
+			"--key or CODER_AI_GATEWAY_KEY to the AI Gateway key. A user login " +
+			"or session token is not required.",
 		Handler: func(inv *serpent.Invocation) error {
 			signalCtx, stop := inv.SignalNotifyContext(inv.Context(), agpl.StopSignals...)
 			defer stop()

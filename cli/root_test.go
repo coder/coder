@@ -109,7 +109,7 @@ func TestCommandHelp(t *testing.T) {
 func TestResolveClientConnection(t *testing.T) {
 	t.Parallel()
 
-	run := func(t *testing.T, configure func(config.Root), args ...string) (string, http.RoundTripper, error) {
+	run := func(t *testing.T, configure func(config.Root), args ...string) (string, http.RoundTripper, error, error) {
 		t.Helper()
 
 		var root cli.RootCmd
@@ -134,8 +134,8 @@ func TestResolveClientConnection(t *testing.T) {
 		if configure != nil {
 			configure(cfg)
 		}
-		require.NoError(t, inv.Run())
-		return gotURL, gotTransport, gotErr
+		runErr := inv.Run()
+		return gotURL, gotTransport, gotErr, runErr
 	}
 
 	tests := []struct {
@@ -145,6 +145,7 @@ func TestResolveClientConnection(t *testing.T) {
 		wantURL        string
 		wantTransport  bool
 		wantErr        string
+		wantRunErr     string
 		checkTransport func(*testing.T, http.RoundTripper)
 	}{
 		{
@@ -167,6 +168,21 @@ func TestResolveClientConnection(t *testing.T) {
 			},
 			wantURL:       "https://configured.example.com",
 			wantTransport: true,
+		},
+		{
+			name: "URLFlagOverridesConfig",
+			args: []string{"--url", "https://flag.example.com", "resolve"},
+			configure: func(t *testing.T, cfg config.Root) {
+				t.Helper()
+				require.NoError(t, cfg.URL().Write("https://configured.example.com"))
+			},
+			wantURL:       "https://flag.example.com",
+			wantTransport: true,
+		},
+		{
+			name:       "InvalidURLFlag",
+			args:       []string{"--url", "%zz", "resolve"},
+			wantRunErr: "invalid URL escape",
 		},
 		{
 			name: "ClientTLSConfig",
@@ -212,7 +228,12 @@ func TestResolveClientConnection(t *testing.T) {
 				}
 			}
 
-			serverURL, transport, err := run(t, configure, tc.args...)
+			serverURL, transport, err, runErr := run(t, configure, tc.args...)
+			if tc.wantRunErr != "" {
+				require.ErrorContains(t, runErr, tc.wantRunErr)
+				return
+			}
+			require.NoError(t, runErr)
 			if tc.wantErr != "" {
 				require.ErrorContains(t, err, tc.wantErr)
 			} else {

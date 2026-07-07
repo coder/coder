@@ -16,7 +16,11 @@ import (
 	"github.com/coder/retry"
 )
 
-var _ io.Closer = &Server{}
+var (
+	_ io.Closer = &Server{}
+
+	ErrShutdown = xerrors.New("aibridged server shutdown")
+)
 
 // Server provides the AI Bridge functionality.
 // It is responsible for:
@@ -108,13 +112,15 @@ connectLoop:
 			// If something is wrong with configuration, stop trying to connect.
 			if errors.As(err, &sdkErr) {
 				switch sdkErr.StatusCode() {
-				// These statuses are returned by the /api/v2/ai-gateway/serve (wrong Gateway key or incompatible API versions)
-				// or FeatureAIBridge check.
+				// These statuses are terminal failures from the /api/v2/ai-gateway/serve
+				// handshake: wrong gateway key, incompatible API version, or entitlement failure.
 				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
 					err = xerrors.Errorf("dial coderd: %w", err)
 					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd", slog.Error(err))
 					s.cancelFn(err)
 					return
+				default:
+					err = xerrors.Errorf("unexpected HTTP response dialing coderd: %w", err)
 				}
 			}
 			if s.isShutdown() {
@@ -209,7 +215,7 @@ func (s *Server) isShutdown() bool {
 func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	s.shutdownOnce.Do(func() {
-		s.cancelFn(context.Canceled)
+		s.cancelFn(ErrShutdown)
 
 		// Wait for any outstanding connections to terminate.
 		s.wg.Wait()

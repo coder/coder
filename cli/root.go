@@ -58,9 +58,9 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
-	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
-
 	ErrClientURLNotConfigured = xerrors.New("client URL is not configured")
+
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
 )
 
 const (

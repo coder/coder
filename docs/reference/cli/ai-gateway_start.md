@@ -12,9 +12,9 @@ coder ai-gateway start [flags]
 ## Description
 
 ```console
-Runs a standalone replica of the AI Gateway. Standalone replicas serve LLM client traffic on a dedicated HTTP listener and connect to a Coder deployment over DRPC.
+Runs a standalone replica of the AI Gateway. Standalone replicas serve LLM client traffic on a dedicated HTTP listener and connect to coderd using the Coder deployment URL and an AI Gateway key.
 
-Set --url or CODER_URL to the Coder deployment address, and set --key or CODER_AI_GATEWAY_KEY to the AI Gateway key used for gateway-to-coderd authentication. A user login or session token is not required.
+Set --url or CODER_URL to the Coder deployment address, and set --key or CODER_AI_GATEWAY_KEY to the AI Gateway key. A user login or session token is not required.
 ```
 
 ## Options
