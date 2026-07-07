@@ -53,9 +53,13 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	Item,
 	Separator,
 }) => {
+	const showPinAction =
+		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
+	const showArchiveActions = !isArchived && !isChildChat;
+
 	return (
 		<>
-			{!isArchived && !isChildChat && onPinAgent && onUnpinAgent && (
+			{showPinAction && (
 				<Item onSelect={isPinned ? onUnpinAgent : onPinAgent}>
 					{isPinned ? (
 						<>
@@ -83,25 +87,28 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
-					{(onOpenRenameDialog ||
-						(!isChildChat && onPinAgent && onUnpinAgent)) && <Separator />}
-					<Item
-						className="text-content-destructive focus:text-content-destructive"
-						disabled={isArchiving}
-						onSelect={onArchiveAgent}
-					>
-						<ArchiveIcon className="size-3.5" />
-						Archive agent
-					</Item>
-					{hasWorkspace && (
-						<Item
-							className="text-content-destructive focus:text-content-destructive"
-							disabled={isArchiving}
-							onSelect={onArchiveAndDeleteWorkspace}
-						>
-							<Trash2Icon className="size-3.5" />
-							Archive & delete workspace
-						</Item>
+					{showArchiveActions && (
+						<>
+							{(onOpenRenameDialog || showPinAction) && <Separator />}
+							<Item
+								className="text-content-destructive focus:text-content-destructive"
+								disabled={isArchiving}
+								onSelect={onArchiveAgent}
+							>
+								<ArchiveIcon className="size-3.5" />
+								Archive agent
+							</Item>
+							{hasWorkspace && (
+								<Item
+									className="text-content-destructive focus:text-content-destructive"
+									disabled={isArchiving}
+									onSelect={onArchiveAndDeleteWorkspace}
+								>
+									<Trash2Icon className="size-3.5" />
+									Archive & delete workspace
+								</Item>
+							)}
+						</>
 					)}
 				</>
 			)}

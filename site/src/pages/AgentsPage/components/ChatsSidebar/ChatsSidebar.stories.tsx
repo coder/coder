@@ -2037,6 +2037,53 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 };
 
+export const ChildChatMenuHidesArchiveActions: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-child-menu",
+				title: "Root agent",
+				children: [
+					buildChat({
+						id: "child-menu",
+						title: "Child agent",
+						parent_chat_id: "root-child-menu",
+						root_chat_id: "root-child-menu",
+						workspace_id: "workspace-1",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-menu",
+				pathParams: { agentId: "child-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Child agent")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText("Open actions for Child agent");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const PinnedChatsSection: Story = {
 	args: {
 		chats: [

@@ -307,9 +307,10 @@ export const UnpinAgentItem: Story = {
 	},
 };
 
-export const ChildChatHidesPinAction: Story = {
+export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		isChildChat: true,
+		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -318,11 +319,14 @@ export const ChildChatHidesPinAction: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Rename chat")).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
 	},
 };
 
