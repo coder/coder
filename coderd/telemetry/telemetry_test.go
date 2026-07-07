@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -33,7 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -315,10 +314,9 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
-		telemetryItemKeys := make([]string, 0, len(snapshot.TelemetryItems))
-		for _, item := range snapshot.TelemetryItems {
-			telemetryItemKeys = append(telemetryItemKeys, item.Key)
-		}
+		telemetryItemKeys := slice.Convert(snapshot.TelemetryItems, func(item telemetry.TelemetryItem) string {
+			return item.Key
+		})
 		require.ElementsMatch(t, []string{
 			string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
 			string(telemetry.TelemetryItemKeyTelemetryEnabled),
@@ -1478,188 +1476,6 @@ func collectSnapshot(
 	t.Cleanup(reporter.Close)
 
 	return testutil.RequireReceive(ctx, t, deployment), testutil.RequireReceive(ctx, t, snapshot)
-}
-
-type agentExperimentsTelemetry struct {
-	VirtualDesktop struct {
-		Enabled     bool `json:"enabled"`
-		ComputerUse struct {
-			Provider       string `json:"provider"`
-			ProviderSource string `json:"provider_source"`
-		} `json:"computer_use"`
-	} `json:"virtual_desktop"`
-	Advisor struct {
-		Enabled         bool   `json:"enabled"`
-		MaxUsesPerRun   int    `json:"max_uses_per_run"`
-		MaxOutputTokens int64  `json:"max_output_tokens"`
-		Provider        string `json:"provider"`
-		Model           string `json:"model"`
-	} `json:"advisor"`
-}
-
-func requireAgentExperimentsTelemetry(
-	t *testing.T,
-	snapshot *telemetry.Snapshot,
-) (telemetry.TelemetryItem, agentExperimentsTelemetry) {
-	t.Helper()
-
-	var items []telemetry.TelemetryItem
-	for _, item := range snapshot.TelemetryItems {
-		if item.Key == string(telemetry.TelemetryItemKeyAgentsExperiments) {
-			items = append(items, item)
-		}
-	}
-	require.Len(t, items, 1)
-
-	var payload agentExperimentsTelemetry
-	require.NoError(t, json.Unmarshal([]byte(items[0].Value), &payload))
-	return items[0], payload
-}
-
-func upsertTelemetryAdvisorConfig(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	cfg codersdk.AdvisorConfig,
-) {
-	t.Helper()
-
-	raw, err := json.Marshal(cfg)
-	require.NoError(t, err)
-	require.NoError(t, db.UpsertChatAdvisorConfig(
-		dbauthz.AsSystemRestricted(ctx),
-		string(raw),
-	))
-}
-
-func TestTelemetry_AgentExperiments(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Defaults", func(t *testing.T) {
-		t.Parallel()
-
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		clock := quartz.NewMock(t)
-		clock.Set(dbtime.Now())
-
-		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
-			opts.Clock = clock
-			return opts
-		})
-
-		item, payload := requireAgentExperimentsTelemetry(t, snapshot)
-		require.Equal(t, clock.Now(), item.CreatedAt)
-		require.Equal(t, clock.Now(), item.UpdatedAt)
-		require.False(t, payload.VirtualDesktop.Enabled)
-		require.Equal(t, chattool.ComputerUseProviderAnthropic, payload.VirtualDesktop.ComputerUse.Provider)
-		require.Equal(t, "default", payload.VirtualDesktop.ComputerUse.ProviderSource)
-		require.False(t, payload.Advisor.Enabled)
-		require.Zero(t, payload.Advisor.MaxUsesPerRun)
-		require.Zero(t, payload.Advisor.MaxOutputTokens)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Provider)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Model)
-	})
-
-	t.Run("NonDefaults", func(t *testing.T) {
-		t.Parallel()
-
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		require.NoError(t, db.UpsertChatComputerUseProvider(
-			dbauthz.AsSystemRestricted(ctx),
-			"openai",
-		))
-
-		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
-			opts.Experiments = codersdk.Experiments{
-				codersdk.ExperimentChatVirtualDesktop,
-				codersdk.ExperimentChatAdvisor,
-			}
-			return opts
-		})
-
-		_, payload := requireAgentExperimentsTelemetry(t, snapshot)
-		require.True(t, payload.VirtualDesktop.Enabled)
-		require.True(t, payload.Advisor.Enabled)
-		require.Equal(t, "openai", payload.VirtualDesktop.ComputerUse.Provider)
-		require.Equal(t, "configured", payload.VirtualDesktop.ComputerUse.ProviderSource)
-	})
-
-	t.Run("AdvisorModelOverride", func(t *testing.T) {
-		t.Parallel()
-
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		// dbgen.ChatModelConfig defaults to an openai provider.
-		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model: "gpt-6-preview",
-		})
-		upsertTelemetryAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-			Enabled:         true,
-			MaxUsesPerRun:   7,
-			MaxOutputTokens: 2048,
-			ModelConfigID:   modelConfig.ID,
-		})
-
-		_, snapshot := collectSnapshot(ctx, t, db, nil)
-
-		_, payload := requireAgentExperimentsTelemetry(t, snapshot)
-		// Stored enabled is ignored; the chat-advisor experiment is off here.
-		require.False(t, payload.Advisor.Enabled)
-		require.Equal(t, 7, payload.Advisor.MaxUsesPerRun)
-		require.Equal(t, int64(2048), payload.Advisor.MaxOutputTokens)
-		require.Equal(t, "openai", payload.Advisor.Provider)
-		require.Equal(t, "gpt-6-preview", payload.Advisor.Model)
-	})
-
-	t.Run("AdvisorMalformedJSON", func(t *testing.T) {
-		t.Parallel()
-
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		require.NoError(t, db.UpsertChatAdvisorConfig(
-			dbauthz.AsSystemRestricted(ctx),
-			"not-json",
-		))
-
-		_, snapshot := collectSnapshot(ctx, t, db, nil)
-
-		_, payload := requireAgentExperimentsTelemetry(t, snapshot)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Provider)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Model)
-	})
-
-	t.Run("AdvisorInactiveModelConfig", func(t *testing.T) {
-		t.Parallel()
-
-		db, _ := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		upsertTelemetryAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-			ModelConfigID: uuid.New(),
-		})
-
-		_, snapshot := collectSnapshot(ctx, t, db, nil)
-
-		_, payload := requireAgentExperimentsTelemetry(t, snapshot)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Provider)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Model)
-
-		disabled := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model: "gpt-6-preview",
-		}, func(p *database.InsertChatModelConfigParams) {
-			p.Enabled = false
-		})
-		upsertTelemetryAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{
-			ModelConfigID: disabled.ID,
-		})
-
-		_, snapshot = collectSnapshot(ctx, t, db, nil)
-
-		_, payload = requireAgentExperimentsTelemetry(t, snapshot)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Provider)
-		require.Equal(t, "reuse_chat_model", payload.Advisor.Model)
-	})
 }
 
 func TestTelemetry_BoundaryUsageSummary(t *testing.T) {

@@ -2357,8 +2357,7 @@ var agentExperiments = []agentExperiment{
 
 const (
 	// defaultComputerUseProvider mirrors chattool.ComputerUseProviderAnthropic
-	// without importing chattool, which would create an import cycle. The
-	// Defaults test asserts they stay in sync.
+	// without importing chattool, which would create an import cycle.
 	defaultComputerUseProvider = "anthropic"
 	// advisorModelReuseChatModel reports that the advisor has no active
 	// dedicated model override and reuses the chat model at runtime.
@@ -2367,6 +2366,28 @@ const (
 	// e.g. after a transient DB error.
 	agentExperimentUnknown = "unknown"
 )
+
+// agentVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// entry in the agents_experiments telemetry item.
+type agentVirtualDesktopTelemetry struct {
+	Enabled     bool                      `json:"enabled"`
+	ComputerUse agentComputerUseTelemetry `json:"computer_use"`
+}
+
+type agentComputerUseTelemetry struct {
+	Provider       string `json:"provider"`
+	ProviderSource string `json:"provider_source"`
+}
+
+// agentAdvisorTelemetry is the value shape for the advisor entry in the
+// agents_experiments telemetry item.
+type agentAdvisorTelemetry struct {
+	Enabled         bool   `json:"enabled"`
+	MaxUsesPerRun   int    `json:"max_uses_per_run"`
+	MaxOutputTokens int64  `json:"max_output_tokens"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+}
 
 // chat-virtual-desktop gates both the desktop and computer use.
 func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
@@ -2381,16 +2402,9 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessa
 		provider = defaultComputerUseProvider
 		providerSource = "default"
 	}
-	type computerUse struct {
-		Provider       string `json:"provider"`
-		ProviderSource string `json:"provider_source"`
-	}
-	val, err := json.Marshal(struct {
-		Enabled     bool        `json:"enabled"`
-		ComputerUse computerUse `json:"computer_use"`
-	}{
+	val, err := json.Marshal(agentVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
-		ComputerUse: computerUse{
+		ComputerUse: agentComputerUseTelemetry{
 			Provider:       provider,
 			ProviderSource: providerSource,
 		},
@@ -2408,19 +2422,14 @@ func collectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
 	if err != nil {
 		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
+	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		// A row we can't parse is indeterminate, so leave provider and model
+		// as unknown rather than reporting a confident reuse_chat_model.
+		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
 	} else {
-		if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-			opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
-		}
 		provider, model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
 	}
-	val, err := json.Marshal(struct {
-		Enabled         bool   `json:"enabled"`
-		MaxUsesPerRun   int    `json:"max_uses_per_run"`
-		MaxOutputTokens int64  `json:"max_output_tokens"`
-		Provider        string `json:"provider"`
-		Model           string `json:"model"`
-	}{
+	val, err := json.Marshal(agentAdvisorTelemetry{
 		// The stored enabled value is ignored by the runtime.
 		Enabled:         opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
 		MaxUsesPerRun:   cfg.MaxUsesPerRun,
