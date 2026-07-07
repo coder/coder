@@ -2,8 +2,8 @@ import { cn } from "cn";
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
-	ImageIcon,
 	InfoIcon,
+	PaperclipIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
@@ -36,7 +36,7 @@ export const getQueuedMessageInfo = (
 	const textParts: string[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
-		if (part.type === "file") {
+		if (part.type === "file" || part.type === "workspace-file-reference") {
 			attachmentCount++;
 		} else if (part.type === "text" && part.text?.trim()) {
 			textParts.push(part.text);
@@ -180,10 +180,10 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
-									aria-label={`${item.attachmentCount} image attachment${item.attachmentCount !== 1 ? "s" : ""}`}
+									aria-label={`${item.attachmentCount} attachment${item.attachmentCount !== 1 ? "s" : ""}`}
 									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
 								>
-									<ImageIcon className="size-3" aria-hidden="true" />
+									<PaperclipIcon className="size-3" aria-hidden="true" />
 									<span aria-hidden="true">{item.attachmentCount}</span>
 								</span>
 							)}
