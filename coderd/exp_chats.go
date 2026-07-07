@@ -6328,108 +6328,9 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	[]uuid.UUID,
 	*codersdk.Response,
 ) {
-	return createChatInputFromParts(ctx, db, req.Content, "content")
-}
-
-func createChatInputFromParts(
-	ctx context.Context,
-	db database.Store,
-	parts []codersdk.ChatInputPart,
-	fieldName string,
-) ([]codersdk.ChatMessagePart, string, []uuid.UUID, *codersdk.Response) {
-	if len(parts) == 0 {
-		return nil, "", nil, &codersdk.Response{
-			Message: "Content is required.",
-			Detail:  "Content cannot be empty.",
-		}
-	}
-
-	var fileIDs []uuid.UUID
-	content := make([]codersdk.ChatMessagePart, 0, len(parts))
-	var pasteData map[uuid.UUID][]byte
-	for i, part := range parts {
-		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
-		case string(codersdk.ChatInputPartTypeText):
-			text := strings.TrimSpace(part.Text)
-			if text == "" {
-				return nil, "", nil, &codersdk.Response{
-					Message: "Invalid input part.",
-					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
-				}
-			}
-			content = append(content, codersdk.ChatMessageText(text))
-		case string(codersdk.ChatInputPartTypeFile):
-			if part.FileID == uuid.Nil {
-				return nil, "", nil, &codersdk.Response{
-					Message: "Invalid input part.",
-					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
-				}
-			}
-			// Validate that the file exists and get its media type.
-			// The loaded file data is only retained for synthetic
-			// pastes below; LLM dispatch re-resolves file content via
-			// chatFileResolver.
-			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
-			if err != nil {
-				if httpapi.Is404Error(err) {
-					return nil, "", nil, &codersdk.Response{
-						Message: "Invalid input part.",
-						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
-					}
-				}
-				return nil, "", nil, &codersdk.Response{
-					Message: "Internal error.",
-					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
-				}
-			}
-			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
-				return nil, "", nil, &codersdk.Response{
-					Message: "Invalid input part.",
-					Detail:  fmt.Sprintf("%s[%d].file_id references a file type that cannot be used as prompt input. Allowed types: %s.", fieldName, i, chatfiles.AllowedPromptInputMediaTypesString()),
-				}
-			}
-			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
-			fileIDs = append(fileIDs, part.FileID)
-			// Pasted-text attachments feed title derivation when the
-			// message has no other title text. Only the blob reference
-			// is retained here; copying to string is deferred until the
-			// fallback is known to be needed, since blobs can be large.
-			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
-				if pasteData == nil {
-					pasteData = make(map[uuid.UUID][]byte)
-				}
-				pasteData[part.FileID] = chatFile.Data
-			}
-		// file-reference parts carry inline code snippets, not uploaded
-		// files. They have no FileID and are excluded from file tracking.
-		case string(codersdk.ChatInputPartTypeFileReference):
-			if part.FileName == "" {
-				return nil, "", nil, &codersdk.Response{
-					Message: "Invalid input part.",
-					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
-				}
-			}
-			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
-		default:
-			return nil, "", nil, &codersdk.Response{
-				Message: "Invalid input part.",
-				Detail: fmt.Sprintf(
-					"%s[%d].type %q is not supported.",
-					fieldName,
-					i,
-					part.Type,
-				),
-			}
-		}
-	}
-
-	// Allow file-only messages. The titleSource may be empty
-	// when only file parts are provided, callers handle this.
-	if len(content) == 0 {
-		return nil, "", nil, &codersdk.Response{
-			Message: "Content is required.",
-			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
-		}
+	content, pasteData, fileIDs, inputError := createChatInputFromParts(ctx, db, req.Content, "content")
+	if inputError != nil {
+		return nil, "", nil, inputError
 	}
 	// The shared derivation keeps this create-time titleSource
 	// identical to the extraction used by title generation, which
@@ -6446,6 +6347,112 @@ func createChatInputFromParts(
 		titleSource = chatprompt.TitleText(content, pasteText)
 	}
 	return content, titleSource, fileIDs, nil
+}
+
+// createChatInputFromParts validates input parts and converts them to
+// message content. The returned map holds raw pasted-text blobs keyed
+// by file ID; only the create path derives a title from it (see
+// createChatInputFromRequest), message send and edit callers discard
+// it without copying any blob data.
+func createChatInputFromParts(
+	ctx context.Context,
+	db database.Store,
+	parts []codersdk.ChatInputPart,
+	fieldName string,
+) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, []uuid.UUID, *codersdk.Response) {
+	if len(parts) == 0 {
+		return nil, nil, nil, &codersdk.Response{
+			Message: "Content is required.",
+			Detail:  "Content cannot be empty.",
+		}
+	}
+
+	var fileIDs []uuid.UUID
+	content := make([]codersdk.ChatMessagePart, 0, len(parts))
+	var pasteData map[uuid.UUID][]byte
+	for i, part := range parts {
+		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
+		case string(codersdk.ChatInputPartTypeText):
+			text := strings.TrimSpace(part.Text)
+			if text == "" {
+				return nil, nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessageText(text))
+		case string(codersdk.ChatInputPartTypeFile):
+			if part.FileID == uuid.Nil {
+				return nil, nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
+				}
+			}
+			// Validate that the file exists and get its media type.
+			// The loaded file data is only retained for synthetic
+			// pastes below; LLM dispatch re-resolves file content via
+			// chatFileResolver.
+			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
+			if err != nil {
+				if httpapi.Is404Error(err) {
+					return nil, nil, nil, &codersdk.Response{
+						Message: "Invalid input part.",
+						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
+					}
+				}
+				return nil, nil, nil, &codersdk.Response{
+					Message: "Internal error.",
+					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+				}
+			}
+			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
+				return nil, nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id references a file type that cannot be used as prompt input. Allowed types: %s.", fieldName, i, chatfiles.AllowedPromptInputMediaTypesString()),
+				}
+			}
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
+			fileIDs = append(fileIDs, part.FileID)
+			// Pasted-text attachments feed create-time title derivation
+			// when the message has no other title text. Only the blob
+			// reference is retained here; blobs are never copied on the
+			// message send and edit paths, which discard this map.
+			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
+				if pasteData == nil {
+					pasteData = make(map[uuid.UUID][]byte)
+				}
+				pasteData[part.FileID] = chatFile.Data
+			}
+		// file-reference parts carry inline code snippets, not uploaded
+		// files. They have no FileID and are excluded from file tracking.
+		case string(codersdk.ChatInputPartTypeFileReference):
+			if part.FileName == "" {
+				return nil, nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
+		default:
+			return nil, nil, nil, &codersdk.Response{
+				Message: "Invalid input part.",
+				Detail: fmt.Sprintf(
+					"%s[%d].type %q is not supported.",
+					fieldName,
+					i,
+					part.Type,
+				),
+			}
+		}
+	}
+
+	if len(content) == 0 {
+		return nil, nil, nil, &codersdk.Response{
+			Message: "Content is required.",
+			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
+		}
+	}
+	return content, pasteData, fileIDs, nil
 }
 
 // linkFilesToChat inserts file-link rows into the chat_file_links
