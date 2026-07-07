@@ -92,4 +92,196 @@ describe("AgentChatInput", () => {
 			"Unsupported file type: archive.zip",
 		);
 	});
+
+	it("falls back to pasted text when every pasted file is refused", async () => {
+		const onAttach = vi.fn();
+		const inputRef = createRef<ChatMessageInputRef>();
+
+		renderInput(
+			<AgentChatInput
+				inputRef={inputRef}
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const target = screen.getByRole("textbox", { name: "Chat message" });
+		target.focus();
+		// Clipboard carrying both a file and a text payload. Without
+		// workspaceUploads the zip cannot be routed anywhere, so the
+		// paste must fall back to inserting the clipboard text.
+		fireEvent.paste(target, {
+			clipboardData: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+				types: ["Files", "text/plain"],
+				getData: (type: string) =>
+					type === "text/plain" ? "notes about the archive" : "",
+			},
+		});
+
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toContain("notes about the archive");
+		});
+		expect(onAttach).not.toHaveBeenCalled();
+	});
+
+	it("routes workspace files to workspace uploads instead of attachments", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const zip = createMockFile("dataset.zip", "application/zip");
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: { files: [zip] },
+		});
+
+		expect(onWorkspaceAttach).toHaveBeenCalledWith([zip]);
+		expect(onAttach).not.toHaveBeenCalled();
+	});
+
+	it("refuses workspace files while the composer is disabled", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+			},
+		});
+
+		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+		);
+	});
+
+	it("refuses workspace files while a send is pending", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		// The post-send reset would discard the chip after the bytes
+		// already landed, so the drop is refused with a wait message
+		// rather than the "attach a workspace" one.
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+			},
+		});
+
+		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"Wait for the current message to finish sending, then add the file again.",
+		);
+	});
+
+	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
+		const onAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: undefined,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const zip = createMockFile("archive.zip", "application/zip");
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: { files: [zip] },
+		});
+
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+		);
+	});
 });

@@ -1,5 +1,12 @@
 import { cn } from "cn";
-import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import {
+	type FC,
+	Profiler,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -12,10 +19,18 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	useWorkspaceFileUploads,
+	type WorkspaceFileUpload,
+} from "../hooks/useWorkspaceFileUploads";
+import {
+	getChatFileURL,
+	isWorkspaceFileReferencePart,
+} from "../utils/chatAttachments";
 import {
 	getProviderForModelOption,
 	resolveCompactionThreshold,
@@ -250,14 +265,27 @@ export type PendingAttachment = {
 	mediaType: string;
 };
 
+export type PendingWorkspaceUpload = {
+	path: string;
+	name: string;
+	size: number;
+	mediaType: string;
+	// The workspace whose filesystem holds the bytes, echoed back to
+	// the server which rejects references from a stale binding.
+	workspaceId: string;
+};
+
+export type SendChatMessageOptions = {
+	message: string;
+	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
+};
+
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
 	models: readonly TypesGen.ChatModel[] | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => Promise<void> | void;
+	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -426,6 +454,23 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
+	// Scope on the chat's bound workspace ID (known with the chat
+	// record) rather than the async-loaded workspace object, so a
+	// rebind resets immediately and query resolution never does.
+	const composeWorkspaceUploads = useWorkspaceFileUploads(
+		chatId,
+		selectedWorkspaceId ?? undefined,
+	);
+	const editWorkspaceUploads = useWorkspaceFileUploads(
+		chatId,
+		selectedWorkspaceId ?? undefined,
+	);
+	// Workspace file references preserved from the message being
+	// edited. They are already uploaded; editing only re-references
+	// them (or drops them when the chip is removed).
+	const [preservedWorkspaceUploads, setPreservedWorkspaceUploads] = useState<
+		readonly WorkspaceFileUpload[]
+	>([]);
 	const editAttachments = useFileAttachments(organizationId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -450,6 +495,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	// draft. Clear them when navigation changes the chat scope.
 	const editScopeRef = useRef({ organizationId, chatId });
 
+	const { reset: resetEditWorkspaceUploads } = editWorkspaceUploads;
+
 	useEffect(() => {
 		const previous = editScopeRef.current;
 		const scopeChanged =
@@ -457,8 +504,24 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		editScopeRef.current = { organizationId, chatId };
 		if (scopeChanged) {
 			resetEditAttachments();
+			setPreservedWorkspaceUploads([]);
 		}
 	}, [organizationId, chatId, resetEditAttachments]);
+
+	// Preserved references point at files inside the bound workspace's
+	// filesystem. Rebinding or clearing the workspace mid-edit makes
+	// them unreadable for the agent, so drop them (regular attachments
+	// are chat files and survive workspace changes). Scope tracks the
+	// chat's bound workspace ID, not the async-loaded workspace
+	// object, which resolves after mount without a rebind.
+	const editWorkspaceScopeRef = useRef(selectedWorkspaceId);
+	useEffect(() => {
+		if (editWorkspaceScopeRef.current === selectedWorkspaceId) {
+			return;
+		}
+		editWorkspaceScopeRef.current = selectedWorkspaceId;
+		setPreservedWorkspaceUploads([]);
+	}, [selectedWorkspaceId]);
 
 	// Pre-populate the edit bucket from existing file blocks only
 	// while explicitly editing a message.
@@ -507,24 +570,153 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setEditUploadStates,
 	]);
 
+	// Workspace file references from the edited message become
+	// preserved (already-uploaded) entries so they survive the
+	// edit unless explicitly removed. Only references uploaded to
+	// the currently bound workspace qualify: after a rebind the
+	// old paths are unreadable for the agent and the server
+	// rejects them. Compare against the chat's bound workspace ID
+	// (available with the chat record) rather than the
+	// async-loaded workspace object, whose late resolution would
+	// otherwise drop references hydrated before it arrived.
+	// Kept separate from the attachment hydration above and keyed on
+	// the blocks reference plus the workspace binding: a rebind mid-edit
+	// only recomputes the references (ordinary attachments added during
+	// the edit survive), a failed edit submission restores the same
+	// array on rollback (same key, no re-run, so uploads added mid-edit
+	// survive), and rebinding the workspace away and back re-runs
+	// preservation so references valid for the restored binding
+	// reappear. Editing a different message passes a fresh array.
+	const hydratedEditBlocksRef = useRef<{
+		blocks: readonly TypesGen.ChatMessagePart[] | null;
+		workspaceId: string | null;
+	} | null>(null);
+	useEffect(() => {
+		if (!isEditing) {
+			return;
+		}
+		if (
+			hydratedEditBlocksRef.current !== null &&
+			hydratedEditBlocksRef.current.blocks === (editingFileBlocks ?? null) &&
+			hydratedEditBlocksRef.current.workspaceId === selectedWorkspaceId
+		) {
+			return;
+		}
+		hydratedEditBlocksRef.current = {
+			blocks: editingFileBlocks ?? null,
+			workspaceId: selectedWorkspaceId,
+		};
+		resetEditWorkspaceUploads();
+		setPreservedWorkspaceUploads(
+			(editingFileBlocks ?? [])
+				.filter(isWorkspaceFileReferencePart)
+				.filter(
+					(part) =>
+						selectedWorkspaceId !== null &&
+						part.workspace_file_workspace_id === selectedWorkspaceId,
+				)
+				.map(
+					(part, i): WorkspaceFileUpload => ({
+						id: `preserved-${i}-${part.workspace_file_path}`,
+						file: new File([], part.workspace_file_name, {
+							type:
+								part.workspace_file_media_type || "application/octet-stream",
+						}),
+						status: "uploaded",
+						response: {
+							path: part.workspace_file_path,
+							name: part.workspace_file_name,
+							size: part.workspace_file_size,
+							media_type:
+								part.workspace_file_media_type || "application/octet-stream",
+							workspace_id: part.workspace_file_workspace_id,
+						},
+					}),
+				),
+		);
+	}, [
+		isEditing,
+		editingFileBlocks,
+		selectedWorkspaceId,
+		resetEditWorkspaceUploads,
+	]);
+
 	// Exiting edit mode should only clear the edit bucket. Compose draft
 	// attachments must survive canceling or completing an edit.
 	useEffect(() => {
-		if (wasEditingRef.current && !isEditing) {
-			resetEditAttachments();
+		if (isEditing) {
+			wasEditingRef.current = true;
+			return;
 		}
-		wasEditingRef.current = isEditing;
-	}, [isEditing, resetEditAttachments]);
+		if (!wasEditingRef.current) {
+			return;
+		}
+		// History edits clear isEditing before the edit mutation
+		// settles and restore it on failure. Defer cleanup until the
+		// submission resolves so a failed edit keeps its uploads and
+		// attachments for retry.
+		if (isSendPending) {
+			return;
+		}
+		wasEditingRef.current = false;
+		hydratedEditBlocksRef.current = null;
+		resetEditAttachments();
+		resetEditWorkspaceUploads();
+		setPreservedWorkspaceUploads([]);
+	}, [
+		isEditing,
+		isSendPending,
+		resetEditAttachments,
+		resetEditWorkspaceUploads,
+	]);
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
+
+	// The workspace upload affordance requires an existing chat bound
+	// to a workspace whose agent is connected; the agent writes the
+	// bytes into its home directory. A freshly attached or rebound
+	// workspace has no bound agent until the next generation, and the
+	// upload handler then selects one itself, so any connected root
+	// agent qualifies in that case (mirrors the new-chat page).
+	const uploadAgentConnected = workspaceAgent
+		? workspaceAgent.status === "connected"
+		: workspace !== undefined &&
+			getWorkspaceAgents(workspace).some(
+				(agent) => !agent.parent_id && agent.status === "connected",
+			);
+	const canUploadWorkspaceFiles = Boolean(
+		chatId && workspace && uploadAgentConnected,
+	);
+	const modeWorkspaceUploads = isEditing
+		? editWorkspaceUploads
+		: composeWorkspaceUploads;
+	const visibleWorkspaceUploads = isEditing
+		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
+		: composeWorkspaceUploads.uploads;
+	const handleRemoveWorkspaceUpload = (id: string) => {
+		if (
+			isEditing &&
+			preservedWorkspaceUploads.some((upload) => upload.id === id)
+		) {
+			setPreservedWorkspaceUploads((current) =>
+				current.filter((upload) => upload.id !== id),
+			);
+			return;
+		}
+		modeWorkspaceUploads.remove(id);
+	};
 
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
-					const hasActiveUploads = attachments.some((file) =>
-						isUploadInProgress(uploadStates.get(file)),
-					);
+					const hasActiveUploads =
+						attachments.some((file) =>
+							isUploadInProgress(uploadStates.get(file)),
+						) ||
+						visibleWorkspaceUploads.some(
+							(upload) => upload.status === "uploading",
+						);
 					if (hasActiveUploads) {
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;
@@ -547,23 +739,56 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							});
 						}
 					}
+					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
+					let skippedWorkspaceErrors = 0;
+					for (const upload of visibleWorkspaceUploads) {
+						if (upload.status === "error") {
+							skippedWorkspaceErrors++;
+							continue;
+						}
+						if (upload.status === "uploaded" && upload.response) {
+							pendingWorkspaceUploads.push({
+								path: upload.response.path,
+								name: upload.response.name,
+								size: upload.response.size,
+								mediaType: upload.response.media_type,
+								workspaceId: upload.response.workspace_id,
+							});
+						}
+					}
 					if (skippedErrors > 0) {
 						toast.warning(
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
-					const attachmentArg =
+					if (skippedWorkspaceErrors > 0) {
+						toast.warning(
+							`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+					const attachmentsArg =
 						pendingAttachments.length > 0 ? pendingAttachments : undefined;
+					const workspaceUploadsArg =
+						pendingWorkspaceUploads.length > 0
+							? pendingWorkspaceUploads
+							: undefined;
 					try {
-						await onSend(message, attachmentArg);
+						await onSend({
+							message,
+							attachments: attachmentsArg,
+							workspaceUploads: workspaceUploadsArg,
+						});
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;
 					}
 					if (isEditing) {
 						editAttachments.resetAttachments();
+						resetEditWorkspaceUploads();
+						setPreservedWorkspaceUploads([]);
 					} else {
 						composeAttachments.resetAttachments();
+						composeWorkspaceUploads.reset();
 					}
 				})();
 			}}
@@ -573,6 +798,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
+			workspaceUploads={{
+				uploads: visibleWorkspaceUploads,
+				onAttach: canUploadWorkspaceFiles
+					? modeWorkspaceUploads.attach
+					: undefined,
+				onRemove: handleRemoveWorkspaceUpload,
+			}}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			initialEditorState={initialEditorState}

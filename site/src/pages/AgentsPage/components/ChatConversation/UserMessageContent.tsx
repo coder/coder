@@ -15,6 +15,7 @@ import type {
 	MessageDisplayState,
 	UserInlineRenderBlock,
 } from "./messageHelpers";
+import { WorkspaceFileChip } from "./WorkspaceFileChip";
 
 const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
@@ -56,11 +57,6 @@ const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
 		renderUserInlineBlock(inlineParts, block, index),
 	);
 };
-
-const workspaceFilePlaceholderText = (count: number): string =>
-	count === 1
-		? "Workspace file attached. Display support is coming soon."
-		: `${count} workspace files attached. Display support is coming soon.`;
 
 export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
@@ -115,10 +111,20 @@ export const UserMessageContent: FC<{
 						</div>
 					)}
 					{displayState.hasWorkspaceFileReferences && (
-						<div className="rounded-md border border-border-default bg-surface-tertiary px-2.5 py-1.5 text-xs text-content-secondary">
-							{workspaceFilePlaceholderText(
-								displayState.workspaceFileReferenceCount,
+						<div
+							className={cn(
+								displayState.hasUserMessageBody && "mt-2",
+								"flex flex-wrap gap-2",
 							)}
+						>
+							{displayState.workspaceFileBlocks.map((block, index) => (
+								<WorkspaceFileChip
+									key={`workspace-file-${block.workspace_file_path}-${index}`}
+									name={block.workspace_file_name}
+									path={block.workspace_file_path}
+									size={block.workspace_file_size}
+								/>
+							))}
 						</div>
 					)}
 				</div>
