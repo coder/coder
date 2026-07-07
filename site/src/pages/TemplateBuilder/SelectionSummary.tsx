@@ -149,8 +149,10 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 }) => {
 	return (
 		<StepDivider>
-			<div className="flex items-center p-1">
-				<Avatar src={template.iconUrl} size="sm" variant="icon" />
+			<div className="flex items-start p-1">
+				<div className="h-[1lh] content-center">
+					<Avatar src={template.iconUrl} size="sm" variant="icon" />
+				</div>
 				<span className="ml-2 text-content-secondary">{template.name}</span>
 			</div>
 		</StepDivider>
