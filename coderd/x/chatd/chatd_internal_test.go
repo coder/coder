@@ -3483,3 +3483,77 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 	require.True(t, gotProvider.Valid, "debug run provider should be populated from the linked config")
 	require.Equal(t, "anthropic", gotProvider.String)
 }
+
+// TestResolveFallbackModelConfigID verifies that message admission does
+// not reuse a chat's last model when that model or its provider has been
+// disabled, and that a disabled default is rejected instead of being
+// admitted and failing later at generation time.
+func TestResolveFallbackModelConfigID(t *testing.T) {
+	t.Parallel()
+
+	newProvider := func(t *testing.T, db database.Store, enabled bool) database.AIProvider {
+		return dbgen.AIProvider(t, db, database.AIProvider{}, func(p *database.InsertAIProviderParams) {
+			p.Enabled = enabled
+		})
+	}
+	newModelConfig := func(t *testing.T, db database.Store, providerID uuid.UUID, isDefault bool) database.ChatModelConfig {
+		return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+			IsDefault:    isDefault,
+		})
+	}
+
+	t.Run("EnabledLastModel", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider := newProvider(t, db, true)
+		lastModel := newModelConfig(t, db, provider.ID, false)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		require.NoError(t, err)
+		require.Equal(t, lastModel.ID, resolved)
+	})
+
+	t.Run("ProviderDisabledLastModelFallsBackToDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		disabledProvider := newProvider(t, db, false)
+		lastModel := newModelConfig(t, db, disabledProvider.ID, false)
+		enabledProvider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, enabledProvider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("NilLastModelUsesDefault", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		provider := newProvider(t, db, true)
+		defaultModel := newModelConfig(t, db, provider.ID, true)
+
+		resolved, err := resolveFallbackModelConfigID(ctx, db, uuid.Nil)
+		require.NoError(t, err)
+		require.Equal(t, defaultModel.ID, resolved)
+	})
+
+	t.Run("ProviderDisabledDefaultRejected", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		disabledProvider := newProvider(t, db, false)
+		lastModel := newModelConfig(t, db, disabledProvider.ID, false)
+		newModelConfig(t, db, disabledProvider.ID, true)
+
+		_, err := resolveFallbackModelConfigID(ctx, db, lastModel.ID)
+		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
+	})
+}
