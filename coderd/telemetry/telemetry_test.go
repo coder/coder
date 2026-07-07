@@ -1852,7 +1852,7 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NotNil(t, foundChild.RootChatID)
 	assert.Equal(t, rootChat.ID, *foundChild.RootChatID)
 	assert.Nil(t, foundChild.WorkspaceID)
-	assert.Equal(t, "completed", foundChild.Status)
+	assert.Equal(t, "waiting", foundChild.Status)
 	assert.Equal(t, modelCfg2.ID, foundChild.LastModelConfigID)
 	assert.Nil(t, foundChild.Mode)
 	assert.False(t, foundChild.Archived)
