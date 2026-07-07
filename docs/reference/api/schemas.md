@@ -3406,9 +3406,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                           |
-|----------------------------------------------------------------------------------------------------|
-| `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                         |
+|------------------------------------------------------------------|
+| `error`, `interrupting`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 

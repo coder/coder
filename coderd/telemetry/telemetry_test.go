@@ -1681,7 +1681,7 @@ func TestChatsTelemetry(t *testing.T) {
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg2.ID,
 		Title:             "Child Chat",
-		Status:            database.ChatStatusCompleted,
+		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 	})
@@ -1969,7 +1969,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "Chat " + state,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 		})
 		now := dbtime.Now()
 		_, chatErr := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{

@@ -11823,54 +11823,6 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 	require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
 }
 
-// TestPromoteQueuedWhileRequiresActionMixedTools guards against
-func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	_ = newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	archivedChat := dbgen.Chat(t, db, database.Chat{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		Title:             "acquire-skip-archived",
-		LastModelConfigID: model.ID,
-	})
-
-	// Archive the chat, then force it to pending.
-	_, err := db.ArchiveChatByID(ctx, archivedChat.ID)
-	require.NoError(t, err)
-
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     archivedChat.ID,
-		Status: database.ChatStatusPending,
-	})
-	require.NoError(t, err)
-
-	// Insert a second, non-archived pending chat so the result
-	// slice is non-empty and the assertion is not vacuously true.
-	activeChat := dbgen.Chat(t, db, database.Chat{
-		OwnerID:           user.ID,
-		OrganizationID:    org.ID,
-		Title:             "acquire-active",
-		LastModelConfigID: model.ID,
-		Status:            database.ChatStatusPending,
-	})
-
-	now := time.Now()
-	acquired, err := db.AcquireChats(ctx, database.AcquireChatsParams{
-		WorkerID:  uuid.New(),
-		StartedAt: now,
-		NumChats:  10,
-	})
-	require.NoError(t, err)
-	require.Len(t, acquired, 1, "only the non-archived chat should be acquired")
-	require.Equal(t, activeChat.ID, acquired[0].ID)
-}
-
 // TestAdvisorGating_ExperimentDisabled verifies that the advisor tool is
 // not attached when the chat-advisor experiment is absent from the
 // experiments list, even if the DB-stored advisor config has Enabled=true.

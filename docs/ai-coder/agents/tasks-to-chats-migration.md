@@ -191,21 +191,21 @@ client already has.
 Task and chat statuses use different values. The Chats API status set is
 defined in `codersdk.ChatStatus`:
 
-| Tasks API status | Chats API status  | Notes                                                                                                                                                                                                                         |
-|------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pending`        | `pending`         | Queued for processing.                                                                                                                                                                                                        |
-| `running`        | `running`         | Agent is actively working.                                                                                                                                                                                                    |
-| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                                                                                                                                   |
-| `paused`         | n/a               | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. The `paused` enum value exists in code but no production path on `main` transitions a chat into it today. |
-| `failed`         | `error`           | Agent encountered an error.                                                                                                                                                                                                   |
-| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                                                                                                                                         |
+| Tasks API status | Chats API status  | Notes                                                                                                               |
+|------------------|-------------------|---------------------------------------------------------------------------------------------------------------------|
+| `pending`        | `running`         | Chats have no separate queued state; a picked-up chat reports `running`.                                            |
+| `running`        | `running`         | Agent is actively working.                                                                                          |
+| `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                         |
+| `paused`         | n/a               | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. |
+| `failed`         | `error`           | Agent encountered an error.                                                                                         |
+| n/a              | `requires_action` | Agent invoked a client-provided tool and is waiting for the result before continuing.                               |
+| n/a              | `interrupting`    | An interrupt was requested and the agent is winding down the current run.                                           |
 
 The Chats API uses `waiting` as the default idle state (not `complete`).
 A chat enters `waiting` when it is first created (before any message is
 queued) and again whenever a run finishes or is interrupted, so treat
 `waiting` as "the agent is not currently working" rather than only "the
-agent just finished." The `completed` enum value is also defined but is
-not currently set by any production code path on `main`.
+agent just finished."
 
 ### 6. Replace delete with archive
 

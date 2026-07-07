@@ -362,10 +362,7 @@ CREATE TYPE chat_reasoning_effort AS ENUM (
 
 CREATE TYPE chat_status AS ENUM (
     'waiting',
-    'pending',
     'running',
-    'paused',
-    'completed',
     'error',
     'requires_action',
     'interrupting'
@@ -4762,8 +4759,6 @@ CREATE INDEX idx_chats_organization_id ON chats USING btree (organization_id);
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
-
-CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 

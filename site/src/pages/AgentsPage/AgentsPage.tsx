@@ -344,7 +344,7 @@ const AgentsPage: FC = () => {
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
 	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
-		chat?.status === "pending" || chat?.status === "running";
+		chat?.status === "running";
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;

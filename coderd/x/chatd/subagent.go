@@ -800,8 +800,7 @@ func (p *Server) subagentTools(
 
 				interrupted := false
 				if args.Interrupt && targetChatInfo != nil {
-					interrupted = targetChatInfo.Status == database.ChatStatusRunning ||
-						targetChatInfo.Status == database.ChatStatusPending
+					interrupted = targetChatInfo.Status == database.ChatStatusRunning
 				}
 				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id":     targetChat.ID.String(),
@@ -862,8 +861,8 @@ func (p *Server) subagentTools(
 				"sort order is best-effort: an agent's position may shift "+
 				"if its updated_at changes between calls. Each "+
 				"agent has chat_id, title, type, status, created_at, "+
-				"updated_at. Status: pending/running = working, "+
-				"interrupting = transient, waiting/completed = idle, "+
+				"updated_at. Status: running = working, "+
+				"interrupting = transient, waiting = idle, "+
 				"error = stopped on error.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -1434,8 +1433,7 @@ func (p *Server) checkSubagentCompletion(
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
 	// classification, avoiding stale partial output.
-	if chat.Status == database.ChatStatusPending ||
-		chat.Status == database.ChatStatusRunning ||
+	if chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusInterrupting {
 		return chat, "", false, nil
 	}
