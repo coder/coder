@@ -6346,7 +6346,7 @@ func createChatInputFromParts(
 
 	var fileIDs []uuid.UUID
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
-	var pasteText map[uuid.UUID]string
+	var pasteData map[uuid.UUID][]byte
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
@@ -6391,12 +6391,14 @@ func createChatInputFromParts(
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
 			fileIDs = append(fileIDs, part.FileID)
 			// Pasted-text attachments feed title derivation when the
-			// message has no text parts.
+			// message has no other title text. Only the blob reference
+			// is retained here; copying to string is deferred until the
+			// fallback is known to be needed, since blobs can be large.
 			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
-				if pasteText == nil {
-					pasteText = make(map[uuid.UUID]string)
+				if pasteData == nil {
+					pasteData = make(map[uuid.UUID][]byte)
 				}
-				pasteText[part.FileID] = string(chatFile.Data)
+				pasteData[part.FileID] = chatFile.Data
 			}
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.
@@ -6432,7 +6434,17 @@ func createChatInputFromParts(
 	// The shared derivation keeps this create-time titleSource
 	// identical to the extraction used by title generation, which
 	// gates auto-titling on that equality (see chatprompt.TitleText).
-	titleSource := chatprompt.TitleText(content, pasteText)
+	// Paste blobs are materialized as strings only when text and
+	// file-reference parts yield nothing, so mixed messages never
+	// copy attachment data they will not use.
+	titleSource := chatprompt.TitleText(content, nil)
+	if titleSource == "" && len(pasteData) > 0 {
+		pasteText := make(map[uuid.UUID]string, len(pasteData))
+		for id, data := range pasteData {
+			pasteText[id] = string(data)
+		}
+		titleSource = chatprompt.TitleText(content, pasteText)
+	}
 	return content, titleSource, fileIDs, nil
 }
 
