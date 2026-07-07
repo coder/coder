@@ -986,12 +986,12 @@ func TestWatchAgentContainers(t *testing.T) {
 func TestCreateExternalAuthResponse(t *testing.T) {
 	t.Parallel()
 
-	// Use a fixed future time, truncated to seconds to survive JSON round-trips.
-	expiry := dbtime.Now().Add(8 * time.Hour).UTC().Truncate(time.Second)
+	// Use a fixed future time.
+	expiry := dbtime.Now().Add(8 * time.Hour).UTC()
 
 	assertExpiry := func(t *testing.T, resp agentsdk.ExternalAuthResponse, want time.Time) {
 		t.Helper()
-		require.Equal(t, want.UTC(), resp.ExpiresAt.UTC().Truncate(time.Second),
+		require.Equal(t, want.UTC(), resp.ExpiresAt.UTC(),
 			"ExpiresAt should match the expiry passed to createExternalAuthResponse")
 	}
 
