@@ -150,6 +150,42 @@ func TestNewAnthropic_BedrockRegionResolution(t *testing.T) {
 	})
 }
 
+func TestNewAnthropic_WIF(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MissingIdentityToken", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewAnthropic(context.Background(), config.Anthropic{
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+			},
+		}, nil)
+		require.ErrorContains(t, err, "IdentityToken")
+	})
+
+	t.Run("ResolvesWIFCredential", func(t *testing.T) {
+		t.Parallel()
+
+		p := newTestAnthropic(t, config.Anthropic{
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+				IdentityToken: func(context.Context) (string, error) {
+					return "jwt", nil
+				},
+			},
+		}, nil)
+		require.NotNil(t, p.wif)
+
+		req := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+		cred, err := p.resolveCredential(req)
+		require.NoError(t, err)
+		assert.Equal(t, intercept.AnthropicWIF{FederationRuleID: "fdrl_test"}, cred)
+	})
+}
+
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
