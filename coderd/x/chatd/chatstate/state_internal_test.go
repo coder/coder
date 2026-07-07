@@ -106,7 +106,7 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 		database.ChatStatusRunning,
 		database.ChatStatusInterrupting,
 		database.ChatStatusRequiresAction,
-		// Removed legacy value; must still classify invalid.
+		// Status string outside the enum; must still classify invalid.
 		"pending",
 	}
 	validCount := 0
