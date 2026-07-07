@@ -31,6 +31,7 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
     "created_at": "2019-08-24T14:15:22Z",
     "display_name": "string",
     "enabled": true,
+    "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "name": "string",
     "settings": {},
@@ -61,6 +62,7 @@ Status Code **200**
 | `» created_at`   | string(date-time)                                                    | false    |              |             |
 | `» display_name` | string                                                               | false    |              |             |
 | `» enabled`      | boolean                                                              | false    |              |             |
+| `» icon`         | string                                                               | false    |              |             |
 | `» id`           | string(uuid)                                                         | false    |              |             |
 | `» name`         | string                                                               | false    |              |             |
 | `» settings`     | [codersdk.AIProviderSettings](schemas.md#codersdkaiprovidersettings) | false    |              |             |
@@ -99,6 +101,7 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
   "base_url": "string",
   "display_name": "string",
   "enabled": true,
+  "icon": "string",
   "name": "string",
   "settings": {},
   "type": "openai"
@@ -128,6 +131,7 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "enabled": true,
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},
@@ -180,6 +184,7 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "enabled": true,
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},
@@ -249,6 +254,7 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "base_url": "string",
   "display_name": "string",
   "enabled": true,
+  "icon": "string",
   "settings": {}
 }
 ```
@@ -277,6 +283,7 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "enabled": true,
+  "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},

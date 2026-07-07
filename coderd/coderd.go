@@ -96,6 +96,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -714,6 +715,7 @@ func New(options *Options) *API {
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
 		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
+		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
@@ -776,8 +778,12 @@ func New(options *Options) *API {
 	}
 
 	var oidcAuthURLParams map[string]string
+	var oidcRedirectAllowedHosts []string
+	var oidcRedirectDefaultScheme string
 	if options.OIDCConfig != nil {
 		oidcAuthURLParams = options.OIDCConfig.AuthURLParams
+		oidcRedirectAllowedHosts = options.OIDCConfig.RedirectAllowedHosts
+		oidcRedirectDefaultScheme = options.OIDCConfig.RedirectDefaultScheme
 	}
 
 	api.Auditor.Store(&options.Auditor)
@@ -825,37 +831,38 @@ func New(options *Options) *API {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
-		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
-			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
-
-		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
-			Logger:                         options.Logger.Named("chatd"),
-			Database:                       options.Database,
-			ReplicaID:                      api.ID,
-			StreamPartsDialer:              options.ChatStreamPartsDialer,
-			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                providerAPIKeys,
-			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
-			AllowBYOKSet:                   true,
-			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
-			AIGatewayRoutingEnabled:        chatAIGatewayRoutingEnabled,
-			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
-			Experiments:                    experiments,
-			AgentConn:                      api.agentProvider.AgentConn,
-			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
-			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
-			CreateWorkspace:                api.chatCreateWorkspace,
-			StartWorkspace:                 api.chatStartWorkspace,
-			StopWorkspace:                  api.chatStopWorkspace,
-			WebpushDispatcher:              options.WebPushDispatcher,
-			UsageTracker:                   options.WorkspaceUsageTracker,
-			PrometheusRegistry:             options.PrometheusRegistry,
-			OIDCTokenSource:                oidcMCPSrc,
-			NotificationsEnqueuer:          options.NotificationsEnqueuer,
-			Auditor:                        &api.Auditor,
-		})
-		if !options.ChatWorkerDisabled {
-			api.chatDaemon.Start()
+		// AI Gateway is mandatory for chat. When the bridge is disabled
+		// the chat daemon stays nil and chat HTTP handlers return a
+		// service-unavailable error with a clear remediation message.
+		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
+				Logger:                         options.Logger.Named("chatd"),
+				Database:                       options.Database,
+				ReplicaID:                      api.ID,
+				StreamPartsDialer:              options.ChatStreamPartsDialer,
+				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+				ProviderAPIKeys:                providerAPIKeys,
+				AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+				AllowBYOKSet:                   true,
+				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
+				Experiments:                    experiments,
+				AgentConn:                      api.agentProvider.AgentConn,
+				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
+				InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
+				CreateWorkspace:                api.chatCreateWorkspace,
+				StartWorkspace:                 api.chatStartWorkspace,
+				StopWorkspace:                  api.chatStopWorkspace,
+				WebpushDispatcher:              options.WebPushDispatcher,
+				UsageTracker:                   options.WorkspaceUsageTracker,
+				PrometheusRegistry:             options.PrometheusRegistry,
+				OIDCTokenSource:                oidcMCPSrc,
+				NotificationsEnqueuer:          options.NotificationsEnqueuer,
+				Auditor:                        &api.Auditor,
+			})
+			if !options.ChatWorkerDisabled {
+				api.chatDaemon.Start()
+			}
 		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
@@ -864,9 +871,10 @@ func New(options *Options) *API {
 			gitSyncLogger.Named("refresher"),
 			quartz.NewReal(),
 		)
+		publishDiffStatusChange := chatDaemonPublishDiffStatusChangeFunc(api.chatDaemon)
 		api.gitSyncWorker = gitsync.NewWorker(options.Database,
 			refresher,
-			api.chatDaemon.PublishDiffStatusChange,
+			publishDiffStatusChange,
 			quartz.NewReal(),
 			gitSyncLogger,
 		)
@@ -960,6 +968,19 @@ func New(options *Options) *API {
 	})
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
+
+	api.workspaceBuildOrchestrator = wsbuildorchestrator.New(wsbuildorchestrator.Options{
+		Logger:            options.Logger,
+		Database:          options.Database,
+		Pubsub:            options.Pubsub,
+		FileCache:         api.FileCache,
+		BuildUsageChecker: api.BuildUsageChecker,
+		DeploymentValues:  options.DeploymentValues,
+		Experiments:       api.Experiments,
+		BuilderMetrics:    options.WorkspaceBuilderMetrics,
+		Clock:             quartz.NewReal(),
+	})
+	api.workspaceBuildOrchestrator.Start(api.ctx)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -1112,7 +1133,7 @@ func New(options *Options) *API {
 				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
 					r.Use(
 						apiKeyMiddlewareRedirect,
-						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, externalAuthConfig.CodeChallengeMethodsSupported),
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, externalAuthConfig.CodeChallengeMethodsSupported, nil, ""),
 					)
 					r.Get("/", api.externalAuthCallback(externalAuthConfig))
 				})
@@ -1662,14 +1683,14 @@ func New(options *Options) *API {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
 							// Github supports PKCE S256
-							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, options.GithubOAuth2Config.PKCESupported()),
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, options.DeploymentValues.HTTPCookies, nil, options.GithubOAuth2Config.PKCESupported(), nil, ""),
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
-						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams, options.OIDCConfig.PKCESupported()),
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, options.DeploymentValues.HTTPCookies, oidcAuthURLParams, options.OIDCConfig.PKCESupported(), oidcRedirectAllowedHosts, oidcRedirectDefaultScheme),
 					)
 					r.Get("/", api.userOIDC)
 				})
@@ -2309,7 +2330,25 @@ type API struct {
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
 
-	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
+	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
+	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
+}
+
+// chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
+// PublishDiffStatusChange method bound as a gitsync.PublishDiffStatusChangeFunc,
+// or a true nil func value when chatDaemon is nil (AI Gateway disabled).
+//
+// This must not be inlined as chatDaemon.PublishDiffStatusChange: a method
+// value on a nil pointer receiver is itself non-nil (it captures the
+// receiver, it doesn't call the method), so gitsync.Worker's own "if
+// publishDiffStatusChangeFn != nil" check would not catch a nil chatDaemon,
+// and invoking the returned func would panic dereferencing the nil
+// receiver.
+func chatDaemonPublishDiffStatusChangeFunc(chatDaemon *chatd.Server) gitsync.PublishDiffStatusChangeFunc {
+	if chatDaemon == nil {
+		return nil
+	}
+	return chatDaemon.PublishDiffStatusChange
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2346,8 +2385,10 @@ func (api *API) Close() error {
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
 	}
-	if err := api.chatDaemon.Close(); err != nil {
-		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+	if api.chatDaemon != nil {
+		if err := api.chatDaemon.Close(); err != nil {
+			api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+		}
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
@@ -2374,6 +2415,7 @@ func (api *API) Close() error {
 	_ = api.AppEncryptionKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()
+	api.workspaceBuildOrchestrator.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

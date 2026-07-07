@@ -263,6 +263,29 @@ func TestHealthz(t *testing.T) {
 	assert.Equal(t, "OK", string(body))
 }
 
+// TestAIGatewayDisabledStartupAndShutdown verifies the server starts and
+// shuts down cleanly when the AI Gateway is disabled, leaving api.chatDaemon
+// nil. It exercises the startup path (git sync worker callback binding, see
+// chatDaemonPublishDiffStatusChangeFunc) and the shutdown path (Close on a
+// nil daemon), both of which panicked before the nil guards were added.
+func TestAIGatewayDisabledStartupAndShutdown(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	require.NoError(t, dv.AI.BridgeConfig.Enabled.Set("false"))
+	// Constructing the client starts the server; t.Cleanup (registered by
+	// coderdtest.New) closes it at the end of the test, exercising the
+	// shutdown path that used to panic.
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+
+	res, err := client.Request(context.Background(), http.MethodGet, "/healthz", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+}
+
 func TestSwagger(t *testing.T) {
 	t.Parallel()
 

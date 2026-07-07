@@ -85,7 +85,6 @@ interface ChatsPanelProps {
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
-	readonly regeneratingTitleChatIds: readonly string[];
 	readonly isLoading: boolean;
 	readonly loadError?: unknown;
 	readonly onRetryLoad?: () => void;
@@ -119,7 +118,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isCreating,
 	isArchiving,
 	archivingChatId,
-	regeneratingTitleChatIds,
 	isLoading,
 	loadError,
 	onRetryLoad,
@@ -305,7 +303,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		activeChatId,
 		isArchiving,
 		archivingChatId,
-		regeneratingTitleChatIds,
 		toggleExpanded,
 		onArchiveAgent,
 		onUnarchiveAgent,

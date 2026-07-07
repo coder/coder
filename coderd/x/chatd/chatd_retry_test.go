@@ -41,9 +41,11 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("recovered")...)
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.Clock = clock
 		cfg.Logger = sink.Logger()
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 	})
 
 	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
@@ -75,7 +77,6 @@ func TestActiveServer_RetryStatePersistedDuringBackoff(t *testing.T) {
 	require.Equal(t, "generate_assistant", retrySinkFieldValue(t, entries[0].Fields, "action"))
 	require.Equal(t, "openai", retrySinkFieldValue(t, entries[0].Fields, "provider"))
 	require.Equal(t, "429", retrySinkFieldValue(t, entries[0].Fields, "status_code"))
-	require.Equal(t, "false", retrySinkFieldValue(t, entries[0].Fields, "chain_broken"))
 	require.Greater(t, latest.RetryStateVersion, withRetry.RetryStateVersion)
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
@@ -108,8 +109,10 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 			CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 			UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
+		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.PrometheusRegistry = reg
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		})
 
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
@@ -119,10 +122,9 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		require.NoError(t, err)
 		requireTextPart(t, messages[len(messages)-1], "recovered")
 		requireRetryCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
-			"provider":     "openai",
-			"model":        "gpt-4o",
-			"kind":         string(codersdk.ChatErrorKindRateLimit),
-			"chain_broken": "false",
+			"provider": "openai",
+			"model":    "gpt-4o",
+			"kind":     string(codersdk.ChatErrorKindRateLimit),
 		})
 	})
 
@@ -150,12 +152,14 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 			return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("recovered")...)
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 			cfg.Clock = clock
 			cfg.Logger = sink.Logger()
 			cfg.PrometheusRegistry = reg
 			cfg.PendingChatAcquireInterval = 30 * time.Minute
 			cfg.ChatHeartbeatInterval = 30 * time.Minute
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		})
 
 		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
@@ -181,10 +185,9 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		require.Equal(t, string(codersdk.ChatErrorKindStreamSilenceTimeout), retrySinkFieldValue(t, entries[0].Fields, "error_kind"))
 		require.Equal(t, "openai", retrySinkFieldValue(t, entries[0].Fields, "provider"))
 		requireRetryCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
-			"provider":     "openai",
-			"model":        model.Model,
-			"kind":         string(codersdk.ChatErrorKindStreamSilenceTimeout),
-			"chain_broken": "false",
+			"provider": "openai",
+			"model":    model.Model,
+			"kind":     string(codersdk.ChatErrorKindStreamSilenceTimeout),
 		})
 	})
 }

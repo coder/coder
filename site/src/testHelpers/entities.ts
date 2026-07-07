@@ -620,6 +620,7 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 ];
 
 export const MockTasksTabVisible: boolean = false;
+export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -5546,6 +5547,7 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 	type: "openai",
 	name: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	base_url: "https://api.openai.com",
 	enabled: false,
 	api_keys: [
@@ -5565,6 +5567,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	type: "anthropic",
 	name: "anthropic",
 	display_name: "Anthropic",
+	icon: "",
 	base_url: "https://api.anthropic.com",
 	enabled: false,
 	api_keys: [],
@@ -5584,6 +5587,7 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
+	icon: "",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
 	api_keys: [],
@@ -5603,6 +5607,7 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	type: "copilot",
 	name: "copilot",
 	display_name: "GitHub Copilot",
+	icon: "",
 	base_url: "https://api.business.githubcopilot.com",
 	enabled: true,
 	api_keys: [],

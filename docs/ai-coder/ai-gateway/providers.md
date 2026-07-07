@@ -163,6 +163,35 @@ To use role assumption:
 Each provider assumes a single role. To use several roles, configure one
 provider per role.
 
+#### External ID
+
+When a Bedrock provider assumes a role, the gateway generates a unique
+**external ID** for it and sends that value on every `AssumeRole` call.
+The external ID guards against the
+[confused deputy problem](https://docs.aws.amazon.com/IAM/latest/UserGuide/confused-deputy.html)
+on cross-account assumption. The gateway generates and owns the value, as
+AWS [recommends](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html):
+you cannot set or change it. It is not a secret, and it is shown on the
+provider's edit page once a Role ARN is configured.
+
+To enforce it, add the external ID to the target role's trust policy as an
+`sts:ExternalId` condition:
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": { "AWS": "<gateway base identity>" },
+  "Action": "sts:AssumeRole",
+  "Condition": { "StringEquals": { "sts:ExternalId": "<the provider's External ID>" } }
+}
+```
+
+> [!IMPORTANT]
+> The gateway sends the external ID whether or not the trust policy checks
+> it. Until you add the `sts:ExternalId` condition, the value is sent but
+> not enforced, and the role can still be assumed without it. To rotate the
+> external ID, recreate the provider.
+
 ### GitHub Copilot
 
 GitHub Copilot offers three plans: Individual, Business, and Enterprise,

@@ -2249,6 +2249,20 @@ func (api *API) watchWorkspace(
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// This endpoint streams build events for every workspace in the deployment
+	// with no per-item filtering, so require deployment-wide read on workspaces.
+	// Without this, any authenticated user could enumerate all workspace names
+	// and observe build activity across organizations they do not belong to.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceWorkspace.All()) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You are not authorized to watch all workspace builds.",
+			Detail: "This requires permission to read all workspaces, which is granted by the " +
+				"Owner or Template Admin role. Please contact an administrator about your " +
+				"permissions if you feel this is an error.",
+		})
+		return
+	}
+
 	// Buffer enough updates to avoid blocking the pubsub callback while we're
 	// accepting the WebSocket connection. Accepting the connection signals to
 	// the client that the server is subscribed and ready to forward events.
@@ -3016,20 +3030,7 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 }
 
 func (api *API) publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent) {
-	err := event.Validate()
-	if err != nil {
-		api.Logger.Warn(ctx, "invalid workspace update event",
-			slog.F("workspace_id", event.WorkspaceID),
-			slog.F("event_kind", event.Kind), slog.Error(err))
-		return
-	}
-	msg, err := json.Marshal(event)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to marshal workspace update",
-			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))
-		return
-	}
-	err = api.Pubsub.Publish(wspubsub.WorkspaceEventChannel(ownerID), msg)
+	err := wspubsub.PublishWorkspaceEvent(ctx, api.Pubsub, ownerID, event)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))

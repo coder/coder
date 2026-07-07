@@ -111,7 +111,6 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
-	regeneratingTitleChatIds: [],
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
 	onSearchDialogOpenChange: vi.fn(),

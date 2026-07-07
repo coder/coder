@@ -1170,6 +1170,7 @@ type ChatProviderConfig struct {
 	ID                         uuid.UUID                `json:"id" format:"uuid"`
 	Provider                   string                   `json:"provider"`
 	DisplayName                string                   `json:"display_name"`
+	Icon                       string                   `json:"icon"`
 	Enabled                    bool                     `json:"enabled"`
 	HasAPIKey                  bool                     `json:"has_api_key"`
 	CentralAPIKeyEnabled       bool                     `json:"central_api_key_enabled"`
@@ -1185,6 +1186,7 @@ type ChatProviderConfig struct {
 type CreateChatProviderConfigRequest struct {
 	Provider                   string `json:"provider"`
 	DisplayName                string `json:"display_name,omitempty"`
+	Icon                       string `json:"icon,omitempty"`
 	APIKey                     string `json:"api_key,omitempty"`
 	BaseURL                    string `json:"base_url,omitempty"`
 	Enabled                    *bool  `json:"enabled,omitempty"`
@@ -1196,6 +1198,7 @@ type CreateChatProviderConfigRequest struct {
 // UpdateChatProviderConfigRequest updates a chat provider config.
 type UpdateChatProviderConfigRequest struct {
 	DisplayName                string  `json:"display_name,omitempty"`
+	Icon                       string  `json:"icon,omitempty"`
 	APIKey                     *string `json:"api_key,omitempty"`
 	BaseURL                    *string `json:"base_url,omitempty"`
 	Enabled                    *bool   `json:"enabled,omitempty"`
@@ -1210,6 +1213,7 @@ type AIProviderSummary struct {
 	Type        AIProviderType `json:"type"`
 	Name        string         `json:"name"`
 	DisplayName string         `json:"display_name"`
+	Icon        string         `json:"icon"`
 	Enabled     bool           `json:"enabled"`
 	Deleted     bool           `json:"deleted"`
 }
@@ -1235,6 +1239,7 @@ type UserChatProviderConfig struct {
 	ProviderID               uuid.UUID `json:"provider_id" format:"uuid"`
 	Provider                 string    `json:"provider"`
 	DisplayName              string    `json:"display_name"`
+	Icon                     string    `json:"icon"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`

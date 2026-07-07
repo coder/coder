@@ -211,6 +211,7 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 			b.GetSmallFastModel(),
 		)
 		bedrock.RoleARN = b.GetRoleArn()
+		bedrock.ExternalID = b.GetExternalId()
 		spec.Bedrock = ptr.Ref(bedrock)
 	}
 	return spec
@@ -352,6 +353,7 @@ func bedrockConfig(baseURL string, bedrock *codersdk.AIProviderBedrockSettings) 
 		Model:           bedrockSettings.Model,
 		SmallFastModel:  bedrockSettings.SmallFastModel,
 		RoleARN:         bedrockSettings.RoleARN,
+		ExternalID:      bedrockSettings.ExternalID,
 	}
 }
 

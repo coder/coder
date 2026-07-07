@@ -35,7 +35,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							size="lg"
 							className="flex shrink-0 items-center justify-center"
 						>
-							<ProviderIcon provider={getProviderDisplayType(provider)} />
+							<ProviderIcon
+								provider={getProviderDisplayType(provider)}
+								icon={provider.icon}
+							/>
 						</Avatar>
 					}
 				/>

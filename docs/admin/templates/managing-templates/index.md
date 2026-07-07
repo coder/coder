@@ -14,18 +14,21 @@ any developer to propose changes to a template.
 You can give different users and groups access to templates with
 [role-based access control](../template-permissions.md).
 
-## Starter templates
+## Creating templates
 
-We provide starter templates for common cloud providers, like AWS, and
-orchestrators, like Kubernetes. From there, you can modify them to use your own
-images, VPC, cloud credentials, and so on. Coder supports all Terraform
-resources and properties, so fear not if your favorite cloud provider isn't
-here!
+The [template builder](../creating-templates.md#template-builder) is
+the recommended way to create templates. It guides you through selecting a base
+infrastructure template, adding modules (IDEs, tools, integrations), and
+configuring template settings without writing Terraform.
 
-![Starter templates](../../../images/start/starter-templates.png)
+Starter templates for common cloud providers (AWS, Azure) and orchestrators
+(Kubernetes, Docker) are available as base templates within the builder. You can
+modify the generated template to use your own images, VPC, cloud credentials,
+and so on. Coder supports all Terraform resources and properties.
 
 If you prefer to use Coder on the
-[command line](../../../reference/cli/index.md), `coder templates init`.
+[command line](../../../reference/cli/index.md), use `coder templates init` to
+pull a starter template, then `coder templates push` to upload it.
 
 Coder starter templates are also available on our
 [GitHub repo](../../../../examples/templates).
@@ -38,7 +41,7 @@ by our users
 
 ## Editing templates
 
-Our starter templates are meant to be modified for your use cases. You can edit
+Our templates are meant to be modified for your use cases. You can edit
 any template's files directly in the Coder dashboard.
 
 ![Editing a template](../../../images/templates/choosing-edit-template.gif)

@@ -129,6 +129,7 @@ interface AgentCreateFormProps {
 	providerCount?: number;
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
@@ -154,6 +155,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	providerCount,
 	modelCount,
 	unsupportedProviderNames,
+	aiGatewayDisabled,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
@@ -516,7 +518,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							isCreating ||
 							isForbidden ||
 							isPersonalModelOverridesLoading ||
-							!hasModelOptions
+							!hasModelOptions ||
+							Boolean(aiGatewayDisabled)
 						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
@@ -551,6 +554,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						providerCount={providerCount}
 						modelCount={modelCount}
 						unsupportedProviderNames={unsupportedProviderNames}
+						aiGatewayDisabled={aiGatewayDisabled}
 					/>
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">

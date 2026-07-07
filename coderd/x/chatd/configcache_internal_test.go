@@ -14,6 +14,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -1197,4 +1200,20 @@ func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 2, third.MaxUsesPerRun)
 	require.Equal(t, int32(2), store.advisorConfigCalls.Load())
+}
+
+func TestConfigCache_InvalidatesProvidersOnAIProvidersChangedEvent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	// The generation counter only advances through InvalidateProviders,
+	// so this cannot false-pass via TTL expiry.
+	gen := server.configCache.providersGeneration()
+	require.NoError(t, ps.Publish(coderdpubsub.AIProvidersChangedChannel, nil))
+
+	require.Eventually(t, func() bool {
+		return server.configCache.providersGeneration() > gen
+	}, testutil.WaitShort, testutil.IntervalFast)
 }

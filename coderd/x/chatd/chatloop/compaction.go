@@ -20,11 +20,9 @@ const (
 	maxCompactionThresholdPercent     = int32(100)
 
 	// compactionDebugCreateRunTimeout caps the compaction debug
-	// CreateRun budget so a slow or locked DB cannot consume the
-	// compaction's configured Timeout and cause model.Generate to
-	// fail with deadline exceeded. Debug instrumentation is
-	// best-effort; running without the debug row is preferable to
-	// failing the compaction.
+	// CreateRun budget. Debug instrumentation is best-effort;
+	// running without the debug row is preferable to blocking
+	// compaction on a slow or locked DB.
 	compactionDebugCreateRunTimeout = 5 * time.Second
 
 	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
@@ -54,7 +52,6 @@ const (
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"
-	defaultCompactionTimeout = 90 * time.Second
 )
 
 type CompactionOptions struct {
@@ -62,7 +59,6 @@ type CompactionOptions struct {
 	ContextLimit        int64
 	SummaryPrompt       string
 	SystemSummaryPrefix string
-	Timeout             time.Duration
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
@@ -170,7 +166,6 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		ContextLimit:        opts.ContextLimit,
 		SummaryPrompt:       opts.SummaryPrompt,
 		SystemSummaryPrefix: opts.SystemSummaryPrefix,
-		Timeout:             opts.Timeout,
 		DebugSvc:            opts.DebugSvc,
 		ChatID:              opts.ChatID,
 		HistoryTipMessageID: opts.HistoryTipMessageID,
@@ -183,9 +178,6 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 	}
 	if strings.TrimSpace(config.SystemSummaryPrefix) == "" {
 		config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefix
-	}
-	if config.Timeout <= 0 {
-		config.Timeout = defaultCompactionTimeout
 	}
 	if config.ThresholdPercent < minCompactionThresholdPercent ||
 		config.ThresholdPercent > maxCompactionThresholdPercent {
@@ -285,11 +277,9 @@ func startCompactionDebugRun(
 	}
 
 	// Use a separate short-lived context for the debug insert so a
-	// slow or locked DB cannot consume the compaction timeout budget
-	// and turn debug slowness into a compaction failure via
-	// model.Generate hitting a deadline exceeded. Detached from the
-	// parent so cancellation of the compaction run still lets the
-	// insert reach a terminal state, matching the best-effort
+	// slow or locked DB cannot block the model call. Detached from
+	// the parent so cancellation of the compaction run still lets
+	// the insert reach a terminal state, matching the best-effort
 	// contract of debug instrumentation.
 	createRunCtx, createRunCancel := context.WithTimeout(
 		context.WithoutCancel(ctx), compactionDebugCreateRunTimeout,
@@ -360,10 +350,7 @@ func generateCompactionSummary(
 	})
 	toolChoice := fantasy.ToolChoiceNone
 
-	summaryCtx, cancel := context.WithTimeout(ctx, options.Timeout)
-	defer cancel()
-
-	summaryCtx, finishDebugRun := startCompactionDebugRun(summaryCtx, options)
+	summaryCtx, finishDebugRun := startCompactionDebugRun(ctx, options)
 	defer func() {
 		// If model.Generate (or anything else below) panics, the
 		// named err return is still nil at this point. Without the

@@ -979,6 +979,15 @@ type OIDCConfig struct {
 	// brokers that do not issue a stable `sub` for the same user across
 	// connections.
 	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
+
+	// RedirectAllowedHosts is an allowlist of hostnames that may be used as
+	// the host of the OIDC redirect_uri. When non-empty, the redirect_uri is
+	// constructed from the incoming request's Host header (validated against
+	// this list) instead of from AccessURL. Every listed host must also be
+	// registered as a valid redirect URI in the OIDC provider. This setting
+	// is mutually exclusive with RedirectURL: if RedirectURL is set, this
+	// allowlist is ignored.
+	RedirectAllowedHosts serpent.StringArray `json:"redirect_allowed_hosts" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -3055,6 +3064,21 @@ communicating directly.`,
 			Group:  &deploymentGroupOIDC,
 			Hidden: true,
 		},
+		{
+			Name: "OIDC Redirect Allowed Hosts",
+			Description: "An allowlist of hostnames that may be used as the host of the OIDC redirect_uri. " +
+				"When set, the redirect_uri sent to the OIDC provider is built from the incoming request's Host header " +
+				"(validated against this list) instead of from access-url. Every listed host must also be registered " +
+				"as a valid redirect URI in the OIDC provider. Ignored when oidc-redirect-url is set.",
+			Flag:    "oidc-redirect-allowed-hosts",
+			Env:     "CODER_OIDC_REDIRECT_ALLOWED_HOSTS",
+			YAML:    "oidcRedirectAllowedHosts",
+			Default: "",
+			Value:   &c.OIDC.RedirectAllowedHosts,
+			Group:   &deploymentGroupOIDC,
+			// Niche feature for multi-domain deployments. Surface only to operators who need it.
+			Hidden: true,
+		},
 		// Telemetry settings
 		telemetryEnable,
 		{
@@ -4252,7 +4276,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: AI Gateway Routing Enabled",
-			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
 			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
 			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
@@ -4930,9 +4954,11 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
-	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
+	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	// Deprecated: AI Gateway routing is now the only routing path. Setting this
+	// value has no effect. This option will be removed in a future release.
+	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {

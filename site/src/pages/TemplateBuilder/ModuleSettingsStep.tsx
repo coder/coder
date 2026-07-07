@@ -135,8 +135,11 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					const vars = moduleVariables[mod.id] ?? {};
 
 					const toField = (v: TemplateBuilderModuleVariable) =>
-						variableToField(mod.id, v, vars[v.name] ?? "", (name, val) =>
-							handleChange(mod.id, name, val),
+						variableToField(
+							mod.id,
+							v,
+							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
+							(name, val) => handleChange(mod.id, name, val),
 						);
 
 					const requiredVars = configurableVars.filter((v) => v.required);

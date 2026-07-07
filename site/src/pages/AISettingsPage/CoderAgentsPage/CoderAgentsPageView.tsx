@@ -8,6 +8,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
+import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
@@ -34,7 +35,7 @@ export interface CoderAgentsPageViewProps {
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
-	providerTypeByID: ReadonlyMap<string, string>;
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelConfigsError: unknown;
 	isLoadingModelConfigs: boolean;
 	isFetchingModelConfigs: boolean;
@@ -84,7 +85,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	titleGenerationModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
-	providerTypeByID,
+	providerInfoByID,
 	modelConfigsError,
 	isLoadingModelConfigs,
 	isFetchingModelConfigs,
@@ -147,7 +148,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 						description="Used by delegated agents that can edit files or run commands."
 						modelOverrideData={generalModelOverrideData}
 						enabledModelConfigs={enabledModelConfigs}
-						providerTypeByID={providerTypeByID}
+						providerInfoByID={providerInfoByID}
 						modelConfigsError={modelConfigsError}
 						isLoading={isLoadingModelConfigs}
 						onSaveModelOverride={onSaveGeneralModelOverride}
@@ -161,7 +162,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					description="Leave unset to use Coder's title default, which prefers fast models from configured providers."
 					modelOverrideData={titleGenerationModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
-					providerTypeByID={providerTypeByID}
+					providerInfoByID={providerInfoByID}
 					modelConfigsError={modelConfigsError}
 					isLoading={isLoadingModelConfigs}
 					onSaveModelOverride={onSaveTitleGenerationModel}
@@ -176,7 +177,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					description="Used for read-only codebase exploration before work returns to the main agent."
 					modelOverrideData={exploreModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
-					providerTypeByID={providerTypeByID}
+					providerInfoByID={providerInfoByID}
 					modelConfigsError={modelConfigsError}
 					isLoading={isLoadingModelConfigs}
 					onSaveModelOverride={onSaveExploreModelOverride}

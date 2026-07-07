@@ -2,8 +2,10 @@ package provider
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -77,8 +79,28 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 	// cache to avoid re-assuming the role on every request.
 	credsProvider := base.Credentials
 	if cfg.RoleARN != "" {
-		credsProvider = stscreds.NewAssumeRoleProvider(sts.NewFromConfig(base), cfg.RoleARN, func(o *stscreds.AssumeRoleOptions) {
+		// Disable keep-alive on the STS client so each AssumeRole opens a
+		// fresh connection. Observed: with keep-alive, AssumeRole calls reuse
+		// one connection pinned to a single STS endpoint, and after a
+		// trust-policy change that connection kept returning AccessDenied for
+		// minutes while a fresh connection (e.g. the AWS CLI) accepted the
+		// identical request at once; the gateway recovered only when that
+		// connection recycled or the process restarted. The STS-internal reason is
+		// unconfirmed (likely per-endpoint propagation of the change); what we
+		// verified is that a fresh connection per call recovers in seconds
+		// instead of minutes. AssumeRole runs at most once per credential-cache
+		// lifetime, so keep-alive saves nothing here. Scoped to the STS client
+		// only; Bedrock requests use a separate client and keep pooling.
+		stsClient := sts.NewFromConfig(base, func(o *sts.Options) {
+			o.HTTPClient = awshttp.NewBuildableClient().WithTransportOptions(func(t *http.Transport) {
+				t.DisableKeepAlives = true
+			})
+		})
+		credsProvider = stscreds.NewAssumeRoleProvider(stsClient, cfg.RoleARN, func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = bedrockSessionName
+			if cfg.ExternalID != "" {
+				o.ExternalID = aws.String(cfg.ExternalID)
+			}
 		})
 		credsProvider = aws.NewCredentialsCache(credsProvider)
 	}

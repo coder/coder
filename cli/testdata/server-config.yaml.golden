@@ -448,6 +448,13 @@ oidc:
   # enable if you understand and accept the risk.
   # (default: <unset>, type: bool)
   dangerousOidcEmailFallback: false
+  # An allowlist of hostnames that may be used as the host of the OIDC redirect_uri.
+  # When set, the redirect_uri sent to the OIDC provider is built from the incoming
+  # request's Host header (validated against this list) instead of from access-url.
+  # Every listed host must also be registered as a valid redirect URI in the OIDC
+  # provider. Ignored when oidc-redirect-url is set.
+  # (default: <unset>, type: string-array)
+  oidcRedirectAllowedHosts: []
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
@@ -796,9 +803,8 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
-  # Route chat model requests through AI Gateway when both chat routing and AI
-  # Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats
-  # without API key metadata may need a retry or temporary direct routing.
+  # Deprecated: AI Gateway routing is now the only routing path. Setting this value
+  # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
 aibridge:

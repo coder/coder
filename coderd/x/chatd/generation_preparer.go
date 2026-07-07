@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -39,8 +38,7 @@ func (server *Server) prepareGeneration(
 	var (
 		model            fantasy.LanguageModel
 		modelConfig      database.ChatModelConfig
-		providerKeys     chatprovider.ProviderAPIKeys
-		modelRoute       resolvedModelRoute
+		modelRoute       aiGatewayModelRoute
 		modelOpts        modelBuildOptions
 		callConfig       codersdk.ChatModelCallConfig
 		promptRows       []database.ChatMessage
@@ -86,7 +84,7 @@ func (server *Server) prepareGeneration(
 	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
 
 	var err error
-	model, modelConfig, providerKeys, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
+	model, modelConfig, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
 	}
@@ -130,7 +128,6 @@ func (server *Server) prepareGeneration(
 			advisorCfg,
 			model,
 			callConfig,
-			providerKeys,
 			modelOpts,
 			logger,
 		)
@@ -262,10 +259,7 @@ func (server *Server) prepareGeneration(
 		acceptsFilePart := func(mediaType string) bool {
 			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
 		}
-		providerType, err := modelRoute.providerHint()
-		if err != nil {
-			return xerrors.Errorf("resolve provider type: %w", err)
-		}
+		providerType := string(modelRoute.Provider.Type)
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
@@ -497,7 +491,6 @@ func (server *Server) prepareGeneration(
 			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
 		}
 		modelRoute = computerUseRoute
-		providerKeys = computerUseRoute.directProviderKeys()
 		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
 			ctx,
 			chat,
@@ -540,16 +533,6 @@ func (server *Server) prepareGeneration(
 	}
 
 	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
-	chainInfo := chatopenai.ResolveChainMode(promptRows)
-	if !input.ChainModeDisabled && chatopenai.ShouldActivateChainMode(
-		providerOptions,
-		chainInfo,
-		modelConfig.ID,
-		isPlanModeTurn,
-	) {
-		providerOptions = chatopenai.WithPreviousResponseID(providerOptions, chainInfo.PreviousResponseID())
-		prompt = chatopenai.FilterPromptForChainMode(prompt, chainInfo)
-	}
 
 	activeToolNames := activeToolNamesForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 	if isExploreSubagent {
@@ -620,7 +603,6 @@ func (server *Server) prepareGeneration(
 		Tools:                tools,
 		ActiveTools:          activeToolNames,
 		ProviderTools:        providerTools,
-		ProviderKeys:         providerKeys,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
 		ResolvedProvider:     resolvedProvider,
@@ -748,7 +730,7 @@ func (server *Server) deriveFinalTurnRunResult(
 	// built from; they only feed the status-label fallback candidate's labels.
 	modelOpts := modelBuildOptionsFromMessages(promptRows)
 	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
-	model, _, providerKeys, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
+	model, _, modelRoute, _, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		// Return what we have; generateFinalTurnStatusLabel falls back to a
 		// generic label when StatusLabelModel is nil.
@@ -763,7 +745,6 @@ func (server *Server) deriveFinalTurnRunResult(
 	return runChatResult{
 		FinalAssistantText:  finalAssistantText,
 		StatusLabelModel:    model,
-		ProviderKeys:        providerKeys,
 		FallbackProvider:    resolvedProvider,
 		FallbackRoute:       modelRoute,
 		FallbackModel:       resolvedModel,

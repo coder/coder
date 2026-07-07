@@ -45,13 +45,15 @@ type publishedEvent struct {
 }
 
 type recordingPubsub struct {
-	inner  dbpubsub.Pubsub
+	// Embed the full pubsub so a recordingPubsub can also stand in for a
+	// Server's pubsub, recording every published event.
+	dbpubsub.Pubsub
 	mu     sync.Mutex
 	events []publishedEvent
 }
 
 func newRecordingPubsub(inner dbpubsub.Pubsub) *recordingPubsub {
-	return &recordingPubsub{inner: inner}
+	return &recordingPubsub{Pubsub: inner}
 }
 
 func (p *recordingPubsub) Publish(channel string, payload []byte) error {
@@ -61,11 +63,7 @@ func (p *recordingPubsub) Publish(channel string, payload []byte) error {
 		payload: append([]byte(nil), payload...),
 	})
 	p.mu.Unlock()
-	return p.inner.Publish(channel, payload)
-}
-
-func (p *recordingPubsub) SubscribeWithErr(channel string, listener dbpubsub.ListenerWithErr) (func(), error) {
-	return p.inner.SubscribeWithErr(channel, listener)
+	return p.Pubsub.Publish(channel, payload)
 }
 
 func (p *recordingPubsub) ownershipMessages(t *testing.T) []coderdpubsub.ChatStateOwnershipMessage {
@@ -268,9 +266,25 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 	}
 }
 
+// newUnstartedServer builds a real Server backed by the given pubsub and
+// store. The server is never started; it only provides the dependencies
+// that workers and task starters dereference.
+func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store) *Server {
+	t.Helper()
+	server := New(ps, Config{
+		Logger:    testutil.Logger(t),
+		Database:  db,
+		ReplicaID: uuid.New(),
+	})
+	t.Cleanup(func() { _ = server.Close() })
+	return server
+}
+
 func startWorker(t *testing.T, opts chatWorkerOptions) *chatWorker {
 	t.Helper()
-	worker, err := newChatWorker(nil, opts)
+	ps, ok := opts.Pubsub.(dbpubsub.Pubsub)
+	require.True(t, ok, "worker pubsub must implement the full pubsub interface")
+	worker, err := newChatWorker(newUnstartedServer(t, ps, opts.Store), opts)
 	require.NoError(t, err)
 	require.NoError(t, worker.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, worker.Close()) })
