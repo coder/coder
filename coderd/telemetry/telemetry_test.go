@@ -1600,18 +1600,18 @@ func TestChatsTelemetry(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	// Create chat providers (required FK for model configs).
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "anthropic",
 		DisplayName: "Anthropic",
 	})
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+	openaiProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 	})
 
 	// Create a model config.
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-sonnet-4-20250514",
 		DisplayName:  "Claude Sonnet",
 		IsDefault:    true,
@@ -1620,14 +1620,14 @@ func TestChatsTelemetry(t *testing.T) {
 
 	// Create a second model config to test full dump.
 	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    "openai",
-		Model:       "gpt-4o",
-		DisplayName: "GPT-4o",
+		AIProviderID: uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
+		Model:        "gpt-4o",
+		DisplayName:  "GPT-4o",
 	})
 
 	// Create a soft-deleted model config — should NOT appear in telemetry.
 	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-deleted",
 		DisplayName:  "Deleted Model",
 		ContextLimit: 100000,
@@ -1948,13 +1948,13 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
 
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "anthropic",
 		DisplayName: "Anthropic",
 	})
 
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-sonnet-4-20250514",
 		DisplayName:  "Claude Sonnet",
 		IsDefault:    true,

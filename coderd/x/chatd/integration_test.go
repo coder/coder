@@ -98,7 +98,6 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	contextLimit := int64(200000)
 	isDefault := true
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     string(provider.Type),
 		AIProviderID: &provider.ID,
 		Model:        "claude-sonnet-4-20250514",
 		ContextLimit: &contextLimit,
@@ -358,7 +357,6 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	isDefault := true
 	reasoningSummary := "auto"
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     string(provider.Type),
 		AIProviderID: &provider.ID,
 		Model:        "o4-mini",
 		ContextLimit: &contextLimit,
@@ -508,7 +506,6 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	isDefault := true
 	reasoningSummary := "auto"
 	_, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     string(provider.Type),
 		AIProviderID: &provider.ID,
 		Model:        "o4-mini",
 		ContextLimit: &contextLimit,

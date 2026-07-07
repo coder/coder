@@ -683,7 +683,6 @@ func testAIProvider(name string) database.AIProvider {
 func testChatModelConfig(id uuid.UUID, model string) database.ChatModelConfig {
 	return database.ChatModelConfig{
 		ID:                   id,
-		Provider:             "openai",
 		Model:                model,
 		DisplayName:          model,
 		Enabled:              true,

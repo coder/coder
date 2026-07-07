@@ -125,7 +125,6 @@ func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
 
 	server := &Server{db: db}
 	route, err := server.resolveModelRouteForConfig(ctx, ownerID, database.ChatModelConfig{
-		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}, chatprovider.ProviderAPIKeys{})
 	require.NoError(t, err)
@@ -238,7 +237,6 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 	modelConfig := database.ChatModelConfig{
 		ID:           uuid.New(),
 		Model:        "gpt-4",
-		Provider:     "openai",
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
 
