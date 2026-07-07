@@ -409,6 +409,10 @@ export const BlockList: FC<BlockListProps> = ({
 								sources={block.sources}
 							/>
 						);
+					// Workspace file references render through the user
+					// message display state, not as timeline blocks.
+					case "workspace-file-reference":
+						return null;
 					default: {
 						const _exhaustive: never = block;
 						return _exhaustive;
