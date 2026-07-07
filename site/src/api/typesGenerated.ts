@@ -9947,6 +9947,7 @@ export interface UserChatProviderConfig {
 	readonly provider: string;
 	readonly display_name: string;
 	readonly icon: string;
+	readonly enabled: boolean;
 	readonly has_user_api_key: boolean;
 	readonly has_central_api_key_fallback: boolean;
 	readonly byok_enabled: boolean;

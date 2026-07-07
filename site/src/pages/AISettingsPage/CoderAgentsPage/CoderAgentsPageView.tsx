@@ -8,7 +8,10 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import {
+	filterConfigsWithEnabledProvider,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
@@ -122,8 +125,11 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
 }) => {
-	const enabledModelConfigs = (modelConfigsData ?? []).filter(
-		(modelConfig) => modelConfig.enabled,
+	// Offer only models that can actually serve requests: the config and
+	// its provider row must both be enabled.
+	const enabledModelConfigs = filterConfigsWithEnabledProvider(
+		(modelConfigsData ?? []).filter((modelConfig) => modelConfig.enabled),
+		providerInfoByID,
 	);
 	const showGeneralModelSection =
 		onSaveGeneralModelOverride !== undefined ||

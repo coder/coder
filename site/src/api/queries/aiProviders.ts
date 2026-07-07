@@ -1,5 +1,6 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
+import { invalidateChatProviderDependentQueries } from "#/api/queries/chats";
 import type {
 	AIProvider,
 	CreateAIProviderRequest,
@@ -26,6 +27,7 @@ export const createAIProviderMutation = (queryClient: QueryClient) => ({
 		API.createAIProvider(request),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({ queryKey: aiProvidersListKey });
+		await invalidateChatProviderDependentQueries(queryClient);
 	},
 });
 
@@ -40,6 +42,7 @@ export const updateAIProviderMutation = (
 		await queryClient.invalidateQueries({
 			queryKey: aiProviderKeyFor(idOrName),
 		});
+		await invalidateChatProviderDependentQueries(queryClient);
 	},
 });
 
@@ -51,5 +54,6 @@ export const deleteAIProviderMutation = (
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({ queryKey: aiProvidersListKey });
 		queryClient.removeQueries({ queryKey: aiProviderKeyFor(idOrName) });
+		await invalidateChatProviderDependentQueries(queryClient);
 	},
 });

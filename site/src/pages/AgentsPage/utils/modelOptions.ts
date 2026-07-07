@@ -162,6 +162,9 @@ export type ProviderInfo = {
 	readonly provider: string;
 	readonly displayName: string;
 	readonly icon: string;
+	// Whether the provider row is enabled. Undefined (sources without
+	// provider state) is treated as enabled for backwards compatibility.
+	readonly enabled?: boolean;
 };
 
 // providerInfoByIDFromConfigs and providerInfoByIDFromUserConfigs build
@@ -179,6 +182,7 @@ export const providerInfoByIDFromConfigs = (
 				provider: providerConfig.provider,
 				displayName: providerConfig.display_name,
 				icon: providerConfig.icon,
+				enabled: providerConfig.enabled,
 			},
 		]),
 	);
@@ -196,6 +200,7 @@ export const providerInfoByIDFromUserConfigs = (
 				provider: providerConfig.provider,
 				displayName: providerConfig.display_name,
 				icon: providerConfig.icon,
+				enabled: providerConfig.enabled,
 			},
 		]),
 	);
@@ -223,6 +228,19 @@ export const providerTypeByIDFromUserConfigs = (
 		),
 	);
 
+/**
+ * Drops model configs whose provider row is disabled. Configs without
+ * provider info (or with providers lacking an enabled flag) are kept so
+ * callers relying on other guards are unaffected.
+ */
+export const filterConfigsWithEnabledProvider = (
+	configs: readonly TypesGen.ChatModelConfig[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+): readonly TypesGen.ChatModelConfig[] =>
+	configs.filter(
+		(config) => providerInfoByID.get(config.ai_provider_id)?.enabled !== false,
+	);
+
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
@@ -245,6 +263,12 @@ export const getModelOptionsFromConfigs = (
 		const provider = asString(providerInfo?.provider).trim().toLowerCase();
 		const model = config.model.trim();
 		if (!configID || !providerInfo || !provider || !model) {
+			continue;
+		}
+		// Skip models whose provider row is disabled. The catalog check
+		// below is keyed by provider type, so it cannot exclude a disabled
+		// instance when another provider of the same type is enabled.
+		if (providerInfo.enabled === false) {
 			continue;
 		}
 		if (!availableProviders.has(provider)) {

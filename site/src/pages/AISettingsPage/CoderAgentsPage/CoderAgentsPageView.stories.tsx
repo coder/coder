@@ -113,6 +113,16 @@ const compactionDisabledModelConfig = buildModelConfig({
 	context_limit: 128_000,
 });
 
+// Enabled at the config level, but its provider row is disabled, so no
+// selector may offer it.
+const providerDisabledModelConfig = buildModelConfig({
+	id: "model-provider-disabled",
+	ai_provider_id: "provider-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT 4o Secondary",
+	context_limit: 128_000,
+});
+
 const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	generalModelConfig,
 	claudeSonnetModelConfig,
@@ -123,13 +133,31 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	titleDisabledModelConfig,
 	exploreDisabledModelConfig,
 	compactionDisabledModelConfig,
+	providerDisabledModelConfig,
 ];
 
 const providerInfoByID = new Map([
-	["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	[
+		"provider-1",
+		{ provider: "openai", displayName: "OpenAI", icon: "", enabled: true },
+	],
 	[
 		"provider-anthropic",
-		{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+		{
+			provider: "anthropic",
+			displayName: "Anthropic",
+			icon: "",
+			enabled: true,
+		},
+	],
+	[
+		"provider-openai-disabled",
+		{
+			provider: "openai",
+			displayName: "OpenAI Secondary",
+			icon: "",
+			enabled: false,
+		},
 	],
 ]);
 
@@ -665,6 +693,50 @@ export const AdvisorReasoningEffort: Story = {
 				expect.anything(),
 			);
 		});
+	},
+};
+
+export const DisabledProviderModelsHidden: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+	}),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// The subagent override selectors must not offer the enabled config
+		// whose provider row is disabled.
+		const generalSection = await getSection(canvasElement, "General model");
+		const generalTrigger = within(generalSection).getByRole("combobox", {
+			name: "Use chat default",
+		});
+		await userEvent.click(generalTrigger);
+		expect(
+			await body.findByRole("option", { name: /GPT 4\.1 Mini/ }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: /GPT 4o Secondary/ }),
+		).not.toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+
+		// The advisor model select must hide it as well.
+		const advisorSection = await getSection(canvasElement, "Advisor");
+		const advisorTrigger = within(advisorSection).getByRole("combobox", {
+			name: "Use chat model",
+		});
+		await userEvent.click(advisorTrigger);
+		expect(
+			await body.findByRole("option", { name: /GPT 4\.1 Mini/ }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: /GPT 4o Secondary/ }),
+		).not.toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
 	},
 };
 

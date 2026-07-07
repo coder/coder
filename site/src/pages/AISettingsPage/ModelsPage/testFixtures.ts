@@ -106,6 +106,33 @@ export const MockBedrockProviderState: ProviderState = {
 	modelConfigs: [mockBedrockClaude],
 };
 
+const MockDisabledProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-openai-disabled",
+	display_name: "OpenAI Secondary",
+	enabled: false,
+};
+
+// Enabled model config under a disabled provider. Management views must
+// keep showing it while model selectors must hide it.
+export const mockProviderDisabledModel: ChatModelConfig = {
+	...mockGPT5,
+	id: "model-provider-disabled",
+	ai_provider_id: "prov-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT-4o Secondary",
+	is_default: false,
+};
+
+export const MockDisabledProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-openai-disabled",
+	provider: "openai",
+	label: "OpenAI Secondary",
+	providerConfig: MockDisabledProviderConfig,
+	modelConfigs: [mockProviderDisabledModel],
+};
+
 export const MockCopilotProviderState: ProviderState = {
 	...MockOpenAIProviderState,
 	key: "prov-copilot",

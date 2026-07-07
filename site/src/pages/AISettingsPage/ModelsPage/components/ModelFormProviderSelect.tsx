@@ -16,6 +16,13 @@ export const ModelFormProviderSelect: FC<{
 	onProviderChange: (providerKey: string) => void;
 	disabled: boolean;
 }> = ({ providerStates, selectedProviderKey, onProviderChange, disabled }) => {
+	// Hide disabled providers: the backend rejects creating model configs
+	// under them. Keep the currently selected provider visible so editing
+	// a config whose provider was disabled afterwards still renders.
+	const selectableProviderStates = providerStates.filter(
+		(ps) =>
+			ps.providerConfig?.enabled !== false || ps.key === selectedProviderKey,
+	);
 	return (
 		<div className="grid gap-1.5">
 			<Label
@@ -40,7 +47,7 @@ export const ModelFormProviderSelect: FC<{
 					<SelectValue placeholder="Select provider" />
 				</SelectTrigger>
 				<SelectContent>
-					{providerStates.map((ps) => (
+					{selectableProviderStates.map((ps) => (
 						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
 								<ProviderIcon provider={ps.provider} />

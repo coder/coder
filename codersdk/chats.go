@@ -1272,6 +1272,7 @@ type UserChatProviderConfig struct {
 	Provider                 string    `json:"provider"`
 	DisplayName              string    `json:"display_name"`
 	Icon                     string    `json:"icon"`
+	Enabled                  bool      `json:"enabled"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
 	BYOKEnabled              bool      `json:"byok_enabled"`
