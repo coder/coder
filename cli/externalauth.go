@@ -55,7 +55,7 @@ fi
 				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
 			},
 			Example{
-				Description: "Print the full token response as JSON, including expiry.",
+				Description: "Print the full token response as JSON.",
 				Command:     "coder external-auth access-token github --output json",
 			},
 		),

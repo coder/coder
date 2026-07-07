@@ -30,7 +30,7 @@ fi
 
      $ coder external-auth access-token slack --extra "authed_user.id"
 
-  - Print the full token response as JSON, including expiry.:
+  - Print the full token response as JSON.:
 
      $ coder external-auth access-token github --output json
 ```
