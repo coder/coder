@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -1551,7 +1552,7 @@ func TestTelemetry_AgentExperiments(t *testing.T) {
 		require.Equal(t, clock.Now(), item.CreatedAt)
 		require.Equal(t, clock.Now(), item.UpdatedAt)
 		require.False(t, payload.VirtualDesktop.Enabled)
-		require.Equal(t, "anthropic", payload.VirtualDesktop.ComputerUse.Provider)
+		require.Equal(t, chattool.ComputerUseProviderAnthropic, payload.VirtualDesktop.ComputerUse.Provider)
 		require.Equal(t, "default", payload.VirtualDesktop.ComputerUse.ProviderSource)
 		require.False(t, payload.Advisor.Enabled)
 		require.Zero(t, payload.Advisor.MaxUsesPerRun)

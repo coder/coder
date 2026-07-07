@@ -714,16 +714,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 
 		agentExperimentValues := make(map[string]json.RawMessage, len(agentExperiments))
 		for _, exp := range agentExperiments {
-			val, err := exp.collect(ctx, r.options)
-			if err != nil {
-				return xerrors.Errorf("collect agent experiment %s: %w", exp.name, err)
-			}
-			agentExperimentValues[exp.name] = val
+			agentExperimentValues[exp.name] = exp.collect(ctx, r.options)
 		}
 
 		val, err := json.Marshal(agentExperimentValues)
 		if err != nil {
-			return xerrors.Errorf("marshal agent experiments: %w", err)
+			r.options.Logger.Warn(ctx, "marshal agent experiments telemetry", slog.Error(err))
+			return nil
 		}
 		// Collection timestamps, not when a setting last changed.
 		snapshot.TelemetryItems = append(snapshot.TelemetryItems, TelemetryItem{
@@ -2346,10 +2343,11 @@ const (
 
 // agentExperiment is one entry in the agents_experiments telemetry item.
 // Edit agentExperiments to rotate the reported set without schema or
-// telemetry-server changes.
+// telemetry-server changes. Collectors are best-effort: they log and return
+// a degraded payload instead of erroring, so they can never fail a snapshot.
 type agentExperiment struct {
 	name    string
-	collect func(ctx context.Context, opts Options) (json.RawMessage, error)
+	collect func(ctx context.Context, opts Options) json.RawMessage
 }
 
 var agentExperiments = []agentExperiment{
@@ -2357,19 +2355,29 @@ var agentExperiments = []agentExperiment{
 	{name: "advisor", collect: collectAgentAdvisor},
 }
 
-// defaultComputerUseProvider mirrors chattool.DefaultComputerUseProvider
-// without importing chattool, which would create an import cycle.
-const defaultComputerUseProvider = "anthropic"
+const (
+	// defaultComputerUseProvider mirrors chattool.ComputerUseProviderAnthropic
+	// without importing chattool, which would create an import cycle. The
+	// Defaults test asserts they stay in sync.
+	defaultComputerUseProvider = "anthropic"
+	// advisorModelReuseChatModel reports that the advisor has no active
+	// dedicated model override and reuses the chat model at runtime.
+	advisorModelReuseChatModel = "reuse_chat_model"
+	// agentExperimentUnknown reports a value that could not be determined,
+	// e.g. after a transient DB error.
+	agentExperimentUnknown = "unknown"
+)
 
-// Computer use is a knob inside the virtual desktop experiment, not an
-// experiment of its own: the chat-virtual-desktop experiment gates both.
-func collectAgentVirtualDesktop(ctx context.Context, opts Options) (json.RawMessage, error) {
+// chat-virtual-desktop gates both the desktop and computer use.
+func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
 	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get chat computer use provider: %w", err)
-	}
 	providerSource := "configured"
-	if provider == "" {
+	switch {
+	case err != nil:
+		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
+		provider = agentExperimentUnknown
+		providerSource = agentExperimentUnknown
+	case provider == "":
 		provider = defaultComputerUseProvider
 		providerSource = "default"
 	}
@@ -2377,7 +2385,7 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) (json.RawMess
 		Provider       string `json:"provider"`
 		ProviderSource string `json:"provider_source"`
 	}
-	return json.Marshal(struct {
+	val, err := json.Marshal(struct {
 		Enabled     bool        `json:"enabled"`
 		ComputerUse computerUse `json:"computer_use"`
 	}{
@@ -2387,21 +2395,26 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) (json.RawMess
 			ProviderSource: providerSource,
 		},
 	})
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent virtual desktop telemetry", slog.Error(err))
+		return nil
+	}
+	return val
 }
 
-func collectAgentAdvisor(ctx context.Context, opts Options) (json.RawMessage, error) {
+func collectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	var cfg codersdk.AdvisorConfig
+	provider, model := agentExperimentUnknown, agentExperimentUnknown
 	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("get chat advisor config: %w", err)
+		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
+	} else {
+		if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+			opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+		}
+		provider, model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
 	}
-
-	var cfg codersdk.AdvisorConfig
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
-	}
-
-	provider, model := advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
-	return json.Marshal(struct {
+	val, err := json.Marshal(struct {
 		Enabled         bool   `json:"enabled"`
 		MaxUsesPerRun   int    `json:"max_uses_per_run"`
 		MaxOutputTokens int64  `json:"max_output_tokens"`
@@ -2415,27 +2428,31 @@ func collectAgentAdvisor(ctx context.Context, opts Options) (json.RawMessage, er
 		Provider:        provider,
 		Model:           model,
 	})
+	if err != nil {
+		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
+		return nil
+	}
+	return val
 }
 
 func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
 	if id == uuid.Nil {
-		return "reuse_chat_model", "reuse_chat_model"
+		return advisorModelReuseChatModel, advisorModelReuseChatModel
 	}
 
 	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
-		}
-		return "reuse_chat_model", "reuse_chat_model"
+	if errors.Is(err, sql.ErrNoRows) {
+		// An inactive override; the runtime falls back to the chat model.
+		return advisorModelReuseChatModel, advisorModelReuseChatModel
 	}
-	if !cfg.AIProviderID.Valid {
-		return "custom", "custom"
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
+		return agentExperimentUnknown, agentExperimentUnknown
 	}
 	providerRow, err := db.GetAIProviderByID(ctx, cfg.AIProviderID.UUID)
 	if err != nil {
 		log.Warn(ctx, "resolve chat advisor model provider for telemetry", slog.Error(err))
-		return "custom", "custom"
+		return agentExperimentUnknown, cfg.Model
 	}
 	return string(providerRow.Type), cfg.Model
 }
