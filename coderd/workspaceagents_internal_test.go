@@ -1015,63 +1015,54 @@ func TestCreateExternalAuthResponse(t *testing.T) {
 
 	// Each provider type maps the token into a different Username/Password pair.
 	// All of them must also carry ExpiresAt through unchanged.
-	t.Run("GitHub", func(t *testing.T) {
-		t.Parallel()
+	providerTests := []struct {
+		name         string
+		typ          string
+		token        string
+		wantUsername string
+		wantPassword string
+	}{
+		{
+			name:         "GitHub",
+			typ:          codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			token:        "ghtoken",
+			wantUsername: "ghtoken",
+			wantPassword: "",
+		},
+		{
+			name:         "GitLab",
+			typ:          codersdk.EnhancedExternalAuthProviderGitLab.String(),
+			token:        "gltoken",
+			wantUsername: "oauth2",
+			wantPassword: "gltoken",
+		},
+		{
+			name:         "BitbucketCloud",
+			typ:          codersdk.EnhancedExternalAuthProviderBitBucketCloud.String(),
+			token:        "bbtoken",
+			wantUsername: "x-token-auth",
+			wantPassword: "bbtoken",
+		},
+		{
+			name:         "BitbucketServer",
+			typ:          codersdk.EnhancedExternalAuthProviderBitBucketServer.String(),
+			token:        "bbtoken",
+			wantUsername: "x-token-auth",
+			wantPassword: "bbtoken",
+		},
+	}
+	for _, tt := range providerTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		resp, err := createExternalAuthResponse(
-			codersdk.EnhancedExternalAuthProviderGitHub.String(), "ghtoken",
-			pqtype.NullRawMessage{}, expiry,
-		)
-		require.NoError(t, err)
-		// GitHub tokens are placed in Username, Password is empty.
-		require.Equal(t, "ghtoken", resp.Username)
-		require.Empty(t, resp.Password)
-		require.Equal(t, "ghtoken", resp.AccessToken)
-		assertExpiry(t, resp, expiry)
-	})
-
-	t.Run("GitLab", func(t *testing.T) {
-		t.Parallel()
-
-		resp, err := createExternalAuthResponse(
-			codersdk.EnhancedExternalAuthProviderGitLab.String(), "gltoken",
-			pqtype.NullRawMessage{}, expiry,
-		)
-		require.NoError(t, err)
-		// GitLab uses oauth2/token as the credential pair.
-		require.Equal(t, "oauth2", resp.Username)
-		require.Equal(t, "gltoken", resp.Password)
-		require.Equal(t, "gltoken", resp.AccessToken)
-		assertExpiry(t, resp, expiry)
-	})
-
-	t.Run("BitbucketCloud", func(t *testing.T) {
-		t.Parallel()
-
-		resp, err := createExternalAuthResponse(
-			codersdk.EnhancedExternalAuthProviderBitBucketCloud.String(), "bbtoken",
-			pqtype.NullRawMessage{}, expiry,
-		)
-		require.NoError(t, err)
-		require.Equal(t, "x-token-auth", resp.Username)
-		require.Equal(t, "bbtoken", resp.Password)
-		require.Equal(t, "bbtoken", resp.AccessToken)
-		assertExpiry(t, resp, expiry)
-	})
-
-	t.Run("BitbucketServer", func(t *testing.T) {
-		t.Parallel()
-
-		resp, err := createExternalAuthResponse(
-			codersdk.EnhancedExternalAuthProviderBitBucketServer.String(), "bbtoken",
-			pqtype.NullRawMessage{}, expiry,
-		)
-		require.NoError(t, err)
-		require.Equal(t, "x-token-auth", resp.Username)
-		require.Equal(t, "bbtoken", resp.Password)
-		require.Equal(t, "bbtoken", resp.AccessToken)
-		assertExpiry(t, resp, expiry)
-	})
+			resp, err := createExternalAuthResponse(tt.typ, tt.token, pqtype.NullRawMessage{}, expiry)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantUsername, resp.Username)
+			require.Equal(t, tt.wantPassword, resp.Password)
+			require.Equal(t, tt.token, resp.AccessToken)
+			assertExpiry(t, resp, expiry)
+		})
+	}
 
 	t.Run("WithTokenExtra", func(t *testing.T) {
 		t.Parallel()
