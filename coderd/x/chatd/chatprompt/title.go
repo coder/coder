@@ -51,6 +51,8 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 			texts = append(texts, text)
 		case codersdk.ChatMessagePartTypeFileReference:
 			texts = append(texts, fileReferencePartToText(part))
+		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
+			texts = append(texts, "[workspace file] "+part.WorkspaceFileName)
 		}
 	}
 	if joined := strings.TrimSpace(strings.Join(texts, " ")); joined != "" {
