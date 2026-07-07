@@ -96,29 +96,20 @@ fi
 				return xerrors.Errorf("get external auth token: %w", err)
 			}
 
-			if outputFormat == "json" {
+			switch {
+			case outputFormat == "json":
 				data, err := json.MarshalIndent(extAuth, "", "  ")
 				if err != nil {
 					return xerrors.Errorf("marshal external auth response: %w", err)
 				}
-				_, err = inv.Stdout.Write(data)
-				if err != nil {
+				if _, err := inv.Stdout.Write(data); err != nil {
 					return err
 				}
-				if extAuth.URL != "" {
-					return cliui.ErrCanceled
-				}
-				return nil
-			}
-
-			if extAuth.URL != "" {
-				_, err = inv.Stdout.Write([]byte(extAuth.URL))
-				if err != nil {
+			case extAuth.URL != "":
+				if _, err := inv.Stdout.Write([]byte(extAuth.URL)); err != nil {
 					return err
 				}
-				return cliui.ErrCanceled
-			}
-			if extra != "" {
+			case extra != "":
 				if extAuth.TokenExtra == nil {
 					return xerrors.Errorf("no extra properties found for token")
 				}
@@ -127,15 +118,17 @@ fi
 					return xerrors.Errorf("marshal extra properties: %w", err)
 				}
 				result := gjson.GetBytes(data, extra)
-				_, err = inv.Stdout.Write([]byte(result.String()))
-				if err != nil {
+				if _, err := inv.Stdout.Write([]byte(result.String())); err != nil {
 					return err
 				}
-				return nil
+			default:
+				if _, err := inv.Stdout.Write([]byte(extAuth.AccessToken)); err != nil {
+					return err
+				}
 			}
-			_, err = inv.Stdout.Write([]byte(extAuth.AccessToken))
-			if err != nil {
-				return err
+
+			if extAuth.URL != "" {
+				return cliui.ErrCanceled
 			}
 			return nil
 		},
