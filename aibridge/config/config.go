@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -41,10 +42,12 @@ type AnthropicWIF struct {
 	// OrganizationID is the UUID of the Anthropic organization.
 	// Required.
 	OrganizationID string
-	// IdentityTokenFile is the path to a file containing the OIDC
-	// identity token (JWT). The file is re-read on every exchange.
-	// Required.
-	IdentityTokenFile string
+	// IdentityToken returns the OIDC identity token (JWT) presented
+	// for exchange. It is invoked on every token exchange, so
+	// implementations can serve rotating credentials (e.g. re-read a
+	// projected service account token file) or mint tokens on demand.
+	// Must be safe for concurrent use. Required.
+	IdentityToken func(ctx context.Context) (string, error)
 	// ServiceAccountID is the optional svac_... tagged ID.
 	ServiceAccountID string
 	// WorkspaceID is the optional wrkspc_... tagged ID or "default".

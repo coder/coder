@@ -90,8 +90,11 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 
 	var wifRT *messages.WIFRuntime
 	if cfg.WIF != nil {
+		if cfg.WIF.IdentityToken == nil {
+			return nil, xerrors.New("WIF config requires an IdentityToken source")
+		}
 		wifOpt := option.WithFederationTokenProvider(
-			option.IdentityTokenFile(cfg.WIF.IdentityTokenFile),
+			cfg.WIF.IdentityToken,
 			option.FederationOptions{
 				FederationRuleID: cfg.WIF.FederationRuleID,
 				OrganizationID:   cfg.WIF.OrganizationID,

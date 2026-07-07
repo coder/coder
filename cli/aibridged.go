@@ -6,6 +6,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
@@ -305,11 +306,14 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		var wifCfg *config.AnthropicWIF
 		if spec.WIF != nil && spec.WIF.IsConfigured() {
 			wifCfg = &config.AnthropicWIF{
-				FederationRuleID:  spec.WIF.FederationRuleID,
-				OrganizationID:    spec.WIF.OrganizationID,
-				IdentityTokenFile: spec.WIF.IdentityTokenFile,
-				ServiceAccountID:  spec.WIF.ServiceAccountID,
-				WorkspaceID:       spec.WIF.WorkspaceID,
+				FederationRuleID: spec.WIF.FederationRuleID,
+				OrganizationID:   spec.WIF.OrganizationID,
+				// The wire config carries a file path; the in-process
+				// config carries a token source. The file is re-read on
+				// every exchange so rotated tokens are picked up.
+				IdentityToken:    option.IdentityTokenFile(spec.WIF.IdentityTokenFile),
+				ServiceAccountID: spec.WIF.ServiceAccountID,
+				WorkspaceID:      spec.WIF.WorkspaceID,
 			}
 		}
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
