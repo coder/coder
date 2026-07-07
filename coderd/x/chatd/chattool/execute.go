@@ -51,21 +51,21 @@ var fileDumpPatterns = []*regexp.Regexp{
 
 const (
 	// shNotFoundFragment matches the exec.LookPath failure the agent
-	// returns when the workspace has no POSIX sh. The suffix is
-	// omitted because Go renders it as %PATH% on Windows and $PATH
-	// elsewhere. This only matches transport errors from
-	// StartProcess, never command output, so a command printing this
-	// text cannot trigger the guidance.
+	// returns when the workspace has no POSIX sh. The fragment omits
+	// the trailing path token because Go renders it as %PATH% on
+	// Windows and $PATH elsewhere. It matches only transport errors
+	// from StartProcess, never command output, so a command that
+	// prints this text cannot trigger the guidance.
 	shNotFoundFragment = `exec: "sh": executable file not found`
 
-	// shNotFoundGuidance is appended to the error so the model can
-	// give the user actionable instructions instead of a raw exec
-	// failure. Keep the docs anchor in sync with
+	// shNotFoundGuidance gives the model actionable instructions to
+	// relay instead of a raw exec failure. enrichStartError appends it
+	// to the error. Keep the docs anchor in sync with
 	// docs/ai-coder/agents/architecture.md.
 	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
-		"Coder Agents run commands with \"sh -c\"; Windows workspaces must " +
-		"provide sh via Git Bash, MSYS2, or WSL, and the workspace must be " +
-		"restarted after installation so it picks up the updated PATH. See " +
+		"Coder Agents run commands with \"sh -c\". On Windows, install sh " +
+		"via Git Bash, MSYS2, or WSL, then restart the workspace to pick " +
+		"up the updated PATH. See " +
 		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
 )
 

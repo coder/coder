@@ -146,10 +146,10 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 #### Windows workspace shell requirement
 
 Coder Agents run workspace commands through a POSIX-compatible `sh`.
-Windows workspaces must have `sh` on `PATH`, for example from
+Windows workspaces must provide `sh` on `PATH`, for example from
 [Git for Windows](https://gitforwindows.org/) (Git Bash), MSYS2, or WSL.
-PowerShell alone is not sufficient for the `execute` tool. After installing
-a shell, restart the workspace so it picks up the updated `PATH`.
+PowerShell alone cannot run the `execute` tool. After installing a
+shell, restart the workspace to pick up the updated `PATH`.
 
 ### Platform tools
 
