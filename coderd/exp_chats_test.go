@@ -1071,7 +1071,7 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 			// The chat may have been picked up by the background
 			// processor (via signalWake) before we list, so
-			// accept any active status.
+			// accept any status it may have reached by now.
 			require.Contains(t, []codersdk.ChatStatus{
 				codersdk.ChatStatusRunning,
 				codersdk.ChatStatusError,

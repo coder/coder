@@ -343,8 +343,6 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
-	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
-		chat?.status === "running";
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;
@@ -352,7 +350,7 @@ const AgentsPage: FC = () => {
 		const chat =
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)) ??
 			chatList.find((candidate) => candidate.id === chatId);
-		if (chat === undefined || isActiveChat(chat)) {
+		if (chat === undefined || chat.status === "running") {
 			setPendingArchiveChatId(chatId);
 			return;
 		}
