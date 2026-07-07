@@ -21,6 +21,20 @@ type SeparatorComponent =
 	| typeof DropdownMenuSeparator
 	| typeof ContextMenuSeparator;
 
+/**
+ * Archive state is root-only on the backend and cascades to children, so
+ * child chats expose no archive or unarchive actions. An archived child chat
+ * therefore has no menu actions at all; call sites use this to hide the menu
+ * trigger instead of rendering an empty menu.
+ */
+export const chatHasMenuActions = ({
+	isArchived,
+	isChildChat,
+}: {
+	isArchived: boolean;
+	isChildChat: boolean;
+}): boolean => !(isArchived && isChildChat);
+
 interface ChatActionsMenuItemsProps {
 	readonly isArchived: boolean;
 	readonly isPinned: boolean;
@@ -75,10 +89,12 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 				</Item>
 			)}
 			{isArchived ? (
-				<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
-					<ArchiveRestoreIcon className="size-3.5" />
-					Unarchive agent
-				</Item>
+				!isChildChat && (
+					<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+						<ArchiveRestoreIcon className="size-3.5" />
+						Unarchive agent
+					</Item>
+				)
 			) : (
 				<>
 					{onOpenRenameDialog && (

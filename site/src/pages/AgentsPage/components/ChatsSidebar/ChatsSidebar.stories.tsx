@@ -2,7 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fireEvent,
+	fn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -2034,6 +2041,69 @@ export const AgentWithWorkspaceMenuFull: Story = {
 		const body = within(document.body);
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedChildChatRowHasNoActionsMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-archived",
+				title: "Archived root agent",
+				archived: true,
+				children: [
+					buildChat({
+						id: "child-archived",
+						title: "Archived child agent",
+						archived: true,
+						parent_chat_id: "root-archived",
+						root_chat_id: "root-archived",
+					}),
+				],
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-archived",
+				pathParams: { agentId: "child-archived" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Archived child agent")).toBeInTheDocument();
+		});
+		// The archived root keeps its actions menu (unarchive lives there).
+		expect(
+			canvas.getByLabelText("Open actions for Archived root agent"),
+		).toBeInTheDocument();
+		// Archive state is root-only, so the archived child has no menu
+		// actions at all: its dropdown trigger is hidden entirely.
+		expect(
+			canvas.queryByLabelText("Open actions for Archived child agent"),
+		).not.toBeInTheDocument();
+
+		// Positive control: right-clicking the root row opens a context menu,
+		// proving the context menu mechanism works in this story.
+		fireEvent.contextMenu(canvas.getByTestId("agents-tree-node-root-archived"));
+		await waitFor(() => {
+			expect(within(document.body).getByRole("menu")).toBeInTheDocument();
+		});
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		// Right-clicking the archived child row must not open a context menu.
+		fireEvent.contextMenu(
+			canvas.getByTestId("agents-tree-node-child-archived"),
+		);
+		expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
 	},
 };
 
