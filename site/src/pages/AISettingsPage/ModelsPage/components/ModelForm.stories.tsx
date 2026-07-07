@@ -150,6 +150,29 @@ export const AddHidesDisabledProviders: Story = {
 	},
 };
 
+export const AddBlocksDisabledSelectedProvider: Story = {
+	args: {
+		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],
+		selectedProviderState: MockDisabledProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A ?provider= query param can select a disabled provider on the
+		// add page. The form must not render as submittable and the
+		// disabled provider must not stay selectable.
+		await expect(
+			canvas.getByText(/OpenAI Secondary is disabled/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("combobox", { name: /provider/i }));
+		await expect(
+			screen.queryByRole("option", { name: /Secondary/ }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const EditKeepsDisabledProviderVisible: Story = {
 	args: {
 		providerStates: [MockOpenAIProviderState, MockDisabledProviderState],

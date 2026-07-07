@@ -15,13 +15,23 @@ export const ModelFormProviderSelect: FC<{
 	selectedProviderKey: string;
 	onProviderChange: (providerKey: string) => void;
 	disabled: boolean;
-}> = ({ providerStates, selectedProviderKey, onProviderChange, disabled }) => {
+	isEditing: boolean;
+}> = ({
+	providerStates,
+	selectedProviderKey,
+	onProviderChange,
+	disabled,
+	isEditing,
+}) => {
 	// Hide disabled providers: the backend rejects creating model configs
-	// under them. Keep the currently selected provider visible so editing
-	// a config whose provider was disabled afterwards still renders.
+	// under them. When editing, keep the currently selected provider
+	// visible so a config whose provider was disabled afterwards still
+	// renders. On the add path the selection can come from a ?provider=
+	// query param, so a disabled provider must not stay selectable.
 	const selectableProviderStates = providerStates.filter(
 		(ps) =>
-			ps.providerConfig?.enabled !== false || ps.key === selectedProviderKey,
+			ps.providerConfig?.enabled !== false ||
+			(isEditing && ps.key === selectedProviderKey),
 	);
 	return (
 		<div className="grid gap-1.5">
