@@ -6,6 +6,7 @@ import {
 } from "#/api/queries/organizations";
 import type { Organization } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -179,11 +180,7 @@ const ProvisionerWarning: FC = () => {
 const BaseTemplateCard: FC<{ base: SelectedBaseMeta }> = ({ base }) => {
 	return (
 		<div className="w-56 shrink-0 rounded-lg bg-surface-secondary p-4 self-start">
-			{base.iconUrl && (
-				<div className="w-10 h-10 rounded-md bg-surface-tertiary flex items-center justify-center mb-3">
-					<img src={base.iconUrl} alt="" className="w-6 h-6" />
-				</div>
-			)}
+			{base.iconUrl && <Avatar src={base.iconUrl} size="lg" variant="icon" />}
 			<p className="text-sm font-medium text-content-primary">{base.name}</p>
 			<p className="text-xs text-content-secondary mt-1">
 				Preset based on base template

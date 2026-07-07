@@ -387,6 +387,11 @@ const (
 	ApiKeyScopeAIGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	ApiKeyScopeAIGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 	ApiKeyScopeAIGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
+	ApiKeyScopeWorkspaceBuildOrchestration         APIKeyScope = "workspace_build_orchestration:*"
+	ApiKeyScopeWorkspaceBuildOrchestrationCreate   APIKeyScope = "workspace_build_orchestration:create"
+	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
+	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
+	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -656,7 +661,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
-		ApiKeyScopeAIGatewayKeyUpdate:
+		ApiKeyScopeAIGatewayKeyUpdate,
+		ApiKeyScopeWorkspaceBuildOrchestration,
+		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
+		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
+		ApiKeyScopeWorkspaceBuildOrchestrationRead,
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
 		return true
 	}
 	return false
@@ -895,6 +905,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
 		ApiKeyScopeAIGatewayKeyUpdate,
+		ApiKeyScopeWorkspaceBuildOrchestration,
+		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
+		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
+		ApiKeyScopeWorkspaceBuildOrchestrationRead,
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
 	}
 }
 
@@ -6459,6 +6474,31 @@ type WorkspaceBuild struct {
 	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername      string              `db:"initiator_by_username" json:"initiator_by_username"`
 	InitiatorByName          string              `db:"initiator_by_name" json:"initiator_by_name"`
+}
+
+// Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
+type WorkspaceBuildOrchestration struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	// Unique because we only support sequences with one child build per parent build.
+	ParentBuildID uuid.UUID `db:"parent_build_id" json:"parent_build_id"`
+	// Nullable because the child build is created only after the parent build completes successfully.
+	ChildBuildID                 uuid.NullUUID       `db:"child_build_id" json:"child_build_id"`
+	ChildTransition              WorkspaceTransition `db:"child_transition" json:"child_transition"`
+	ChildTemplateVersionID       uuid.NullUUID       `db:"child_template_version_id" json:"child_template_version_id"`
+	ChildTemplateVersionPresetID uuid.NullUUID       `db:"child_template_version_preset_id" json:"child_template_version_preset_id"`
+	ChildRichParameterValues     json.RawMessage     `db:"child_rich_parameter_values" json:"child_rich_parameter_values"`
+	ChildLogLevel                string              `db:"child_log_level" json:"child_log_level"`
+	ChildReason                  NullBuildReason     `db:"child_reason" json:"child_reason"`
+	// Counts retryable child build creation failures for this orchestration row.
+	AttemptCount int32 `db:"attempt_count" json:"attempt_count"`
+	// When set, the orchestrator skips this pending row until the timestamp has passed.
+	NextRetryAfter sql.NullTime   `db:"next_retry_after" json:"next_retry_after"`
+	Status         string         `db:"status" json:"status"`
+	Error          sql.NullString `db:"error" json:"error"`
 }
 
 type WorkspaceBuildParameter struct {

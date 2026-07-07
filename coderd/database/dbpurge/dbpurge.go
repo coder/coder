@@ -39,6 +39,11 @@ const (
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
+	// Operational handoff state; terminal rows are kept for debugging, then
+	// purged.
+	workspaceBuildOrchestrationTerminalRetention = 24 * time.Hour
+	// Batch size for workspace build orchestration deletion.
+	workspaceBuildOrchestrationsBatchSize = 10000
 	// Chat and chat file batch sizes stay smaller than audit/connection
 	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
@@ -275,6 +280,15 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		deleteOldWorkspaceBuildOrchestrationsBefore := start.Add(-workspaceBuildOrchestrationTerminalRetention)
+		purgedWorkspaceBuildOrchestrations, err := tx.DeleteOldWorkspaceBuildOrchestrations(ctx, database.DeleteOldWorkspaceBuildOrchestrationsParams{
+			BeforeTime: deleteOldWorkspaceBuildOrchestrationsBefore,
+			LimitCount: workspaceBuildOrchestrationsBatchSize,
+		})
+		if err != nil {
+			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
+		}
+
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {
 			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
@@ -304,6 +318,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("audit_logs", purgedAuditLogs),
 			slog.F("boundary_logs", purgedBoundaryLogs),
 			slog.F("boundary_sessions", purgedBoundarySessions),
+			slog.F("workspace_build_orchestrations", purgedWorkspaceBuildOrchestrations),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
@@ -318,6 +333,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
 			i.recordsPurged.WithLabelValues("boundary_logs").Add(float64(purgedBoundaryLogs))
 			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
+			i.recordsPurged.WithLabelValues("workspace_build_orchestrations").Add(float64(purgedWorkspaceBuildOrchestrations))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))

@@ -96,6 +96,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -967,6 +968,19 @@ func New(options *Options) *API {
 	})
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
+
+	api.workspaceBuildOrchestrator = wsbuildorchestrator.New(wsbuildorchestrator.Options{
+		Logger:            options.Logger,
+		Database:          options.Database,
+		Pubsub:            options.Pubsub,
+		FileCache:         api.FileCache,
+		BuildUsageChecker: api.BuildUsageChecker,
+		DeploymentValues:  options.DeploymentValues,
+		Experiments:       api.Experiments,
+		BuilderMetrics:    options.WorkspaceBuilderMetrics,
+		Clock:             quartz.NewReal(),
+	})
+	api.workspaceBuildOrchestrator.Start(api.ctx)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -2316,7 +2330,8 @@ type API struct {
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
 
-	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
+	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
+	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
 }
 
 // chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
@@ -2400,6 +2415,7 @@ func (api *API) Close() error {
 	_ = api.AppEncryptionKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()
+	api.workspaceBuildOrchestrator.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))
