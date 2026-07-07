@@ -1,11 +1,11 @@
 package chatprompt
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
 
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -36,16 +36,7 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 			}
 			texts = append(texts, text)
 		case codersdk.ChatMessagePartTypeFileReference:
-			lineRange := fmt.Sprintf("%d", part.StartLine)
-			if part.StartLine != part.EndLine {
-				lineRange = fmt.Sprintf("%d-%d", part.StartLine, part.EndLine)
-			}
-			var sb strings.Builder
-			_, _ = fmt.Fprintf(&sb, "[file-reference] %s:%s", part.FileName, lineRange)
-			if strings.TrimSpace(part.Content) != "" {
-				_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
-			}
-			texts = append(texts, sb.String())
+			texts = append(texts, fileReferencePartToText(part))
 		}
 	}
 	if joined := strings.TrimSpace(strings.Join(texts, " ")); joined != "" {
@@ -61,7 +52,7 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 		if content == "" {
 			continue
 		}
-		pastes = append(pastes, truncateTitleRunes(content, syntheticPasteTitleBudget))
+		pastes = append(pastes, stringutil.Truncate(content, syntheticPasteTitleBudget))
 	}
 	return strings.TrimSpace(strings.Join(pastes, "\n\n"))
 }
@@ -103,21 +94,8 @@ func FallbackTitle(message string) string {
 
 	title := strings.Join(words, " ")
 	if truncated {
-		return truncateTitleRunes(title, maxRunes-1) + "…"
+		return stringutil.Truncate(title, maxRunes-1) + "…"
 	}
 
-	return truncateTitleRunes(title, maxRunes)
-}
-
-func truncateTitleRunes(value string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-
-	return string(runes[:maxLen])
+	return stringutil.Truncate(title, maxRunes)
 }
