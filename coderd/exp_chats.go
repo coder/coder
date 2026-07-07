@@ -3573,6 +3573,13 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
 			})
+		// The nil-override edit path resolves the preserved message
+		// model through the send-message fallback, which rejects a
+		// disabled default.
+		case xerrors.Is(editErr, chatd.ErrNoDefaultChatModelConfig):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No default chat model config is configured.",
+			})
 		case errors.Is(editErr, chatstate.ErrChatNotFound):
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, editErr):

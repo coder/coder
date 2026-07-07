@@ -1710,6 +1710,23 @@ func (p *Server) EditMessage(
 				)
 			}
 			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
+		} else {
+			// Without an explicit override the transition preserves
+			// the edited message's original model, which may have
+			// been disabled since. Resolve it like the send-message
+			// fallback so a disabled model falls back to the default
+			// instead of being admitted and failing at generation.
+			preserved := uuid.Nil
+			if target.ModelConfigID.Valid {
+				preserved = target.ModelConfigID.UUID
+			}
+			resolved, err := resolveFallbackModelConfigID(ctx, store, preserved)
+			if err != nil {
+				return err
+			}
+			if resolved != preserved {
+				modelOverride = uuid.NullUUID{UUID: resolved, Valid: true}
+			}
 		}
 
 		var reasoningEffortOverride database.NullChatReasoningEffort

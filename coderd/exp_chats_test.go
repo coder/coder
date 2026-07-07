@@ -9190,6 +9190,53 @@ func TestPatchChatMessage(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model_config_id: provider is not enabled for this model.", sdkErr.Message)
 	})
+
+	t.Run("ProviderDisabledPreservedModelRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello before provider disable",
+			}},
+		})
+		require.NoError(t, err)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, message := range messagesResult.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = message.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		_, err = client.UpdateAIProvider(ctx, defaultConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		// Editing without model_config_id preserves the edited
+		// message's original model. With that model's provider
+		// disabled and the default owned by the same provider, the
+		// fallback resolution must reject the edit with a 400.
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edited after provider disable",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
+	})
 }
 
 func TestStreamChat(t *testing.T) {
