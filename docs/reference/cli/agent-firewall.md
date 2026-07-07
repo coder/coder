@@ -35,15 +35,6 @@ Path to YAML config file.
 
 Allow rule (repeatable). These are merged with allowlist from config file. Format: "pattern" or "METHOD[,METHOD] pattern".
 
-### allowlist
-
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
-| YAML | <code>allowlist</code>    |
-
-Allowlist rules from config file (YAML only).
-
 ### --log-level
 
 |             |                                  |
@@ -174,12 +165,3 @@ Enable session correlation header injection. When no inject targets are configur
 | Environment | <code>$BOUNDARY_SESSION_ID_INJECT_TARGET</code> |
 
 Inject target for session correlation headers. Repeat the flag once per target; each value describes exactly one target. Format: "domain=<host> [path=<glob>]". Example: --session-id-inject-target "domain=prod.coder.com path=/api/v2/aibridge/*".
-
-### session_id_inject_targets
-
-|      |                                        |
-|------|----------------------------------------|
-| Type | <code>string-array</code>              |
-| YAML | <code>session_id_inject_targets</code> |
-
-Inject targets from config file (YAML only).
