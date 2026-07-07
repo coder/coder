@@ -214,10 +214,6 @@ func (a *BoundaryLogsAPI) ensureSession(ctx context.Context, sessionID uuid.UUID
 		return nil
 	}
 
-	// Agents are not permitted to read boundary sessions, so we cannot do a
-	// pre-insert existence check. Insert directly and rely on the primary-key
-	// unique violation to detect a session already created by a prior batch, a
-	// reconnection, or another coderd replica, treating that as success.
 	_, err := a.Database.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
 		ID:                  sessionID,
 		WorkspaceAgentID:    a.AgentID,

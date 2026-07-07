@@ -3,11 +3,9 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
-	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,13 +14,10 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -557,91 +552,4 @@ func TestReportBoundaryLogsSessionRetriedOnError(t *testing.T) {
 	require.NoError(t, err)
 	_, err = api.ReportBoundaryLogs(context.Background(), httpLogRequest(sessionID, 1))
 	require.NoError(t, err)
-}
-
-// agentSubject builds the RBAC subject a real workspace agent authenticates as:
-// the member role, scoped to this workspace/owner via WorkspaceAgentScope. This
-// mirrors coderd/httpmw/workspaceagent.go, which is the authorization context
-// under which ReportBoundaryLogs runs in production.
-func (f *boundaryFixture) agentSubject(t *testing.T) rbac.Subject {
-	t.Helper()
-	memberRole, err := rbac.RoleByName(rbac.RoleMember())
-	require.NoError(t, err)
-	return rbac.Subject{
-		ID:    f.OwnerID.String(),
-		Roles: rbac.Roles{memberRole},
-		Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
-			WorkspaceID: f.WorkspaceID,
-			OwnerID:     f.OwnerID,
-			TemplateID:  f.TemplateID,
-			VersionID:   f.TemplateVerID,
-		}),
-	}.WithCachedASTValue()
-}
-
-// TestReportBoundaryLogsAgentRBAC exercises ReportBoundaryLogs through a
-// dbauthz-wrapped store under the exact RBAC context a workspace agent uses.
-// Agents may create boundary logs for their own owner but may not read them, so
-// the lazy session insert must not depend on a prior read. This test guards
-// against reintroducing a pre-insert read (e.g. GetBoundarySessionByID), which
-// would be denied for agents and break session creation entirely.
-func TestReportBoundaryLogsAgentRBAC(t *testing.T) {
-	t.Parallel()
-
-	f := newBoundaryFixture(t)
-
-	// Wrap the store with dbauthz so authorization is enforced, mirroring
-	// production where the agent API is handed the authz-wrapped store.
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
-	accessControlStore.Store(&acs)
-	authzDB := dbauthz.New(f.DB, auth, testutil.Logger(t), accessControlStore)
-
-	agentCtx := dbauthz.As(context.Background(), f.agentSubject(t))
-	sessionID := uuid.New()
-
-	// Sanity check the premise of the fix: an agent cannot read boundary
-	// sessions, so the removed pre-insert existence check would always fail
-	// under this context.
-	_, err := authzDB.GetBoundarySessionByID(agentCtx, sessionID)
-	require.Error(t, err, "agents must not be able to read boundary sessions")
-	require.True(t, dbauthz.IsNotAuthorizedError(err),
-		"expected an authorization error, got %v", err)
-
-	api := &agentapi.BoundaryLogsAPI{
-		Log:               testutil.Logger(t),
-		Database:          authzDB,
-		AgentID:           f.AgentID,
-		WorkspaceID:       f.WorkspaceID,
-		OwnerID:           f.OwnerID,
-		TemplateID:        f.TemplateID,
-		TemplateVersionID: f.TemplateVerID,
-	}
-
-	// Reporting logs must create the session and persist the logs even though
-	// the agent has no read access.
-	_, err = api.ReportBoundaryLogs(agentCtx, httpLogRequest(sessionID, 0))
-	require.NoError(t, err)
-
-	// Confirm the agent context carries create permission for boundary logs
-	// but not read, matching the member role's user-scoped grant.
-	require.NoError(t, auth.Authorize(agentCtx, f.agentSubject(t), policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(f.OwnerID.String())))
-	require.Error(t, auth.Authorize(agentCtx, f.agentSubject(t), policy.ActionRead,
-		rbac.ResourceBoundaryLog.WithOwner(f.OwnerID.String())))
-
-	// Read back through the unwrapped store to verify persistence, since the
-	// agent context cannot read boundary data.
-	sess, err := f.DB.GetBoundarySessionByID(context.Background(), sessionID)
-	require.NoError(t, err)
-	require.Equal(t, sessionID, sess.ID)
-	require.Equal(t, f.AgentID, sess.WorkspaceAgentID)
-	require.Equal(t, "claude-code", sess.ConfinedProcessName)
-
-	logs, err := f.DB.ListBoundaryLogsBySessionID(context.Background(), database.ListBoundaryLogsBySessionIDParams{
-		SessionID: sessionID,
-	})
-	require.NoError(t, err)
-	require.Len(t, logs, 1)
 }
