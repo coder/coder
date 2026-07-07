@@ -413,11 +413,11 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
 				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-wif",
 				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
-				"CODER_AI_GATEWAY_PROVIDER_0_FEDERATION_RULE_ID=fdrl_test123",
-				"CODER_AI_GATEWAY_PROVIDER_0_ORGANIZATION_ID=org-uuid-123",
-				"CODER_AI_GATEWAY_PROVIDER_0_IDENTITY_TOKEN_FILE=/var/run/secrets/token",
-				"CODER_AI_GATEWAY_PROVIDER_0_SERVICE_ACCOUNT_ID=svac_test",
-				"CODER_AI_GATEWAY_PROVIDER_0_WORKSPACE_ID=wrkspc_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-uuid-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/var/run/secrets/token",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_SERVICE_ACCOUNT_ID=svac_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_WORKSPACE_ID=wrkspc_test",
 			},
 			expected: []codersdk.AIProviderConfig{
 				{
@@ -436,42 +436,42 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			name: "WIFNonAnthropicType",
 			env: []string{
 				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
-				"CODER_AI_GATEWAY_PROVIDER_0_FEDERATION_RULE_ID=fdrl_test",
-				"CODER_AI_GATEWAY_PROVIDER_0_ORGANIZATION_ID=org-123",
-				"CODER_AI_GATEWAY_PROVIDER_0_IDENTITY_TOKEN_FILE=/tmp/token",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
 			},
-			errContains: "FEDERATION_RULE_ID/ORGANIZATION_ID/IDENTITY_TOKEN_FILE fields are only supported with TYPE",
+			errContains: "WIF_* fields are only supported with TYPE",
 		},
 		{
 			name: "WIFAndBedrockConflict",
 			env: []string{
 				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
-				"CODER_AI_GATEWAY_PROVIDER_0_FEDERATION_RULE_ID=fdrl_test",
-				"CODER_AI_GATEWAY_PROVIDER_0_ORGANIZATION_ID=org-123",
-				"CODER_AI_GATEWAY_PROVIDER_0_IDENTITY_TOKEN_FILE=/tmp/token",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
 				"CODER_AI_GATEWAY_PROVIDER_0_BEDROCK_REGION=us-east-1",
 			},
-			errContains: "WIF and BEDROCK_* fields are mutually exclusive",
+			errContains: "WIF_* and BEDROCK_* fields are mutually exclusive",
 		},
 		{
 			name: "WIFAndKeysConflict",
 			env: []string{
 				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
 				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-xxx",
-				"CODER_AI_GATEWAY_PROVIDER_0_FEDERATION_RULE_ID=fdrl_test",
-				"CODER_AI_GATEWAY_PROVIDER_0_ORGANIZATION_ID=org-123",
-				"CODER_AI_GATEWAY_PROVIDER_0_IDENTITY_TOKEN_FILE=/tmp/token",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
 			},
-			errContains: "KEY/KEYS and WIF fields are mutually exclusive",
+			errContains: "KEY/KEYS and WIF_* fields are mutually exclusive",
 		},
 		{
 			name: "WIFPartialConfig",
 			env: []string{
 				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
-				"CODER_AI_GATEWAY_PROVIDER_0_FEDERATION_RULE_ID=fdrl_test",
-				// Missing ORGANIZATION_ID and IDENTITY_TOKEN_FILE.
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				// Missing WIF_ORGANIZATION_ID and WIF_IDENTITY_TOKEN_FILE.
 			},
-			errContains: "WIF requires FEDERATION_RULE_ID, ORGANIZATION_ID, and IDENTITY_TOKEN_FILE to all be set",
+			errContains: "WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
 		},
 	}
 
