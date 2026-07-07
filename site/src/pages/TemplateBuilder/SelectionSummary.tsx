@@ -189,7 +189,7 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 							onClick={() => onDeselectModule(module.id)}
 							aria-label="Deselect module"
 						>
-							<XIcon className="w-4 h-4" />
+							<XIcon className="size-4" />
 						</Button>
 					</div>
 				</div>
