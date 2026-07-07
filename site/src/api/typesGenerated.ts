@@ -4768,6 +4768,7 @@ export type Experiment =
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
+	| "permission-based-licensing"
 	| "workspace-build-updates"
 	| "workspace-usage";
 
@@ -4782,6 +4783,7 @@ export const Experiments: Experiment[] = [
 	"nats_pubsub",
 	"notifications",
 	"oauth2",
+	"permission-based-licensing",
 	"workspace-build-updates",
 	"workspace-usage",
 ];
