@@ -48,9 +48,15 @@ type AnthropicWIF struct {
 	// projected service account token file) or mint tokens on demand.
 	// Must be safe for concurrent use. Required.
 	IdentityToken func(ctx context.Context) (string, error)
-	// ServiceAccountID is the optional svac_... tagged ID.
+	// ServiceAccountID is the svac_... tagged ID of the target service
+	// account. Required for SERVICE_ACCOUNT-target federation rules;
+	// omitted from the exchange request only for USER-target rules,
+	// where the principal derives from the JWT claims.
 	ServiceAccountID string
-	// WorkspaceID is the optional wrkspc_... tagged ID or "default".
+	// WorkspaceID is the wrkspc_... tagged ID or the literal "default".
+	// Required when the federation rule is enabled for more than one
+	// workspace; when omitted the server selects the rule's sole
+	// enabled workspace.
 	WorkspaceID string
 }
 
