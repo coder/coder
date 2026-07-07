@@ -788,18 +788,21 @@ describe("filterConfigsWithEnabledProvider", () => {
 		],
 	]);
 
-	it("drops configs of disabled providers and keeps the rest", () => {
+	it("drops configs of disabled or unknown providers", () => {
 		expect(
 			filterConfigsWithEnabledProvider(configs, providers).map(
 				(config) => config.id,
 			),
-		).toEqual(["config-enabled", "config-unknown"]);
+		).toEqual(["config-enabled"]);
 	});
 
-	it("keeps every config when provider info lacks enabled flags", () => {
-		const flaglessProviders = new Map([
-			["prov-enabled", { provider: "openai", displayName: "OpenAI", icon: "" }],
-		]);
+	it("keeps configs whose provider rows lack enabled flags", () => {
+		const flaglessProviders = new Map(
+			["prov-enabled", "prov-disabled", "prov-unknown"].map((id) => [
+				id,
+				{ provider: "openai", displayName: "OpenAI", icon: "" },
+			]),
+		);
 		expect(
 			filterConfigsWithEnabledProvider(configs, flaglessProviders),
 		).toEqual(configs);

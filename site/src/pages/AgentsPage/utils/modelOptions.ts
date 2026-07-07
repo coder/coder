@@ -229,17 +229,20 @@ export const providerTypeByIDFromUserConfigs = (
 	);
 
 /**
- * Drops model configs whose provider row is disabled. Configs without
- * provider info (or with providers lacking an enabled flag) are kept so
- * callers relying on other guards are unaffected.
+ * Drops model configs whose provider row is disabled or missing from the
+ * map. Both provider-info sources (the admin provider list and the user
+ * provider key configs) always include every enabled provider, so a
+ * missing row means the provider is disabled or deleted. Provider rows
+ * lacking an enabled flag are kept for backward compatibility.
  */
 export const filterConfigsWithEnabledProvider = (
 	configs: readonly TypesGen.ChatModelConfig[],
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 ): readonly TypesGen.ChatModelConfig[] =>
-	configs.filter(
-		(config) => providerInfoByID.get(config.ai_provider_id)?.enabled !== false,
-	);
+	configs.filter((config) => {
+		const info = providerInfoByID.get(config.ai_provider_id);
+		return info !== undefined && info.enabled !== false;
+	});
 
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
@@ -253,9 +256,9 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	// Skip models whose provider row is disabled. The catalog check below
-	// is keyed by provider type, so it cannot exclude a disabled instance
-	// when another provider of the same type is enabled.
+	// Skip models whose provider row is disabled or unknown. The catalog
+	// check below is keyed by provider type, so it cannot exclude a
+	// disabled instance when another provider of the same type is enabled.
 	for (const config of filterConfigsWithEnabledProvider(
 		configs,
 		providerInfoByID,
