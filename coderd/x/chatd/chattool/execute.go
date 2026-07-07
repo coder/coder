@@ -49,6 +49,35 @@ var fileDumpPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^(rg|grep)\s+-l\s+`),
 }
 
+const (
+	// shNotFoundFragment matches the exec.LookPath failure the agent
+	// returns when the workspace has no POSIX sh. The suffix is
+	// omitted because Go renders it as %PATH% on Windows and $PATH
+	// elsewhere. This only matches transport errors from
+	// StartProcess, never command output, so a command printing this
+	// text cannot trigger the guidance.
+	shNotFoundFragment = `exec: "sh": executable file not found`
+
+	// shNotFoundGuidance is appended to the error so the model can
+	// give the user actionable instructions instead of a raw exec
+	// failure. Keep the docs anchor in sync with
+	// docs/ai-coder/agents/architecture.md.
+	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
+		"Coder Agents run commands with \"sh -c\"; Windows workspaces must " +
+		"provide sh via Git Bash, MSYS2, or WSL, and the workspace agent must " +
+		"be restarted after installation so it picks up the updated PATH. See " +
+		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
+)
+
+// enrichStartError appends actionable guidance when a StartProcess
+// error indicates the workspace has no sh binary.
+func enrichStartError(msg string) string {
+	if strings.Contains(msg, shNotFoundFragment) {
+		return msg + "\n\n" + shNotFoundGuidance
+	}
+	return msg
+}
+
 // ExecuteResult is the structured response from the execute
 // tool.
 type ExecuteResult struct {
@@ -162,7 +191,7 @@ func executeBackground(
 		Background: true,
 	})
 	if err != nil {
-		return errorResult(fmt.Sprintf("start background process: %v", err))
+		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
 
 	result := ExecuteResult{
@@ -212,7 +241,7 @@ func executeForeground(
 		Background: false,
 	})
 	if err != nil {
-		return errorResult(fmt.Sprintf("start process: %v", err))
+		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)

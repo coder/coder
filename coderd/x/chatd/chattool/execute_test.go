@@ -408,6 +408,75 @@ func TestExecuteTool(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Error, "connection lost")
+		// Unrelated errors must not trigger the missing-shell
+		// guidance.
+		assert.NotContains(t, result.Error, "Git Bash")
+		assert.NotContains(t, result.Error, "coder.com/docs")
+	})
+
+	t.Run("MissingShellError", func(t *testing.T) {
+		t.Parallel()
+
+		// The agent returns the raw exec.LookPath failure as the
+		// error detail when the workspace has no sh binary. The
+		// rendering differs by OS: %PATH% on Windows, $PATH on
+		// POSIX. Both must be enriched with actionable guidance.
+		tests := []struct {
+			name       string
+			input      string
+			agentErr   string
+			wantPrefix string
+		}{
+			{
+				name:       "ForegroundWindows",
+				input:      `{"command":"echo hi"}`,
+				agentErr:   `unexpected status code 500: Failed to start process.\n\tError: start process: exec: "sh": executable file not found in %PATH%`,
+				wantPrefix: "start process:",
+			},
+			{
+				name:       "BackgroundWindows",
+				input:      `{"command":"echo hi","run_in_background":true}`,
+				agentErr:   `unexpected status code 500: Failed to start process.\n\tError: start process: exec: "sh": executable file not found in %PATH%`,
+				wantPrefix: "start background process:",
+			},
+			{
+				name:       "ForegroundPOSIX",
+				input:      `{"command":"echo hi"}`,
+				agentErr:   `unexpected status code 500: Failed to start process.\n\tError: start process: exec: "sh": executable file not found in $PATH`,
+				wantPrefix: "start process:",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctrl := gomock.NewController(t)
+				mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+				mockConn.EXPECT().
+					StartProcess(gomock.Any(), gomock.Any()).
+					Return(workspacesdk.StartProcessResponse{}, xerrors.New(tt.agentErr))
+
+				tool := newExecuteTool(t, mockConn)
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				resp, err := tool.Run(ctx, fantasy.ToolCall{
+					ID:    "call-1",
+					Name:  "execute",
+					Input: tt.input,
+				})
+				require.NoError(t, err)
+				assert.False(t, resp.IsError)
+
+				var result chattool.ExecuteResult
+				require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+				assert.False(t, result.Success)
+				// The original error is preserved for debugging.
+				assert.Contains(t, result.Error, tt.wantPrefix)
+				assert.Contains(t, result.Error, `exec: "sh": executable file not found`)
+				// Actionable guidance the model can relay to the user.
+				assert.Contains(t, result.Error, "Git Bash")
+				assert.Contains(t, result.Error, "https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement")
+			})
+		}
 	})
 
 	t.Run("ProcessOutputError", func(t *testing.T) {
