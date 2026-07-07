@@ -4940,6 +4940,21 @@ func (api *API) defaultCreateChatModelConfigID(
 		}
 	}
 
+	// A default whose config or provider is disabled would only fail at
+	// generation time, so reject chat creation at admission instead.
+	if _, err := lookupEnabledChatModelConfigByID(ctx, api.Database, defaultModelConfig.ID); err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
+				Message: "No default chat model config is configured.",
+				Detail:  "The default chat model or its provider is disabled.",
+			}
+		}
+		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to resolve chat model config.",
+			Detail:  err.Error(),
+		}
+	}
+
 	return defaultModelConfig.ID, 0, nil
 }
 
