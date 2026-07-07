@@ -2088,6 +2088,15 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 			canvas.queryByLabelText("Open actions for Archived child agent"),
 		).not.toBeInTheDocument();
 
+		// The timestamp normally swaps out for the actions trigger on hover
+		// (a CSS-only group-hover swap). Without menu actions there is no
+		// trigger, so the row keeps its timestamp: ChatTreeNode only applies
+		// the hover-hidden classes when the row has menu actions. CSS :hover
+		// cannot be reliably driven in this environment, so this story
+		// asserts the timestamp is present and visible in the resting state.
+		const childRow = canvas.getByTestId("agents-tree-node-child-archived");
+		expect(within(childRow).getByText("1w")).toBeVisible();
+
 		// Positive control: right-clicking the root row opens a context menu,
 		// proving the context menu mechanism works in this story.
 		fireEvent.contextMenu(canvas.getByTestId("agents-tree-node-root-archived"));
