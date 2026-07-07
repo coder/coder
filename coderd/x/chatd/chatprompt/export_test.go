@@ -110,3 +110,7 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
+
+// WorkspaceFilePartToTextForTest exposes workspaceFilePartToText for
+// external tests.
+var WorkspaceFilePartToTextForTest = workspaceFilePartToText

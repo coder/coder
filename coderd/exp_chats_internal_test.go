@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -712,4 +714,57 @@ func TestIsZeroChatModelCallConfigReasoningModel(t *testing.T) {
 		require.False(t, isZeroChatModelCallConfig(config))
 	}
 	require.True(t, isZeroChatModelCallConfig(&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{}}))
+}
+
+func TestWriteWorkspaceAgentUploadError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AgentStatus", func(t *testing.T) {
+		t.Parallel()
+
+		res := &http.Response{
+			StatusCode: http.StatusConflict,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"message":"too many existing files"}`)),
+		}
+		err := codersdk.ReadBodyAsError(res)
+		rw := httptest.NewRecorder()
+
+		writeWorkspaceAgentUploadError(context.Background(), rw, err)
+
+		require.Equal(t, http.StatusConflict, rw.Code)
+		require.Contains(t, rw.Body.String(), "too many existing files")
+	})
+
+	t.Run("OutdatedAgent", func(t *testing.T) {
+		t.Parallel()
+
+		res := &http.Response{
+			StatusCode: http.StatusNotFound,
+			Header: http.Header{
+				"Content-Type": []string{"text/plain"},
+			},
+			Body: io.NopCloser(strings.NewReader("404 page not found")),
+		}
+		err := codersdk.ReadBodyAsError(res)
+		rw := httptest.NewRecorder()
+
+		writeWorkspaceAgentUploadError(context.Background(), rw, err)
+
+		require.Equal(t, http.StatusConflict, rw.Code)
+		require.Contains(t, rw.Body.String(), "Restart the workspace")
+	})
+
+	t.Run("TransportError", func(t *testing.T) {
+		t.Parallel()
+
+		rw := httptest.NewRecorder()
+
+		writeWorkspaceAgentUploadError(context.Background(), rw, xerrors.New("dial failed"))
+
+		require.Equal(t, http.StatusBadGateway, rw.Code)
+		require.Contains(t, rw.Body.String(), "Failed to upload file to workspace agent")
+	})
 }
