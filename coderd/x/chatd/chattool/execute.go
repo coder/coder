@@ -64,8 +64,8 @@ const (
 	// docs/ai-coder/agents/architecture.md.
 	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
 		"Coder Agents run commands with \"sh -c\"; Windows workspaces must " +
-		"provide sh via Git Bash, MSYS2, or WSL, and the workspace agent must " +
-		"be restarted after installation so it picks up the updated PATH. See " +
+		"provide sh via Git Bash, MSYS2, or WSL, and the workspace must be " +
+		"restarted after installation so it picks up the updated PATH. See " +
 		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
 )
 
