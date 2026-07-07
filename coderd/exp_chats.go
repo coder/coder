@@ -3406,6 +3406,14 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// The fallback model resolution rejects a disabled default (or
+		// one under a disabled provider), mirroring chat creation.
+		if xerrors.Is(sendErr, chatd.ErrNoDefaultChatModelConfig) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "No default chat model config is configured.",
+			})
+			return
+		}
 		if errors.Is(sendErr, chatstate.ErrChatNotFound) {
 			httpapi.ResourceNotFound(rw)
 			return

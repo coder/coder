@@ -7028,6 +7028,41 @@ func TestPostChatMessages(t *testing.T) {
 		require.Equal(t, "Invalid model_config_id: provider is not enabled for this model.", sdkErr.Message)
 	})
 
+	t.Run("ProviderDisabledDefaultFallbackRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "initial message before provider disable",
+			}},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, defaultConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		// Without an explicit model the fallback resolution walks
+		// last model -> default, both owned by the now-disabled
+		// provider, and must surface a 400 instead of a generic 500.
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "message after provider disable",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
+	})
+
 	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
 		t.Parallel()
 
