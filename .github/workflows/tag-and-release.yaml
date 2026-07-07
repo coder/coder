@@ -1,9 +1,9 @@
 # Tag and release workflow (GitHub Actions-driven, manual).
 #
 # This is the newer release pipeline driven entirely by the
-# scripts/release-action Go tool. It is triggered manually from the
+# scripts/releaser Go tool. It is triggered manually from the
 # Actions UI. The legacy release.yaml workflow remains in place and is
-# triggered by the scripts/releaser Go tool.
+# triggered by the legacy interactive tool (scripts/releaser --legacy).
 name: Tag and Release
 on:
   workflow_dispatch:
@@ -116,7 +116,7 @@ jobs:
             args+=(--dry-run)
           fi
 
-          output=$(go run ./scripts/release-action prepare-release "${args[@]}")
+          output=$(go run ./scripts/releaser prepare-release "${args[@]}")
           echo "Raw output: $output"
 
           version=$(echo "$output" | jq -r '.version')
@@ -165,7 +165,7 @@ jobs:
           PREV_VERSION: ${{ steps.prepare.outputs.previous_version }}
         run: |
           set -euo pipefail
-          go run ./scripts/release-action generate-notes \
+          go run ./scripts/releaser generate-notes \
             --version "$VERSION" \
             --previous-version "$PREV_VERSION" > /tmp/release_notes.md
 
@@ -643,7 +643,7 @@ jobs:
             stable_flag=(--stable)
           fi
 
-          go run ./scripts/release-action publish \
+          go run ./scripts/releaser publish \
             --version "v${VERSION}" \
             "${stable_flag[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \

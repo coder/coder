@@ -20,7 +20,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { providerTypeByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
+import { providerInfoByIDFromConfigs } from "#/pages/AgentsPage/utils/modelOptions";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
@@ -114,7 +114,7 @@ const CoderAgentsPage: FC = () => {
 		updateChatComputerUseProvider(queryClient),
 	);
 
-	const providerTypeByID = providerTypeByIDFromConfigs(
+	const providerInfoByID = providerInfoByIDFromConfigs(
 		providerConfigsQuery.data,
 	);
 
@@ -143,7 +143,7 @@ const CoderAgentsPage: FC = () => {
 				titleGenerationModelOverrideData={titleGenerationModelQuery.data}
 				exploreModelOverrideData={exploreModelOverrideQuery.data}
 				modelConfigsData={modelConfigsQuery.data}
-				providerTypeByID={providerTypeByID}
+				providerInfoByID={providerInfoByID}
 				modelConfigsError={modelConfigsQuery.error}
 				isLoadingModelConfigs={modelConfigsQuery.isLoading}
 				isFetchingModelConfigs={modelConfigsQuery.isFetching}

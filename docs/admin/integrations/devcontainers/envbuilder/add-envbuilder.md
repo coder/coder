@@ -14,22 +14,11 @@ choose a template from the
 
 ## Dashboard
 
-1. In the Coder dashboard, select **Templates** then **Create Template**.
-1. Use a
-   [starter template](../../../../../examples/templates)
-   or create a new template:
-
-   - Starter template:
-
-     1. Select **Choose a starter template**.
-     1. Choose a template from the list or select **Devcontainer** from the
-        sidebar to display only dev container-compatible templates.
-     1. Select **Use template**, enter the details, then select **Create
-        template**.
-
-   - To create a new template, select **From scratch** and enter the templates
-     details, then select **Create template**.
-
+1. In the Coder dashboard, select **Templates** > **New Template**.
+   The template builder opens.
+1. The template builder does not currently include dev-container-compatible base templates.
+   Select **Upload an existing template** at the bottom of the page to upload your Terraform files directly.
+1. Upload your `.zip` or `.tar.gz` file, enter the details, then select **Create template**.
 1. Edit the template files to fit your deployment.
 
 ## CLI

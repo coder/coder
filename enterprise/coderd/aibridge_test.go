@@ -59,6 +59,24 @@ func auditLogsByAction(t *testing.T, rows []database.GetAuditLogsOffsetRow) map[
 	return byAction
 }
 
+// auditLogByNewSpendLimit selects the audit row whose diff sets spend_limit to
+// the given value so callers can assert on a specific entry without relying on
+// row order, which GetAuditLogsOffset does not guarantee. It requires the
+// resulting spend_limit among the rows to be unique.
+func auditLogByNewSpendLimit(t *testing.T, rows []database.GetAuditLogsOffsetRow, newSpendLimit string) database.AuditLog {
+	t.Helper()
+	var matches []database.AuditLog
+	for _, r := range rows {
+		var diff audit.Map
+		require.NoError(t, json.Unmarshal(r.AuditLog.Diff, &diff))
+		if field, ok := diff["spend_limit"]; ok && field.New == newSpendLimit {
+			matches = append(matches, r.AuditLog)
+		}
+	}
+	require.Lenf(t, matches, 1, "want exactly one audit entry setting spend_limit to %q, got %d", newSpendLimit, len(matches))
+	return matches[0]
+}
+
 func TestAIBridgeListSessions(t *testing.T) {
 	t.Parallel()
 
@@ -2687,8 +2705,10 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one create and one update audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		updateLog := rows[0].AuditLog
+		// Both upserts emit AuditActionWrite; select the update by the spend
+		// limit it results in rather than row order, which GetAuditLogsOffset
+		// does not guarantee.
+		updateLog := auditLogByNewSpendLimit(t, rows, "$1000.00")
 
 		var updateDiff audit.Map
 		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
@@ -2744,8 +2764,10 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one create and one update audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		updateLog := rows[0].AuditLog
+		// Both upserts emit AuditActionWrite; select the update by the spend
+		// limit it results in rather than row order, which GetAuditLogsOffset
+		// does not guarantee.
+		updateLog := auditLogByNewSpendLimit(t, rows, "$1000.00")
 
 		var updateDiff audit.Map
 		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))

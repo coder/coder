@@ -52,31 +52,6 @@ func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID
 	return provider, nil
 }
 
-func (p *Server) resolveModelRouteForConfig(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	modelConfig database.ChatModelConfig,
-) (aiGatewayModelRoute, error) {
-	return p.resolveAIGatewayModelRouteForConfig(ctx, ownerID, modelConfig)
-}
-
-func (p *Server) resolveModelRouteForProviderType(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerType string,
-) (aiGatewayModelRoute, error) {
-	return p.resolveAIGatewayModelRouteForProviderType(ctx, ownerID, providerType)
-}
-
-func (p *Server) newModel(
-	ctx context.Context,
-	req modelClientRequest,
-	route aiGatewayModelRoute,
-	opts modelBuildOptions,
-) (fantasy.LanguageModel, error) {
-	return p.newAIGatewayModel(ctx, req, route, opts)
-}
-
 func newLanguageModel(
 	providerHint string,
 	modelName string,

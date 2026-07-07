@@ -1143,13 +1143,12 @@ func insertMessage(
 	require.NoError(t, err)
 
 	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:             chatID,
-		CreatedBy:          uuid.NullUUID{UUID: createdBy, Valid: true},
-		ModelConfigID:      uuid.NullUUID{UUID: modelID, Valid: true},
-		Role:               role,
-		Content:            parts,
-		ContentVersion:     chatprompt.CurrentContentVersion,
-		ProviderResponseID: sql.NullString{},
+		ChatID:         chatID,
+		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: modelID, Valid: true},
+		Role:           role,
+		Content:        parts,
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
 	return msg
 }

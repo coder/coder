@@ -23,7 +23,7 @@ function toSelectedBaseMeta(base: TemplateBuilderBase): SelectedBaseMeta {
 		iconUrl: base.icon,
 		os: base.os,
 		hasParameters:
-			base.variables.length > 0 && base.variables.some((v) => !v.sensitive),
+			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
 		hasPrerequisites: Boolean(base.prerequisites?.length),
 	};
 }

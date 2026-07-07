@@ -7,6 +7,7 @@ const MockOpenAIProviderConfig: ChatProviderConfig = {
 	id: "prov-openai",
 	provider: "openai",
 	display_name: "OpenAI",
+	icon: "",
 	enabled: true,
 	has_api_key: true,
 	central_api_key_enabled: true,

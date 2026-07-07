@@ -2,16 +2,20 @@ package agentapi_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/testutil"
@@ -453,4 +457,99 @@ func TestReportBoundaryLogs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, logs, 2, "logs from both agents must be persisted")
 	})
+}
+
+// httpLogRequest builds a ReportBoundaryLogsRequest carrying a single allowed
+// HTTP log for the given session.
+func httpLogRequest(sessionID uuid.UUID, seq int32) *agentproto.ReportBoundaryLogsRequest {
+	return &agentproto.ReportBoundaryLogsRequest{
+		SessionId:           sessionID.String(),
+		ConfinedProcessName: "claude-code",
+		Logs: []*agentproto.BoundaryLog{
+			{
+				Allowed:        true,
+				Time:           timestamppb.New(dbtime.Now()),
+				SequenceNumber: seq,
+				Resource: &agentproto.BoundaryLog_HttpRequest_{
+					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+						Method:      "GET",
+						Url:         "https://example.com",
+						MatchedRule: "domain=example.com",
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestReportBoundaryLogsSessionGuard verifies that once a session has been
+// ensured, later batches from the same connection skip the existence check and
+// insert entirely, touching the database only for the logs themselves.
+func TestReportBoundaryLogsSessionGuard(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	sessionID := uuid.New()
+	api := &agentapi.BoundaryLogsAPI{
+		Log:               testutil.Logger(t),
+		Database:          db,
+		AgentID:           uuid.New(),
+		WorkspaceID:       uuid.New(),
+		OwnerID:           uuid.New(),
+		TemplateID:        uuid.New(),
+		TemplateVersionID: uuid.New(),
+	}
+
+	// The session is inserted once, even though two batches arrive. Times(1)
+	// fails the test if the guard does not suppress the second ensure attempt.
+	// Logs insert on every batch.
+	db.EXPECT().InsertBoundarySession(gomock.Any(), gomock.Any()).
+		Return(database.BoundarySession{}, nil).Times(1)
+	db.EXPECT().InsertBoundaryLogs(gomock.Any(), gomock.Any()).
+		Return([]database.BoundaryLog{}, nil).Times(2)
+
+	_, err := api.ReportBoundaryLogs(context.Background(), httpLogRequest(sessionID, 0))
+	require.NoError(t, err)
+	_, err = api.ReportBoundaryLogs(context.Background(), httpLogRequest(sessionID, 1))
+	require.NoError(t, err)
+}
+
+// TestReportBoundaryLogsSessionRetriedOnError verifies that when ensureSession
+// fails, the guard is not set, so the next batch retries the existence check.
+func TestReportBoundaryLogsSessionRetriedOnError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	sessionID := uuid.New()
+	api := &agentapi.BoundaryLogsAPI{
+		// The first batch deliberately triggers a transient error, which
+		// logs at ERROR level. Ignore errors so slogtest does not fail.
+		Log:               slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Database:          db,
+		AgentID:           uuid.New(),
+		WorkspaceID:       uuid.New(),
+		OwnerID:           uuid.New(),
+		TemplateID:        uuid.New(),
+		TemplateVersionID: uuid.New(),
+	}
+
+	// First batch: insert fails transiently, so the session is not marked
+	// ensured. Second batch: insert is retried and succeeds. Logs insert on both.
+	gomock.InOrder(
+		db.EXPECT().InsertBoundarySession(gomock.Any(), gomock.Any()).
+			Return(database.BoundarySession{}, sql.ErrConnDone),
+		db.EXPECT().InsertBoundarySession(gomock.Any(), gomock.Any()).
+			Return(database.BoundarySession{}, nil),
+	)
+	db.EXPECT().InsertBoundaryLogs(gomock.Any(), gomock.Any()).
+		Return([]database.BoundaryLog{}, nil).Times(2)
+
+	_, err := api.ReportBoundaryLogs(context.Background(), httpLogRequest(sessionID, 0))
+	require.NoError(t, err)
+	_, err = api.ReportBoundaryLogs(context.Background(), httpLogRequest(sessionID, 1))
+	require.NoError(t, err)
 }

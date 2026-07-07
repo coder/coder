@@ -159,13 +159,15 @@ func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 // name are sent and that the returned temporary credentials are used.
 // NOTE: no t.Parallel() because it uses t.Setenv.
 func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
-	var gotRoleARN, gotSessionName string
+	var gotRoleARN, gotSessionName, gotConnection string
 	// Mock the AWS STS AssumeRole API.
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm())
 		gotRoleARN = r.Form.Get("RoleArn")
 		gotSessionName = r.Form.Get("RoleSessionName")
+		// With keep-alive disabled, Go's HTTP client sends Connection: close.
+		gotConnection = r.Header.Get("Connection")
 
 		w.Header().Set("Content-Type", "text/xml")
 		_, _ = w.Write([]byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
@@ -205,6 +207,10 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 
 	require.Equal(t, "arn:aws:iam::123456789012:role/target", gotRoleARN)
 	require.Equal(t, bedrockSessionName, gotSessionName)
+	// The STS client disables keep-alive so each AssumeRole opens a fresh
+	// connection; Go signals this with a Connection: close request header.
+	require.Equal(t, "close", gotConnection,
+		"STS client should disable keep-alives so each AssumeRole opens a fresh connection")
 }
 
 // TestBuildBedrockCredentialsAssumeRoleExternalID verifies that a configured

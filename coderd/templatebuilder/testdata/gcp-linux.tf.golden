@@ -13,6 +13,7 @@ provider "coder" {}
 
 variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
+  default     = "test-project_id"
 }
 
 # See https://registry.coder.com/modules/coder/gcp-region

@@ -126,7 +126,7 @@ func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *
 	require.True(t, parts[1].ProviderExecuted)
 }
 
-func TestBuildCommitStepMessages_UsageCostRuntimeProviderResponseID(t *testing.T) {
+func TestBuildCommitStepMessages_UsageCostRuntime(t *testing.T) {
 	t.Parallel()
 
 	inputPrice := decimal.NewFromFloat(2.5)
@@ -142,11 +142,10 @@ func TestBuildCommitStepMessages_UsageCostRuntimeProviderResponseID(t *testing.T
 			},
 		},
 		step: stepData{
-			Content:            []fantasy.Content{fantasy.TextContent{Text: "usage"}},
-			Usage:              fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
-			ContextLimit:       sql.NullInt64{Int64: 4096, Valid: true},
-			ProviderResponseID: "resp-123",
-			Runtime:            1500 * time.Millisecond,
+			Content:      []fantasy.Content{fantasy.TextContent{Text: "usage"}},
+			Usage:        fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
+			ContextLimit: sql.NullInt64{Int64: 4096, Valid: true},
+			Runtime:      1500 * time.Millisecond,
 		},
 	})
 	require.NoError(t, err)
@@ -160,7 +159,6 @@ func TestBuildCommitStepMessages_UsageCostRuntimeProviderResponseID(t *testing.T
 	require.Equal(t, sql.NullInt64{Int64: 5, Valid: true}, msg.CacheReadTokens)
 	require.Equal(t, sql.NullInt64{Int64: 4096, Valid: true}, msg.ContextLimit)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, msg.RuntimeMs)
-	require.Equal(t, sql.NullString{String: "resp-123", Valid: true}, msg.ProviderResponseID)
 	require.True(t, msg.TotalCostMicros.Valid)
 	require.Greater(t, msg.TotalCostMicros.Int64, int64(0))
 }

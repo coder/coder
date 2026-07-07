@@ -676,29 +676,6 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 func TestRenameChatTitle(t *testing.T) {
 	t.Parallel()
 
-	setupRealWorkerLock := func(
-		db *dbmock.MockStore,
-		chatID uuid.UUID,
-		lockedChat database.Chat,
-	) {
-		lockTx := dbmock.NewMockStore(gomock.NewController(t))
-		unlockTx := dbmock.NewMockStore(gomock.NewController(t))
-		gomock.InOrder(
-			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
-				func(fn func(database.Store) error, _ *database.TxOptions) error {
-					return fn(lockTx)
-				},
-			),
-			db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
-				func(fn func(database.Store) error, _ *database.TxOptions) error {
-					return fn(unlockTx)
-				},
-			),
-		)
-		lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
-		unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
-	}
-
 	t.Run("WritesAndReturnsWroteTrue", func(t *testing.T) {
 		t.Parallel()
 
@@ -720,7 +697,6 @@ func TestRenameChatTitle(t *testing.T) {
 
 		server := &Server{db: db, logger: logger}
 
-		setupRealWorkerLock(db, chatID, stored)
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(stored, nil)
 		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 			ID:    chatID,
@@ -754,7 +730,6 @@ func TestRenameChatTitle(t *testing.T) {
 
 		server := &Server{db: db, logger: logger}
 
-		setupRealWorkerLock(db, chatID, landed)
 		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(landed, nil)
 
 		got, wrote, err := server.RenameChatTitle(ctx, stale, "landed-concurrently")
@@ -793,9 +768,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	lockTx := dbmock.NewMockStore(ctrl)
 	usageTx := dbmock.NewMockStore(ctrl)
-	unlockTx := dbmock.NewMockStore(ctrl)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	pubsub := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
@@ -860,6 +833,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		db:                       db,
 		logger:                   logger,
 		pubsub:                   pubsub,
+		clock:                    quartz.NewReal(),
 		configCache:              newChatConfigCache(context.Background(), db, clock),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
@@ -913,28 +887,12 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
 
-	gomock.InOrder(
-		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Equal(t, "chat_title_regenerate_lock", opts.TxIdentifier)
-				return fn(lockTx)
-			},
-		),
-		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Nil(t, opts)
-				return fn(usageTx)
-			},
-		),
-		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Equal(t, "chat_title_regenerate_unlock", opts.TxIdentifier)
-				return fn(unlockTx)
-			},
-		),
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, opts *database.TxOptions) error {
+			require.Nil(t, opts)
+			return fn(usageTx)
+		},
 	)
-
-	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
 	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
@@ -951,8 +909,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		Title: wantTitle,
 	}).Return(updatedChat, nil)
 
-	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
-
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)
 	require.Equal(t, updatedChat, gotChat)
@@ -968,15 +924,19 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}
 }
 
-func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t *testing.T) {
+// With no request-level locking, recordManualTitleUsage's re-read under
+// GetChatByIDForUpdate is the only protection against clobbering a title
+// that changed while the model call ran. The strict mock has no
+// UpdateChatByID expectation, so any persist attempt fails the test.
+// A skipped persist must also not publish a title_change event; the
+// wroteTitle comment in regenerateChatTitleWithStore explains why.
+func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	lockTx := dbmock.NewMockStore(ctrl)
 	usageTx := dbmock.NewMockStore(ctrl)
-	unlockTx := dbmock.NewMockStore(ctrl)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	pubsub := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
@@ -987,51 +947,40 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	providerID := uuid.New()
 	userPrompt := "review pull request 23633 and fix review threads"
 	activeAPIKeyID := "key-" + uuid.NewString()
-	wantTitle := "Review PR 23633"
+	generatedTitle := "Review PR 23633"
 
 	chat := database.Chat{
 		ID:                chatID,
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
-		Status:            database.ChatStatusCompleted,
+		Status:            database.ChatStatusWaiting,
 		Title:             fallbackChatTitle(userPrompt),
 	}
-	lockedChat := chat
-	lockedChat.WorkerID = uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}
-	lockedChat.StartedAt = sql.NullTime{Time: time.Now(), Valid: true}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,
 		Model:        "gpt-4o-mini",
 		ContextLimit: 8192,
 		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
 	}
-	updatedChat := lockedChat
-	updatedChat.Title = wantTitle
-	unlockedChat := updatedChat
-	unlockedChat.WorkerID = uuid.NullUUID{}
-	unlockedChat.StartedAt = sql.NullTime{}
+	// Another writer (rename or a second regenerate) landed while the
+	// model call was in flight.
+	landedChat := chat
+	landedChat.Title = "landed-concurrently"
 
-	messageEvents := make(chan struct {
-		payload codersdk.ChatWatchEvent
-		err     error
-	}, 1)
+	titleEvents := make(chan codersdk.ChatWatchEvent, 1)
 	cancelSub, err := pubsub.SubscribeWithErr(
 		coderdpubsub.ChatWatchEventChannel(ownerID),
 		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
-			messageEvents <- struct {
-				payload codersdk.ChatWatchEvent
-				err     error
-			}{payload: payload, err: err}
+			require.NoError(t, err)
+			titleEvents <- payload
 		}),
 	)
 	require.NoError(t, err)
 	defer cancelSub()
 
-	// Title generation routes through the transport factory, so the model
-	// response is synthesized by the RoundTripper (see aibridgeTestFactory).
 	factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 		requireOutgoingRequestModel(t, req, modelConfig.Model)
-		text := strconv.Quote(`{"title":"` + wantTitle + `"}`)
+		text := strconv.Quote(`{"title":"` + generatedTitle + `"}`)
 		body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4o-mini","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":` + text + `}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
 		return &http.Response{
 			StatusCode: http.StatusOK,
@@ -1045,6 +994,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 		db:                       db,
 		logger:                   logger,
 		pubsub:                   pubsub,
+		clock:                    quartz.NewReal(),
 		configCache:              newChatConfigCache(context.Background(), db, clock),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
@@ -1079,12 +1029,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			database.ChatMessageVisibilityBoth,
 			codersdk.ChatMessageText(userPrompt),
 		), activeAPIKeyID),
-		mustChatMessage(
-			t,
-			database.ChatMessageRoleAssistant,
-			database.ChatMessageVisibilityBoth,
-			codersdk.ChatMessageText("checking the diff now"),
-		),
 	}, nil)
 	db.EXPECT().GetChatMessagesByChatIDDescPaginated(
 		gomock.Any(),
@@ -1097,84 +1041,28 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return(nil, nil)
 
-	gomock.InOrder(
-		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_lock")).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Equal(t, "chat_title_regenerate_lock", opts.TxIdentifier)
-				return fn(lockTx)
-			},
-		),
-		db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Nil(t, opts)
-				return fn(usageTx)
-			},
-		),
-		db.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("chat_title_regenerate_unlock")).DoAndReturn(
-			func(fn func(database.Store) error, opts *database.TxOptions) error {
-				require.Equal(t, "chat_title_regenerate_unlock", opts.TxIdentifier)
-				return fn(unlockTx)
-			},
-		),
-	)
-
-	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	lockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
-		gomock.Any(),
-		gomock.AssignableToTypeOf(database.UpdateChatStatusPreserveUpdatedAtParams{}),
-	).DoAndReturn(func(_ context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
-		require.Equal(t, chat.ID, arg.ID)
-		require.Equal(t, chat.Status, arg.Status)
-		require.Equal(t, uuid.NullUUID{UUID: manualTitleLockWorkerID, Valid: true}, arg.WorkerID)
-		require.True(t, arg.StartedAt.Valid)
-		require.WithinDuration(t, time.Now(), arg.StartedAt.Time, time.Second)
-		require.False(t, arg.HeartbeatAt.Valid)
-		require.Equal(t, chat.LastError, arg.LastError)
-		require.Equal(t, chat.UpdatedAt, arg.UpdatedAt)
-		return lockedChat, nil
-	})
-
-	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
-	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
-		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
-			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
-			require.Equal(t, []string{"[]"}, arg.Content)
-			return []database.ChatMessage{{ID: 91}}, nil
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			return fn(usageTx)
 		},
 	)
+
+	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(landedChat, nil)
+	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).Return([]database.ChatMessage{{ID: 91}}, nil)
 	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
-	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
-		ID:    chatID,
-		Title: wantTitle,
-	}).Return(updatedChat, nil)
-
-	unlockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(updatedChat, nil)
-	unlockTx.EXPECT().UpdateChatStatusPreserveUpdatedAt(
-		gomock.Any(),
-		database.UpdateChatStatusPreserveUpdatedAtParams{
-			ID:          updatedChat.ID,
-			Status:      updatedChat.Status,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   updatedChat.LastError,
-			UpdatedAt:   updatedChat.UpdatedAt,
-		},
-	).Return(unlockedChat, nil)
 
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)
-	require.Equal(t, updatedChat, gotChat)
+	require.Equal(t, landedChat.Title, gotChat.Title,
+		"the concurrently landed title must survive; the generated title must not be persisted")
 
+	// The in-memory pubsub delivers synchronously, so any event published
+	// during RegenerateChatTitle is already buffered by now.
 	select {
-	case event := <-messageEvents:
-		require.NoError(t, event.err)
-		require.Equal(t, codersdk.ChatWatchEventKindTitleChange, event.payload.Kind)
-		require.Equal(t, chatID, event.payload.Chat.ID)
-		require.Equal(t, wantTitle, event.payload.Chat.Title)
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for title change pubsub event")
+	case event := <-titleEvents:
+		t.Fatalf("unexpected %s event published for skipped regeneration (title %q)",
+			event.Kind, event.Chat.Title)
+	default:
 	}
 }
 

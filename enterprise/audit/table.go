@@ -400,6 +400,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"type":            ActionTrack,
 		"name":            ActionTrack,
 		"display_name":    ActionTrack,
+		"icon":            ActionTrack,
 		"enabled":         ActionTrack,
 		"deleted":         ActionTrack,
 		"base_url":        ActionTrack,

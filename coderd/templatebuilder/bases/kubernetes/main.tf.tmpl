@@ -260,7 +260,7 @@ resource "kubernetes_deployment_v1" "main" {
           {{- if .ImageOptions }}
           image             = data.coder_parameter.container_image.value
           {{- else }}
-          image             = "{{ .ContainerImage }}"
+          image             = {{ .Variables.container_image }}
           {{- end }}
           image_pull_policy = "Always"
           command           = ["sh", "-c", coder_agent.main.init_script]

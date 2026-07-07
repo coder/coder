@@ -128,6 +128,36 @@ export const MultipleProvidersWithCustomLabel: Story = {
 	},
 };
 
+export const MultipleProviderInstances: Story = {
+	args: {
+		options: [
+			...openAIModels,
+			{
+				...MockModelSelectorOption,
+				id: "anthropic-primary/claude-sonnet-4",
+				provider: "anthropic",
+				providerId: "provider-anthropic-primary",
+				providerLabel: "Anthropic",
+				model: "claude-sonnet-4-20250514",
+				displayName: "Claude Sonnet 4",
+				contextLimit: 200_000,
+			},
+			{
+				...MockModelSelectorOption,
+				id: "anthropic-hyper/claude-opus-4",
+				provider: "anthropic",
+				providerId: "provider-anthropic-hyper",
+				providerLabel: "Hyper",
+				providerIcon: "/icon/coder.svg",
+				model: "claude-opus-4-20250514",
+				displayName: "Claude Opus 4",
+				contextLimit: 200_000,
+			},
+		],
+		value: "anthropic-primary/claude-sonnet-4",
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------

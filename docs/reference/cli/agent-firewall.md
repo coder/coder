@@ -35,15 +35,6 @@ Path to YAML config file.
 
 Allow rule (repeatable). These are merged with allowlist from config file. Format: "pattern" or "METHOD[,METHOD] pattern".
 
-### --
-
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
-| YAML | <code>allowlist</code>    |
-
-Allowlist rules from config file (YAML only).
-
 ### --log-level
 
 |             |                                  |
@@ -155,3 +146,22 @@ Path to the socket where the boundary log proxy server listens for audit logs.
 | Type | <code>bool</code> |
 
 Print version information and exit.
+
+### --enable-session-correlation
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>bool</code>                                  |
+| Environment | <code>$BOUNDARY_SESSION_CORRELATION_ENABLED</code> |
+| YAML        | <code>session_correlation_enabled</code>           |
+
+Enable session correlation header injection. When no inject targets are configured, the target is auto-derived from CODER_AGENT_URL (set automatically inside Coder workspaces). Disable for deployments without Coder AI Gateway in front.
+
+### --session-id-inject-target
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$BOUNDARY_SESSION_ID_INJECT_TARGET</code> |
+
+Inject target for session correlation headers. Repeat the flag once per target; each value describes exactly one target. Format: "domain=<host> [path=<glob>]". Example: --session-id-inject-target "domain=prod.coder.com path=/api/v2/aibridge/*".
