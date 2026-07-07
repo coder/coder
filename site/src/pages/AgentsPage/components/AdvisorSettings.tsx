@@ -104,7 +104,7 @@ const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 
 	if (!isNonNegativeIntegerString(values.max_uses_per_run)) {
 		errors.max_uses_per_run =
-			"Max uses per run must be a non-negative integer.";
+			"Max uses per turn must be a non-negative integer.";
 	}
 
 	if (!isNonNegativeIntegerString(values.max_output_tokens)) {
@@ -203,7 +203,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Advisor"
-			description="Cap advisor usage per run and optionally use an override model. The advisor provides strategic guidance to root agent chats. Set limits to 0 for unlimited."
+			description="Cap advisor usage per turn and optionally use an override model. The advisor provides strategic guidance to root agent chats. Set limits to 0 for unlimited."
 			showSave={canSave}
 			isSaving={isSavingAdvisorConfig}
 			isSavedVisible={isSavedVisible}
@@ -225,8 +225,8 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			<CompactIntegerField
 				id={maxUsesId}
 				name="max_uses_per_run"
-				label="Uses / run"
-				ariaLabel="Max uses per run"
+				label="Uses / turn"
+				ariaLabel="Max uses per turn"
 				value={form.values.max_uses_per_run}
 				onChange={(value) => void form.setFieldValue("max_uses_per_run", value)}
 				onBlur={form.handleBlur}
