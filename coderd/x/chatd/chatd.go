@@ -2302,6 +2302,10 @@ func (p *Server) generateManualTitleCandidate(
 	if len(messages) == 0 {
 		return manualTitleCandidateResult{}, nil
 	}
+	pasteText, err := titlePasteText(ctx, store, messages)
+	if err != nil {
+		return manualTitleCandidateResult{}, xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
+	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
 	// Manual title routes can run over messages that lack API key attribution.
 	// Fall back to the authenticated caller's delegated key for AI Gateway routing.
@@ -2336,7 +2340,7 @@ func (p *Server) generateManualTitleCandidate(
 		)
 	}
 
-	title, usage, err := generateManualTitle(titleCtx, messages, titleModel)
+	title, usage, err := generateManualTitle(titleCtx, messages, pasteText, titleModel)
 	finishDebugRun(err)
 	result.title = title
 	result.usage = usage

@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -1117,7 +1118,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := chatTitleFromMessage(titleSource)
+	title := chatprompt.FallbackTitle(titleSource)
 
 	modelConfigID, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
 	if modelConfigError != nil {
@@ -6345,7 +6346,7 @@ func createChatInputFromParts(
 
 	var fileIDs []uuid.UUID
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
-	textParts := make([]string, 0, len(parts))
+	var pasteText map[uuid.UUID]string
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
@@ -6357,7 +6358,6 @@ func createChatInputFromParts(
 				}
 			}
 			content = append(content, codersdk.ChatMessageText(text))
-			textParts = append(textParts, text)
 		case string(codersdk.ChatInputPartTypeFile):
 			if part.FileID == uuid.Nil {
 				return nil, "", nil, &codersdk.Response{
@@ -6366,8 +6366,9 @@ func createChatInputFromParts(
 				}
 			}
 			// Validate that the file exists and get its media type.
-			// File data is not loaded here; it's resolved at LLM
-			// dispatch time via chatFileResolver.
+			// The loaded file data is only retained for synthetic
+			// pastes below; LLM dispatch re-resolves file content via
+			// chatFileResolver.
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
@@ -6389,6 +6390,14 @@ func createChatInputFromParts(
 			}
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
 			fileIDs = append(fileIDs, part.FileID)
+			// Pasted-text attachments feed title derivation when the
+			// message has no text parts.
+			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
+				if pasteText == nil {
+					pasteText = make(map[uuid.UUID]string)
+				}
+				pasteText[part.FileID] = string(chatFile.Data)
+			}
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.
 		case string(codersdk.ChatInputPartTypeFileReference):
@@ -6399,17 +6408,6 @@ func createChatInputFromParts(
 				}
 			}
 			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
-			// Build text representation for title generation.
-			lineRange := fmt.Sprintf("%d", part.StartLine)
-			if part.StartLine != part.EndLine {
-				lineRange = fmt.Sprintf("%d-%d", part.StartLine, part.EndLine)
-			}
-			var sb strings.Builder
-			_, _ = fmt.Fprintf(&sb, "[file-reference] %s:%s", part.FileName, lineRange)
-			if strings.TrimSpace(part.Content) != "" {
-				_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
-			}
-			textParts = append(textParts, sb.String())
 		default:
 			return nil, "", nil, &codersdk.Response{
 				Message: "Invalid input part.",
@@ -6431,40 +6429,11 @@ func createChatInputFromParts(
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
-	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
+	// The shared derivation keeps this create-time titleSource
+	// identical to the extraction used by title generation, which
+	// gates auto-titling on that equality (see chatprompt.TitleText).
+	titleSource := chatprompt.TitleText(content, pasteText)
 	return content, titleSource, fileIDs, nil
-}
-
-func chatTitleFromMessage(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-	return truncateRunes(title, maxRunes)
-}
-
-func truncateRunes(value string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-
-	return string(runes[:maxLen])
 }
 
 // linkFilesToChat inserts file-link rows into the chat_file_links

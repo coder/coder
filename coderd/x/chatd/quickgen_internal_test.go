@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,13 +12,17 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -27,11 +32,24 @@ import (
 func Test_extractManualTitleTurns(t *testing.T) {
 	t.Parallel()
 
+	pasteFileID := uuid.New()
+
 	tests := []struct {
-		name     string
-		messages []database.ChatMessage
-		want     []manualTitleTurn
+		name      string
+		messages  []database.ChatMessage
+		pasteText map[uuid.UUID]string
+		want      []manualTitleTurn
 	}{
+		{
+			name: "paste only user message resolves via paste text",
+			messages: []database.ChatMessage{
+				mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+					codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+				),
+			},
+			pasteText: map[uuid.UUID]string{pasteFileID: "pasted panic output"},
+			want:      []manualTitleTurn{{role: "user", text: "pasted panic output"}},
+		},
 		{
 			name: "filters to visible user and assistant text turns",
 			messages: []database.ChatMessage{
@@ -82,7 +100,7 @@ func Test_extractManualTitleTurns(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := extractManualTitleTurns(tt.messages)
+			got := extractManualTitleTurns(tt.messages, tt.pasteText)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -363,6 +381,145 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 	}
 }
 
+func Test_titleInput(t *testing.T) {
+	t.Parallel()
+
+	pasteFileID := uuid.New()
+	pasteContent := "pasted stack trace with details"
+	pasteMessage := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+	)
+	textMessage := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("summarize build logs"),
+	)
+
+	tests := []struct {
+		name      string
+		chat      database.Chat
+		messages  []database.ChatMessage
+		pasteText map[uuid.UUID]string
+		wantInput string
+		wantOK    bool
+	}{
+		{
+			name:      "text message with fallback title is eligible",
+			chat:      database.Chat{Title: chatprompt.FallbackTitle("summarize build logs")},
+			messages:  []database.ChatMessage{textMessage},
+			wantInput: "summarize build logs",
+			wantOK:    true,
+		},
+		{
+			name:      "paste only message with resolved paste text is eligible",
+			chat:      database.Chat{Title: chatprompt.FallbackTitle(pasteContent)},
+			messages:  []database.ChatMessage{pasteMessage},
+			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
+			wantInput: pasteContent,
+			wantOK:    true,
+		},
+		{
+			name:     "paste only message without resolved paste text is skipped",
+			chat:     database.Chat{Title: "New Chat"},
+			messages: []database.ChatMessage{pasteMessage},
+			wantOK:   false,
+		},
+		{
+			name:      "paste only message with user renamed title is skipped",
+			chat:      database.Chat{Title: "my custom name"},
+			messages:  []database.ChatMessage{pasteMessage},
+			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
+			wantOK:    false,
+		},
+		{
+			name: "assistant reply disables generation",
+			chat: database.Chat{Title: chatprompt.FallbackTitle(pasteContent)},
+			messages: []database.ChatMessage{
+				pasteMessage,
+				mustChatMessage(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth,
+					codersdk.ChatMessageText("done"),
+				),
+			},
+			pasteText: map[uuid.UUID]string{pasteFileID: pasteContent},
+			wantOK:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			input, ok := titleInput(tt.chat, tt.messages, tt.pasteText)
+			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.wantInput, input)
+		})
+	}
+}
+
+func Test_titlePasteText(t *testing.T) {
+	t.Parallel()
+
+	pasteFileID := uuid.New()
+	pasteMessage := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+	)
+
+	t.Run("skips fetch when user messages have text", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		// No GetChatFilesByIDs expectation: a fetch would fail the test.
+		db := dbmock.NewMockStore(ctrl)
+
+		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{
+			mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+				codersdk.ChatMessageText("typed text"),
+				codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
+			),
+		})
+		require.NoError(t, err)
+		require.Nil(t, pasteText)
+	})
+
+	t.Run("resolves paste content for paste only user messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatFilesByIDs(gomock.Any(), []uuid.UUID{pasteFileID}).Return([]database.ChatFile{
+			{ID: pasteFileID, Data: []byte("pasted content")},
+		}, nil)
+
+		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{pasteMessage})
+		require.NoError(t, err)
+		require.Equal(t, map[uuid.UUID]string{pasteFileID: "pasted content"}, pasteText)
+	})
+
+	t.Run("propagates fetch errors", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		db.EXPECT().GetChatFilesByIDs(gomock.Any(), []uuid.UUID{pasteFileID}).Return(nil, sql.ErrConnDone)
+
+		_, err := titlePasteText(context.Background(), db, []database.ChatMessage{pasteMessage})
+		require.ErrorIs(t, err, sql.ErrConnDone)
+	})
+
+	t.Run("ignores non synthetic file only messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+
+		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{
+			mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+				codersdk.ChatMessageFile(uuid.New(), "image/png", "photo.png"),
+			),
+		})
+		require.NoError(t, err)
+		require.Nil(t, pasteText)
+	})
+}
+
 func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	t.Parallel()
 
@@ -390,7 +547,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		OrganizationID:    org.ID,
 		OwnerID:           owner.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             fallbackChatTitle(userPrompt),
+		Title:             chatprompt.FallbackTitle(userPrompt),
 		Status:            database.ChatStatusWaiting,
 		ClientType:        database.ChatClientTypeUi,
 	})
@@ -422,6 +579,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		ctx,
 		chat,
 		[]database.ChatMessage{message},
+		nil,
 		"openai",
 		"test-model",
 		model,
@@ -488,6 +646,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 	title, _, err := generateManualTitle(
 		context.Background(),
 		messages,
+		nil,
 		model,
 	)
 	require.NoError(t, err)
@@ -524,6 +683,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	_, _, err := generateManualTitle(
 		context.Background(),
 		messages,
+		nil,
 		model,
 	)
 	require.NoError(t, err)
@@ -557,6 +717,7 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 	_, usage, err := generateManualTitle(
 		context.Background(),
 		messages,
+		nil,
 		model,
 	)
 	require.ErrorContains(t, err, "generated title was empty")
