@@ -5213,18 +5213,19 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample               Experiment = "example"                 // This isn't used for anything.
-	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
-	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
-	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
-	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
-	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
-	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
+	ExperimentExample                  Experiment = "example"                    // This isn't used for anything.
+	ExperimentAutoFillParameters       Experiment = "auto-fill-parameters"       // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentNotifications            Experiment = "notifications"              // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage           Experiment = "workspace-usage"            // Enables the new workspace usage tracking.
+	ExperimentOAuth2                   Experiment = "oauth2"                     // Enables OAuth2 provider functionality.
+	ExperimentMCPServerHTTP            Experiment = "mcp-server-http"            // Enables the MCP HTTP server functionality.
+	ExperimentWorkspaceBuildUpdates    Experiment = "workspace-build-updates"    // Enables publishing workspace build updates to the all builds pubsub channel.
+	ExperimentNATSPubsub               Experiment = "nats_pubsub"                // Enables embedded NATS pubsub.
+	ExperimentMinimumImplicitMember    Experiment = "minimum-implicit-member"    // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
+	ExperimentPermissionBasedLicensing Experiment = "permission-based-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
+	ExperimentAIGatewayCostControl     Experiment = "ai-gateway-cost-control"    // Enables AI Gateway cost control functionality.
+	ExperimentChatAdvisor              Experiment = "chat-advisor"               // Enables the advisor tool for root agent chats.
+	ExperimentChatVirtualDesktop       Experiment = "chat-virtual-desktop"       // Enables virtual desktop and computer use provider for agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5247,6 +5248,8 @@ func (e Experiment) DisplayName() string {
 		return "NATS Pubsub"
 	case ExperimentMinimumImplicitMember:
 		return "Gateway Accounts (minimum implicit member)"
+	case ExperimentPermissionBasedLicensing:
+		return "Permission-Based Licensing"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
 	case ExperimentChatAdvisor:
@@ -5272,6 +5275,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
+	ExperimentPermissionBasedLicensing,
 	ExperimentAIGatewayCostControl,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,

@@ -653,6 +653,60 @@ FROM
 WHERE
 	users.id = @user_id;
 
+-- name: GetActiveUsersAuthorizationRoles :many
+-- Returns the authorization roles (site and org-scoped, including implied
+-- member roles and organization default roles) plus group memberships for
+-- every user eligible for license seat counting: active, not deleted, and
+-- neither a system user nor a service account. Used by permission-based
+-- license seat counting to evaluate workspace-create capability.
+SELECT
+	id,
+	array_cat(
+		-- All users are members
+		array_append(users.rbac_roles, 'member'),
+		(
+			SELECT
+				-- The roles are returned as a flat array, org scoped and site side.
+				-- Concatenating the organization id scopes the organization roles.
+				array_agg(org_roles || ':' || organization_members.organization_id::text)
+			FROM
+				organization_members
+				JOIN organizations ON organizations.id = organization_members.organization_id,
+				-- All org members get an implied organization-member role for
+				-- their orgs. Service accounts are excluded by the outer WHERE,
+				-- so the organization-service-account case does not apply here.
+				--
+				-- organizations.default_org_member_roles is unioned in so changes
+				-- to org defaults propagate on the next entitlement refresh.
+				unnest(
+					array_cat(
+						array_append(roles, 'organization-member'),
+						organizations.default_org_member_roles
+					)
+				) AS org_roles
+			WHERE
+				user_id = users.id
+		)
+	) :: text[] AS roles,
+	-- All groups the user is in.
+	(
+		SELECT
+			array_agg(
+				group_members.group_id :: text
+			)
+		FROM
+			group_members
+		WHERE
+			user_id = users.id
+	) :: text[] AS groups
+FROM
+	users
+WHERE
+	users.status = 'active'::user_status
+	AND users.deleted = false
+	AND users.is_system = false
+	AND users.is_service_account = false;
+
 -- name: UpdateUserQuietHoursSchedule :one
 UPDATE
 	users
