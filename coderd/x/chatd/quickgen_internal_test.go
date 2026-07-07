@@ -342,6 +342,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
+			require.Contains(t, prompt, "same language as the user's messages")
 
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
@@ -394,13 +395,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		ClientType:        database.ChatClientTypeUi,
 	})
 
-	expectedUpdatedAt := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
-	chat, err := db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
-		ID:        chat.ID,
-		Status:    chat.Status,
-		UpdatedAt: expectedUpdatedAt,
-	})
-	require.NoError(t, err)
+	expectedUpdatedAt := chat.UpdatedAt
 
 	const wantTitle = "Failed workspace logs"
 	model := &chattest.FakeModel{
@@ -457,6 +452,8 @@ func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.Contains(t, titleGenerationPrompt, "same language as the user's message")
+	require.Contains(t, titleGenerationPrompt, "Examples:")
 	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
@@ -674,6 +671,8 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	body := testutil.TryReceive(t.Context(), t, requests)
 	require.Equal(t, "required", body["tool_choice"])
+	require.Equal(t, quickgenTemperature, body["temperature"],
+		"title generation should pin temperature for repeatable output")
 }
 
 func newOpenAICompatStructuredOutputServer(
@@ -784,6 +783,8 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 
 		body := testutil.TryReceive(t.Context(), t, requests)
 		require.Equal(t, "required", body["tool_choice"])
+		require.Equal(t, quickgenTemperature, body["temperature"],
+			"status-label generation should pin temperature for repeatable output")
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {

@@ -70,6 +70,21 @@ jobs:
         with:
           install-args: "terraform"
 
+      # Exports EMBEDDED_PG_CACHE_DIR, which startBuiltinPostgres uses as a
+      # shared binary archive cache in tests.
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
       - name: Run targeted Go flake checks
         id: flake_check
         if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
@@ -83,6 +98,15 @@ jobs:
           run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
           test-shuffle: "on"
           gotestsum-json-file: default
+
+      # The upload action only saves on main, so this is a no-op for PRs.
+      # A workflow_dispatch run on main seeds the cache that PR runs restore.
+      - name: Upload Embedded Postgres Cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/embedded-pg-cache/upload
+        with:
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
       - name: Publish Go test failure report
         if: failure() && steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)

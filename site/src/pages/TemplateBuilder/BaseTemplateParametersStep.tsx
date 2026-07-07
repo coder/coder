@@ -109,7 +109,11 @@ export const BaseTemplateParametersStep: FC<
 	};
 
 	const fields: ConfigurationFieldDefinition[] = variables.map((v) =>
-		variableToField(v, values[v.name] ?? "", handleChange),
+		variableToField(
+			v,
+			values[v.name] ?? defaultPlaceholder(v.default) ?? "",
+			handleChange,
+		),
 	);
 
 	return (

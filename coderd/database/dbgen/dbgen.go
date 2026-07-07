@@ -145,7 +145,6 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		Compressed:          []bool{seed.Compressed},
 		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
-		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -222,6 +221,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 		Type:        provType,
 		Name:        name,
 		DisplayName: displayName,
+		Icon:        seed.Icon,
 		Enabled:     takeFirst(seed.Enabled, true),
 		// Use an unsupported scheme so leaked test provider calls fail immediately without retries.
 		BaseUrl:       takeFirst(seed.BaseUrl, "invalid://test.invalid/"),
@@ -2078,6 +2078,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
 		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
 		ProviderToolCallID: takeFirst(seed.ProviderToolCallID),
+		ProviderItemID:     takeFirst(seed.ProviderItemID),
 		Tool:               takeFirst(seed.Tool, "tool"),
 		ServerUrl:          serverURL,
 		Input:              takeFirst(seed.Input, "input"),

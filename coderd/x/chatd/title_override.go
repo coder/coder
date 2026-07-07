@@ -54,18 +54,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		chat.OwnerID,
 		p.resolveModelConfigAndNormalizedProvider,
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
-			if aiProviderID == uuid.Nil {
-				resolvedProviderKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
-				if err != nil {
-					return chatprovider.ProviderAPIKeys{}, err
-				}
-				return resolvedProviderKeys, nil
-			}
-			resolvedProviderKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
-			if err != nil {
-				return chatprovider.ProviderAPIKeys{}, err
-			}
-			return resolvedProviderKeys, nil
+			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},
 		modelOverrideFailureModeHard,
 	)

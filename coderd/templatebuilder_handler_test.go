@@ -45,13 +45,14 @@ func TestTemplateBuilderBases(t *testing.T) {
 			{
 				id:           "docker",
 				expectedOS:   "linux",
-				hasVariables: false,
+				hasVariables: true,
+				expectedVars: []string{"container_image"},
 			},
 			{
 				id:           "kubernetes",
 				expectedOS:   "linux",
 				hasVariables: true,
-				expectedVars: []string{"namespace", "use_kubeconfig"},
+				expectedVars: []string{"container_image", "namespace", "use_kubeconfig"},
 			},
 			{
 				id:           "aws-linux",
@@ -66,7 +67,8 @@ func TestTemplateBuilderBases(t *testing.T) {
 			{
 				id:           "gcp-windows",
 				expectedOS:   "windows",
-				hasVariables: false,
+				hasVariables: true,
+				expectedVars: []string{"project_id"},
 			},
 		}
 

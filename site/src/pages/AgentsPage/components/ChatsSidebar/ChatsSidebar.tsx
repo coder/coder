@@ -39,7 +39,6 @@ interface ChatsSidebarProps {
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
-	regeneratingTitleChatIds: readonly string[];
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
@@ -76,7 +75,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
-		regeneratingTitleChatIds,
 		isLoading = false,
 		loadError,
 		onRetryLoad,
@@ -139,7 +137,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isCreating={isCreating}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
-				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				isLoading={isLoading}
 				loadError={loadError}
 				onRetryLoad={onRetryLoad}

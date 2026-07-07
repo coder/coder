@@ -293,6 +293,40 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 };
 
+// The external ID is server-generated when a role is assumed. The edit form
+// surfaces it read-only next to Role ARN so operators can add the value to
+// their role's trust policy as an sts:ExternalId condition.
+export const EditBedrockWithExternalId: Story = {
+	args: {
+		editing: true,
+		bedrockSavedAccessCredentials: true,
+		bedrockExternalId: "7QF3ZK2MLP4RS6TUVWXY2ABCDE",
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock",
+			displayName: "Bedrock",
+			baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com",
+			model: "anthropic.claude-opus-4-7",
+			smallFastModel: "anthropic.claude-haiku-4-5",
+			accessKey: "",
+			accessKeySecret: "",
+			roleArn: "arn:aws:iam::123456789012:role/BedrockRole",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.findByText("External ID")).resolves.toBeVisible();
+		await expect(
+			canvas.findByText("7QF3ZK2MLP4RS6TUVWXY2ABCDE"),
+		).resolves.toBeVisible();
+		await expect(canvas.findByText("sts:ExternalId")).resolves.toBeVisible();
+		await expect(
+			canvas.findByRole("button", { name: /copy code/i }),
+		).resolves.toBeVisible();
+	},
+};
+
 export const AddCopilot: Story = {
 	args: {
 		// The real add flow passes only the type; the form fills name and

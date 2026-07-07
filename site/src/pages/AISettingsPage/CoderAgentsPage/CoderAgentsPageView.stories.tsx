@@ -104,9 +104,12 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	exploreDisabledModelConfig,
 ];
 
-const providerTypeByID = new Map<string, string>([
-	["provider-1", "openai"],
-	["provider-anthropic", "anthropic"],
+const providerInfoByID = new Map([
+	["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	[
+		"provider-anthropic",
+		{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+	],
 ]);
 
 const buildArgs = (
@@ -123,7 +126,7 @@ const buildArgs = (
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
-	providerTypeByID,
+	providerInfoByID,
 	modelConfigsError: undefined,
 	isLoadingModelConfigs: false,
 	isFetchingModelConfigs: false,
