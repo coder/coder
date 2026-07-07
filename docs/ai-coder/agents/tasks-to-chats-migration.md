@@ -530,8 +530,9 @@ curl -s -X POST https://coder.example.com/api/experimental/chats \
   }' | jq '{id, status, title}'
 ```
 
-You should receive a `Chat` object with `status` set to `"waiting"` or
-`"pending"`. Save the `id` for subsequent steps.
+You should receive a `Chat` object with `status` set to `"running"`,
+since new chats begin processing immediately. Save the `id` for
+subsequent steps.
 
 ### 3. Stream the response
 
