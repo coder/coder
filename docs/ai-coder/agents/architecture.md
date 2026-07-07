@@ -145,7 +145,7 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
 #### Windows workspace shell requirement
 
-Coder Agents run workspace commands through a POSIX-compatible `sh`.
+Coder Agents run workspace commands through a POSIX-compatible shell (`sh`).
 Windows workspaces must provide `sh` on `PATH`, for example from
 [Git for Windows](https://gitforwindows.org/) (Git Bash), MSYS2, or WSL.
 PowerShell alone cannot run the `execute` tool. After installing a
