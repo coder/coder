@@ -1,6 +1,7 @@
 package database_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -1916,6 +1917,56 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	require.Equal(t, ownerChat.ID, rows[0].ID)
 	require.Equal(t, sharedACL, rows[0].UserACL)
 	require.Empty(t, rows[0].GroupACL)
+}
+
+func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	longData := bytes.Repeat([]byte("a"), 100)
+	longFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		Name:           "long.txt",
+		Mimetype:       "text/plain",
+		Data:           longData,
+	})
+	require.NoError(t, err)
+	shortFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		Name:           "short.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte("tiny"),
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetChatFileDataPrefixesByIDs(ctx, database.GetChatFileDataPrefixesByIDsParams{
+		IDs:         []uuid.UUID{longFile.ID, shortFile.ID},
+		PrefixBytes: 16,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	prefixes := make(map[uuid.UUID]database.GetChatFileDataPrefixesByIDsRow, len(rows))
+	for _, row := range rows {
+		prefixes[row.ID] = row
+	}
+	require.Equal(t, longData[:16], prefixes[longFile.ID].DataPrefix)
+	require.Equal(t, []byte("tiny"), prefixes[shortFile.ID].DataPrefix)
+	require.Equal(t, owner.ID, prefixes[longFile.ID].OwnerID)
+	require.Equal(t, org.ID, prefixes[longFile.ID].OrganizationID)
 }
 
 func TestInsertWorkspaceAgentLogs(t *testing.T) {

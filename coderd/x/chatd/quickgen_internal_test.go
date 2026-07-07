@@ -466,7 +466,8 @@ func Test_titlePasteText(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
-		// No GetChatFilesByIDs expectation: a fetch would fail the test.
+		// No GetChatFileDataPrefixesByIDs expectation: a fetch would
+		// fail the test.
 		db := dbmock.NewMockStore(ctrl)
 
 		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{
@@ -484,8 +485,11 @@ func Test_titlePasteText(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		db.EXPECT().GetChatFilesByIDs(gomock.Any(), []uuid.UUID{pasteFileID}).Return([]database.ChatFile{
-			{ID: pasteFileID, Data: []byte("pasted content")},
+		db.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), database.GetChatFileDataPrefixesByIDsParams{
+			IDs:         []uuid.UUID{pasteFileID},
+			PrefixBytes: chatprompt.TitlePasteBytePrefix,
+		}).Return([]database.GetChatFileDataPrefixesByIDsRow{
+			{ID: pasteFileID, DataPrefix: []byte("pasted content")},
 		}, nil)
 
 		pasteText, err := titlePasteText(context.Background(), db, []database.ChatMessage{pasteMessage})
@@ -498,7 +502,7 @@ func Test_titlePasteText(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		db.EXPECT().GetChatFilesByIDs(gomock.Any(), []uuid.UUID{pasteFileID}).Return(nil, sql.ErrConnDone)
+		db.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), gomock.Any()).Return(nil, sql.ErrConnDone)
 
 		_, err := titlePasteText(context.Background(), db, []database.ChatMessage{pasteMessage})
 		require.ErrorIs(t, err, sql.ErrConnDone)

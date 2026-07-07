@@ -1561,6 +1561,14 @@ func (m queryMetricsStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatFileDataPrefixesByIDs(ctx context.Context, arg database.GetChatFileDataPrefixesByIDsParams) ([]database.GetChatFileDataPrefixesByIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFileDataPrefixesByIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatFileDataPrefixesByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileDataPrefixesByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatFileMetadataByChatID(ctx, chatID)

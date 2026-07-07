@@ -9,6 +9,16 @@ SELECT * FROM chat_files WHERE id = @id::uuid;
 -- name: GetChatFilesByIDs :many
 SELECT * FROM chat_files WHERE id = ANY(@ids::uuid[]);
 
+-- name: GetChatFileDataPrefixesByIDs :many
+-- GetChatFileDataPrefixesByIDs returns a bounded prefix of each
+-- file's content. Title derivation needs only the beginning of each
+-- pasted-text attachment, so substr caps database I/O and server
+-- memory regardless of stored blob size. Owner and organization
+-- columns support row-level authorization.
+SELECT id, owner_id, organization_id, substr(data, 1, @prefix_bytes::int) AS data_prefix
+FROM chat_files
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatFileMetadataByChatID :many
 -- GetChatFileMetadataByChatID returns lightweight file metadata for
 -- all files linked to a chat. The data column is excluded to avoid

@@ -146,8 +146,8 @@ func TestTitlePasteText(t *testing.T) {
 	t.Run("LongDataBounded", func(t *testing.T) {
 		t.Parallel()
 
-		data := bytes.Repeat([]byte("a"), chatprompt.TitlePasteBytePrefixForTest+4096)
-		require.Len(t, chatprompt.TitlePasteText(data), chatprompt.TitlePasteBytePrefixForTest)
+		data := bytes.Repeat([]byte("a"), chatprompt.TitlePasteBytePrefix+4096)
+		require.Len(t, chatprompt.TitlePasteText(data), chatprompt.TitlePasteBytePrefix)
 	})
 
 	t.Run("MatchesFullContentDerivation", func(t *testing.T) {
@@ -158,9 +158,9 @@ func TestTitlePasteText(t *testing.T) {
 			codersdk.ChatMessageFile(pasteFileID, "text/plain", "pasted-text-2026-01-02-03-04-05.txt"),
 		}
 		// Three-byte runes make the byte-prefix cut land mid-rune
-		// (titlePasteBytePrefix % 3 != 0); TitleText's rune truncation
+		// (TitlePasteBytePrefix % 3 != 0); TitleText's rune truncation
 		// must still produce the same result as the full content.
-		content := strings.Repeat("€", chatprompt.TitlePasteBytePrefixForTest/3+16)
+		content := strings.Repeat("€", chatprompt.TitlePasteBytePrefix/3+16)
 		bounded := chatprompt.TitleText(parts, map[uuid.UUID]string{
 			pasteFileID: chatprompt.TitlePasteText([]byte(content)),
 		})

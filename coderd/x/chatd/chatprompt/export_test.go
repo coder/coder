@@ -11,10 +11,6 @@ import (
 // for external tests.
 const SyntheticPasteTitleBudgetForTest = syntheticPasteTitleBudget
 
-// TitlePasteBytePrefixForTest exposes titlePasteBytePrefix for
-// external tests.
-const TitlePasteBytePrefixForTest = titlePasteBytePrefix
-
 // ToolResultPartToMessagePartForTest exposes toolResultPartToMessagePart
 // for external tests.
 var ToolResultPartToMessagePartForTest = toolResultPartToMessagePart

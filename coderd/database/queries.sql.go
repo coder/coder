@@ -4989,6 +4989,57 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 	return i, err
 }
 
+const getChatFileDataPrefixesByIDs = `-- name: GetChatFileDataPrefixesByIDs :many
+SELECT id, owner_id, organization_id, substr(data, 1, $1::int) AS data_prefix
+FROM chat_files
+WHERE id = ANY($2::uuid[])
+`
+
+type GetChatFileDataPrefixesByIDsParams struct {
+	PrefixBytes int32       `db:"prefix_bytes" json:"prefix_bytes"`
+	IDs         []uuid.UUID `db:"ids" json:"ids"`
+}
+
+type GetChatFileDataPrefixesByIDsRow struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	DataPrefix     []byte    `db:"data_prefix" json:"data_prefix"`
+}
+
+// GetChatFileDataPrefixesByIDs returns a bounded prefix of each
+// file's content. Title derivation needs only the beginning of each
+// pasted-text attachment, so substr caps database I/O and server
+// memory regardless of stored blob size. Owner and organization
+// columns support row-level authorization.
+func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetChatFileDataPrefixesByIDsParams) ([]GetChatFileDataPrefixesByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatFileDataPrefixesByIDs, arg.PrefixBytes, pq.Array(arg.IDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatFileDataPrefixesByIDsRow
+	for rows.Next() {
+		var i GetChatFileDataPrefixesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.DataPrefix,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
 SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at
 FROM chat_files cf

@@ -616,9 +616,10 @@ func titleInput(
 // titlePasteText resolves synthetic pasted-text attachment content for
 // visible user messages whose text and file-reference parts alone
 // yield no title input. The result maps file IDs to bounded content
-// prefixes (see chatprompt.TitlePasteText) for chatprompt.TitleText.
-// It returns nil without touching the database when every user message
-// already has text, so typical chats never incur a file fetch.
+// prefixes (see chatprompt.TitlePasteBytePrefix) for
+// chatprompt.TitleText. It returns nil without touching the database
+// when every user message already has text, so typical chats never
+// incur a file fetch.
 func titlePasteText(
 	ctx context.Context,
 	store database.Store,
@@ -645,13 +646,19 @@ func titlePasteText(
 		return nil, nil //nolint:nilnil // Nil map cleanly signals no paste content to resolve.
 	}
 
-	files, err := store.GetChatFilesByIDs(ctx, ids)
+	// The prefix fetch bounds blob transfer in SQL: full pasted-text
+	// attachments can reach the upload cap, and only a small prefix
+	// feeds title derivation.
+	rows, err := store.GetChatFileDataPrefixesByIDs(ctx, database.GetChatFileDataPrefixesByIDsParams{
+		IDs:         ids,
+		PrefixBytes: chatprompt.TitlePasteBytePrefix,
+	})
 	if err != nil {
-		return nil, xerrors.Errorf("get pasted-text chat files: %w", err)
+		return nil, xerrors.Errorf("get pasted-text chat file prefixes: %w", err)
 	}
-	pasteText := make(map[uuid.UUID]string, len(files))
-	for _, file := range files {
-		pasteText[file.ID] = chatprompt.TitlePasteText(file.Data)
+	pasteText := make(map[uuid.UUID]string, len(rows))
+	for _, row := range rows {
+		pasteText[row.ID] = chatprompt.TitlePasteText(row.DataPrefix)
 	}
 	return pasteText, nil
 }
