@@ -707,10 +707,31 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get telemetry items: %w", err)
 		}
-		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items))
+		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items)+1)
 		for _, item := range items {
 			snapshot.TelemetryItems = append(snapshot.TelemetryItems, ConvertTelemetryItem(item))
 		}
+
+		agentExperimentValues := make(map[string]json.RawMessage, len(agentExperiments))
+		for _, exp := range agentExperiments {
+			val, err := exp.collect(ctx, r.options)
+			if err != nil {
+				return xerrors.Errorf("collect agent experiment %s: %w", exp.name, err)
+			}
+			agentExperimentValues[exp.name] = val
+		}
+
+		val, err := json.Marshal(agentExperimentValues)
+		if err != nil {
+			return xerrors.Errorf("marshal agent experiments: %w", err)
+		}
+		// Collection timestamps, not when a setting last changed.
+		snapshot.TelemetryItems = append(snapshot.TelemetryItems, TelemetryItem{
+			Key:       string(TelemetryItemKeyAgentsExperiments),
+			Value:     string(val),
+			CreatedAt: now,
+			UpdatedAt: now,
+		})
 		return nil
 	})
 	eg.Go(func() error {
@@ -2320,7 +2341,104 @@ type telemetryItemKey string
 const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
+	TelemetryItemKeyAgentsExperiments telemetryItemKey = "agents_experiments"
 )
+
+// agentExperiment is one entry in the agents_experiments telemetry item.
+// Edit agentExperiments to rotate the reported set without schema or
+// telemetry-server changes.
+type agentExperiment struct {
+	name    string
+	collect func(ctx context.Context, opts Options) (json.RawMessage, error)
+}
+
+var agentExperiments = []agentExperiment{
+	{name: "virtual_desktop", collect: collectAgentVirtualDesktop},
+	{name: "advisor", collect: collectAgentAdvisor},
+}
+
+// defaultComputerUseProvider mirrors chattool.DefaultComputerUseProvider
+// without importing chattool, which would create an import cycle.
+const defaultComputerUseProvider = "anthropic"
+
+// Computer use is a knob inside the virtual desktop experiment, not an
+// experiment of its own: the chat-virtual-desktop experiment gates both.
+func collectAgentVirtualDesktop(ctx context.Context, opts Options) (json.RawMessage, error) {
+	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat computer use provider: %w", err)
+	}
+	providerSource := "configured"
+	if provider == "" {
+		provider = defaultComputerUseProvider
+		providerSource = "default"
+	}
+	type computerUse struct {
+		Provider       string `json:"provider"`
+		ProviderSource string `json:"provider_source"`
+	}
+	return json.Marshal(struct {
+		Enabled     bool        `json:"enabled"`
+		ComputerUse computerUse `json:"computer_use"`
+	}{
+		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
+		ComputerUse: computerUse{
+			Provider:       provider,
+			ProviderSource: providerSource,
+		},
+	})
+}
+
+func collectAgentAdvisor(ctx context.Context, opts Options) (json.RawMessage, error) {
+	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get chat advisor config: %w", err)
+	}
+
+	var cfg codersdk.AdvisorConfig
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+	}
+
+	provider, model := advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
+	return json.Marshal(struct {
+		Enabled         bool   `json:"enabled"`
+		MaxUsesPerRun   int    `json:"max_uses_per_run"`
+		MaxOutputTokens int64  `json:"max_output_tokens"`
+		Provider        string `json:"provider"`
+		Model           string `json:"model"`
+	}{
+		// The stored enabled value is ignored by the runtime.
+		Enabled:         opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		MaxUsesPerRun:   cfg.MaxUsesPerRun,
+		MaxOutputTokens: cfg.MaxOutputTokens,
+		Provider:        provider,
+		Model:           model,
+	})
+}
+
+func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
+	if id == uuid.Nil {
+		return "reuse_chat_model", "reuse_chat_model"
+	}
+
+	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
+		}
+		return "reuse_chat_model", "reuse_chat_model"
+	}
+	if !cfg.AIProviderID.Valid {
+		return "custom", "custom"
+	}
+	providerRow, err := db.GetAIProviderByID(ctx, cfg.AIProviderID.UUID)
+	if err != nil {
+		log.Warn(ctx, "resolve chat advisor model provider for telemetry", slog.Error(err))
+		return "custom", "custom"
+	}
+	return string(providerRow.Type), cfg.Model
+}
 
 type TelemetryItem struct {
 	Key       string    `json:"key"`
