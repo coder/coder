@@ -98,7 +98,6 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
-	DebugLogFiles(ctx context.Context, req DebugLogFilesRequest) ([]byte, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
@@ -123,6 +122,7 @@ type AgentConn interface {
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
+	ZipFiles(ctx context.Context, req ZipFilesRequest) ([]byte, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -463,23 +463,23 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogFilesRequest configures a workspace-side log file collection.
-type DebugLogFilesRequest struct {
+// ZipFilesRequest configures a workspace-side file collection.
+type ZipFilesRequest struct {
 	Paths []string `json:"paths"`
 }
 
-// DebugLogFilesManifest is the manifest.json of the archive returned by
-// DebugLogFiles.
-type DebugLogFilesManifest struct {
-	Requested []string                     `json:"requested"`
-	Files     []DebugLogFilesManifestEntry `json:"files"`
-	Errors    []DebugLogFilesManifestError `json:"errors"`
-	Truncated bool                         `json:"truncated"`
-	Limits    DebugLogFilesLimits          `json:"limits"`
+// ZipFilesManifest is the manifest.json of the archive returned by
+// ZipFiles.
+type ZipFilesManifest struct {
+	Requested []string                `json:"requested"`
+	Files     []ZipFilesManifestEntry `json:"files"`
+	Errors    []ZipFilesManifestError `json:"errors"`
+	Truncated bool                    `json:"truncated"`
+	Limits    ZipFilesLimits          `json:"limits"`
 }
 
-// DebugLogFilesManifestEntry describes one file collected into the archive.
-type DebugLogFilesManifestEntry struct {
+// ZipFilesManifestEntry describes one file collected into the archive.
+type ZipFilesManifestEntry struct {
 	Requested    string    `json:"requested"`
 	Path         string    `json:"path"`
 	ArchivePath  string    `json:"archive_path"`
@@ -489,26 +489,25 @@ type DebugLogFilesManifestEntry struct {
 	Truncated    bool      `json:"truncated"`
 }
 
-// DebugLogFilesManifestError records a path that could not be collected.
-type DebugLogFilesManifestError struct {
+// ZipFilesManifestError records a path that could not be collected.
+type ZipFilesManifestError struct {
 	Requested string `json:"requested"`
 	Path      string `json:"path,omitempty"`
 	Reason    string `json:"reason"`
 }
 
-// DebugLogFilesLimits are the collection limits the agent applied.
-type DebugLogFilesLimits struct {
+// ZipFilesLimits are the collection limits the agent applied.
+type ZipFilesLimits struct {
 	MaxFiles        int   `json:"max_files"`
-	MaxGlobMatches  int   `json:"max_glob_matches"`
 	MaxBytesPerFile int64 `json:"max_bytes_per_file"`
 	MaxTotalBytes   int64 `json:"max_total_bytes"`
 }
 
-// DebugLogFiles returns a zip archive of explicitly requested workspace logs.
-func (c *agentConn) DebugLogFiles(ctx context.Context, req DebugLogFilesRequest) ([]byte, error) {
+// ZipFiles returns a zip archive of explicitly requested workspace files.
+func (c *agentConn) ZipFiles(ctx context.Context, req ZipFilesRequest) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/debug/log-files", req)
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/zip-files", req)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}

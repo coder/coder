@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -122,7 +123,7 @@ func TestReadFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 
 	dirPath := filepath.Join(tmpdir, "a-directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -302,7 +303,7 @@ func TestWriteFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -406,7 +407,7 @@ func TestWriteFile_ReportsIOError(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 
 	tmpdir := os.TempDir()
 	path := filepath.Join(tmpdir, "write-io-error")
@@ -447,7 +448,7 @@ func TestWriteFile_PreservesPermissions(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	path := filepath.Join(dir, "script.sh")
 	err := afero.WriteFile(osFs, path, []byte("#!/bin/sh\necho hello\n"), 0o755)
@@ -497,7 +498,7 @@ func TestEditFiles(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -1085,7 +1086,7 @@ func TestEditFiles_PreservesPermissions(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	path := filepath.Join(dir, "script.sh")
 	err := afero.WriteFile(osFs, path, []byte("#!/bin/sh\necho hello\n"), 0o755)
@@ -1142,7 +1143,7 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, usershell.SystemEnvInfo{})
 
 	testPath := filepath.Join(os.TempDir(), "test.txt")
 
@@ -1176,7 +1177,7 @@ func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, usershell.SystemEnvInfo{})
 
 	testPath := filepath.Join(os.TempDir(), "test.txt")
 
@@ -1200,7 +1201,7 @@ func TestHandleWriteFile_Failure_NoPathStoreUpdate(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, usershell.SystemEnvInfo{})
 
 	chatID := uuid.New()
 
@@ -1227,7 +1228,7 @@ func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, usershell.SystemEnvInfo{})
 
 	testPath := filepath.Join(os.TempDir(), "test.txt")
 
@@ -1267,7 +1268,7 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 	pathStore := agentgit.NewPathStore()
 	logger := slogtest.Make(t, nil)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, pathStore)
+	api := agentfiles.NewAPI(logger, fs, pathStore, usershell.SystemEnvInfo{})
 
 	chatID := uuid.New()
 
@@ -1312,7 +1313,7 @@ func TestReadFileLines(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 
 	dirPath := filepath.Join(tmpdir, "a-directory-lines")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -1494,7 +1495,7 @@ func TestWriteFile_FollowsSymlinks(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	// Create a real file and a symlink pointing to it.
 	realPath := filepath.Join(dir, "real.txt")
@@ -1537,7 +1538,7 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	// Create a real file and a symlink pointing to it.
 	realPath := filepath.Join(dir, "real.txt")
@@ -1596,7 +1597,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		t.Parallel()
 
 		fs := afero.NewMemMapFs()
-		api := agentfiles.NewAPI(logger, fs, nil)
+		api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 		path := filepath.Join(tmpdir, "diff-single")
 		require.NoError(t, afero.WriteFile(fs, path, []byte("hello world\n"), 0o644))
 
@@ -1624,7 +1625,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		t.Parallel()
 
 		fs := afero.NewMemMapFs()
-		api := agentfiles.NewAPI(logger, fs, nil)
+		api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 		path := filepath.Join(tmpdir, "diff-noop")
 		require.NoError(t, afero.WriteFile(fs, path, []byte("same\n"), 0o644))
 
@@ -1649,7 +1650,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		t.Parallel()
 
 		fs := afero.NewMemMapFs()
-		api := agentfiles.NewAPI(logger, fs, nil)
+		api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 		path := filepath.Join(tmpdir, "diff-off")
 		require.NoError(t, afero.WriteFile(fs, path, []byte("hello\n"), 0o644))
 
@@ -1671,7 +1672,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		t.Parallel()
 
 		fs := afero.NewMemMapFs()
-		api := agentfiles.NewAPI(logger, fs, nil)
+		api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 		pathA := filepath.Join(tmpdir, "diff-multi-a")
 		pathB := filepath.Join(tmpdir, "diff-multi-b")
 		pathC := filepath.Join(tmpdir, "diff-multi-c")
@@ -1709,7 +1710,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 		t.Parallel()
 
 		fs := afero.NewMemMapFs()
-		api := agentfiles.NewAPI(logger, fs, nil)
+		api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 		path := filepath.Join(tmpdir, "diff-multi-edit")
 		require.NoError(t, afero.WriteFile(fs, path, []byte("one\ntwo\nthree\n"), 0o644))
 
@@ -1741,7 +1742,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 
 		dir := t.TempDir()
 		osFs := afero.NewOsFs()
-		api := agentfiles.NewAPI(logger, osFs, nil)
+		api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 		realPath := filepath.Join(dir, "real.txt")
 		require.NoError(t, afero.WriteFile(osFs, realPath, []byte("hello\n"), 0o644))
@@ -2036,7 +2037,7 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "fuzzy-"+tt.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
 
@@ -2190,7 +2191,7 @@ func TestFuzzyReplace_EndingNormalization(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "endnorm-"+tt.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
 
@@ -2293,7 +2294,7 @@ func TestFuzzyReplace_FuzzyCollapse_PreservesNextLine(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "fuzzycollapse-"+tt.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
 
@@ -2442,7 +2443,7 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "ws-"+ct.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(ct.content), 0o644))
 
@@ -2583,7 +2584,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "reject-"+tt.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
 
@@ -2631,7 +2632,7 @@ func TestEditFiles_DuplicatePath_Merges(t *testing.T) {
 	tmpdir := os.TempDir()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 	path := filepath.Join(tmpdir, "dup-path")
 	original := "one\ntwo\nthree\n"
 	require.NoError(t, afero.WriteFile(fs, path, []byte(original), 0o644))
@@ -2670,7 +2671,7 @@ func TestEditFiles_DuplicatePath_NonCanonicalMerges(t *testing.T) {
 	tmpdir := os.TempDir()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 	canonical := filepath.Join(tmpdir, "noncanon")
 	nonCanonical := canonical[:len(tmpdir)] + "/./noncanon"
 	original := "one\ntwo\nthree\n"
@@ -2714,7 +2715,7 @@ func TestEditFiles_DuplicatePath_SymlinkAliasRejects(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	realPath := filepath.Join(dir, "real.txt")
 	original := "one\ntwo\nthree\n"
@@ -2770,7 +2771,7 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 	tmpdir := os.TempDir()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 	path := filepath.Join(tmpdir, "replaceall-fuzzyindent-gap")
 
 	// File is tab-indented Go, with `if err != nil { return err }`
@@ -3127,7 +3128,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "fuzzyindent-"+tt.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
 
@@ -3163,7 +3164,7 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 	tmpdir := os.TempDir()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
-	api := agentfiles.NewAPI(logger, fs, nil)
+	api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 	path := filepath.Join(tmpdir, "fuzzy-expansion-gap")
 
 	content := "\tnameValidator := func(fl validator.FieldLevel) bool {\n" +
@@ -3564,7 +3565,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			t.Parallel()
 
 			fs := afero.NewMemMapFs()
-			api := agentfiles.NewAPI(logger, fs, nil)
+			api := agentfiles.NewAPI(logger, fs, nil, usershell.SystemEnvInfo{})
 			path := filepath.Join(tmpdir, "hint-"+tt.name)
 			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
 

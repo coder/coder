@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,7 +202,7 @@ func TestRun(t *testing.T) {
 	})
 }
 
-func TestRunWorkspaceLogPaths(t *testing.T) {
+func TestRunWorkspaceExtraPaths(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
@@ -217,15 +218,15 @@ func TestRunWorkspaceLogPaths(t *testing.T) {
 	ws, agt := setupWorkspaceAndAgent(ctx, t, client, db, admin)
 
 	bun, err := support.Run(ctx, &support.Deps{
-		Client:            client,
-		Log:               testutil.Logger(t).Named("bundle"),
-		WorkspaceID:       ws.ID,
-		AgentID:           agt.ID,
-		WorkspaceLogPaths: []string{"$HOME/workspace-service.log"},
+		Client:              client,
+		Log:                 testutil.Logger(t).Named("bundle"),
+		WorkspaceID:         ws.ID,
+		AgentID:             agt.ID,
+		WorkspaceExtraPaths: []string{"$HOME/workspace-service.log"},
 	})
 	require.NoError(t, err)
 
-	assertWorkspaceLogFilesArchive(t, bun.Agent.LogFilesArchive, "files/workspace-service.log", "workspace service log")
+	assertWorkspaceExtraFilesArchive(t, bun.Agent.ExtraFilesArchive, archiveFilesPath(filepath.Join(home, "workspace-service.log")), "workspace service log")
 }
 
 func assertSanitizedDeploymentConfig(t *testing.T, dc *codersdk.DeploymentConfig) {
@@ -311,17 +312,27 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 	return ws, agt
 }
 
-func assertWorkspaceLogFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {
+func assertWorkspaceExtraFilesArchive(t *testing.T, data []byte, wantEntry string, wantContent string) {
 	t.Helper()
 
 	require.NotEmpty(t, data)
 	entries := testutil.ReadZip(t, data)
 	require.Equal(t, wantContent, string(entries[wantEntry]))
 
-	var manifest workspacesdk.DebugLogFilesManifest
+	var manifest workspacesdk.ZipFilesManifest
 	require.NoError(t, json.Unmarshal(entries["manifest.json"], &manifest))
 	require.Len(t, manifest.Files, 1)
 	require.Equal(t, wantEntry, manifest.Files[0].ArchivePath)
+}
+
+// archiveFilesPath mirrors the agent's mapping of a cleaned absolute path
+// to its files/ archive entry name, including the Windows drive-colon drop.
+func archiveFilesPath(abs string) string {
+	p := strings.TrimPrefix(filepath.ToSlash(abs), "/")
+	if len(p) >= 2 && p[1] == ':' {
+		p = p[:1] + p[2:]
+	}
+	return "files/" + p
 }
 
 func assertNotNilNotEmpty[T any](t *testing.T, v T, msg string) {

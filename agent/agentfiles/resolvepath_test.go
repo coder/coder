@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -31,7 +32,7 @@ func TestResolvePath_FollowsFileSymlink(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	realPath := filepath.Join(dir, "real.txt")
 	err := afero.WriteFile(osFs, realPath, []byte("hello"), 0o644)
@@ -64,7 +65,7 @@ func TestResolvePath_FollowsSymlinkedParentForMissingFile(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	realPlansDir := filepath.Join(dir, "real-plans")
 	err := os.MkdirAll(realPlansDir, 0o755)
@@ -100,7 +101,7 @@ func TestResolvePath_FollowsSymlinkedParentForExistingFile(t *testing.T) {
 	dir := t.TempDir()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
-	api := agentfiles.NewAPI(logger, osFs, nil)
+	api := agentfiles.NewAPI(logger, osFs, nil, usershell.SystemEnvInfo{})
 
 	realPlansDir := filepath.Join(dir, "real-plans")
 	err := os.MkdirAll(realPlansDir, 0o755)

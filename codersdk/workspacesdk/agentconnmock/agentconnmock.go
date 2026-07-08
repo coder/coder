@@ -143,21 +143,6 @@ func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextConfig", reflect.TypeOf((*MockAgentConn)(nil).ContextConfig), ctx)
 }
 
-// DebugLogFiles mocks base method.
-func (m *MockAgentConn) DebugLogFiles(ctx context.Context, req workspacesdk.DebugLogFilesRequest) ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DebugLogFiles", ctx, req)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DebugLogFiles indicates an expected call of DebugLogFiles.
-func (mr *MockAgentConnMockRecorder) DebugLogFiles(ctx, req any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogFiles", reflect.TypeOf((*MockAgentConn)(nil).DebugLogFiles), ctx, req)
-}
-
 // DebugLogs mocks base method.
 func (m *MockAgentConn) DebugLogs(ctx context.Context, opts ...workspacesdk.DebugLogsOption) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -686,4 +671,19 @@ func (m *MockAgentConn) WriteFile(ctx context.Context, path string, reader io.Re
 func (mr *MockAgentConnMockRecorder) WriteFile(ctx, path, reader any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteFile", reflect.TypeOf((*MockAgentConn)(nil).WriteFile), ctx, path, reader)
+}
+
+// ZipFiles mocks base method.
+func (m *MockAgentConn) ZipFiles(ctx context.Context, req workspacesdk.ZipFilesRequest) ([]byte, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ZipFiles", ctx, req)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ZipFiles indicates an expected call of ZipFiles.
+func (mr *MockAgentConnMockRecorder) ZipFiles(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ZipFiles", reflect.TypeOf((*MockAgentConn)(nil).ZipFiles), ctx, req)
 }

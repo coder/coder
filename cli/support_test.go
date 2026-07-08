@@ -307,7 +307,7 @@ func TestSupportBundle(t *testing.T) {
 	})
 }
 
-func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
+func TestSupportBundleWorkspaceExtraPaths(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
 	}
@@ -358,8 +358,8 @@ func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
 	// deduplication end to end.
 	inv, root := clitest.New(t,
 		"support", "bundle", workspaceWithAgent.Workspace.Name,
-		"--workspace-log-path", "$HOME/testlogs/server.log",
-		"--workspace-log-path", "$HOME/testlogs/**/*.log",
+		"--workspace-extra-path", "$HOME/testlogs/server.log",
+		"--workspace-extra-path", "$HOME/testlogs/**/*.log",
 		"--output-file", bundlePath,
 		"--yes",
 	)
@@ -370,10 +370,12 @@ func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
 
 	assertBundleContents(t, bundlePath, true, true, []string{secretValue})
 	entries := readZipEntries(t, bundlePath)
-	require.Equal(t, "server log", string(entries["agent/log_files/files/testlogs/server.log"]))
-	require.Equal(t, "nested log", string(entries["agent/log_files/files/testlogs/nested/nested.log"]))
-	var manifest workspacesdk.DebugLogFilesManifest
-	require.NoError(t, json.Unmarshal(entries["agent/log_files/manifest.json"], &manifest))
+	serverLogEntry := "agent/extra_files/" + archiveFilesPath(filepath.Join(home, "testlogs", "server.log"))
+	nestedLogEntry := "agent/extra_files/" + archiveFilesPath(filepath.Join(home, "testlogs", "nested", "nested.log"))
+	require.Equal(t, "server log", string(entries[serverLogEntry]))
+	require.Equal(t, "nested log", string(entries[nestedLogEntry]))
+	var manifest workspacesdk.ZipFilesManifest
+	require.NoError(t, json.Unmarshal(entries["agent/extra_files/manifest.json"], &manifest))
 	require.Equal(t, []string{"$HOME/testlogs/server.log", "$HOME/testlogs/**/*.log"}, manifest.Requested)
 	require.Len(t, manifest.Files, 2, "server.log should be deduplicated across the exact path and the glob")
 }
@@ -386,7 +388,7 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 	defer r.Close()
 	for _, f := range r.File {
 		assertDoesNotContain(t, f, badValues...)
-		if strings.HasPrefix(f.Name, "agent/log_files/files/") {
+		if strings.HasPrefix(f.Name, "agent/extra_files/files/") {
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "workspace log file should not be empty")
 			continue
@@ -567,8 +569,8 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 				continue
 			}
 			require.Contains(t, string(bs), "started up")
-		case "agent/log_files/manifest.json":
-			var v workspacesdk.DebugLogFilesManifest
+		case "agent/extra_files/manifest.json":
+			var v workspacesdk.ZipFilesManifest
 			decodeJSONFromZip(t, f, &v)
 			require.NotEmpty(t, v.Requested, "workspace log file manifest should include requested paths")
 		case "logs.txt":
@@ -684,4 +686,14 @@ func setupSupportBundleTestFixture(
 		}
 	}
 	return r
+}
+
+// archiveFilesPath mirrors the agent's mapping of a cleaned absolute path
+// to its files/ archive entry name, including the Windows drive-colon drop.
+func archiveFilesPath(abs string) string {
+	p := strings.TrimPrefix(filepath.ToSlash(abs), "/")
+	if len(p) >= 2 && p[1] == ':' {
+		p = p[:1] + p[2:]
+	}
+	return "files/" + p
 }

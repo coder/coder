@@ -58,7 +58,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
   - Agent logs
-  - Workspace log files (if --workspace-log-path is specified)
+  - Requested workspace files (if --workspace-extra-path is specified)
   - License status
   - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
@@ -73,7 +73,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var coderURLOverride string
 	var workspacesTotalCap64 int64 = 10
 	var templateName string
-	var workspaceLogPaths []string
+	var workspaceExtraPaths []string
 	var pprof bool
 	cmd := &serpent.Command{
 		Use:   "bundle [<workspace>] [<agent>]",
@@ -254,13 +254,13 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
-				Log:                clientLog,
-				WorkspaceID:        wsID,
-				AgentID:            agtID,
-				WorkspacesTotalCap: int(workspacesTotalCap64),
-				TemplateID:         templateID,
-				WorkspaceLogPaths:  workspaceLogPaths,
-				CollectPprof:       pprof,
+				Log:                 clientLog,
+				WorkspaceID:         wsID,
+				AgentID:             agtID,
+				WorkspacesTotalCap:  int(workspacesTotalCap64),
+				TemplateID:          templateID,
+				WorkspaceExtraPaths: workspaceExtraPaths,
+				CollectPprof:        pprof,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -309,10 +309,10 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Value:       serpent.StringOf(&templateName),
 		},
 		{
-			Flag:        "workspace-log-path",
-			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACE_LOG_PATH",
-			Description: "Log file path or glob to collect from inside the remote workspace, resolved against the agent user's home directory. Files local to the machine running this command are not collected. Can be specified multiple times.",
-			Value:       serpent.StringArrayOf(&workspaceLogPaths),
+			Flag:        "workspace-extra-path",
+			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACE_EXTRA_PATH",
+			Description: "File path or glob to collect from inside the remote workspace. Paths must be absolute or start with $HOME/, ${HOME}/, or ~/, which resolve against the agent user's home directory. Files local to the machine running this command are not collected. Can be specified multiple times.",
+			Value:       serpent.StringArrayOf(&workspaceExtraPaths),
 		},
 		{
 			Flag:        "pprof",
@@ -561,8 +561,8 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
-	if err := writeAgentLogFilesArchive(src.Agent.LogFilesArchive, dest, supportBundleAgentLogFilesMaxBytes); err != nil {
-		return xerrors.Errorf("write agent log files: %w", err)
+	if err := writeAgentExtraFilesArchive(src.Agent.ExtraFilesArchive, dest, supportBundleAgentExtraFilesMaxBytes); err != nil {
+		return xerrors.Errorf("write agent extra files: %w", err)
 	}
 
 	// Write pprof binary data
@@ -576,27 +576,27 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 	return nil
 }
 
-// supportBundleAgentLogFilesMaxBytes guards against a misbehaving agent;
+// supportBundleAgentExtraFilesMaxBytes guards against a misbehaving agent;
 // the agent itself caps collection at 100 MiB.
-const supportBundleAgentLogFilesMaxBytes int64 = 110 * 1024 * 1024
+const supportBundleAgentExtraFilesMaxBytes int64 = 110 * 1024 * 1024
 
-// writeAgentLogFilesArchive unpacks the agent's zip into the bundle under
-// agent/log_files/; dropped entries are recorded in collection_errors.txt.
-func writeAgentLogFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) error {
+// writeAgentExtraFilesArchive unpacks the agent's zip into the bundle under
+// agent/extra_files/; dropped entries are recorded in collection_errors.txt.
+func writeAgentExtraFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) error {
 	if len(src) == 0 {
 		return nil
 	}
 	zr, err := zip.NewReader(bytes.NewReader(src), int64(len(src)))
 	if err != nil {
 		// A malformed archive shouldn't sink the rest of the bundle.
-		return writeAgentLogFilesSkipped(dest, []string{
-			fmt.Sprintf("open agent log files archive: %s", err),
+		return writeAgentExtraFilesSkipped(dest, []string{
+			fmt.Sprintf("open agent extra files archive: %s", err),
 		})
 	}
 	remaining := maxBytes
 	var skipped []string
 	for _, file := range zr.File {
-		name, ok := safeAgentLogFilesArchiveName(file.Name)
+		name, ok := safeAgentExtraFilesArchiveName(file.Name)
 		if !ok || !file.FileInfo().Mode().IsRegular() {
 			skipped = append(skipped, fmt.Sprintf("%s: unexpected entry", file.Name))
 			continue
@@ -613,10 +613,10 @@ func writeAgentLogFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) err
 			continue
 		}
 		// A failed create means the output zip itself is broken.
-		f, err := dest.Create(path.Join("agent/log_files", name))
+		f, err := dest.Create(path.Join("agent/extra_files", name))
 		if err != nil {
 			_ = rc.Close()
-			return xerrors.Errorf("create agent log files entry %q: %w", name, err)
+			return xerrors.Errorf("create agent extra files entry %q: %w", name, err)
 		}
 		// The LimitReader bounds entries that lie about their size; copy
 		// failures are recorded, not fatal.
@@ -627,31 +627,31 @@ func writeAgentLogFilesArchive(src []byte, dest *zip.Writer, maxBytes int64) err
 			skipped = append(skipped, fmt.Sprintf("%s: copy: %s (entry may be truncated)", name, err))
 		}
 	}
-	return writeAgentLogFilesSkipped(dest, skipped)
+	return writeAgentExtraFilesSkipped(dest, skipped)
 }
 
-// writeAgentLogFilesSkipped records dropped workspace log entries in the
+// writeAgentExtraFilesSkipped records dropped workspace file entries in the
 // bundle instead of failing it.
-func writeAgentLogFilesSkipped(dest *zip.Writer, skipped []string) error {
+func writeAgentExtraFilesSkipped(dest *zip.Writer, skipped []string) error {
 	if len(skipped) == 0 {
 		return nil
 	}
-	f, err := dest.Create("agent/log_files/collection_errors.txt")
+	f, err := dest.Create("agent/extra_files/collection_errors.txt")
 	if err != nil {
-		return xerrors.Errorf("create agent log files errors: %w", err)
+		return xerrors.Errorf("create agent extra files errors: %w", err)
 	}
-	body := "# workspace log entries dropped while assembling the support bundle\n" +
+	body := "# workspace file entries dropped while assembling the support bundle\n" +
 		strings.Join(skipped, "\n") + "\n"
 	if _, err := f.Write([]byte(body)); err != nil {
-		return xerrors.Errorf("write agent log files errors: %w", err)
+		return xerrors.Errorf("write agent extra files errors: %w", err)
 	}
 	return nil
 }
 
-// safeAgentLogFilesArchiveName returns name when it is safe to embed in
+// safeAgentExtraFilesArchiveName returns name when it is safe to embed in
 // the bundle: a valid slash path within the expected layout. Backslashes
 // are rejected; some Windows extractors treat them as separators.
-func safeAgentLogFilesArchiveName(name string) (string, bool) {
+func safeAgentExtraFilesArchiveName(name string) (string, bool) {
 	if strings.Contains(name, `\`) || !fs.ValidPath(name) {
 		return "", false
 	}

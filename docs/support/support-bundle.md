@@ -27,36 +27,36 @@ A brief overview of all files contained in the bundle is provided below:
 > Detailed descriptions of all the information available in the bundle is
 > out of scope, as support bundles are primarily intended for internal use.
 
-| Filename                                | Description                                                                                                                                                                                    |
-|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent/agent.json`                      | The agent used to connect to the workspace with environment variables stripped.                                                                                                                |
-| `agent/agent_magicsock.html`            | The contents of the HTTP debug endpoint of the agent's Tailscale Wireguard connection.                                                                                                         |
-| `agent/client_magicsock.html`           | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                                                                                                        |
-| `agent/listening_ports.json`            | The listening ports detected by the selected agent running in the workspace.                                                                                                                   |
-| `agent/logs.txt`                        | Active agent log plus rotated agent logs modified in the last 24 hours, capped at 100 MiB.                                                                                                     |
-| `agent/log_files/collection_errors.txt` | Workspace log entries dropped while assembling the bundle, such as entries exceeding the size budget. Only present when entries were dropped.                                                  |
-| `agent/log_files/files/`                | Log files collected from inside the remote workspace with `--workspace-log-path`. Only present when workspace log paths are requested.                                                         |
-| `agent/log_files/manifest.json`         | Describes the remote workspace log file collection: requested patterns, collected files, per-path errors, truncation, and applied limits. Only present when workspace log paths are requested. |
-| `agent/manifest.json`                   | The manifest of the selected agent with environment variables stripped.                                                                                                                        |
-| `agent/startup_logs.txt`                | Startup logs of the workspace agent.                                                                                                                                                           |
-| `agent/prometheus.txt`                  | The contents of the agent's Prometheus endpoint.                                                                                                                                               |
-| `cli_logs.txt`                          | Logs from running the `coder support bundle` command.                                                                                                                                          |
-| `deployment/buildinfo.json`             | Coder version and build information.                                                                                                                                                           |
-| `deployment/config.json`                | Deployment [configuration](../reference/api/general.md#get-deployment-config), with secret values removed. *Requires Owner role.*                                                              |
-| `deployment/experiments.json`           | Any [experiments](../reference/cli/server.md#--experiments) currently enabled for the deployment.                                                                                              |
-| `deployment/health.json`                | A snapshot of the [health status](../admin/monitoring/health-check.md) of the deployment. *Requires Owner role.*                                                                               |
-| `logs.txt`                              | Logs from the `codersdk.Client` used to generate the bundle.                                                                                                                                   |
-| `network/connection_info.json`          | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                                                                                  |
-| `network/coordinator_debug.html`        | Peers currently connected to each Coder instance and the tunnels established between peers. *Requires Owner role.*                                                                             |
-| `network/netcheck.json`                 | Results of running `coder netcheck` locally.                                                                                                                                                   |
-| `network/tailnet_debug.html`            | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels. *Requires Owner role.*                                                                                               |
-| `workspace/build_logs.txt`              | Build logs of the selected workspace.                                                                                                                                                          |
-| `workspace/workspace.json`              | Details of the selected workspace.                                                                                                                                                             |
-| `workspace/parameters.json`             | Build parameters of the selected workspace.                                                                                                                                                    |
-| `workspace/template.json`               | The template currently in use by the selected workspace.                                                                                                                                       |
-| `workspace/template_file.zip`           | The source code of the template currently in use by the selected workspace.                                                                                                                    |
-| `workspace/template_version.json`       | The template version currently in use by the selected workspace.                                                                                                                               |
-| `vscode-logs/`                          | Only present when generated from the VS Code Coder Remote extension. Includes logs, redacted settings, and local telemetry files.                                                              |
+| Filename                                  | Description                                                                                                                                                                            |
+|-------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent/agent.json`                        | The agent used to connect to the workspace with environment variables stripped.                                                                                                        |
+| `agent/agent_magicsock.html`              | The contents of the HTTP debug endpoint of the agent's Tailscale Wireguard connection.                                                                                                 |
+| `agent/client_magicsock.html`             | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                                                                                                |
+| `agent/listening_ports.json`              | The listening ports detected by the selected agent running in the workspace.                                                                                                           |
+| `agent/logs.txt`                          | Active agent log plus rotated agent logs modified in the last 24 hours, capped at 100 MiB.                                                                                             |
+| `agent/extra_files/collection_errors.txt` | Workspace file entries dropped while assembling the bundle, such as entries exceeding the size budget. Only present when entries were dropped.                                         |
+| `agent/extra_files/files/`                | Files collected from inside the remote workspace with `--workspace-extra-path`. Only present when workspace paths are requested.                                                       |
+| `agent/extra_files/manifest.json`         | Describes the remote workspace file collection: requested patterns, collected files, per-path errors, truncation, and applied limits. Only present when workspace paths are requested. |
+| `agent/manifest.json`                     | The manifest of the selected agent with environment variables stripped.                                                                                                                |
+| `agent/startup_logs.txt`                  | Startup logs of the workspace agent.                                                                                                                                                   |
+| `agent/prometheus.txt`                    | The contents of the agent's Prometheus endpoint.                                                                                                                                       |
+| `cli_logs.txt`                            | Logs from running the `coder support bundle` command.                                                                                                                                  |
+| `deployment/buildinfo.json`               | Coder version and build information.                                                                                                                                                   |
+| `deployment/config.json`                  | Deployment [configuration](../reference/api/general.md#get-deployment-config), with secret values removed. *Requires Owner role.*                                                      |
+| `deployment/experiments.json`             | Any [experiments](../reference/cli/server.md#--experiments) currently enabled for the deployment.                                                                                      |
+| `deployment/health.json`                  | A snapshot of the [health status](../admin/monitoring/health-check.md) of the deployment. *Requires Owner role.*                                                                       |
+| `logs.txt`                                | Logs from the `codersdk.Client` used to generate the bundle.                                                                                                                           |
+| `network/connection_info.json`            | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                                                                          |
+| `network/coordinator_debug.html`          | Peers currently connected to each Coder instance and the tunnels established between peers. *Requires Owner role.*                                                                     |
+| `network/netcheck.json`                   | Results of running `coder netcheck` locally.                                                                                                                                           |
+| `network/tailnet_debug.html`              | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels. *Requires Owner role.*                                                                                       |
+| `workspace/build_logs.txt`                | Build logs of the selected workspace.                                                                                                                                                  |
+| `workspace/workspace.json`                | Details of the selected workspace.                                                                                                                                                     |
+| `workspace/parameters.json`               | Build parameters of the selected workspace.                                                                                                                                            |
+| `workspace/template.json`                 | The template currently in use by the selected workspace.                                                                                                                               |
+| `workspace/template_file.zip`             | The source code of the template currently in use by the selected workspace.                                                                                                            |
+| `workspace/template_version.json`         | The template version currently in use by the selected workspace.                                                                                                                       |
+| `vscode-logs/`                            | Only present when generated from the VS Code Coder Remote extension. Includes logs, redacted settings, and local telemetry files.                                                      |
 
 ## How do I generate a Support Bundle?
 
@@ -91,29 +91,31 @@ A brief overview of all files contained in the bundle is provided below:
    > While support bundles can be generated without a running workspace, it is
    > recommended to specify one to maximize troubleshooting information.
 
-   To collect workspace-side editor or service logs, add one
-   `--workspace-log-path` flag for each path or glob. This is explicit opt-in.
-   The CLI sends each value to the workspace agent, so quote globs to prevent
-   your local shell from expanding them:
+   To collect workspace-side files such as editor or service logs, add one
+   `--workspace-extra-path` flag for each path or glob. This is explicit
+   opt-in. The CLI sends each value to the workspace agent, so quote globs to
+   prevent your local shell from expanding them:
 
    ```sh
    coder support bundle my-workspace \
-     --workspace-log-path '$HOME/.vscode-server/data/logs/**/*.log' \
-     --workspace-log-path '$HOME/.local/share/code-server/coder-logs/**/*.log'
+     --workspace-extra-path '$HOME/.vscode-server/data/logs/**/*.log' \
+     --workspace-extra-path '$HOME/.local/share/code-server/coder-logs/**/*.log'
    ```
 
-   Workspace log paths and globs are evaluated by the workspace agent. The
-   agent collects only files that resolve under the workspace agent user's home
-   directory. Supported path forms include `$HOME/...`, `${HOME}/...`, `~/...`,
-   and absolute paths under the agent user's home directory. Collected files are
-   stored under `agent/log_files/files/`, and collection metadata is stored in
-   `agent/log_files/manifest.json`. Files that exceed the per-file limit are
-   truncated to their last bytes and marked as truncated in the manifest.
+   Workspace paths and globs are evaluated by the workspace agent. Any
+   absolute path in the workspace can be requested; paths starting with
+   `$HOME/`, `${HOME}/`, or `~/` resolve against the agent user's home
+   directory. Symlinks are followed for directly requested paths, but not
+   during glob traversal. Collection is limited to 32 path patterns, 10000
+   files, and 100 MiB in total; files larger than 10 MiB are truncated to
+   their last 10 MiB and marked as truncated in the manifest. Collected files
+   are stored under `agent/extra_files/files/`, and collection metadata is
+   stored in `agent/extra_files/manifest.json`.
 
    > [!WARNING]
-   > Workspace log files can contain tokens, credentials, source code, or other
-   > sensitive data. Extract and review `agent/log_files/` before sharing the
-   > bundle.
+   > Workspace files can contain tokens, credentials, source code, or other
+   > sensitive data. Extract and review `agent/extra_files/` before sharing
+   > the bundle.
 
 5. (Recommended) Extract the support bundle and review its contents, redacting
    any information you deem necessary.

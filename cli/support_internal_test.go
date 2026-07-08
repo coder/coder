@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestSafeAgentLogFilesArchiveName(t *testing.T) {
+func TestSafeAgentExtraFilesArchiveName(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -31,7 +31,7 @@ func TestSafeAgentLogFilesArchiveName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := safeAgentLogFilesArchiveName(tt.name)
+			got, ok := safeAgentExtraFilesArchiveName(tt.name)
 			require.Equal(t, tt.ok, ok)
 			if tt.ok {
 				require.Equal(t, tt.name, got)
@@ -40,13 +40,13 @@ func TestSafeAgentLogFilesArchiveName(t *testing.T) {
 	}
 }
 
-func TestWriteAgentLogFilesArchive(t *testing.T) {
+func TestWriteAgentExtraFilesArchive(t *testing.T) {
 	t.Parallel()
 
 	t.Run("UnpacksManifestAndFiles", func(t *testing.T) {
 		t.Parallel()
 
-		agentArchive := makeAgentLogFilesArchive(t,
+		agentArchive := makeAgentExtraFilesArchive(t,
 			"files/server.log", "server log",
 			"manifest.json", `{"files":[{"archive_path":"files/server.log"}]}`,
 			"../escape.log", "should be dropped and recorded",
@@ -54,20 +54,20 @@ func TestWriteAgentLogFilesArchive(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentLogFilesArchive(agentArchive, bundleZip, supportBundleAgentLogFilesMaxBytes))
+		require.NoError(t, writeAgentExtraFilesArchive(agentArchive, bundleZip, supportBundleAgentExtraFilesMaxBytes))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Equal(t, "server log", string(entries["agent/log_files/files/server.log"]))
-		require.Contains(t, entries, "agent/log_files/manifest.json")
-		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "../escape.log")
+		require.Equal(t, "server log", string(entries["agent/extra_files/files/server.log"]))
+		require.Contains(t, entries, "agent/extra_files/manifest.json")
+		require.Contains(t, string(entries["agent/extra_files/collection_errors.txt"]), "../escape.log")
 		require.Len(t, entries, 3)
 	})
 
 	t.Run("SkipsEntriesBeyondBudget", func(t *testing.T) {
 		t.Parallel()
 
-		agentArchive := makeAgentLogFilesArchive(t,
+		agentArchive := makeAgentExtraFilesArchive(t,
 			"files/big.log", "this entry is too big",
 			"files/small.log", "ok",
 		)
@@ -75,13 +75,13 @@ func TestWriteAgentLogFilesArchive(t *testing.T) {
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
 		// A 4 byte budget fits small.log but not big.log.
-		require.NoError(t, writeAgentLogFilesArchive(agentArchive, bundleZip, 4))
+		require.NoError(t, writeAgentExtraFilesArchive(agentArchive, bundleZip, 4))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Equal(t, "ok", string(entries["agent/log_files/files/small.log"]))
-		require.NotContains(t, entries, "agent/log_files/files/big.log")
-		errs := string(entries["agent/log_files/collection_errors.txt"])
+		require.Equal(t, "ok", string(entries["agent/extra_files/files/small.log"]))
+		require.NotContains(t, entries, "agent/extra_files/files/big.log")
+		errs := string(entries["agent/extra_files/collection_errors.txt"])
 		require.Contains(t, errs, "files/big.log")
 		require.Contains(t, errs, "budget")
 	})
@@ -91,16 +91,16 @@ func TestWriteAgentLogFilesArchive(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		require.NoError(t, writeAgentLogFilesArchive([]byte("not a zip"), bundleZip, supportBundleAgentLogFilesMaxBytes))
+		require.NoError(t, writeAgentExtraFilesArchive([]byte("not a zip"), bundleZip, supportBundleAgentExtraFilesMaxBytes))
 		require.NoError(t, bundleZip.Close())
 
 		entries := testutil.ReadZip(t, bundle.Bytes())
-		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "open agent log files archive")
+		require.Contains(t, string(entries["agent/extra_files/collection_errors.txt"]), "open agent extra files archive")
 	})
 }
 
-// makeAgentLogFilesArchive zips alternating name/content pairs in order.
-func makeAgentLogFilesArchive(t *testing.T, pairs ...string) []byte {
+// makeAgentExtraFilesArchive zips alternating name/content pairs in order.
+func makeAgentExtraFilesArchive(t *testing.T, pairs ...string) []byte {
 	t.Helper()
 
 	require.Zero(t, len(pairs)%2)

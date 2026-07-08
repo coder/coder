@@ -475,7 +475,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, a.envInfo)
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
@@ -2323,7 +2323,6 @@ func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)
-	r.Post("/debug/log-files", a.HandleHTTPDebugLogFiles)
 	r.Get("/debug/magicsock", a.HandleHTTPDebugMagicsock)
 	r.Get("/debug/magicsock/debug-logging/{state}", a.HandleHTTPMagicsockDebugLoggingState)
 	r.Get("/debug/manifest", a.HandleHTTPDebugManifest)
