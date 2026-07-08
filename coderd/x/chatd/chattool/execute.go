@@ -35,6 +35,14 @@ const (
 	// rejected.
 	maxExecuteTimeout = 4 * time.Hour
 
+	// recordStartTimeout bounds the execution record write that
+	// persists a freshly started process handle. The write runs
+	// on an uncanceled context because an interrupt can cancel
+	// the generation context right after StartProcess returns,
+	// and losing the handle would leave the interrupt path
+	// unable to kill the process.
+	recordStartTimeout = 15 * time.Second
+
 	// nullHandleGrace is how long a pre-existing execution
 	// record without a process handle is given for its owner
 	// to record the handle before the process state is
@@ -400,7 +408,7 @@ func executeBackground(
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
 	if recorder != nil {
-		if err := recorder.RecordStart(ctx, toolCallID, resp.ID); err != nil {
+		if err := recordProcessStart(ctx, recorder, toolCallID, resp.ID); err != nil {
 			// The process is already running; killing it here would
 			// discard real work. Surface the handle instead.
 			return errorResultWithProcess(
@@ -414,6 +422,16 @@ func executeBackground(
 		Success:             true,
 		BackgroundProcessID: resp.ID,
 	})
+}
+
+// recordProcessStart persists a freshly started process handle on
+// an uncanceled, bounded context. The generation context can be
+// canceled by an interrupt right after StartProcess returns, and
+// the interrupt path needs the recorded handle to kill the process.
+func recordProcessStart(ctx context.Context, recorder ExecutionRecorder, toolCallID string, processID string) error {
+	recordCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), recordStartTimeout)
+	defer cancel()
+	return recorder.RecordStart(recordCtx, toolCallID, processID)
 }
 
 // executeForeground starts a process and waits for its
@@ -443,9 +461,7 @@ func executeForeground(
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 	if recorder != nil {
-		// Record on the parent context so the command timeout
-		// cannot clip the write.
-		if err := recorder.RecordStart(ctx, toolCallID, resp.ID); err != nil {
+		if err := recordProcessStart(ctx, recorder, toolCallID, resp.ID); err != nil {
 			// The process is already running; killing it here would
 			// discard real work. Surface the handle instead.
 			return errorResultWithProcess(

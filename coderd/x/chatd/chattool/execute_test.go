@@ -735,6 +735,11 @@ type fakeRecorder struct {
 	records        map[string]chattool.ExecutionRecord
 	reserveCalls   int
 	recordStartErr error
+	// recordStartCtxErr captures ctx.Err() as observed by
+	// RecordStart, so tests can assert the write runs on an
+	// uncanceled context.
+	recordStartCtxErr error
+	recordStartCalled bool
 	// onReserve runs on every Reserve call with the call count,
 	// letting tests mutate records mid-grace.
 	onReserve func(calls int)
@@ -764,9 +769,11 @@ func (f *fakeRecorder) Reserve(_ context.Context, toolCallID string, command str
 	return rec, true, nil
 }
 
-func (f *fakeRecorder) RecordStart(_ context.Context, toolCallID string, processID string) error {
+func (f *fakeRecorder) RecordStart(ctx context.Context, toolCallID string, processID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.recordStartCalled = true
+	f.recordStartCtxErr = ctx.Err()
 	if f.recordStartErr != nil {
 		return f.recordStartErr
 	}
@@ -1172,6 +1179,41 @@ func TestExecuteToolRecorder(t *testing.T) {
 		assert.False(t, result.Success)
 		assert.Equal(t, "proc-1", result.BackgroundProcessID)
 		assert.Contains(t, result.Error, "record process start")
+	})
+
+	t.Run("RecordStartSurvivesInterruptCancel", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		recorder := newFakeRecorder()
+
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitMedium))
+		defer cancel()
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(context.Context, workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				// Simulate an interrupt canceling the generation
+				// context while the start request is in flight.
+				cancel()
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{}, context.Canceled).
+			AnyTimes()
+
+		tool := newRecordedExecuteTool(t, mockConn, recorder)
+		_, _ = tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+
+		// The handle must be recorded even though the tool context
+		// was canceled, so the interrupt path can kill the process.
+		assert.True(t, recorder.recordStartCalled)
+		assert.NoError(t, recorder.recordStartCtxErr)
+		assert.Equal(t, "proc-1", recorder.record("call-1").ProcessID)
 	})
 
 	t.Run("TimeoutClamp", func(t *testing.T) {

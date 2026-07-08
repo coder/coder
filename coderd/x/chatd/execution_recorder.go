@@ -41,11 +41,15 @@ func (server *Server) newExecutionRecorder(chatID uuid.UUID, workspaceCtx *turnW
 // acting as creator.
 func (r *executionRecorder) Reserve(ctx context.Context, toolCallID string, command string, background bool, timeout time.Duration) (chattool.ExecutionRecord, bool, error) {
 	row, err := r.db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
-		ChatID:      r.chatID,
-		ToolCallID:  toolCallID,
-		Command:     command,
-		Background:  background,
-		TimeoutSecs: int64(timeout / time.Second),
+		ChatID:     r.chatID,
+		ToolCallID: toolCallID,
+		Command:    command,
+		Background: background,
+		// Round up so a retry never reconstructs a shorter
+		// deadline than the original attempt used; a sub-second
+		// timeout would otherwise floor to 0s and make re-attach
+		// treat a running process as instantly timed out.
+		TimeoutSecs: int64((timeout + time.Second - 1) / time.Second),
 		CreatedAt:   dbtime.Now(),
 	})
 	if err == nil {
