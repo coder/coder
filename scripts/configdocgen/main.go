@@ -1,20 +1,16 @@
-// Command configdocgen produces a single-page configuration reference for
-// Coder server. The page lists every visible deployment option grouped by
-// its serpent Group, with columns for the environment variable, CLI flag,
-// YAML key, default, and description. The intent is to give operators a
-// single searchable lookup table; for the full per-flag detail, the page
-// links back to docs/reference/cli/server.md, which the existing
-// scripts/clidocgen already generates from the same source.
-//
-// The source of truth is codersdk.DeploymentValues, so this generator stays
-// in sync automatically whenever options are added, renamed, or removed.
+// Command configdocgen generates the Coder server configuration reference at
+// docs/admin/setup/configuration-reference.md from codersdk.DeploymentValues.
+// It lists every visible deployment option grouped by serpent group, with its
+// environment variable, CLI flag, YAML key, and default. Because the source is
+// DeploymentValues, the page stays in sync as options change.
 package main
 
 import (
+	"cmp"
 	"flag"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -31,7 +27,8 @@ lists every option so you can search by environment variable name, CLI flag, or
 YAML key. For first-time setup guidance and worked examples, see
 [Configure Control Plane Access](./index.md).
 
-Every option below can be set via:
+Most options can be set through any of the following. Where a method does not
+apply to an option, that column shows ` + "`-`" + `.
 
 - An environment variable (recommended for production deployments running as a
   system service, container, or Helm chart).
@@ -64,17 +61,15 @@ type section struct {
 // depend on the generating host. Without it, defaults derived from
 // os.UserCacheDir and the config dir embed the local home directory.
 func prepareEnv() {
-	// Unset CODER_ environment variables
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, "CODER_") {
-			split := strings.SplitN(env, "=", 2)
-			if err := os.Unsetenv(split[0]); err != nil {
+			name, _, _ := strings.Cut(env, "=")
+			if err := os.Unsetenv(name); err != nil {
 				panic(err)
 			}
 		}
 	}
 
-	// Override default OS values to ensure the same generated results.
 	err := os.Setenv("CLIDOCGEN_CACHE_DIRECTORY", "~/.cache")
 	if err != nil {
 		panic(err)
@@ -130,29 +125,25 @@ func buildSections(opts serpent.OptionSet) []section {
 			}
 		}
 		if _, ok := bySection[title]; !ok {
-			s := &section{title: title}
-			bySection[title] = s
+			bySection[title] = &section{title: title}
 			order = append(order, title)
 		}
 		bySection[title].rows = append(bySection[title].rows, optionToRow(opt))
 	}
 
 	for _, key := range order {
-		s := bySection[key]
-		sort.Slice(s.rows, func(i, j int) bool {
-			return s.rows[i].name < s.rows[j].name
+		slices.SortFunc(bySection[key].rows, func(a, b row) int {
+			return strings.Compare(a.name, b.name)
 		})
 	}
 
-	sort.Strings(order)
-	// Put General first because it carries the most common first-time setup
-	// options (Postgres, cache directory, support links, etc.).
-	for i, key := range order {
-		if key == "General" && i != 0 {
-			order = append([]string{"General"}, append(order[:i], order[i+1:]...)...)
-			break
+	slices.SortStableFunc(order, func(a, b string) int {
+		if c := cmp.Compare(sectionRank(a), sectionRank(b)); c != 0 {
+			return c
 		}
-	}
+		return strings.Compare(a, b)
+	})
+
 	result := make([]section, 0, len(order))
 	for _, key := range order {
 		result = append(result, *bySection[key])
@@ -160,12 +151,28 @@ func buildSections(opts serpent.OptionSet) []section {
 	return result
 }
 
+// sectionRank fixes the display order of sections. General comes first because
+// it holds the most common first-time setup options (Postgres, cache
+// directory, access URL). The Dangerous group comes last, regardless of its
+// emoji prefix, so the reference does not steer operators toward risky
+// settings. Every other section sorts alphabetically between them.
+func sectionRank(title string) int {
+	switch {
+	case title == "General":
+		return -1
+	case strings.HasSuffix(title, "Dangerous"):
+		return 1
+	default:
+		return 0
+	}
+}
+
 func optionToRow(opt serpent.Option) row {
 	flagCell := "-"
 	if opt.Flag != "" {
-		// Link to the heading anchor that clidocgen emits in server.md. Flags
-		// with a shorthand render as "### -s, --flag" (anchor "-s---flag");
-		// flags without one render as "### --flag" (anchor "--flag").
+		// clidocgen renders a flag heading as "### -s, --flag" when it has a
+		// shorthand and "### --flag" otherwise, so the anchor must include the
+		// shorthand to match.
 		anchor := "--" + opt.Flag
 		if opt.FlagShorthand != "" {
 			anchor = "-" + opt.FlagShorthand + "---" + opt.Flag
@@ -175,14 +182,14 @@ func optionToRow(opt serpent.Option) row {
 
 	def := opt.Default
 	if def == "" && opt.DefaultFn != nil {
-		// DefaultFn results depend on the host environment, so we cannot
-		// safely evaluate them here. Mark them as dynamic so readers know to
-		// check the CLI reference for the resolved default.
-		def = "(dynamic)"
+		// DefaultFn results depend on the host environment, so evaluating them
+		// here would leak host-specific values. Send the reader to the CLI
+		// reference for the resolved default instead.
+		def = "(computed at runtime)"
 	}
 
 	return row{
-		name:     opt.Name,
+		name:     escapePipe(opt.Name),
 		env:      codeCell(opt.Env),
 		flag:     flagCell,
 		yaml:     codeCell(opt.YAMLPath()),
@@ -191,8 +198,6 @@ func optionToRow(opt serpent.Option) row {
 	}
 }
 
-// codeCell wraps s in backticks for a markdown table cell, or returns a dash
-// placeholder when s is empty.
 func codeCell(s string) string {
 	if s == "" {
 		return "-"
@@ -200,9 +205,8 @@ func codeCell(s string) string {
 	return "`" + s + "`"
 }
 
-// sanitizeDesc collapses whitespace and escapes pipes so the description fits
-// inside a markdown table cell. Long sentences are kept; readers can follow
-// the flag link for canonical wording.
+// sanitizeDesc collapses whitespace and escapes pipes so a description renders
+// inside a single markdown table cell.
 func sanitizeDesc(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -210,11 +214,17 @@ func sanitizeDesc(s string) string {
 	for strings.Contains(s, "  ") {
 		s = strings.ReplaceAll(s, "  ", " ")
 	}
-	s = strings.ReplaceAll(s, "|", `\|`)
+	s = escapePipe(s)
 	if s == "" {
 		return "-"
 	}
 	return s
+}
+
+// escapePipe escapes the markdown table cell delimiter so a value cannot break
+// the surrounding row.
+func escapePipe(s string) string {
+	return strings.ReplaceAll(s, "|", `\|`)
 }
 
 func renderSections(sections []section) string {

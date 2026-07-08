@@ -1351,7 +1351,7 @@ docs/install/releases/feature-stages.md: \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) | _gen _gen/bin/configdocgen
+docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/configdocgen --out="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \

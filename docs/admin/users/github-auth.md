@@ -120,7 +120,7 @@ coder:
     # If setting allowed orgs, comment out CODER_OAUTH2_GITHUB_ALLOW_EVERYONE and its value
     - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
       value: "your-org"
-    # If allowing everyone, comment out CODER_OAUTH2_GITHUB_ALLOWED_ORGS and it's value
+    # If allowing everyone, comment out CODER_OAUTH2_GITHUB_ALLOWED_ORGS and its value
     #- name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
     #  value: "true"
 ```

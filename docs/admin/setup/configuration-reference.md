@@ -6,7 +6,8 @@ lists every option so you can search by environment variable name, CLI flag, or
 YAML key. For first-time setup guidance and worked examples, see
 [Configure Control Plane Access](./index.md).
 
-Every option below can be set via:
+Most options can be set through any of the following. Where a method does not
+apply to an option, that column shows `-`.
 
 - An environment variable (recommended for production deployments running as a
   system service, container, or Helm chart).
@@ -196,7 +197,7 @@ the flag link into [`coder server` CLI reference](../../reference/cli/server.md)
 | Proxy Trusted Origins  | `CODER_PROXY_TRUSTED_ORIGINS`  | [`--proxy-trusted-origins`](../../reference/cli/server.md#--proxy-trusted-origins)   | `networking.proxyTrustedOrigins` | -                        | Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.                                                                                                  |
 | Redirect to Access URL | `CODER_REDIRECT_TO_ACCESS_URL` | [`--redirect-to-access-url`](../../reference/cli/server.md#--redirect-to-access-url) | `networking.redirectToAccessURL` | -                        | Specifies whether to redirect requests that do not match the access URL host.                                                                                                                                             |
 | SameSite Auth Cookie   | `CODER_SAMESITE_AUTH_COOKIE`   | [`--samesite-auth-cookie`](../../reference/cli/server.md#--samesite-auth-cookie)     | `networking.sameSiteAuthCookie`  | `lax`                    | Controls the 'SameSite' property is set on browser session cookies.                                                                                                                                                       |
-| Secure Auth Cookie     | `CODER_SECURE_AUTH_COOKIE`     | [`--secure-auth-cookie`](../../reference/cli/server.md#--secure-auth-cookie)         | `networking.secureAuthCookie`    | `(dynamic)`              | Controls if the 'Secure' property is set on browser session cookies.                                                                                                                                                      |
+| Secure Auth Cookie     | `CODER_SECURE_AUTH_COOKIE`     | [`--secure-auth-cookie`](../../reference/cli/server.md#--secure-auth-cookie)         | `networking.secureAuthCookie`    | `(computed at runtime)`  | Controls if the 'Secure' property is set on browser session cookies.                                                                                                                                                      |
 | Wildcard Access URL    | `CODER_WILDCARD_ACCESS_URL`    | [`--wildcard-access-url`](../../reference/cli/server.md#--wildcard-access-url)       | `networking.wildcardAccessURL`   | -                        | Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".                                                                                                                            |
 | __Host Prefix Cookies  | `CODER_HOST_PREFIX_COOKIE`     | [`--host-prefix-cookie`](../../reference/cli/server.md#--host-prefix-cookie)         | `networking.hostPrefixCookie`    | `false`                  | Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart. |
 

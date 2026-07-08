@@ -184,17 +184,17 @@ supporting note. Point readers at the
 for the full mapping between environment variables, flags, and YAML keys.
 
 ````markdown
-```shell
+```sh
 # Preferred for admin/setup docs:
-CODER_DISABLE_TEMPLATE_INSIGHTS=true
+CODER_UPDATE_CHECK=false
 ```
 ````
 
 CLI flag form, reserved for ad-hoc invocations:
 
 ````markdown
-```shell
-coder server --disable-template-insights
+```sh
+coder server --update-check=false
 ```
 ````
 
