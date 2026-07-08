@@ -10,6 +10,7 @@ import type {
 } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { addMembers, groupById, removeMember } from "#/api/queries/groups";
+import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -17,6 +18,7 @@ import type {
 import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -77,14 +79,17 @@ const GroupMembersPage: FC = () => {
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
 
-	// AI spend resets at 00:00 UTC on the first of each month, the only
-	// supported AIBudgetPeriod. dayjs renders that instant in the viewer's
-	// local time, so the displayed day and hour shift by timezone.
-	const now = new Date();
-	const resetAt = dayjs(
-		new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
-	).format("MMM D, YYYY h:mm A");
-	const aiBudgetNote = `Monthly AI API cost for this user. Resets ${resetAt}`;
+	// Spend resets at period_end, rendered in the viewer's local time.
+	const { data: aiSpend } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
+	const resetAt = aiSpend
+		? dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")
+		: undefined;
+	const aiBudgetNote = `Monthly AI API cost for this user.${
+		resetAt ? ` Resets ${resetAt}` : ""
+	}`;
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -124,7 +129,7 @@ const GroupMembersPage: FC = () => {
 									</TableHead>
 									<TableHead>
 										<div className="flex items-center gap-1">
-											Budget Source
+											Budget source
 											<InfoIconTooltip
 												message={
 													<>
@@ -307,6 +312,12 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onManageAIBudget,
 	onRemove,
 }) => {
+	const costControl = member.ai_cost_control;
+	// A budget from another group is managed there, not here.
+	const budgetFromOtherGroup =
+		costControl?.effective_group_id != null &&
+		costControl.effective_group_id !== group.id;
+
 	return (
 		<TableRow key={member.id}>
 			<TableCell width={showAIBudget ? undefined : "59%"}>
@@ -338,7 +349,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<GroupMemberAIBudgetCells
 					group={group}
 					userID={member.id}
-					costControl={member.ai_cost_control}
+					costControl={costControl}
 				/>
 			)}
 			<TableCell className="w-1 whitespace-nowrap">
@@ -352,7 +363,10 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							{showAIBudget && (
-								<DropdownMenuItem onClick={onManageAIBudget}>
+								<DropdownMenuItem
+									onClick={onManageAIBudget}
+									disabled={budgetFromOtherGroup}
+								>
 									AI Budget
 								</DropdownMenuItem>
 							)}
@@ -371,6 +385,9 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	);
 };
 
+// Escaped em dash for empty cells; a literal one trips the emdash lint check.
+const emDash = "\u2014";
+
 const GroupMemberAIBudgetCells: FC<{
 	group: Group;
 	userID: string;
@@ -379,8 +396,8 @@ const GroupMemberAIBudgetCells: FC<{
 	// Budget and source apply only on the member's effective group.
 	const onEffectiveGroup = costControl?.effective_group_id === group.id;
 
-	let budget: ReactNode = "—";
-	let type: ReactNode = "—";
+	let budget: ReactNode = emDash;
+	let source: ReactNode = emDash;
 	if (costControl && onEffectiveGroup) {
 		budget = (
 			<AIBudgetUsage
@@ -389,16 +406,22 @@ const GroupMemberAIBudgetCells: FC<{
 			/>
 		);
 		if (costControl.limit_source) {
-			type = budgetTypeLabels[costControl.limit_source];
+			source = (
+				<Badge variant="default" size="sm">
+					{budgetTypeLabels[costControl.limit_source]}
+				</Badge>
+			);
 		}
 	} else if (costControl) {
 		// Another group governs the budget; name it in a tooltip.
-		budget = (
+		const attribution = (
 			<span className="inline-flex items-center gap-1 text-content-disabled">
-				—
+				{emDash}
 				<MemberBudgetSourceTooltip groupId={costControl.effective_group_id} />
 			</span>
 		);
+		budget = attribution;
+		source = attribution;
 	}
 
 	return (
@@ -409,7 +432,7 @@ const GroupMemberAIBudgetCells: FC<{
 			>
 				{budget}
 			</TableCell>
-			<TableCell>{type}</TableCell>
+			<TableCell>{source}</TableCell>
 		</>
 	);
 };
@@ -427,9 +450,15 @@ const MemberBudgetSourceTooltip: FC<{ groupId: string | null }> = ({
 		<InfoIconTooltip
 			className="text-content-disabled"
 			message={
-				name
-					? `This user's budget is attributed to the "${name}" group.`
-					: "This user's budget is attributed to another group."
+				name ? (
+					<>
+						This user's budget is attributed to the{" "}
+						<span className="font-medium text-content-primary">{name}</span>{" "}
+						group.
+					</>
+				) : (
+					"This user's budget is attributed to another group."
+				)
 			}
 		/>
 	);

@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
-import { groupAIBudget, groupById, groupsForUser } from "#/api/queries/groups";
+import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
 import {
 	deleteUserAIBudgetOverride,
 	saveUserAIBudgetOverride,
@@ -71,15 +71,6 @@ export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
 > = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
 	const queryClient = useQueryClient();
-	const shouldLoadEffectiveGroup =
-		!!effectiveGroupId && effectiveGroupId !== currentGroup.id;
-	const effectiveGroupQuery = useQuery({
-		...groupById(effectiveGroupId ?? "", { exclude_members: true }),
-		enabled: open && shouldLoadEffectiveGroup,
-	});
-	const budgetGroup = shouldLoadEffectiveGroup
-		? effectiveGroupQuery.data
-		: currentGroup;
 	const budgetOverrideQuery = useQuery({
 		...userAIBudgetOverride(user.id),
 		enabled: open,
@@ -89,8 +80,8 @@ export const UserAIBudgetOverrideDialog: FC<
 		enabled: open,
 	});
 	const groupBudgetQuery = useQuery({
-		...groupAIBudget(budgetGroup?.id ?? currentGroup.id),
-		enabled: open && budgetGroup !== undefined,
+		...groupAIBudget(currentGroup.id),
+		enabled: open,
 	});
 	const saveMutation = useMutation(
 		saveUserAIBudgetOverride(queryClient, user.id),
@@ -100,12 +91,10 @@ export const UserAIBudgetOverrideDialog: FC<
 	);
 
 	const loadError =
-		effectiveGroupQuery.error ??
 		budgetOverrideQuery.error ??
 		userGroupsQuery.error ??
 		groupBudgetQuery.error;
 	const isLoading =
-		effectiveGroupQuery.isLoading ||
 		budgetOverrideQuery.isLoading ||
 		userGroupsQuery.isLoading ||
 		groupBudgetQuery.isLoading;
@@ -146,10 +135,10 @@ export const UserAIBudgetOverrideDialog: FC<
 						<Spinner loading />
 						Loading AI budget...
 					</div>
-				) : budgetGroup ? (
+				) : (
 					<OverrideForm
 						user={user}
-						currentGroup={budgetGroup}
+						currentGroup={currentGroup}
 						defaultGroupId={
 							effectiveGroupId === undefined
 								? currentGroup.id
@@ -163,7 +152,7 @@ export const UserAIBudgetOverrideDialog: FC<
 						onRemove={deleteMutation.mutateAsync}
 						onClose={() => onOpenChange(false)}
 					/>
-				) : null}
+				)}
 			</DialogContent>
 		</Dialog>
 	);

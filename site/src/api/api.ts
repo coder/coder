@@ -230,6 +230,9 @@ export type UserAISpend = Readonly<{
 	effective_group_id: string | null;
 	limit_source: "group" | "override" | null;
 	current_spend_micros: number;
+	// period_start inclusive, period_end exclusive.
+	period_start: string;
+	period_end: string;
 }>;
 
 export function watchInboxNotifications(

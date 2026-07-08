@@ -8,6 +8,7 @@ import {
 	API,
 	type GroupMemberAICostControl,
 	type GroupMemberWithAICostControl,
+	type UserAISpend,
 } from "#/api/api";
 import {
 	getGroupByIdQueryKey,
@@ -18,8 +19,11 @@ import {
 	groupPermissionsKey,
 } from "#/api/queries/groups";
 import { organizationMembersKey } from "#/api/queries/organizations";
-import { getUserAIBudgetOverrideQueryKey } from "#/api/queries/users";
-import type { ReducedUser, UserAIBudgetOverride } from "#/api/typesGenerated";
+import {
+	getUserAIBudgetOverrideQueryKey,
+	meAISpendKey,
+} from "#/api/queries/users";
+import type { ReducedUser } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -90,6 +94,20 @@ const membersQuery = (data: unknown) => ({
 	}),
 	data,
 });
+
+// Drives the period label and reset date; period_end is exclusive.
+const aiSpendQuery = {
+	key: meAISpendKey,
+	data: {
+		user_id: MockUserOwner.id,
+		spend_limit_micros: 9_000_000_000,
+		effective_group_id: MockGroupWithoutMembers.id,
+		limit_source: "group",
+		current_spend_micros: 1_345_000_000,
+		period_start: "2026-06-01T00:00:00Z",
+		period_end: "2026-07-01T00:00:00Z",
+	} satisfies UserAISpend,
+};
 
 export default meta;
 type Story = StoryObj<typeof GroupPage>;
@@ -239,14 +257,6 @@ export const FiltersByMembers: Story = {
 	},
 };
 
-const mockOwnerOverride: UserAIBudgetOverride = {
-	user_id: MockUserOwner.id,
-	group_id: MockGroup2.id,
-	spend_limit_micros: 12_000_000_000,
-	created_at: "2026-01-01T00:00:00Z",
-	updated_at: "2026-01-01T00:00:00Z",
-};
-
 // Member row with inline AI cost control; defaults to the page's group.
 const memberWithSpend = (
 	user: ReducedUser,
@@ -290,12 +300,16 @@ export const WithMemberAIBudget: Story = {
 				count: 3,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery,
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
-		await expect(await canvas.findByText("Budget Source")).toBeInTheDocument();
+		await expect(await canvas.findByText("Budget source")).toBeInTheDocument();
+		await expect(
+			await canvas.findByText("AI budget period June 1 - June 30, 2026"),
+		).toBeInTheDocument();
 		// Override source, no limit.
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${MockUserOwner.id}`),
@@ -309,7 +323,7 @@ export const WithMemberAIBudget: Story = {
 		// No spend reported for this member.
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${memberWithoutSpend.id}`),
-		).toHaveTextContent("—");
+		).toHaveTextContent("\u2014");
 
 		// Column header tooltips.
 		const body = within(document.body);
@@ -322,7 +336,7 @@ export const WithMemberAIBudget: Story = {
 			await body.findByText(/^Monthly AI API cost for this user\. Resets /),
 		).toBeInTheDocument();
 		await userEvent.click(
-			within(canvas.getByText("Budget Source")).getByRole("button", {
+			within(canvas.getByText("Budget source")).getByRole("button", {
 				name: "More info",
 			}),
 		);
@@ -357,6 +371,7 @@ export const WithMemberAIBudgetFromAnotherGroup: Story = {
 				count: 1,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery,
 			{
 				key: getGroupByIdQueryKey(MockGroup2.id, { exclude_members: true }),
 				data: MockGroup2,
@@ -369,20 +384,21 @@ export const WithMemberAIBudgetFromAnotherGroup: Story = {
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
-		await expect(cell).toHaveTextContent("—");
+		await expect(cell).toHaveTextContent("\u2014");
 		await expect(cell).not.toHaveTextContent("USD");
 		await expect(canvas.queryByText("Group")).not.toBeInTheDocument();
 		// The info tooltip names the group that governs the budget.
 		await userEvent.click(
 			within(cell).getByRole("button", { name: "More info" }),
 		);
-		await expect(
-			await body.findByText(/attributed to the "developer" group/),
-		).toBeInTheDocument();
+		// The emphasized group name splits the sentence across nodes.
+		await expect(await body.findByText(/attributed to the/)).toHaveTextContent(
+			"This user's budget is attributed to the developer group.",
+		);
 	},
 };
 
-// AI Bridge hidden: neither the AI budget nor the Budget Source column renders.
+// AI Bridge hidden: neither the AI budget nor the Budget source column renders.
 export const WithoutMemberAIBudgetColumn: Story = {
 	parameters: {
 		queries: [
@@ -395,11 +411,13 @@ export const WithoutMemberAIBudgetColumn: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Group members" });
 		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Budget Source")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Budget source")).not.toBeInTheDocument();
+		expect(canvas.queryByText(/AI budget period/)).not.toBeInTheDocument();
 	},
 };
 
-export const OpenAIBudgetFromMemberMenu: Story = {
+// Budget from another group: the override action is disabled here.
+export const AIBudgetActionDisabledForOtherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
 		experiments: ["ai-gateway-cost-control"],
@@ -410,29 +428,14 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 					memberWithSpend(MockUserOwner, {
 						effective_group_id: MockGroup2.id,
 					}),
-					MockUserMember,
 				],
-				count: 2,
+				count: 1,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery,
 			{
 				key: getGroupByIdQueryKey(MockGroup2.id, { exclude_members: true }),
 				data: MockGroup2,
-			},
-			{
-				key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id),
-				data: mockOwnerOverride,
-			},
-			{
-				key: getGroupsForUserQueryKey(
-					MockUserOwner.id,
-					MockGroupWithoutMembers.organization_id,
-				),
-				data: [MockGroup],
-			},
-			{
-				key: groupAIBudget(MockGroup2.id).queryKey,
-				data: null,
 			},
 		],
 	},
@@ -443,13 +446,8 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 		await userEvent.click(
 			canvas.getAllByRole("button", { name: "Open menu" })[0],
 		);
-		await userEvent.click(
-			await body.findByRole("menuitem", { name: "AI Budget" }),
-		);
-		await expect(
-			await body.findByText("Custom monthly budget"),
-		).toBeInTheDocument();
-		await expect(await body.findByText("developer")).toBeInTheDocument();
+		const menuItem = await body.findByRole("menuitem", { name: "AI Budget" });
+		await expect(menuItem).toHaveAttribute("aria-disabled", "true");
 	},
 };
 
@@ -470,6 +468,7 @@ export const WithMemberAIBudgetWithoutEffectiveGroup: Story = {
 				count: 1,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery,
 			{ key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id), data: null },
 			{
 				key: getGroupsForUserQueryKey(
@@ -488,7 +487,7 @@ export const WithMemberAIBudgetWithoutEffectiveGroup: Story = {
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
-		await expect(cell).toHaveTextContent("—");
+		await expect(cell).toHaveTextContent("\u2014");
 		await expect(cell).not.toHaveTextContent("USD");
 		// Generic fallback when no group name resolves.
 		await userEvent.click(
@@ -530,6 +529,7 @@ export const OpenAIBudgetForCurrentGroupMember: Story = {
 				count: 1,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery,
 			{ key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id), data: null },
 			{
 				key: getGroupsForUserQueryKey(
