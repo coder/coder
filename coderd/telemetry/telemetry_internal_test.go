@@ -166,6 +166,18 @@ func TestCollectAgentAdvisor(t *testing.T) {
 		require.Equal(t, agentExperimentUnknown, payload.Model)
 	})
 
+	t.Run("ClampsNegativeLimits", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(`{"max_uses_per_run": -3, "max_output_tokens": -99}`, nil)
+
+		payload := collect(t, Options{Database: db, Logger: testutil.Logger(t)})
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+	})
+
 	t.Run("InactiveModelConfig", func(t *testing.T) {
 		t.Parallel()
 

@@ -2414,29 +2414,23 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessa
 }
 
 func collectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := agentAdvisorTelemetry{
+		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Provider: agentExperimentUnknown,
+		Model:    agentExperimentUnknown,
+	}
 	var cfg codersdk.AdvisorConfig
-	provider, model := agentExperimentUnknown, agentExperimentUnknown
 	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
 	if err != nil {
 		opts.Logger.Warn(ctx, "get chat advisor config for telemetry", slog.Error(err))
 	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		// A row we can't parse is indeterminate, so leave provider and model
-		// as unknown rather than reporting a confident reuse_chat_model.
-		// Discard any fields the decoder populated before erroring so we don't
-		// ship a partial numeric next to an unknown provider.
 		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
-		cfg = codersdk.AdvisorConfig{}
 	} else {
-		provider, model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
+		payload.MaxUsesPerRun = max(cfg.MaxUsesPerRun, 0)
+		payload.MaxOutputTokens = max(cfg.MaxOutputTokens, 0)
+		payload.Provider, payload.Model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
 	}
-	val, err := json.Marshal(agentAdvisorTelemetry{
-		// The stored enabled value is ignored by the runtime.
-		Enabled:         opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
-		MaxUsesPerRun:   cfg.MaxUsesPerRun,
-		MaxOutputTokens: cfg.MaxOutputTokens,
-		Provider:        provider,
-		Model:           model,
-	})
+	val, err := json.Marshal(payload)
 	if err != nil {
 		opts.Logger.Warn(ctx, "marshal agent advisor telemetry", slog.Error(err))
 		return nil
