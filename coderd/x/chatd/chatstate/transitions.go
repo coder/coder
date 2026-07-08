@@ -1,6 +1,7 @@
 package chatstate
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -39,6 +40,12 @@ type CreateChatInput struct {
 	InitialMessages   []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
+	// InitialStatus selects the chat's starting execution state:
+	// `running` (R0) when the initial history ends with a user turn
+	// the worker should process, or `waiting` (W) when the chat is
+	// created idle with no initial user message. Empty defaults to
+	// `running`.
+	InitialStatus database.ChatStatus
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -54,11 +61,13 @@ type CreateChatResult struct {
 //
 // Validation:
 //   - InitialMessages must be non-empty.
+//   - InitialStatus must be `waiting`, `running`, or empty (`running`).
 //
 // After commit CreateChat publishes a `chat:update` message describing
-// the new chat snapshot. Because the new chat has no worker assigned,
+// the new chat snapshot. When the new chat is runnable (`running`),
 // CreateChat also publishes an ownership hint so workers can race to
-// acquire the runnable chat.
+// acquire it. A `waiting` chat is idle, so no ownership hint is
+// published until a later transition makes it runnable.
 func CreateChat(
 	ctx context.Context,
 	store database.Store,
@@ -102,6 +111,13 @@ func insertChat(
 			"initial messages must include at least one message",
 		)
 	}
+	initialStatus := cmp.Or(input.InitialStatus, database.ChatStatusRunning)
+	if initialStatus != database.ChatStatusWaiting && initialStatus != database.ChatStatusRunning {
+		return CreateChatResult{}, newTransitionError(
+			TransitionCreateChat, StateN,
+			"initial status must be waiting or running",
+		)
+	}
 	var result CreateChatResult
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
@@ -119,7 +135,7 @@ func insertChat(
 			Title:             input.Title,
 			Mode:              input.Mode,
 			PlanMode:          input.PlanMode,
-			Status:            database.ChatStatusRunning,
+			Status:            initialStatus,
 			MCPServerIDs:      input.MCPServerIDs,
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
