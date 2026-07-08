@@ -550,12 +550,9 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 	if sub == nil || !errors.Is(err, natsgo.ErrSlowConsumer) {
 		return
 	}
-	// Snapshot the candidate groups under p.mu, but match outside it:
-	// sub.get() blocks until the group's initial NATS subscribe
-	// completes, which can take up to the flush timeout and, on the
-	// error path, requires p.mu itself. Blocking in get() while holding
-	// p.mu would stall every other Pubsub operation and risk deadlock.
-	// A groupSub is safe to use after removal from the map.
+	// Snapshot candidates under p.mu, then match via the blocking
+	// sub.get() outside the lock. Holding p.mu across get() stalls other
+	// Pubsub operations and can deadlock with subscribeGroup's cleanup.
 	p.mu.Lock()
 	candidates := make([]*groupSub, 0, len(p.subscriptions))
 	for _, candidate := range p.subscriptions {
@@ -717,11 +714,8 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 
 func (p *Pubsub) subscribeGroup(g *groupSub) {
 	defer func() {
-		// Close subscribeDone before acquiring p.mu: get() callers may
-		// block on subscribeDone while a goroutine holding p.mu waits on
-		// them, so taking p.mu first could deadlock. Subscribers that
-		// find the errored group in the map before it is removed below
-		// simply observe the error via get().
+		// Close subscribeDone before taking p.mu: a goroutine holding
+		// p.mu may be blocked in get(), so the reverse order deadlocks.
 		close(g.sub.subscribeDone)
 		if g.sub.err != nil {
 			// failed to subscribe. Kick this out of the pubsub map of subscriptions, so that we don't permanently
