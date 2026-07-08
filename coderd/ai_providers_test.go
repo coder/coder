@@ -809,6 +809,83 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "WIF settings are only valid for type=anthropic")
 	})
 
+	t.Run("WIFCleartextBaseURL", func(t *testing.T) {
+		t.Parallel()
+		// A WIF provider must never pair with a non-loopback http base
+		// URL: aibridged refuses to build it, so the API rejects the
+		// combination however it is reached.
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		wifSettings := codersdk.AIProviderWIFSettings{
+			FederationRuleID:  "fdrl_cleartext",
+			OrganizationID:    "00000000-0000-0000-0000-000000000001",
+			IdentityTokenFile: "/var/run/secrets/anthropic/token",
+		}
+
+		// Create with a cleartext base URL fails request validation.
+		var sdkErr *codersdk.Error
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeAnthropic,
+			Name:     "wif-cleartext",
+			Enabled:  true,
+			BaseURL:  "http://proxy.example/api",
+			Settings: codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.NotEmpty(t, sdkErr.Validations)
+		require.Contains(t, sdkErr.Validations[0].Detail, "https base_url")
+
+		// A loopback http base URL is allowed for local development.
+		_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeAnthropic,
+			Name:     "wif-loopback",
+			Enabled:  true,
+			BaseURL:  "http://127.0.0.1:8080",
+			Settings: codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.NoError(t, err)
+
+		// Patching a stored WIF provider onto a cleartext base URL is
+		// rejected by the merged-state check.
+		wif, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeAnthropic,
+			Name:     "wif-then-cleartext",
+			Enabled:  true,
+			BaseURL:  "https://api.anthropic.com",
+			Settings: codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateAIProvider(ctx, wif.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: new("http://proxy.example/api"),
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "https base_url")
+
+		// Patching WIF settings onto a provider stored with a cleartext
+		// base URL is rejected the same way.
+		keyed, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "cleartext-then-wif",
+			Enabled: true,
+			BaseURL: "http://proxy.example/api",
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "https base_url")
+	})
+
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

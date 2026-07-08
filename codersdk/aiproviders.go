@@ -348,6 +348,9 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "WIF settings require federation_rule_id, organization_id, and identity_token_file",
 		})
 	}
+	if req.Settings.WIF != nil {
+		validations = append(validations, ValidateAIProviderWIFBaseURL(req.BaseURL)...)
+	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
 			Field:  "api_keys",
@@ -423,6 +426,12 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 			Field:  "settings",
 			Detail: "WIF settings require federation_rule_id, organization_id, and identity_token_file",
 		})
+	}
+	// The patch-only view: when the patch carries both WIF settings and a
+	// base URL, their combination must be secure. Combinations against
+	// stored state are enforced by the update handler.
+	if req.Settings != nil && req.Settings.WIF != nil && req.BaseURL != nil {
+		validations = append(validations, ValidateAIProviderWIFBaseURL(*req.BaseURL)...)
 	}
 	return validations
 }
@@ -540,6 +549,36 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+// ValidateAIProviderWIFBaseURL returns validation errors when a WIF
+// provider's base URL would send the identity assertion and minted
+// access tokens over cleartext HTTP. Loopback hosts are allowed for
+// local development. This mirrors the runtime check aibridge applies
+// when building the provider, so a configuration that passes here does
+// not seed a provider the daemon then refuses to serve. An empty base
+// URL is allowed: it means the default https://api.anthropic.com.
+func ValidateAIProviderWIFBaseURL(raw string) []ValidationError {
+	if raw == "" {
+		return nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		// Malformed URLs are reported by the base_url validation.
+		return nil
+	}
+	if parsed.Scheme == "https" || (parsed.Scheme == "http" && isLoopbackHost(parsed.Hostname())) {
+		return nil
+	}
+	return []ValidationError{{
+		Field:  "base_url",
+		Detail: "WIF providers require an https base_url; http is allowed for loopback hosts only",
+	}}
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.ToLower(host)
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // validateAIProviderAPIKeys checks that each supplied key is non-empty

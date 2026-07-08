@@ -350,6 +350,17 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if existing.WIF != nil && old.Type != database.AIProviderTypeAnthropic {
 			return errAIProviderWIFTypeMismatch
 		}
+		// The effective base URL for a WIF provider must not be cleartext:
+		// aibridged refuses to build such a provider, so saving it would
+		// strand a provider that never serves traffic. This covers patches
+		// that add WIF against a stored http URL and patches that move a
+		// WIF provider onto one; request validation covers patches that
+		// carry both fields.
+		if existing.WIF != nil {
+			if verrs := codersdk.ValidateAIProviderWIFBaseURL(ptr.NilToDefault(req.BaseURL, old.BaseUrl)); len(verrs) > 0 {
+				return errWIFCleartextBaseURL
+			}
+		}
 		// Generate the server-owned external ID when the provider assumes a role
 		// and lacks one.
 		ensureBedrockExternalID(&existing)
@@ -461,6 +472,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errWIFLeavesExistingKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provider has existing api_keys, which take precedence over WIF; clear them in the same request by sending \"api_keys\": [].",
+		})
+		return
+	}
+	if errors.Is(err, errWIFCleartextBaseURL) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "WIF providers require an https base_url; http is allowed for loopback hosts only.",
 		})
 		return
 	}
@@ -595,6 +612,13 @@ var errWIFRejectsAPIKeys = xerrors.New("wif providers do not accept api_keys")
 // outer handler translates it into a 400. The daemon prefers the key
 // pool over WIF, so leftover keys would silently win.
 var errWIFLeavesExistingKeys = xerrors.New("wif providers must clear existing api_keys")
+
+// errWIFCleartextBaseURL is the sentinel returned from inside the
+// update transaction when the post-merge state pairs WIF settings with
+// a non-loopback http base URL; the outer handler translates it into a
+// 400. The daemon refuses to build such a provider, so storing it
+// would strand a provider that never serves traffic.
+var errWIFCleartextBaseURL = xerrors.New("wif providers require an https base_url")
 
 // errAIProviderExternalIDReadOnly is the sentinel returned from inside
 // the update transaction when a patch tries to change the server-owned
