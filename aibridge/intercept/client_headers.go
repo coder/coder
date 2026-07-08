@@ -2,6 +2,7 @@ package intercept
 
 import (
 	"net/http"
+	"strings"
 )
 
 // hopByHopHeaders are connection-level headers specific to the connection
@@ -97,4 +98,19 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 	}
 
 	return headers
+}
+
+// AnthropicBetaHeaderName is the header carrying Anthropic beta flags.
+const AnthropicBetaHeaderName = "anthropic-beta"
+
+// AppendAnthropicBeta appends flag to the request's anthropic-beta header,
+// preserving any flags already present. A no-op when the flag is already
+// set.
+func AppendAnthropicBeta(h http.Header, flag string) {
+	switch existing := h.Get(AnthropicBetaHeaderName); {
+	case existing == "":
+		h.Set(AnthropicBetaHeaderName, flag)
+	case !strings.Contains(existing, flag):
+		h.Set(AnthropicBetaHeaderName, existing+","+flag)
+	}
 }

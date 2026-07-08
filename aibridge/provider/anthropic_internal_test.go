@@ -184,6 +184,78 @@ func TestNewAnthropic_WIF(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, intercept.AnthropicWIF{FederationRuleID: "fdrl_test"}, cred)
 	})
+
+	t.Run("MessagesAppendsOAuthBeta", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			clientBeta string
+			wantBeta   string
+		}{
+			{
+				name:       "no_client_beta",
+				clientBeta: "",
+				wantBeta:   "oauth-2025-04-20",
+			},
+			{
+				name:       "client_beta_preserved",
+				clientBeta: "claude-code-20250219,effort-2025-11-24",
+				wantBeta:   "claude-code-20250219,effort-2025-11-24,oauth-2025-04-20",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var receivedHeaders http.Header
+				mux := http.NewServeMux()
+				mux.HandleFunc("POST /v1/oauth/token", func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"access_token":"tok-federated","token_type":"Bearer","expires_in":3600}`))
+				})
+				mux.HandleFunc("POST /v1/messages", func(w http.ResponseWriter, r *http.Request) {
+					receivedHeaders = r.Header.Clone()
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+				})
+				upstream := httptest.NewServer(mux)
+				t.Cleanup(upstream.Close)
+
+				provider := newTestAnthropic(t, config.Anthropic{
+					BaseURL: upstream.URL,
+					WIF: &config.AnthropicWIF{
+						FederationRuleID: "fdrl_test",
+						OrganizationID:   "org-test",
+						IdentityToken: func(context.Context) (string, error) {
+							return "test-jwt", nil
+						},
+					},
+				}, nil)
+
+				body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
+				req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
+				if tc.clientBeta != "" {
+					req.Header.Set("Anthropic-Beta", tc.clientBeta)
+				}
+				w := httptest.NewRecorder()
+
+				interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+				require.NoError(t, err)
+				interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+
+				processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+				require.NoError(t, interceptor.ProcessRequest(w, processReq))
+
+				// The federation token authenticates the request, and the
+				// OAuth beta flag must survive the client-header rewrite:
+				// the API rejects bearer-token requests without it.
+				assert.Equal(t, "Bearer tok-federated", receivedHeaders.Get("Authorization"))
+				assert.Equal(t, tc.wantBeta, receivedHeaders.Get("Anthropic-Beta"))
+			})
+		}
+	})
 }
 
 func TestAnthropic_CreateInterceptor(t *testing.T) {
