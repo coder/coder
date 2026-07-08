@@ -428,7 +428,7 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
 				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test123",
 				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-uuid-123",
-				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/var/run/secrets/token",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=" + wifTestPath("var", "run", "secrets", "token"),
 				"CODER_AI_GATEWAY_PROVIDER_0_WIF_SERVICE_ACCOUNT_ID=svac_test",
 				"CODER_AI_GATEWAY_PROVIDER_0_WIF_WORKSPACE_ID=wrkspc_test",
 			},
@@ -439,7 +439,7 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 					BaseURL:              "https://api.anthropic.com/",
 					WIFFederationRuleID:  "fdrl_test123",
 					WIFOrganizationID:    "org-uuid-123",
-					WIFIdentityTokenFile: "/var/run/secrets/token",
+					WIFIdentityTokenFile: wifTestPath("var", "run", "secrets", "token"),
 					WIFServiceAccountID:  "svac_test",
 					WIFWorkspaceID:       "wrkspc_test",
 				},
@@ -518,6 +518,19 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
 			},
 			errContains: "WIF requires an https BASE_URL",
+		},
+		{
+			// The daemon's token file trust check only accepts absolute
+			// paths, so a relative path can never serve traffic. The env
+			// parser must fail fast instead of seeding a dead provider.
+			name: "WIFRelativeIdentityTokenFile",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=secrets/token",
+			},
+			errContains: "WIF_IDENTITY_TOKEN_FILE must be an absolute path",
 		},
 	}
 

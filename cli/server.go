@@ -3308,6 +3308,16 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 				i, p.Type)
 		}
 
+		// The daemon's token file trust check
+		// (WIFIdentityTokenFileAllowed) only accepts absolute paths, so a
+		// relative path can never pass it. Reject the configuration at
+		// startup instead of seeding a provider whose token exchange is
+		// guaranteed to be refused.
+		if isWIF && !filepath.IsAbs(p.WIFIdentityTokenFile) {
+			return nil, xerrors.Errorf("provider %d (%s): WIF_IDENTITY_TOKEN_FILE must be an absolute path, got %q",
+				i, p.Type, p.WIFIdentityTokenFile)
+		}
+
 		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
 			return nil, err
 		}
