@@ -25,7 +25,10 @@ import (
 	"github.com/coder/coder/v2/aibridge/utils"
 )
 
-var _ Provider = &Anthropic{}
+var (
+	_ Provider                    = &Anthropic{}
+	_ PassthroughTransportWrapper = &Anthropic{}
+)
 
 // Anthropic allows for interactions with the Anthropic API.
 type Anthropic struct {
@@ -34,6 +37,10 @@ type Anthropic struct {
 	bedrock *messages.BedrockRuntime
 	// wif is nil for non-WIF providers.
 	wif *messages.WIFRuntime
+	// wifPassthrough is nil for non-WIF providers. It mints federation
+	// tokens for passthrough routes, which bypass the SDK auth
+	// middleware that authenticates the bridged /v1/messages path.
+	wifPassthrough *wifTokenSource
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -89,6 +96,7 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	}
 
 	var wifRT *messages.WIFRuntime
+	var wifPassthrough *wifTokenSource
 	if cfg.WIF != nil {
 		if cfg.WIF.IdentityToken == nil {
 			return nil, xerrors.New("WIF config requires an IdentityToken source")
@@ -106,12 +114,14 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 			Opts:             []option.RequestOption{wifOpt},
 			FederationRuleID: cfg.WIF.FederationRuleID,
 		}
+		wifPassthrough = newWIFTokenSource(*cfg.WIF, cfg.BaseURL)
 	}
 
 	return &Anthropic{
-		cfg:     cfg,
-		bedrock: bedrock,
-		wif:     wifRT,
+		cfg:            cfg,
+		bedrock:        bedrock,
+		wif:            wifRT,
+		wifPassthrough: wifPassthrough,
 	}, nil
 }
 
@@ -242,6 +252,17 @@ func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverCon
 			return messages.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
 		},
 	}
+}
+
+// WrapPassthroughTransport implements [PassthroughTransportWrapper]. For
+// WIF-configured providers it injects federation access tokens into
+// centralized passthrough requests; without it, a WIF-only provider (nil
+// key pool) would forward passthrough routes upstream unauthenticated.
+func (p *Anthropic) WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper {
+	if p.wifPassthrough == nil {
+		return inner
+	}
+	return &wifPassthroughTransport{inner: inner, source: p.wifPassthrough}
 }
 
 func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {
