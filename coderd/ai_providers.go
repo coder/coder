@@ -377,7 +377,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			// codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed. This
 			// covers patches that introduce WIF settings, change the
 			// token file, or repoint the base URL of a WIF provider.
-			if !api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
+			// Patches that touch neither field skip the re-check so that
+			// withdrawing trust from the allowlist does not also block
+			// unrelated patches, such as disabling the provider; the
+			// daemon independently refuses to build an untrusted row.
+			if (req.Settings != nil || req.BaseURL != nil) &&
+				!api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
 				return errWIFUntrustedIdentityTokenFile
 			}
 		}
@@ -503,7 +508,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 	if errors.Is(err, errWIFUntrustedIdentityTokenFile) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: wifUntrustedIdentityTokenFileMessage,
+			Message: wifUntrustedIdentityTokenFileMessage + ` To detach the provider from WIF instead, send "settings": {}.`,
 		})
 		return
 	}

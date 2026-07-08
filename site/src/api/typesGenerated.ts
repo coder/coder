@@ -9811,7 +9811,9 @@ export interface UpdateAIProviderRequest {
 	/**
 	 * Settings patches the type-specific settings. Omitted or null keeps
 	 * the stored value, a literal {} clears it (mirroring api_keys: []
-	 * for keys), and a discriminated object replaces or merges it.
+	 * for keys), and a discriminated object replaces or merges it. Note
+	 * that a zero *AIProviderSettings marshals to null, so Go clients
+	 * must send the {} clear form as raw JSON.
 	 */
 	readonly settings?: AIProviderSettings;
 }

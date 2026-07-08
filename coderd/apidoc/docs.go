@@ -29005,7 +29005,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "settings": {
-                    "description": "Settings patches the type-specific settings. Omitted or null keeps\nthe stored value, a literal {} clears it (mirroring api_keys: []\nfor keys), and a discriminated object replaces or merges it.",
+                    "description": "Settings patches the type-specific settings. Omitted or null keeps\nthe stored value, a literal {} clears it (mirroring api_keys: []\nfor keys), and a discriminated object replaces or merges it. Note\nthat a zero *AIProviderSettings marshals to null, so Go clients\nmust send the {} clear form as raw JSON.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIProviderSettings"

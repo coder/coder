@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +19,17 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
+
+// wifTestPath builds a platform-absolute path for identity token file
+// fixtures: the WIF trust check requires absolute paths, and
+// filepath.IsAbs rejects Unix-style paths on Windows.
+func wifTestPath(parts ...string) string {
+	root := "/"
+	if runtime.GOOS == "windows" {
+		root = `C:\`
+	}
+	return filepath.Join(append([]string{root}, parts...)...)
+}
 
 func TestReadAIProvidersFromEnv(t *testing.T) {
 	t.Parallel()
@@ -879,7 +892,7 @@ func TestBuildProviderWIFIdentityTokenFileTrust(t *testing.T) {
 			Wif: &proto.AIProviderKindWIF{
 				FederationRuleId:  "fdrl_test",
 				OrganizationId:    "00000000-0000-0000-0000-000000000001",
-				IdentityTokenFile: "/var/run/secrets/anthropic/token",
+				IdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
 			},
 		}
 	}
@@ -890,7 +903,7 @@ func TestBuildProviderWIFIdentityTokenFileTrust(t *testing.T) {
 			BaseURL:              "https://gateway.internal/anthropic",
 			WIFFederationRuleID:  "fdrl_test",
 			WIFOrganizationID:    "00000000-0000-0000-0000-000000000001",
-			WIFIdentityTokenFile: "/var/run/secrets/anthropic/token",
+			WIFIdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
 		}},
 	}
 
@@ -910,7 +923,7 @@ func TestBuildProviderWIFIdentityTokenFileTrust(t *testing.T) {
 			name:     "AllowlistedFileAccepted",
 			provider: wifProvider("https://api.anthropic.com"),
 			cfg: codersdk.AIBridgeConfig{
-				WIFAllowedIdentityTokenFiles: serpent.StringArray{"/var/run/secrets/anthropic/token"},
+				WIFAllowedIdentityTokenFiles: serpent.StringArray{wifTestPath("var", "run", "secrets", "anthropic", "token")},
 			},
 		},
 		{

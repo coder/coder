@@ -1,9 +1,12 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -15,10 +18,22 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
+
+// wifTestPath builds a platform-absolute path for identity token file
+// fixtures: the WIF trust check requires absolute paths, and
+// filepath.IsAbs rejects Unix-style paths on Windows.
+func wifTestPath(parts ...string) string {
+	root := "/"
+	if runtime.GOOS == "windows" {
+		root = `C:\`
+	}
+	return filepath.Join(append([]string{root}, parts...)...)
+}
 
 // wifTrustedOptions returns coderdtest options whose deployment
 // configuration allowlists the given WIF identity token files, mirroring
@@ -433,7 +448,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		// discriminator are still rejected (see codersdk
 		// TestAIProviderSettings_Unmarshal), so a typo'd payload cannot
 		// be mistaken for a clear.
-		client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
+		client := coderdtest.New(t, wifTrustedOptions(t, wifTestPath("var", "run", "secrets", "anthropic", "token")))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -446,7 +461,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{WIF: &codersdk.AIProviderWIFSettings{
 				FederationRuleID:  "fdrl_clear",
 				OrganizationID:    "00000000-0000-0000-0000-000000000001",
-				IdentityTokenFile: "/var/run/secrets/anthropic/token",
+				IdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
 			}},
 		})
 		require.NoError(t, err)
@@ -695,14 +710,14 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("WIFSettingsLifecycle", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
+		client := coderdtest.New(t, wifTrustedOptions(t, wifTestPath("var", "run", "secrets", "anthropic", "token")))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		wifSettings := codersdk.AIProviderWIFSettings{
 			FederationRuleID:  "fdrl_lifecycle",
 			OrganizationID:    "00000000-0000-0000-0000-000000000001",
-			IdentityTokenFile: "/var/run/secrets/anthropic/token",
+			IdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
 			ServiceAccountID:  "svac_lifecycle",
 			WorkspaceID:       "wrkspc_lifecycle",
 		}
@@ -741,6 +756,16 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updated.Settings.WIF)
 		require.Equal(t, "wrkspc_rotated", updated.Settings.WIF.WorkspaceID)
+
+		// A zero Go Settings value marshals to JSON null, which keeps the
+		// stored settings (matching what earlier-release clients sent);
+		// only the raw {} wire form clears.
+		kept, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			DisplayName: new("WIF Lifecycle Kept"),
+			Settings:    &codersdk.AIProviderSettings{},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, kept.Settings.WIF, "a null settings patch must keep the stored WIF block")
 
 		// An incomplete WIF patch is rejected by request validation.
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
@@ -791,15 +816,20 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotNil(t, migrated.Settings.WIF)
 		require.Empty(t, migrated.APIKeys, "the migration patch must clear the bearer keys")
 
-		// Migrating back to bearer keys: a zero settings patch (wire
-		// form {}) clears the WIF block, letting the replacement keys
-		// register in the same PATCH.
-		demoted, err := client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &codersdk.AIProviderSettings{},
-			APIKeys:  &[]codersdk.AIProviderKeyMutation{{APIKey: new("sk-ant-restored")}},
-		})
+		// Migrating back to bearer keys: the wire-form {} clear drops the
+		// WIF block, letting the replacement keys register in the same
+		// PATCH. A zero Go Settings value marshals to null (keep), so the
+		// clear form goes out as raw JSON.
+		res, err := client.Request(ctx, http.MethodPatch,
+			"/api/v2/ai/providers/"+keyed.Name,
+			json.RawMessage(`{"settings":{},"api_keys":[{"api_key":"sk-ant-restored"}]}`),
+		)
 		require.NoError(t, err)
-		require.True(t, demoted.Settings.IsZero(), "the zero settings patch must clear the WIF block")
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var demoted codersdk.AIProvider
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&demoted))
+		require.True(t, demoted.Settings.IsZero(), "the {} settings patch must clear the WIF block")
 		require.Len(t, demoted.APIKeys, 1, "the replacement key must register in the same PATCH")
 
 		// Patching WIF settings onto a non-anthropic provider is a type
@@ -825,14 +855,14 @@ func TestAIProvidersCRUD(t *testing.T) {
 		// A WIF provider must never pair with a non-loopback http base
 		// URL: aibridged refuses to build it, so the API rejects the
 		// combination however it is reached.
-		client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
+		client := coderdtest.New(t, wifTrustedOptions(t, wifTestPath("var", "run", "secrets", "anthropic", "token")))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		wifSettings := codersdk.AIProviderWIFSettings{
 			FederationRuleID:  "fdrl_cleartext",
 			OrganizationID:    "00000000-0000-0000-0000-000000000001",
-			IdentityTokenFile: "/var/run/secrets/anthropic/token",
+			IdentityTokenFile: wifTestPath("var", "run", "secrets", "anthropic", "token"),
 		}
 
 		// Create with a cleartext base URL fails request validation.
@@ -924,7 +954,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Name:     "wif-untrusted",
 				Enabled:  true,
 				BaseURL:  "https://api.anthropic.com",
-				Settings: wifWithFile("/etc/coder/secret.pem"),
+				Settings: wifWithFile(wifTestPath("etc", "coder", "secret.pem")),
 			})
 			require.Error(t, err)
 			require.ErrorAs(t, err, &sdkErr)
@@ -937,7 +967,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 			// Matching is lexical on cleaned paths, so a dot-dot spelling
 			// of an allowlisted file is accepted while relative paths are
 			// always refused.
-			client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
+			client := coderdtest.New(t, wifTrustedOptions(t, wifTestPath("var", "run", "secrets", "anthropic", "token")))
 			_ = coderdtest.CreateFirstUser(t, client)
 			ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -947,7 +977,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Name:     "wif-normalized",
 				Enabled:  true,
 				BaseURL:  "https://api.anthropic.com",
-				Settings: wifWithFile("/var/run/secrets/anthropic/../anthropic/token"),
+				Settings: wifWithFile(wifTestPath("var", "run", "secrets", "anthropic") + string(filepath.Separator) + filepath.Join("..", "anthropic", "token")),
 			})
 			require.NoError(t, err)
 
@@ -978,7 +1008,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				BaseURL:              "https://gateway.internal/anthropic",
 				WIFFederationRuleID:  "fdrl_env",
 				WIFOrganizationID:    "00000000-0000-0000-0000-000000000001",
-				WIFIdentityTokenFile: "/var/run/secrets/env/token",
+				WIFIdentityTokenFile: wifTestPath("var", "run", "secrets", "env", "token"),
 			}}
 			client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
 			_ = coderdtest.CreateFirstUser(t, client)
@@ -991,7 +1021,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Name:     "wif-env-pair",
 				Enabled:  true,
 				BaseURL:  "https://gateway.internal/anthropic",
-				Settings: wifWithFile("/var/run/secrets/env/token"),
+				Settings: wifWithFile(wifTestPath("var", "run", "secrets", "env", "token")),
 			})
 			require.NoError(t, err)
 
@@ -1002,7 +1032,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Name:     "wif-env-exfil",
 				Enabled:  true,
 				BaseURL:  "https://attacker.example",
-				Settings: wifWithFile("/var/run/secrets/env/token"),
+				Settings: wifWithFile(wifTestPath("var", "run", "secrets", "env", "token")),
 			})
 			require.Error(t, err)
 			require.ErrorAs(t, err, &sdkErr)
@@ -1037,10 +1067,53 @@ func TestAIProvidersCRUD(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			settings := wifWithFile("/etc/coder/secret.pem")
+			settings := wifWithFile(wifTestPath("etc", "coder", "secret.pem"))
 			var sdkErr *codersdk.Error
 			_, err = client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
 				Settings: &settings,
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+		})
+
+		t.Run("TrustWithdrawalKeepsBenignPatches", func(t *testing.T) {
+			t.Parallel()
+			// A stored WIF provider whose token file is not trusted by the
+			// current deployment configuration must still accept patches
+			// that leave the (token file, base URL) pair untouched, so it
+			// can be disabled or relabeled after an allowlist change.
+			// Touching the pair keeps failing. The row is seeded directly
+			// because the API would never accept it under this deployment
+			// configuration.
+			client, db := coderdtest.NewWithDatabase(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			settings := wifWithFile(wifTestPath("var", "run", "secrets", "revoked", "token"))
+			encoded, err := json.Marshal(settings)
+			require.NoError(t, err)
+			seeded := dbgen.AIProvider(t, db, database.AIProvider{
+				Type:     database.AIProviderTypeAnthropic,
+				Name:     "wif-revoked",
+				Enabled:  true,
+				BaseUrl:  "https://api.anthropic.com",
+				Settings: sql.NullString{String: string(encoded), Valid: true},
+			})
+
+			// Patches that touch neither settings nor base_url pass.
+			//nolint:gocritic // Owner role is the audience for this endpoint.
+			updated, err := client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
+				Enabled: new(false),
+			})
+			require.NoError(t, err)
+			require.False(t, updated.Enabled)
+
+			// Repointing the base URL re-runs the trust check.
+			var sdkErr *codersdk.Error
+			_, err = client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
+				BaseURL: new("https://attacker.example"),
 			})
 			require.Error(t, err)
 			require.ErrorAs(t, err, &sdkErr)

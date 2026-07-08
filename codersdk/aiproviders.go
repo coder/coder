@@ -101,11 +101,15 @@ func (s AIProviderSettings) IsZero() bool {
 	return s.Bedrock == nil && s.WIF == nil
 }
 
-// MarshalJSON emits the discriminated wire form. Empty settings encode
-// as an empty object, the explicit-clear form UnmarshalJSON accepts, so
-// the zero value round-trips: a Go client sending a zero Settings in an
-// update clears the stored value. Database encoding maps the zero value
-// to SQL NULL separately (see coderd encodeAIProviderSettings).
+// MarshalJSON emits the discriminated wire form. The zero value encodes
+// as JSON null, keeping provider responses on the shape earlier clients
+// decode (their UnmarshalJSON rejects objects without a _type
+// discriminator). The explicit-clear form for update requests is a
+// literal {}, which only UnmarshalJSON accepts; Go clients that need to
+// clear stored settings must send it as raw JSON, since marshaling a
+// zero value produces null, which keeps the stored value. Database
+// encoding maps the zero value to SQL NULL separately (see coderd
+// encodeAIProviderSettings).
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
 	case s.Bedrock != nil:
@@ -113,7 +117,7 @@ func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	case s.WIF != nil:
 		return marshalSettings(*s.WIF)
 	default:
-		return []byte("{}"), nil
+		return []byte("null"), nil
 	}
 }
 
@@ -375,7 +379,9 @@ type UpdateAIProviderRequest struct {
 	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
 	// Settings patches the type-specific settings. Omitted or null keeps
 	// the stored value, a literal {} clears it (mirroring api_keys: []
-	// for keys), and a discriminated object replaces or merges it.
+	// for keys), and a discriminated object replaces or merges it. Note
+	// that a zero *AIProviderSettings marshals to null, so Go clients
+	// must send the {} clear form as raw JSON.
 	Settings *AIProviderSettings `json:"settings,omitempty"`
 }
 
