@@ -744,6 +744,33 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "WIF providers do not accept api_keys")
 
+		// Migrating a keyed provider to WIF: the patch must clear the
+		// existing keys, otherwise the daemon would keep preferring the
+		// key pool and silently ignore the WIF settings.
+		keyed, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "keyed-then-wif",
+			Enabled: true,
+			BaseURL: "https://api.anthropic.com",
+			APIKeys: []string{"sk-ant-static"},
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "existing api_keys")
+
+		migrated, err := client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &wifSettings},
+			APIKeys:  &[]codersdk.AIProviderKeyMutation{},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, migrated.Settings.WIF)
+		require.Empty(t, migrated.APIKeys, "the migration patch must clear the bearer keys")
+
 		// Patching WIF settings onto a non-anthropic provider is a type
 		// mismatch.
 		openAI, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
