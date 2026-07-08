@@ -9101,14 +9101,9 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
 
-		// Reproduce the state that broke in production: a state-machine
-		// transition bumped snapshot_version after the last history
-		// write, so history_version lags behind. An in-flight generation
-		// task holds the lagging history_version as its commit fence.
-		// Any write to chat_messages here would fire the AFTER-STATEMENT
-		// triggers, sync history_version to snapshot_version, and kill
-		// that task without a replacement, leaving the chat stuck in
-		// running.
+		// Leave history_version lagging snapshot_version, as when a
+		// generation task is in flight. A chat_messages write here would
+		// sync it and break that task's commit fence.
 		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
@@ -9314,10 +9309,7 @@ func TestProposeChatTitle(t *testing.T) {
 		})
 		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
 
-		// See the matching TestRegenerateChatTitle subtest: with
-		// history_version lagging snapshot_version, any chat_messages
-		// write here would sync history_version and break an in-flight
-		// generation task's commit fence.
+		// See the matching TestRegenerateChatTitle subtest.
 		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
