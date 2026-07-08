@@ -397,10 +397,20 @@ var properNoun = map[string]bool{
 	"wireguard":   true,
 }
 
+// featureNames are product/feature names whose exact casing is restored after
+// sentence-casing, so headings like "AI Gateway" and "Template Builder" keep
+// their branded form. Longer names come first so they win over shorter
+// prefixes (e.g. "AI Gateway Proxy" before "AI Gateway").
+var featureNames = []string{
+	"AI Gateway Proxy",
+	"AI Gateway",
+	"Template Builder",
+}
+
 // sentenceCase lowercases a heading's words after the first while preserving
 // the first word, acronyms and mixed-case tokens (URL, TLS, OAuth2, OpenID,
-// GitHub), and known proper nouns. It runs at generation time so headings need
-// no manual or AI pass.
+// GitHub), known proper nouns, and the feature names above. It runs at
+// generation time so headings need no manual or AI pass.
 func sentenceCase(s string) string {
 	words := strings.Fields(s)
 	seenFirst := false
@@ -416,7 +426,34 @@ func sentenceCase(s string) string {
 			words[i] = strings.ToLower(w)
 		}
 	}
-	return strings.Join(words, " ")
+	return restoreFeatureNames(strings.Join(words, " "))
+}
+
+// restoreFeatureNames rewrites any case-insensitive occurrence of a feature
+// name with its canonical casing.
+func restoreFeatureNames(s string) string {
+	for _, name := range featureNames {
+		s = replaceFold(s, name)
+	}
+	return s
+}
+
+// replaceFold replaces case-insensitive occurrences of canonical in s with
+// canonical's exact casing. It assumes canonical is ASCII, which holds for the
+// feature names above.
+func replaceFold(s, canonical string) string {
+	lower := strings.ToLower(canonical)
+	var b strings.Builder
+	for {
+		idx := strings.Index(strings.ToLower(s), lower)
+		if idx < 0 {
+			_, _ = b.WriteString(s)
+			return b.String()
+		}
+		_, _ = b.WriteString(s[:idx])
+		_, _ = b.WriteString(canonical)
+		s = s[idx+len(canonical):]
+	}
 }
 
 // keepWord reports whether a word must keep its capitalization: proper nouns,

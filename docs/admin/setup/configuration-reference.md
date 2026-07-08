@@ -206,7 +206,7 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 - YAML key: `updateCheck`
 - Default value: `false`
 
-## AI gateway
+## AI Gateway
 
 ### AI budget period
 
@@ -386,7 +386,7 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 - Environment variable: `CODER_AI_GATEWAY_OPENAI_KEY`
 - CLI flag: [`--ai-gateway-openai-key`](../../reference/cli/server.md#--ai-gateway-openai-key)
 
-## AI gateway proxy
+## AI Gateway Proxy
 
 ### API dump directory
 
@@ -1779,9 +1779,9 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 - YAML key: `telemetry.enable`
 - Default value: `true`
 
-## Template builder
+## Template Builder
 
-### Disable template builder
+### Disable Template Builder
 
 Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
