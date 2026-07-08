@@ -76,13 +76,17 @@ func (r *executionRecorder) Reserve(ctx context.Context, toolCallID string, comm
 }
 
 // RecordStart stores the process handle and the agent that owns it
-// on the reserved record.
+// on the reserved record. The agent comes from the cached
+// connection that just served StartProcess, not a latest-agent
+// lookup, so the interrupt kill path signals the agent that is
+// actually running the process even when the connection is pinned
+// to an agent that is no longer the latest one.
 func (r *executionRecorder) RecordStart(ctx context.Context, toolCallID string, processID string) error {
-	_, agentID, err := r.workspaceCtx.workspaceAgentIDForConn(ctx)
-	if err != nil {
-		return xerrors.Errorf("resolve workspace agent: %w", err)
+	agentID, ok := r.workspaceCtx.connAgentID()
+	if !ok {
+		return xerrors.New("no cached workspace connection to attribute the process to")
 	}
-	_, err = r.db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+	_, err := r.db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
 		ChatID:           r.chatID,
 		ToolCallID:       toolCallID,
 		ProcessID:        processID,

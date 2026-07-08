@@ -206,11 +206,26 @@ func executeTool(
 		return fantasy.NewTextErrorResponse("command is required")
 	}
 
+	background := args.RunInBackground != nil && *args.RunInBackground
+
+	// Detect shell-style backgrounding (trailing &) and promote to
+	// background mode. Models sometimes use "cmd &" instead of the
+	// run_in_background parameter, which causes the shell to fork
+	// and exit immediately, leaving an untracked orphan process.
+	trimmed := strings.TrimSpace(args.Command)
+	if !background && strings.HasSuffix(trimmed, "&") && !strings.HasSuffix(trimmed, "&&") && !strings.HasSuffix(trimmed, "|&") {
+		background = true
+		args.Command = strings.TrimSpace(strings.TrimSuffix(trimmed, "&"))
+	}
+
 	timeout := options.DefaultTimeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	if args.Timeout != nil {
+	// The timeout argument only applies to foreground commands,
+	// so backgrounded calls ignore it entirely instead of failing
+	// validation.
+	if args.Timeout != nil && !background {
 		parsed, err := time.ParseDuration(*args.Timeout)
 		if err != nil {
 			return fantasy.NewTextErrorResponse(
@@ -231,18 +246,6 @@ func executeTool(
 	env["CODER_CHAT_AGENT"] = "true"
 	for k, v := range nonInteractiveEnvVars {
 		env[k] = v
-	}
-
-	background := args.RunInBackground != nil && *args.RunInBackground
-
-	// Detect shell-style backgrounding (trailing &) and promote to
-	// background mode. Models sometimes use "cmd &" instead of the
-	// run_in_background parameter, which causes the shell to fork
-	// and exit immediately, leaving an untracked orphan process.
-	trimmed := strings.TrimSpace(args.Command)
-	if !background && strings.HasSuffix(trimmed, "&") && !strings.HasSuffix(trimmed, "&&") && !strings.HasSuffix(trimmed, "|&") {
-		background = true
-		args.Command = strings.TrimSpace(strings.TrimSuffix(trimmed, "&"))
 	}
 
 	var workDir string

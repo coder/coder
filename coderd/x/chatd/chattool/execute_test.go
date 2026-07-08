@@ -1267,5 +1267,34 @@ func TestExecuteToolRecorder(t *testing.T) {
 			rec := recorder.record("call-1")
 			assert.Equal(t, 4*time.Hour, rec.Timeout)
 		})
+
+		t.Run("BackgroundIgnoresTimeout", func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			recorder := newFakeRecorder()
+
+			mockConn.EXPECT().
+				StartProcess(gomock.Any(), gomock.Any()).
+				Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+
+			tool := newRecordedExecuteTool(t, mockConn, recorder)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			// The timeout argument only applies to foreground
+			// commands, so a nonpositive value must not fail a
+			// backgrounded call.
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "execute",
+				Input: `{"command":"npm run dev","run_in_background":true,"timeout":"0s"}`,
+			})
+			require.NoError(t, err)
+			assert.False(t, resp.IsError)
+
+			var result chattool.ExecuteResult
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			assert.True(t, result.Success)
+			assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		})
 	})
 }
