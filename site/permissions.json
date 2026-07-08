@@ -15,6 +15,14 @@
 		"object": { "resource_type": "template", "any_org": true },
 		"action": "create"
 	},
+	"createWorkspaceInAnyOrganization": {
+		"object": {
+			"resource_type": "workspace",
+			"any_org": true,
+			"owner_id": "me"
+		},
+		"action": "create"
+	},
 	"updateTemplates": {
 		"object": { "resource_type": "template" },
 		"action": "update"

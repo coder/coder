@@ -172,6 +172,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
 		checkedWorkspaces: [],
 		templates: mockTemplates,
 		templatesFetchStatus: "success",
+		canCreateWorkspace: true,
 		count: 13,
 		page: 1,
 	},
@@ -189,6 +190,20 @@ const meta: Meta<typeof WorkspacesPageView> = {
 
 export default meta;
 type Story = StoryObj<typeof WorkspacesPageView>;
+
+export const CannotCreateWorkspace: Story = {
+	args: {
+		workspaces: [],
+		count: 0,
+		canCreateWorkspace: false,
+		canCreateTemplate: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
+		await canvas.findByText(/don't have permission to create workspaces/i);
+	},
+};
 
 export const AllStates: Story = {
 	args: {
