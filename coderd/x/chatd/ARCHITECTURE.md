@@ -792,6 +792,13 @@ Retriable conditions include, but are not limited to:
 - database connection error;
 - LLM API request error, with the exception of hitting the generation attempt limit, which is considered to be a successful completion of the operation the goroutine was meant to perform.
 
+#### Task attempt watchdog
+
+Every attempt of a runner goroutine runs under two watchdog timers. Both cancel the attempt with a timeout error that the retry wrapper classifies as retryable:
+
+- An **idle window** (15 minutes). Workspace tools reset it after every successful agent round-trip: process starts, blocking output polls (including rounds where the process is still running), and `process_output` retrievals. Long-running `execute` calls therefore survive as long as the workspace agent keeps responding, and the re-attach path resumes them across retries. The reset function travels in the attempt context and resetting is a safe no-op once the attempt has ended. Streaming code never resets the watchdog, so the idle window stays above chatloop's 10 minute stream-silence guard and silent provider streams keep failing through chat-specific retry handling before the attempt times out.
+- An **absolute cap** (24 hours) that is never reset. It bounds a single attempt regardless of tool progress.
+
 #### Generation goroutine
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).

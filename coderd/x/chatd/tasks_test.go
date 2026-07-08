@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -197,6 +198,74 @@ func TestRetryWrapper_ContextCancellationDoesNotRetryOrLog(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, calls)
 	require.Empty(t, entriesWithMessage(sink, "chatworker task retrying"))
+}
+
+func TestTaskAttemptContext_KeepaliveExtendsIdleWindow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	attemptCtx, cancelAttempt := taskAttemptContext(ctx, clock, taskKindGeneration)
+	defer cancelAttempt()
+
+	// Each kick restarts the idle window, so the attempt outlives
+	// several multiples of defaultTaskTimeout.
+	for range 4 {
+		clock.Advance(defaultTaskTimeout - time.Minute).MustWait(ctx)
+		require.NoError(t, attemptCtx.Err())
+		chattool.KickAttemptKeepalive(attemptCtx)
+	}
+
+	// Without further kicks the idle window expires.
+	clock.Advance(defaultTaskTimeout).MustWait(ctx)
+	require.ErrorIs(t, context.Cause(attemptCtx), errTaskTimeout)
+
+	// Kicking after the timeout fired is a safe no-op.
+	chattool.KickAttemptKeepalive(attemptCtx)
+}
+
+func TestTaskAttemptContext_AbsoluteCapIgnoresKicks(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	attemptCtx, cancelAttempt := taskAttemptContext(ctx, clock, taskKindGeneration)
+	defer cancelAttempt()
+
+	step := defaultTaskTimeout / 2
+	for elapsed := time.Duration(0); elapsed < maxTaskAttemptDuration; elapsed += step {
+		require.NoError(t, attemptCtx.Err())
+		clock.Advance(step).MustWait(ctx)
+		chattool.KickAttemptKeepalive(attemptCtx)
+	}
+	require.ErrorIs(t, context.Cause(attemptCtx), errTaskTimeout)
+}
+
+func TestTaskAttemptContext_NoKickTimesOutAtIdleWindow(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	attemptCtx, cancelAttempt := taskAttemptContext(ctx, clock, taskKindGeneration)
+	defer cancelAttempt()
+
+	clock.Advance(defaultTaskTimeout - time.Second).MustWait(ctx)
+	require.NoError(t, attemptCtx.Err())
+	clock.Advance(time.Second).MustWait(ctx)
+	require.ErrorIs(t, context.Cause(attemptCtx), errTaskTimeout)
+}
+
+func TestTaskAttemptContext_KickAfterCancelIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	attemptCtx, cancelAttempt := taskAttemptContext(ctx, clock, taskKindGeneration)
+	cancelAttempt()
+
+	chattool.KickAttemptKeepalive(attemptCtx)
+	require.ErrorIs(t, attemptCtx.Err(), context.Canceled)
+	require.NotErrorIs(t, context.Cause(attemptCtx), errTaskTimeout)
 }
 
 func TestNormalizeTaskErrors_ContextCancellationIsExpectedExit(t *testing.T) {

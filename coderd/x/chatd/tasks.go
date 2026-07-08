@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,10 +29,18 @@ import (
 
 const (
 	postCommitWatchPublishTimeout = 10 * time.Second
-	// defaultTaskTimeout must exceed chatloop's stream-silence guard so
-	// silent provider streams fail through chat-specific retry handling
-	// before the runner retries the whole task.
+	// defaultTaskTimeout is the attempt idle window: how long an
+	// attempt may run without a keepalive kick before it is canceled.
+	// Tools kick the watchdog after successful agent round-trips, so
+	// long-running executes survive while making progress. The idle
+	// window must exceed chatloop's stream-silence guard so silent
+	// provider streams fail through chat-specific retry handling
+	// before the runner retries the whole task; streaming code never
+	// kicks the watchdog.
 	defaultTaskTimeout = 15 * time.Minute
+	// maxTaskAttemptDuration is the absolute cap on a single task
+	// attempt. It is never reset by keepalive kicks.
+	maxTaskAttemptDuration = 24 * time.Hour
 )
 
 var (
@@ -157,13 +166,82 @@ func runTaskWithRetry(
 	}
 }
 
+// attemptIdleTimer cancels a task attempt after the idle window
+// elapses without a keepalive kick. Kick resets the window; exactly
+// one outcome wins: the timer cancels the attempt, or Stop disarms
+// the timer.
+type attemptIdleTimer struct {
+	mu      sync.Mutex
+	timer   *quartz.Timer
+	cancel  context.CancelCauseFunc
+	timeout time.Duration
+	timerID string
+	settled bool
+}
+
+func newAttemptIdleTimer(
+	clock quartz.Clock,
+	timeout time.Duration,
+	cancel context.CancelCauseFunc,
+	kind taskKind,
+) *attemptIdleTimer {
+	idle := &attemptIdleTimer{
+		cancel:  cancel,
+		timeout: timeout,
+		timerID: "task-timeout-" + string(kind),
+	}
+	idle.timer = clock.AfterFunc(timeout, idle.onTimeout, "chatworker", idle.timerID)
+	return idle
+}
+
+func (t *attemptIdleTimer) settle() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.settled {
+		return false
+	}
+	t.settled = true
+	return true
+}
+
+func (t *attemptIdleTimer) onTimeout() {
+	if !t.settle() {
+		return
+	}
+	t.cancel(errTaskTimeout)
+}
+
+// Kick restarts the idle window. It is a no-op once the timer fired
+// or the attempt ended.
+func (t *attemptIdleTimer) Kick() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.settled {
+		return
+	}
+	t.timer.Reset(t.timeout, "chatworker", t.timerID)
+}
+
+func (t *attemptIdleTimer) Stop() {
+	if !t.settle() {
+		return
+	}
+	t.timer.Stop()
+}
+
+// taskAttemptContext bounds a single task attempt with two watchdogs:
+// a resettable idle window kicked by tools after successful agent
+// round-trips, and a non-resettable absolute cap.
 func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
-	timer := clock.AfterFunc(defaultTaskTimeout, func() {
+	idle := newAttemptIdleTimer(clock, defaultTaskTimeout, cancelCause, kind)
+	capTimer := clock.AfterFunc(maxTaskAttemptDuration, func() {
 		cancelCause(errTaskTimeout)
-	}, "chatworker", "task-timeout-"+string(kind))
+	}, "chatworker", "task-attempt-cap-"+string(kind))
+	attemptCtx = chattool.WithAttemptKeepalive(attemptCtx, idle.Kick)
 	return attemptCtx, func() {
-		timer.Stop()
+		idle.Stop()
+		capTimer.Stop()
 		cancelCause(nil)
 	}
 }

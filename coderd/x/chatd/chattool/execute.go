@@ -1012,6 +1012,7 @@ func executeBackground(
 	if err != nil {
 		return startFailureResponse(ctx, options, toolCallID, "start background process", err)
 	}
+	KickAttemptKeepalive(ctx)
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	startedAt := time.Now()
 	if resp.Attached && !rec.ClaimedAt.IsZero() {
@@ -1122,6 +1123,7 @@ func executeForeground(
 	if err != nil {
 		return startFailureResponse(ctx, options, toolCallID, "start process", err)
 	}
+	KickAttemptKeepalive(ctx)
 	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	startedAt := time.Now()
 	if resp.Attached && !rec.ClaimedAt.IsZero() {
@@ -1226,6 +1228,9 @@ func waitForProcess(
 		resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
 			Wait: true,
 		})
+		if err == nil {
+			KickAttemptKeepalive(parentCtx)
+		}
 		if err == nil && resp.Running && ctx.Err() == nil {
 			// The server-side wait can return before the process
 			// exits when its maximum wait is shorter than the
@@ -1284,6 +1289,8 @@ func resolveProcessWait(
 				BackgroundProcessID: processID,
 			}, false
 		}
+
+		KickAttemptKeepalive(parentCtx)
 
 		// Snapshot succeeded. If the process finished, return
 		// its real result (transparent recovery).
@@ -1450,6 +1457,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				// Fall through to normal response handling below.
 			}
+			KickAttemptKeepalive(parentCtx)
 			result := completedResult(resp)
 			if resp.Running {
 				// Process is still running, success is not
