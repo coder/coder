@@ -1,4 +1,7 @@
 import type { FC } from "react";
+import { useQuery } from "react-query";
+import type { UserAISpend } from "#/api/api";
+import { meAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -7,10 +10,15 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { severityBorderClassName } from "#/utils/budget";
-import { UserDropdownAISpend } from "./UserDropdownAISpend";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import {
+	getSeverity,
+	severityBorderClassName,
+	usageProgressPercentage,
+} from "#/utils/budget";
+import { type AISpend, UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { useAISpend } from "./useAISpend";
 
 interface UserDropdownProps {
 	user: TypesGen.User;
@@ -25,7 +33,17 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	supportLinks,
 	onSignOut,
 }) => {
-	const spend = useAISpend();
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
+	const aibridgeVisible =
+		useFeatureVisibility().aibridge &&
+		experiments.includes("ai-gateway-cost-control");
+	const { data, isError } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
+
+	const spend = toAISpend(aibridgeVisible && !isError, data);
 
 	return (
 		<DropdownMenu>
@@ -50,10 +68,12 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					user={user}
 					buildInfo={buildInfo}
 					profileExtra={
-						<UserDropdownAISpend
-							spend={spend}
-							header={<DropdownMenuSeparator />}
-						/>
+						spend && (
+							<UserDropdownAISpend
+								spend={spend}
+								header={<DropdownMenuSeparator />}
+							/>
+						)
 					}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
@@ -62,3 +82,33 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 		</DropdownMenu>
 	);
 };
+
+/** Resolves AI spend for the avatar border and dropdown section, or null when
+ * it should be hidden. */
+export function toAISpend(
+	visible: boolean,
+	data: UserAISpend | undefined,
+): AISpend | null {
+	if (!visible || !data) {
+		return null;
+	}
+
+	const { current_spend_micros: currentSpend, spend_limit_micros: spendLimit } =
+		data;
+
+	// Hide on invalid spend data. A null limit means unlimited, which is shown.
+	if (currentSpend < 0 || (spendLimit !== null && spendLimit < 0)) {
+		return null;
+	}
+
+	return {
+		currentSpend,
+		spendLimit,
+		percent:
+			spendLimit === null
+				? 0
+				: usageProgressPercentage(currentSpend, spendLimit),
+		severity:
+			spendLimit === null ? "normal" : getSeverity(currentSpend, spendLimit),
+	};
+}

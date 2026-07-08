@@ -1,10 +1,18 @@
 import type { FC, ReactNode } from "react";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
+import type { UsageSeverity } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
-import type { AISpend } from "./useAISpend";
+
+export interface AISpend {
+	currentSpend: number;
+	/** A null limit means unlimited. */
+	spendLimit: number | null;
+	percent: number;
+	severity: UsageSeverity;
+}
 
 interface UserDropdownAISpendProps {
-	spend: AISpend | null;
+	spend: AISpend;
 	/** Rendered above the section, only when the section is shown. */
 	header?: ReactNode;
 }
@@ -13,10 +21,6 @@ export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
 	spend,
 	header,
 }) => {
-	if (!spend) {
-		return null;
-	}
-
 	const { currentSpend, spendLimit, percent, severity } = spend;
 
 	return (
