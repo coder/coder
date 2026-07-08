@@ -473,6 +473,25 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 			errContains: "WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
 		},
+		{
+			// An optional WIF field alone must mark the provider as WIF
+			// and fail the completeness check, not be silently dropped.
+			name: "WIFOptionalFieldOnly",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-xxx",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_SERVICE_ACCOUNT_ID=svac_test",
+			},
+			errContains: "KEY/KEYS and WIF_* fields are mutually exclusive",
+		},
+		{
+			name: "WIFOptionalFieldOnlyNoKeys",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_WORKSPACE_ID=wrkspc_test",
+			},
+			errContains: "WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
+		},
 	}
 
 	for _, tt := range tests {

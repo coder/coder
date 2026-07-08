@@ -3246,7 +3246,11 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// them prevents silently-ignored credentials.
 		isBedrockType := providerType == database.AIProviderTypeBedrock
 		isAnthropicType := providerType == database.AIProviderTypeAnthropic
-		isWIF := p.WIFFederationRuleID != "" || p.WIFOrganizationID != "" || p.WIFIdentityTokenFile != ""
+		// Any WIF_* field marks the provider as WIF so that a partial
+		// configuration (e.g. only WIF_SERVICE_ACCOUNT_ID) fails the
+		// completeness check below instead of being silently dropped.
+		isWIF := p.WIFFederationRuleID != "" || p.WIFOrganizationID != "" || p.WIFIdentityTokenFile != "" ||
+			p.WIFServiceAccountID != "" || p.WIFWorkspaceID != ""
 		if !isAnthropicType && !isBedrockType && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
 				i, p.Type, database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock)
