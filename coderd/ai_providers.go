@@ -371,6 +371,20 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errWIFRejectsAPIKeys
 		}
 
+		// A WIF patch must not leave previously registered bearer keys
+		// behind either: the daemon prefers the key pool over WIF, so
+		// stale keys would silently override the newly configured
+		// federation credentials. Require the patch to clear them.
+		if req.APIKeys == nil && existing.WIF != nil {
+			existingKeys, err := tx.GetAIProviderKeysByProviderID(ctx, old.ID)
+			if err != nil {
+				return xerrors.Errorf("load ai provider keys: %w", err)
+			}
+			if len(existingKeys) > 0 {
+				return errWIFLeavesExistingKeys
+			}
+		}
+
 		if req.APIKeys != nil && old.Type == database.AIProviderTypeCopilot && len(*req.APIKeys) > 0 {
 			return errCopilotRejectsAPIKeys
 		}
@@ -441,6 +455,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errWIFRejectsAPIKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "WIF providers do not accept api_keys; they authenticate via identity token exchange.",
+		})
+		return
+	}
+	if errors.Is(err, errWIFLeavesExistingKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The provider has existing api_keys, which take precedence over WIF; clear them in the same request by sending \"api_keys\": [].",
 		})
 		return
 	}
@@ -568,6 +588,13 @@ var errAIProviderWIFTypeMismatch = xerrors.New("wif settings are only valid for 
 // whose post-merge settings carry a WIF block; the outer handler
 // translates it into a 400.
 var errWIFRejectsAPIKeys = xerrors.New("wif providers do not accept api_keys")
+
+// errWIFLeavesExistingKeys is the sentinel returned from inside the
+// update transaction when a patch configures WIF settings while the
+// provider still has bearer key rows the patch does not clear; the
+// outer handler translates it into a 400. The daemon prefers the key
+// pool over WIF, so leftover keys would silently win.
+var errWIFLeavesExistingKeys = xerrors.New("wif providers must clear existing api_keys")
 
 // errAIProviderExternalIDReadOnly is the sentinel returned from inside
 // the update transaction when a patch tries to change the server-owned
