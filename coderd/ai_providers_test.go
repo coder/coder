@@ -414,23 +414,32 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
-	t.Run("UpdateSettingsEmptyObjectRejected", func(t *testing.T) {
+	t.Run("UpdateSettingsEmptyObjectClears", func(t *testing.T) {
 		t.Parallel()
-		// "settings": {} cannot decode because the _type discriminator
-		// is missing. The handler must reject with 400; nothing about
-		// the provider should change.
+		// "settings": {} is the explicit clear form: it drops the stored
+		// type-specific settings so a WIF provider can migrate back to
+		// bearer keys. Objects carrying fields without a _type
+		// discriminator are still rejected (see codersdk
+		// TestAIProviderSettings_Unmarshal), so a typo'd payload cannot
+		// be mistaken for a clear.
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
+			Type:    codersdk.AIProviderTypeAnthropic,
 			Name:    "patch-settings-empty",
 			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
+			BaseURL: "https://api.anthropic.com",
+			Settings: codersdk.AIProviderSettings{WIF: &codersdk.AIProviderWIFSettings{
+				FederationRuleID:  "fdrl_clear",
+				OrganizationID:    "00000000-0000-0000-0000-000000000001",
+				IdentityTokenFile: "/var/run/secrets/anthropic/token",
+			}},
 		})
 		require.NoError(t, err)
+		require.NotNil(t, created.Settings.WIF)
 
 		res, err := client.Request(ctx, http.MethodPatch,
 			"/api/v2/ai/providers/"+created.Name,
@@ -438,11 +447,11 @@ func TestAIProvidersCRUD(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
-		var body codersdk.Response
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
-		require.Contains(t, body.Message, "valid JSON")
-		require.Contains(t, body.Detail, "_type discriminator")
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		fetched, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.True(t, fetched.Settings.IsZero(), "the empty settings object must clear the WIF block")
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -770,6 +779,17 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, migrated.Settings.WIF)
 		require.Empty(t, migrated.APIKeys, "the migration patch must clear the bearer keys")
+
+		// Migrating back to bearer keys: a zero settings patch (wire
+		// form {}) clears the WIF block, letting the replacement keys
+		// register in the same PATCH.
+		demoted, err := client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{},
+			APIKeys:  &[]codersdk.AIProviderKeyMutation{{APIKey: new("sk-ant-restored")}},
+		})
+		require.NoError(t, err)
+		require.True(t, demoted.Settings.IsZero(), "the zero settings patch must clear the WIF block")
+		require.Len(t, demoted.APIKeys, 1, "the replacement key must register in the same PATCH")
 
 		// Patching WIF settings onto a non-anthropic provider is a type
 		// mismatch.
