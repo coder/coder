@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { AssignableRoles } from "#/api/typesGenerated";
 import {
 	MockOrganization,
@@ -132,6 +132,19 @@ export const DefaultRolesEnabled: Story = {
 			action("onUpdateDefaultRoles")();
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const workspaceCard = await body.findByRole("radio", {
+			name: "Workspace",
+		});
+		expect(workspaceCard).toBeChecked();
+		expect(body.getByRole("radio", { name: "Gateway" })).not.toBeChecked();
+		expect(body.getByRole("radio", { name: "Custom" })).not.toBeChecked();
+		await body.findByText(/counts as a license seat/i);
+		await body.findByText(/do not cost license seats/i);
+		await body.findByText(/affects existing members/i);
+		await body.findByText(/may result in a loss of access/i);
+	},
 };
 
 export const DefaultRolesNotEntitled: Story = {
@@ -145,15 +158,19 @@ export const DefaultRolesNotEntitled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const editButton = await body.findByRole("button", {
-			name: /edit default roles/i,
+		const workspaceCard = await body.findByRole("radio", {
+			name: "Workspace",
 		});
-		expect(editButton).toBeDisabled();
+		expect(workspaceCard).toHaveAttribute("aria-disabled", "true");
+		expect(body.getByRole("radio", { name: "Gateway" })).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
 		await body.findByText(/requires a Premium license/i);
 	},
 };
 
-export const DefaultRolesEmpty: Story = {
+export const DefaultRolesGatewaySelected: Story = {
 	args: {
 		organization: {
 			...MockOrganization,
@@ -165,6 +182,51 @@ export const DefaultRolesEmpty: Story = {
 		onUpdateDefaultRoles: async () => {
 			action("onUpdateDefaultRoles")();
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const gatewayCard = await body.findByRole("radio", { name: "Gateway" });
+		expect(gatewayCard).toBeChecked();
+		expect(body.getByRole("radio", { name: "Workspace" })).not.toBeChecked();
+	},
+};
+
+export const DefaultRolesCustomSelected: Story = {
+	args: {
+		organization: {
+			...MockOrganization,
+			default_org_member_roles: ["organization-admin"],
+		},
+		defaultRolesEnabled: true,
+		defaultRolesEntitled: true,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: async () => {
+			action("onUpdateDefaultRoles")();
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const customCard = await body.findByRole("radio", { name: "Custom" });
+		expect(customCard).toBeChecked();
+		await body.findByText("Organization Admin");
+	},
+};
+
+export const DefaultRolesSelectGateway: Story = {
+	args: {
+		defaultRolesEnabled: true,
+		defaultRolesEntitled: true,
+		availableOrgRoles: mockOrgRoles,
+		onUpdateDefaultRoles: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		const gatewayCard = await body.findByRole("radio", { name: "Gateway" });
+		await user.click(gatewayCard);
+		await waitFor(() => {
+			expect(args.onUpdateDefaultRoles).toHaveBeenCalledWith([]);
+		});
 	},
 };
 
@@ -196,10 +258,8 @@ export const DefaultRolesEditDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
-		const editButton = await body.findByRole("button", {
-			name: /edit default roles/i,
-		});
-		await user.click(editButton);
+		const customCard = await body.findByRole("radio", { name: "Custom" });
+		await user.click(customCard);
 		await body.findByRole("heading", { name: /edit default roles/i });
 	},
 };

@@ -2,6 +2,7 @@ import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { PremiumBadge } from "#/components/Badges/Badges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import {
@@ -27,6 +28,7 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { docs } from "#/utils/docs";
 import { DefaultRolesDialog } from "./DefaultRolesDialog";
+import { DefaultRolesPresetCards } from "./DefaultRolesPresetCards";
 import { PermissionPillsList } from "./PermissionPillsList";
 
 interface CustomRolesPageViewProps {
@@ -146,38 +148,31 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 
 	return (
 		<div className="flex flex-col gap-3">
-			<div className="flex flex-row gap-4 items-baseline justify-between">
-				<span>
-					<h2 className="mb-0 text-lg flex items-center gap-2">
-						Default Roles
-						{!defaultRolesEntitled && <PremiumBadge />}
-					</h2>
-					<span className="text-sm text-content-secondary leading-relaxed">
-						Roles attached to every member of this organization. An empty
-						selection limits new members to the floor permissions only.
-					</span>
+			<span>
+				<h2 className="mb-0 text-lg flex items-center gap-2">
+					Default Roles
+					{!defaultRolesEntitled && <PremiumBadge />}
+				</h2>
+				<span className="text-sm text-content-secondary leading-relaxed">
+					Roles attached to every member of this organization.
 				</span>
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => setIsEditing(true)}
-					disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
-				>
-					Edit default roles
-				</Button>
-			</div>
-			<div className="text-sm">
-				{organization.default_org_member_roles.length === 0 ? (
-					<span className="text-content-secondary">
-						No default roles. New members receive only the floor.
-					</span>
-				) : (
-					<DefaultRolesSummary
-						roleNames={organization.default_org_member_roles}
-						availableRoles={availableOrgRoles}
-					/>
-				)}
-			</div>
+			</span>
+			<Alert severity="warning" prominent>
+				<AlertTitle>Changing the default affects existing members</AlertTitle>
+				<AlertDescription>
+					Default roles apply to every current and future member of this
+					organization, not just new accounts. Changing the selection
+					immediately changes every member's permissions and may result in a
+					loss of access, including access to existing workspaces.
+				</AlertDescription>
+			</Alert>
+			<DefaultRolesPresetCards
+				roles={organization.default_org_member_roles}
+				availableRoles={availableOrgRoles}
+				disabled={isUpdatingDefaultRoles || !defaultRolesEntitled}
+				onSelectRoles={(roles) => void onUpdateDefaultRoles(roles)}
+				onSelectCustom={() => setIsEditing(true)}
+			/>
 			{!defaultRolesEntitled && (
 				<p className="text-xs text-content-secondary mt-0 mb-0">
 					Editing organization settings requires a Premium license.
@@ -195,29 +190,6 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 				isUpdating={isUpdatingDefaultRoles}
 			/>
 		</div>
-	);
-};
-
-interface DefaultRolesSummaryProps {
-	roleNames: readonly string[];
-	availableRoles?: AssignableRoles[];
-}
-
-const DefaultRolesSummary: FC<DefaultRolesSummaryProps> = ({
-	roleNames,
-	availableRoles,
-}) => {
-	const displayNameFor = (name: string): string => {
-		const role = availableRoles?.find((r) => r.name === name);
-		return role?.display_name || role?.name || name;
-	};
-
-	return (
-		<ul className="list-disc pl-5 m-0 flex flex-col gap-1">
-			{roleNames.map((name) => (
-				<li key={name}>{displayNameFor(name)}</li>
-			))}
-		</ul>
 	);
 };
 
