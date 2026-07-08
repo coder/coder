@@ -88,7 +88,10 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	// the operator of this process must bless the identity token
 	// files it may read. Provider env config is coderd-only, so the
 	// env-pair trust path never applies here and the explicit
-	// allowlist is the only way to enable WIF providers.
+	// allowlist is the only way to enable WIF providers. coderd
+	// enforces the same allowlist from its own configuration when
+	// providers are written through the API, so the operator must
+	// set the option on both processes.
 	"CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES": {},
 
 	// Prometheus
