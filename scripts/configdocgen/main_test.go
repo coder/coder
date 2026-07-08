@@ -71,9 +71,12 @@ func TestStripGroupPrefix(t *testing.T) {
 		{"Access URL", &networking, "Access URL"},
 	}
 	for _, tc := range cases {
-		if got := stripGroupPrefix(tc.name, tc.group); got != tc.want {
-			t.Errorf("stripGroupPrefix(%q) = %q, want %q", tc.name, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := stripGroupPrefix(tc.name, tc.group); got != tc.want {
+				t.Errorf("stripGroupPrefix(%q) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -91,9 +94,12 @@ func TestShortTitle(t *testing.T) {
 		{serpent.Option{Name: "Cache Directory"}, "Cache directory"},
 	}
 	for _, tc := range cases {
-		if got := shortTitle(tc.opt); got != tc.want {
-			t.Errorf("shortTitle(%q) = %q, want %q", tc.opt.Name, got, tc.want)
-		}
+		t.Run(tc.opt.Name, func(t *testing.T) {
+			t.Parallel()
+			if got := shortTitle(tc.opt); got != tc.want {
+				t.Errorf("shortTitle(%q) = %q, want %q", tc.opt.Name, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -110,9 +116,12 @@ func TestIsDeprecated(t *testing.T) {
 		{"active", serpent.Option{Description: "A normal option."}, false},
 	}
 	for _, tc := range cases {
-		if got := isDeprecated(tc.opt); got != tc.want {
-			t.Errorf("isDeprecated(%s) = %v, want %v", tc.name, got, tc.want)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isDeprecated(tc.opt); got != tc.want {
+				t.Errorf("isDeprecated(%s) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -158,6 +167,7 @@ func TestRenderPipeline(t *testing.T) {
 
 	email := serpent.Group{Name: "Email", YAML: "email"}
 	emailAuth := serpent.Group{Name: "Email Authentication", YAML: "emailAuth", Parent: &email}
+	dangerous := serpent.Group{Name: "⚠️ Dangerous", YAML: "dangerous"}
 
 	opts := serpent.OptionSet{
 		// Hidden options and options with no env/flag/YAML are skipped.
@@ -165,12 +175,16 @@ func TestRenderPipeline(t *testing.T) {
 		{Name: "Unsettable Option"},
 		// General section (no group).
 		{Name: "Access URL", Env: "CODER_ACCESS_URL", Flag: "access-url", Default: "https://example.com", Description: "The access URL."},
+		// A DefaultFn with no static Default renders the computed-at-runtime label.
+		{Name: "Cache Directory", Env: "CODER_CACHE_DIRECTORY", Flag: "cache-dir", DefaultFn: func() string { return "~/.cache/coder" }, Description: "The cache directory."},
 		// Deprecated via UseInstead: description does not start with "Deprecated".
 		{Name: "Email From", Env: "CODER_EMAIL_FROM", Flag: "email-from", YAML: "from", Group: &email, Description: "The sender address.", UseInstead: []serpent.Option{{Name: "Notifications Email From"}}},
 		// Active option with a flag shorthand.
 		{Name: "Email Smarthost", Env: "CODER_EMAIL_SMARTHOST", Flag: "email-smarthost", FlagShorthand: "s", YAML: "smarthost", Group: &email, Description: "The SMTP host."},
 		// Nested child section.
 		{Name: "Email Authentication Identity", Env: "CODER_EMAIL_AUTH_IDENTITY", YAML: "identity", Group: &emailAuth, Description: "The identity."},
+		// A Dangerous group sorts last regardless of alphabetical order.
+		{Name: "DANGEROUS: Allow All Cors", Env: "CODER_DANGEROUS_ALLOW_ALL_CORS", Flag: "dangerous-allow-all-cors", Group: &dangerous, Description: "Allow all cross-origin requests."},
 	}
 
 	got := render(buildTree(opts))
@@ -189,9 +203,13 @@ func TestRenderPipeline(t *testing.T) {
 		"- YAML key: `email.from`",
 		// Deprecated marker is prepended for the UseInstead path.
 		"**Deprecated.** The sender address.",
+		// A DefaultFn with no static Default is labeled, not evaluated.
+		"- Default value: `(computed at runtime)`",
 		"### Email authentication",
 		"#### Identity",
 		"- YAML key: `email.emailAuth.identity`",
+		// The Dangerous group renders as its own section.
+		"## ⚠️ Dangerous",
 	}
 	for _, w := range wantContains {
 		if !strings.Contains(got, w) {
@@ -206,6 +224,10 @@ func TestRenderPipeline(t *testing.T) {
 	// Active options sort before deprecated ones within a section.
 	if i, j := strings.Index(got, "### Smarthost"), strings.Index(got, "### From"); i < 0 || j < 0 || i > j {
 		t.Errorf("active option should render before deprecated option (got indexes %d, %d)", i, j)
+	}
+	// The Dangerous section sorts last among top-level sections.
+	if i, j := strings.Index(got, "## Email"), strings.Index(got, "## ⚠️ Dangerous"); i < 0 || j < 0 || i > j {
+		t.Errorf("Dangerous section should render last (got indexes %d, %d)", i, j)
 	}
 	// Hidden and unsettable options never render.
 	if strings.Contains(got, "Hidden") {
