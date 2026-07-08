@@ -72,6 +72,10 @@ style.
    Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
    rename (see [Structural rules to apply](#structural-rules-to-apply)).
+6. **Open the PR.** Write the title and description per the
+   [Pull Request Description Style Guide](../../docs/PR_STYLE_GUIDE.md), which
+   also covers when to open as a draft and when to mark it ready for review.
+   Keep the diff reviewable (see [Keep PRs reviewable](#keep-prs-reviewable)).
 
 ## Pedagogy patterns
 
@@ -170,6 +174,8 @@ the whole series as a single review.
 - [ ] The change is scoped for review: large or multi-page work is split into
       focused PRs (aim for under ~1,000 lines changed; one page per PR for a
       series).
+- [ ] PR title and description follow the PR description style guide (including
+      draft vs. ready-for-review).
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 
