@@ -293,10 +293,14 @@ func TestTelemetry(t *testing.T) {
 		clock := quartz.NewMock(t)
 		clock.Set(now)
 
-		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+		deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
 			opts.Clock = clock
 			return opts
 		})
+		var agentExperiments map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(deployment.AgentExperiments, &agentExperiments))
+		require.Contains(t, agentExperiments, "virtual_desktop")
+		require.Contains(t, agentExperiments, "advisor")
 		require.Len(t, snapshot.ProvisionerJobs, 2)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 2)
@@ -320,7 +324,6 @@ func TestTelemetry(t *testing.T) {
 		require.ElementsMatch(t, []string{
 			string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
 			string(telemetry.TelemetryItemKeyTelemetryEnabled),
-			string(telemetry.TelemetryItemKeyAgentsExperiments),
 		}, telemetryItemKeys)
 		require.Len(t, snapshot.WorkspaceAgentMemoryResourceMonitors, 1)
 		require.Len(t, snapshot.WorkspaceAgentVolumeResourceMonitors, 1)

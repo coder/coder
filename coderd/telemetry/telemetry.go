@@ -345,28 +345,41 @@ func (r *remoteReporter) deployment() error {
 	scimEnabled := r.options.SCIMEnabled
 	scimUseLegacy := r.options.SCIMUseLegacy
 
+	agentExperimentValues := make(map[string]json.RawMessage, len(agentExperiments))
+	for _, exp := range agentExperiments {
+		agentExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
+	}
+	agentExperimentsJSON, err := json.Marshal(agentExperimentValues)
+	if err != nil {
+		// Best-effort: the field is omitempty, so the deployment report
+		// proceeds without it.
+		r.options.Logger.Warn(r.ctx, "marshal agent experiments telemetry", slog.Error(err))
+		agentExperimentsJSON = nil
+	}
+
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Config:          r.options.DeploymentConfig,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:   installSource,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      &idpOrgSync,
-		SCIMEnabled:     &scimEnabled,
-		SCIMUseLegacy:   &scimUseLegacy,
+		ID:               r.options.DeploymentID,
+		Architecture:     sysInfo.Architecture,
+		BuiltinPostgres:  r.options.BuiltinPostgres,
+		Containerized:    containerized,
+		Config:           r.options.DeploymentConfig,
+		Kubernetes:       os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:    installSource,
+		Tunnel:           r.options.Tunnel,
+		OSType:           sysInfo.OS.Type,
+		OSFamily:         sysInfo.OS.Family,
+		OSPlatform:       sysInfo.OS.Platform,
+		OSName:           sysInfo.OS.Name,
+		OSVersion:        sysInfo.OS.Version,
+		CPUCores:         runtime.NumCPU(),
+		MemoryTotal:      mem.Total,
+		MachineID:        sysInfo.UniqueID,
+		StartedAt:        r.startedAt,
+		ShutdownAt:       r.shutdownAt,
+		IDPOrgSync:       &idpOrgSync,
+		SCIMEnabled:      &scimEnabled,
+		SCIMUseLegacy:    &scimUseLegacy,
+		AgentExperiments: agentExperimentsJSON,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -707,28 +720,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get telemetry items: %w", err)
 		}
-		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items)+1)
+		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items))
 		for _, item := range items {
 			snapshot.TelemetryItems = append(snapshot.TelemetryItems, ConvertTelemetryItem(item))
 		}
-
-		agentExperimentValues := make(map[string]json.RawMessage, len(agentExperiments))
-		for _, exp := range agentExperiments {
-			agentExperimentValues[exp.name] = exp.collect(ctx, r.options)
-		}
-
-		val, err := json.Marshal(agentExperimentValues)
-		if err != nil {
-			r.options.Logger.Warn(ctx, "marshal agent experiments telemetry", slog.Error(err))
-			return nil
-		}
-		// Collection timestamps, not when a setting last changed.
-		snapshot.TelemetryItems = append(snapshot.TelemetryItems, TelemetryItem{
-			Key:       string(TelemetryItemKeyAgentsExperiments),
-			Value:     string(val),
-			CreatedAt: now,
-			UpdatedAt: now,
-		})
 		return nil
 	})
 	eg.Go(func() error {
@@ -1678,6 +1673,11 @@ type Deployment struct {
 	// enterprise/coderd/scim. Nullable for the same backward compatibility
 	// reason as SCIMEnabled.
 	SCIMUseLegacy *bool `json:"scim_use_legacy"`
+	// AgentExperiments reports the state of the Coder Agents experiments
+	// (virtual desktop with computer use, advisor). Opaque per-experiment
+	// JSON so rotating the reported set is a code-only change. Omitted by
+	// older Coder versions, so it decodes as nil there.
+	AgentExperiments json.RawMessage `json:"agent_experiments,omitempty"`
 }
 
 type APIKey struct {
@@ -2338,13 +2338,12 @@ type telemetryItemKey string
 const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
-	TelemetryItemKeyAgentsExperiments telemetryItemKey = "agents_experiments"
 )
 
-// agentExperiment is one entry in the agents_experiments telemetry item.
+// agentExperiment is one entry in the Deployment.AgentExperiments field.
 // Edit agentExperiments to rotate the reported set without schema or
 // telemetry-server changes. Collectors are best-effort: they log and return
-// a degraded payload instead of erroring, so they can never fail a snapshot.
+// a degraded payload instead of erroring, so they can never fail a report.
 type agentExperiment struct {
 	name    string
 	collect func(ctx context.Context, opts Options) json.RawMessage
@@ -2365,7 +2364,7 @@ const (
 )
 
 // agentVirtualDesktopTelemetry is the value shape for the virtual_desktop
-// entry in the agents_experiments telemetry item.
+// entry in Deployment.AgentExperiments.
 type agentVirtualDesktopTelemetry struct {
 	Enabled     bool                      `json:"enabled"`
 	ComputerUse agentComputerUseTelemetry `json:"computer_use"`
@@ -2376,8 +2375,8 @@ type agentComputerUseTelemetry struct {
 	ProviderSource string `json:"provider_source"`
 }
 
-// agentAdvisorTelemetry is the value shape for the advisor entry in the
-// agents_experiments telemetry item.
+// agentAdvisorTelemetry is the value shape for the advisor entry in
+// Deployment.AgentExperiments.
 type agentAdvisorTelemetry struct {
 	Enabled         bool   `json:"enabled"`
 	MaxUsesPerRun   int    `json:"max_uses_per_run"`
