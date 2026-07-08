@@ -157,9 +157,8 @@ export const AddBlocksDisabledSelectedProvider: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// A ?provider= query param can select a disabled provider on the
-		// add page. The form must not render as submittable and the
-		// disabled provider must not stay selectable.
+		// A ?provider= query param can preselect a disabled provider on
+		// the add page.
 		await expect(
 			canvas.getByText(/OpenAI Secondary is disabled/),
 		).toBeInTheDocument();
@@ -183,8 +182,6 @@ export const EditKeepsDisabledProviderVisible: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Editing a config whose provider was disabled afterwards keeps the
-		// provider rendered so the form stays usable.
 		await expect(
 			canvas.getByRole("combobox", { name: /provider/i }),
 		).toHaveTextContent("OpenAI Secondary");

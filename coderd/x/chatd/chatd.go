@@ -1598,8 +1598,6 @@ func resolveFallbackModelConfigID(
 				err,
 			)
 		}
-		// The chat's last model or its provider was disabled or
-		// deleted, fall through to the default.
 	}
 
 	defaultConfig, err := store.GetDefaultChatModelConfig(chatdCtx)
@@ -1609,8 +1607,7 @@ func resolveFallbackModelConfigID(
 		}
 		return uuid.Nil, xerrors.Errorf("get default chat model config: %w", err)
 	}
-	// A disabled default (or one under a disabled provider) would only
-	// fail later at generation time, so reject it at admission instead.
+	// The default may itself be disabled or under a disabled provider.
 	if _, err := store.GetEnabledChatModelConfigByID(chatdCtx, defaultConfig.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, xerrors.Errorf(
@@ -1712,10 +1709,8 @@ func (p *Server) EditMessage(
 			modelOverride = uuid.NullUUID{UUID: opts.ModelConfigID, Valid: true}
 		} else {
 			// Without an explicit override the transition preserves
-			// the edited message's original model, which may have
-			// been disabled since. Resolve it like the send-message
-			// fallback so a disabled model falls back to the default
-			// instead of being admitted and failing at generation.
+			// the edited message's original model, which may have been
+			// disabled since; resolve it like a normal message send.
 			preserved := uuid.Nil
 			if target.ModelConfigID.Valid {
 				preserved = target.ModelConfigID.UUID

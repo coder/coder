@@ -23,11 +23,9 @@ export const ModelFormProviderSelect: FC<{
 	disabled,
 	isEditing,
 }) => {
-	// Hide disabled providers: the backend rejects creating model configs
-	// under them. When editing, keep the currently selected provider
-	// visible so a config whose provider was disabled afterwards still
-	// renders. On the add path the selection can come from a ?provider=
-	// query param, so a disabled provider must not stay selectable.
+	// Hide disabled providers; the backend rejects new model configs under
+	// them. When editing, keep the selected provider visible so a config
+	// whose provider was disabled afterwards still renders.
 	const selectableProviderStates = providerStates.filter(
 		(ps) =>
 			ps.providerConfig?.enabled !== false ||

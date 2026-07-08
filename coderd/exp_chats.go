@@ -1193,11 +1193,9 @@ func (api *API) validateUserChatModelConfigAvailable(
 	}
 }
 
-// validateExplicitChatModelConfigAvailable rejects explicitly requested
-// models the user cannot use (for example when the model or its provider
-// is disabled) instead of admitting the request and failing later at
-// runtime. A nil ID keeps the chat's current model and is validated by
-// the daemon's fallback logic.
+// validateExplicitChatModelConfigAvailable validates a caller-supplied
+// model config ID. A nil ID keeps the chat's current model and is
+// validated by the daemon's fallback resolution instead.
 func (api *API) validateExplicitChatModelConfigAvailable(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -3406,8 +3404,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// The fallback model resolution rejects a disabled default (or
-		// one under a disabled provider), mirroring chat creation.
 		if xerrors.Is(sendErr, chatd.ErrNoDefaultChatModelConfig) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "No default chat model config is configured.",
@@ -3573,9 +3569,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid model config ID.",
 			})
-		// The nil-override edit path resolves the preserved message
-		// model through the send-message fallback, which rejects a
-		// disabled default.
 		case xerrors.Is(editErr, chatd.ErrNoDefaultChatModelConfig):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "No default chat model config is configured.",
@@ -4955,8 +4948,8 @@ func (api *API) defaultCreateChatModelConfigID(
 		}
 	}
 
-	// A default whose config or provider is disabled would only fail at
-	// generation time, so reject chat creation at admission instead.
+	// The resolved default may itself be disabled or under a disabled
+	// provider.
 	if _, err := lookupEnabledChatModelConfigByID(ctx, api.Database, defaultModelConfig.ID); err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
@@ -5761,10 +5754,6 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Require the referenced model config and its provider to be
-		// enabled so a deployment-wide advisor override never points at a
-		// model that cannot serve requests. The lookup also validates any
-		// selected reasoning effort before persisting deployment config.
 		modelConfig, err := lookupEnabledChatModelConfigByID(ctx, api.Database, req.ModelConfigID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {

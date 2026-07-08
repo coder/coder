@@ -3484,10 +3484,8 @@ func TestPrepareManualTitleDebugRun_RouteFailureDerivesProviderFromConfig(t *tes
 	require.Equal(t, "anthropic", gotProvider.String)
 }
 
-// TestResolveFallbackModelConfigID verifies that message admission does
-// not reuse a chat's last model when that model or its provider has been
-// disabled, and that a disabled default is rejected instead of being
-// admitted and failing later at generation time.
+// TestResolveFallbackModelConfigID verifies that admission does not reuse
+// a disabled last model and rejects a disabled default.
 func TestResolveFallbackModelConfigID(t *testing.T) {
 	t.Parallel()
 

@@ -582,8 +582,7 @@ func TestPostChats(t *testing.T) {
 		require.NoError(t, err)
 
 		// Omitting model_config_id resolves the default model, whose
-		// provider is now disabled. Admission must reject the request
-		// instead of creating a chat that fails at generation time.
+		// provider is now disabled.
 		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
@@ -7050,9 +7049,8 @@ func TestPostChatMessages(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Without an explicit model the fallback resolution walks
-		// last model -> default, both owned by the now-disabled
-		// provider, and must surface a 400 instead of a generic 500.
+		// Without an explicit model the fallback walks last model ->
+		// default, both under the now-disabled provider.
 		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -9224,10 +9222,8 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Editing without model_config_id preserves the edited
-		// message's original model. With that model's provider
-		// disabled and the default owned by the same provider, the
-		// fallback resolution must reject the edit with a 400.
+		// Editing without model_config_id preserves the edited message's
+		// original model; its provider and the default's are now disabled.
 		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -12163,9 +12159,8 @@ func createDisabledChatModelConfig(
 	return updated
 }
 
-// createProviderDisabledChatModelConfig creates an enabled model config and
-// then disables its parent AI provider, leaving a config that is enabled at
-// the config level but unusable because of provider state.
+// createProviderDisabledChatModelConfig creates an enabled model config,
+// then disables its parent AI provider.
 func createProviderDisabledChatModelConfig(
 	t *testing.T,
 	client *codersdk.ExperimentalClient,

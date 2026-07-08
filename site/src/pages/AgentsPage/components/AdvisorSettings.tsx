@@ -26,7 +26,6 @@ interface AdvisorSettingsProps {
 	isAdvisorConfigLoading: boolean;
 	isAdvisorConfigFetching: boolean;
 	isAdvisorConfigLoadError: boolean;
-	// Subset of modelConfigs whose config and provider are both enabled.
 	enabledModelConfigs: readonly ChatModelConfig[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 	modelConfigsError: unknown;
@@ -162,11 +161,9 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		validate: validateAdvisorConfig,
 		onSubmit: (values, { resetForm }) => {
 			// If the last committed model override references a model config
-			// that no longer exists or is no longer enabled (including a
-			// disabled provider), the backend rejects the stale ID with a
-			// 400. Clear the override so a save stays reliable; the runtime
-			// already ignores unavailable overrides and falls back to the
-			// chat model. Only scrub when model configs have loaded
+			// that is no longer available, the backend rejects the stale ID
+			// with a 400. Clear the override so a save stays reliable in
+			// that edge case. Only scrub when model configs have loaded
 			// successfully and no refetch is in flight.
 			let source = values;
 			if (

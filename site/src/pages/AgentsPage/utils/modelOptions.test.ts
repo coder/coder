@@ -698,7 +698,6 @@ describe("getModelOptionsFromConfigs", () => {
 			{ provider: "openai", available: true, models: [] },
 		]);
 
-		// providerInfoByID entries here carry no enabled flag.
 		expect(
 			getModelOptionsFromConfigs(configs, catalog, providerInfoByID).map(
 				(option) => option.id,
@@ -707,9 +706,8 @@ describe("getModelOptionsFromConfigs", () => {
 	});
 
 	it("excludes only the disabled instance for same-type providers", () => {
-		// Two provider rows of the same type: the catalog marks the type as
-		// available (because of the enabled instance), so only the
-		// per-instance enabled flag can exclude the disabled one.
+		// The catalog marks the type as available because of the enabled
+		// instance, so only the per-row flag can exclude the disabled one.
 		const configs = [
 			createConfig({
 				id: "config-primary",

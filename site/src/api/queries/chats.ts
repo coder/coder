@@ -1873,8 +1873,7 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	]);
 };
 
-// Refreshes every chat query derived from AI provider state so provider
-// mutations (enable/disable/delete) update open model pickers in-session.
+// Called after AI provider mutations so open model pickers refresh.
 export const invalidateChatProviderDependentQueries = async (
 	queryClient: QueryClient,
 ) => {

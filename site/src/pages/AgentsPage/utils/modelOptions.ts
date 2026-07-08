@@ -162,8 +162,7 @@ export type ProviderInfo = {
 	readonly provider: string;
 	readonly displayName: string;
 	readonly icon: string;
-	// Whether the provider row is enabled. Undefined (sources without
-	// provider state) is treated as enabled for backwards compatibility.
+	// Absent is treated as enabled.
 	readonly enabled?: boolean;
 };
 
@@ -229,11 +228,9 @@ export const providerTypeByIDFromUserConfigs = (
 	);
 
 /**
- * Drops model configs whose provider row is disabled or missing from the
- * map. Both provider-info sources (the admin provider list and the user
- * provider key configs) always include every enabled provider, so a
- * missing row means the provider is disabled or deleted. Provider rows
- * lacking an enabled flag are kept for backward compatibility.
+ * Drops model configs whose provider row is disabled or missing. Both
+ * provider-info sources include every enabled provider, so a missing row
+ * means the provider is disabled or deleted.
  */
 export const filterConfigsWithEnabledProvider = (
 	configs: readonly TypesGen.ChatModelConfig[],
@@ -256,9 +253,8 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	// Skip models whose provider row is disabled or unknown. The catalog
-	// check below is keyed by provider type, so it cannot exclude a
-	// disabled instance when another provider of the same type is enabled.
+	// The catalog check below is keyed by provider type, so it cannot
+	// exclude a disabled provider when another of the same type is enabled.
 	for (const config of filterConfigsWithEnabledProvider(
 		configs,
 		providerInfoByID,
