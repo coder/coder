@@ -59,7 +59,7 @@ func TestClassifyExecutionState_Valid(t *testing.T) {
 }
 
 // TestClassifyExecutionState_Invalid covers every documented invalid
-// combination: unknown statuses, waiting-with-queue, and archived busy
+// combination: legacy statuses, waiting-with-queue, and archived busy
 // statuses.
 func TestClassifyExecutionState_Invalid(t *testing.T) {
 	t.Parallel()
@@ -70,9 +70,11 @@ func TestClassifyExecutionState_Invalid(t *testing.T) {
 		archived      bool
 		queueNonEmpty bool
 	}{
-		// Statuses outside the enum (such as the removed legacy
-		// pending/paused/completed values) are invalid.
-		{name: "UnknownStatus", status: "pending"},
+		// Legacy statuses (pending/paused/completed) are invalid for
+		// the new state machine.
+		{name: "LegacyPending", status: "pending"},
+		{name: "LegacyPaused", status: "paused"},
+		{name: "LegacyCompleted", status: "completed"},
 
 		// Waiting must always have an empty queue.
 		{name: "WaitingWithQueue", status: database.ChatStatusWaiting, queueNonEmpty: true},
@@ -106,8 +108,7 @@ func TestClassifyExecutionState_RejectsAllUnlistedCombinations(t *testing.T) {
 		database.ChatStatusRunning,
 		database.ChatStatusInterrupting,
 		database.ChatStatusRequiresAction,
-		// Status string outside the enum; must still classify invalid.
-		"pending",
+		"pending", "paused", "completed",
 	}
 	validCount := 0
 	for _, status := range allStatuses {

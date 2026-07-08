@@ -5250,16 +5250,10 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 	require.Equal(t, 0, count, "expected no workspaces to be flushed when chat has no workspace")
 }
 
-// waitForChatProcessed waits for a wake-triggered processOnce to
-// fully complete for the given chat. It polls until the chat leaves
-// both pending and running states (meaning processChat has finished
-// its cleanup and updated the DB), then calls WaitUntilIdleForTest.
-//
-// Waiting for a terminal state (not just "not pending") avoids a
-// WaitGroup Add/Wait race: AcquireChats changes the DB status to
-// running before processOnce calls inflight.Add(1). If we only
-// waited for status != pending, we could call Wait() while Add(1)
-// hasn't happened yet.
+// waitForChatProcessed waits for the chat worker to fully handle a
+// wake for the given chat. It polls until the chat leaves the running
+// state (the worker has finished the turn and updated the DB), then
+// calls WaitUntilIdleForTest so tracked background work settles.
 func waitForChatProcessed(
 	ctx context.Context,
 	t *testing.T,
@@ -5273,18 +5267,18 @@ func waitForChatProcessed(
 		if err != nil {
 			return false
 		}
-		// Wait until the chat reaches a terminal state. Neither
-		// pending (waiting to be acquired) nor running (being
-		// processed). This guarantees that inflight.Add(1) has
-		// already been called by processOnce.
-		return c.Status != database.ChatStatusPending &&
-			c.Status != database.ChatStatusRunning
+		// Wait until the chat reaches a settled state (not being
+		// processed). This guarantees the wake was picked up and its
+		// background work registered before WaitUntilIdleForTest
+		// checks for idleness.
+		return c.Status != database.ChatStatusRunning
 	}, testutil.WaitShort, testutil.IntervalFast)
 	chatd.WaitUntilIdleForTest(server)
 }
 
-// newTestServer creates a passive server that never calls
-// processOnce on its own.
+// newTestServer creates a passive server whose periodic chat
+// acquisition is effectively disabled, so chats are only processed in
+// response to explicit wakes.
 func newTestServer(
 	t *testing.T,
 	db database.Store,
