@@ -421,3 +421,35 @@ func TestAIProviderRequest_ValidationInSync(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAIProviderWIFBaseURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		wantErr bool
+	}{
+		{name: "empty uses default https endpoint", baseURL: "", wantErr: false},
+		{name: "https allowed", baseURL: "https://proxy.example/api", wantErr: false},
+		{name: "loopback http allowed", baseURL: "http://localhost:8080", wantErr: false},
+		{name: "loopback ipv4 allowed", baseURL: "http://127.0.0.1:8080", wantErr: false},
+		{name: "cleartext http rejected", baseURL: "http://proxy.example/api", wantErr: true},
+		// Malformed URLs are left to the general base_url validation.
+		{name: "malformed deferred", baseURL: "://", wantErr: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			verrs := codersdk.ValidateAIProviderWIFBaseURL(tc.baseURL)
+			if !tc.wantErr {
+				require.Empty(t, verrs)
+				return
+			}
+			require.NotEmpty(t, verrs)
+			require.Equal(t, "base_url", verrs[0].Field)
+			require.Contains(t, verrs[0].Detail, "https base_url")
+		})
+	}
+}

@@ -492,6 +492,20 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 			errContains: "WIF requires WIF_FEDERATION_RULE_ID, WIF_ORGANIZATION_ID, and WIF_IDENTITY_TOKEN_FILE to all be set",
 		},
+		{
+			// aibridged refuses cleartext WIF base URLs at build time,
+			// so the env parser must fail fast instead of seeding a
+			// provider that never serves traffic.
+			name: "WIFCleartextBaseURL",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=http://proxy.example/api",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_FEDERATION_RULE_ID=fdrl_test",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_ORGANIZATION_ID=org-123",
+				"CODER_AI_GATEWAY_PROVIDER_0_WIF_IDENTITY_TOKEN_FILE=/tmp/token",
+			},
+			errContains: "WIF requires an https BASE_URL",
+		},
 	}
 
 	for _, tt := range tests {

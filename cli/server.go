@@ -3300,6 +3300,14 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 				i, p.Type)
 		}
 
+		// aibridged refuses to build a WIF provider whose base URL would
+		// send the identity assertion over cleartext HTTP, so reject the
+		// configuration at startup instead of seeding a dead provider.
+		if isWIF && len(codersdk.ValidateAIProviderWIFBaseURL(p.BaseURL)) > 0 {
+			return nil, xerrors.Errorf("provider %d (%s): WIF requires an https BASE_URL; http is allowed for loopback hosts only",
+				i, p.Type)
+		}
+
 		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
 			return nil, err
 		}
