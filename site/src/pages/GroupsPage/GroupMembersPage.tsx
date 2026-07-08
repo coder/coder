@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { addMembers, groupAIBudget, removeMember } from "#/api/queries/groups";
+import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -40,6 +41,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
@@ -50,7 +53,6 @@ import {
 import type { GroupPageOutletContext } from "./GroupPage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
-import { useAIBudgetVisible } from "./useAIBudgetVisible";
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -70,8 +72,16 @@ const GroupMembersPage: FC = () => {
 	const [budgetUser, setBudgetUser] =
 		useState<GroupMemberWithAICostControl | null>(null);
 
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
+	const aibridgeVisible =
+		useFeatureVisibility().aibridge &&
+		experiments.includes("ai-gateway-cost-control");
 	// Spend resets at period_end, rendered in the viewer's local time.
-	const { visible: aibridgeVisible, aiSpend } = useAIBudgetVisible();
+	const { data: aiSpend } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
 	const { data: groupBudget } = useQuery({
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
