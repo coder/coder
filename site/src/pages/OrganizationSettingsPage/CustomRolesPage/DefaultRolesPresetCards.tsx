@@ -5,14 +5,25 @@ import type { AssignableRoles } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 
 const workspaceAccessRoleName = "organization-workspace-access";
+const aiGatewayAccessRoleName = "organization-ai-gateway-access";
 
 type DefaultRolesPreset = "workspace" | "gateway" | "custom";
 
+const rolesMatch = (
+	roles: readonly string[],
+	expected: readonly string[],
+): boolean => {
+	return (
+		roles.length === expected.length &&
+		expected.every((role) => roles.includes(role))
+	);
+};
+
 const presetForRoles = (roles: readonly string[]): DefaultRolesPreset => {
-	if (roles.length === 0) {
+	if (rolesMatch(roles, [aiGatewayAccessRoleName])) {
 		return "gateway";
 	}
-	if (roles.length === 1 && roles[0] === workspaceAccessRoleName) {
+	if (rolesMatch(roles, [workspaceAccessRoleName, aiGatewayAccessRoleName])) {
 		return "workspace";
 	}
 	return "custom";
@@ -52,13 +63,13 @@ export const DefaultRolesPresetCards: FC<DefaultRolesPresetCardsProps> = ({
 				disabled={disabled}
 				onSelect={() => {
 					if (preset !== "gateway") {
-						onSelectRoles([]);
+						onSelectRoles([aiGatewayAccessRoleName]);
 					}
 				}}
 			/>
 			<PresetCard
 				name="Workspace"
-				description="Members receive full workspace permissions: create, connect to, start, and stop workspaces."
+				description="Members receive full workspace permissions (create, connect to, start, and stop workspaces) and can use the AI Gateway."
 				note={{
 					text: "Every user added to this organization counts as a license seat.",
 					tone: "cost",
@@ -67,7 +78,7 @@ export const DefaultRolesPresetCards: FC<DefaultRolesPresetCardsProps> = ({
 				disabled={disabled}
 				onSelect={() => {
 					if (preset !== "workspace") {
-						onSelectRoles([workspaceAccessRoleName]);
+						onSelectRoles([workspaceAccessRoleName, aiGatewayAccessRoleName]);
 					}
 				}}
 			/>

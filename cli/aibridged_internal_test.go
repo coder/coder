@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -53,7 +55,7 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 // (providers, outcomes) the embedded reloader would observe.
 func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	t.Helper()
-	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", cfg, nil, nil, agplaiseats.Noop{})
+	srv, err := aibridgedserver.NewServer(ctx, db, rbac.NewCachingAuthorizer(prometheus.NewRegistry()), logger, "/", cfg, nil, nil, agplaiseats.Noop{})
 	if err != nil {
 		return nil, nil, err
 	}

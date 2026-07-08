@@ -5779,7 +5779,10 @@ func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.In
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
-	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
+	// AnyOrganization matches AIBridgeInterception.RBACObject: creation is
+	// authorized by member-scoped perms (organization-ai-gateway-access) in
+	// any organization the initiator belongs to.
+	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error) {

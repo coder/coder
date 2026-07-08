@@ -937,7 +937,12 @@ func (s UserSecret) RBACObject() rbac.Object {
 }
 
 func (s AIBridgeInterception) RBACObject() rbac.Object {
-	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
+	// Interceptions have no organization column, so the object is scoped
+	// to any organization. Create/update flow through the member-scoped
+	// perms of the organization-ai-gateway-access role, which authorize
+	// holders in any org they belong to; reads flow through site-level
+	// roles (auditor, owner).
+	return rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(s.InitiatorID.String())
 }
 
 // WorkspaceIdentity contains the minimal workspace fields needed for agent API metadata/stats reporting

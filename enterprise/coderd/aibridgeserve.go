@@ -137,6 +137,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	srv, err := aibridgedserver.NewServer(
 		connCtx,
 		api.Database,
+		api.AGPL.Options.Authorizer,
 		logger,
 		api.AccessURL.String(),
 		api.DeploymentValues.AI.BridgeConfig,
