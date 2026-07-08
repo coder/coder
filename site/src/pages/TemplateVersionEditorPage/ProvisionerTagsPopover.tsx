@@ -49,6 +49,10 @@ export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
 							// lg:flex-col counters the default FormContext
 							// direction ("horizontal") which adds lg:flex-row.
 							root: "flex-col lg:flex-col gap-4 lg:gap-4",
+							// The horizontal direction also adds lg:sticky, which
+							// pins the title to the viewport inside the popover and
+							// overlaps the tag fields.
+							sectionInfo: "lg:static",
 						}}
 						title="Provisioner Tags"
 						description={
