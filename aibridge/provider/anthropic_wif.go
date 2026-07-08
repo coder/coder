@@ -5,10 +5,13 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	anthropiccfg "github.com/anthropics/anthropic-sdk-go/config"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/config"
@@ -21,6 +24,11 @@ import (
 // requests from racing the token's expiry in flight.
 const wifTokenRefreshMargin = time.Minute
 
+// wifExchangeTimeout bounds a single token exchange, covering both the
+// identity-token read and the HTTP call. The exchange runs detached from
+// any single waiter's context, so this is its only deadline.
+const wifExchangeTimeout = 30 * time.Second
+
 // wifTokenSource exchanges an OIDC identity token for a short-lived
 // Anthropic access token and caches it until it approaches expiry. It
 // authenticates both the bridged /v1/messages path and the passthrough
@@ -32,6 +40,7 @@ type wifTokenSource struct {
 	cfg     config.AnthropicWIF
 	baseURL string
 	clock   quartz.Clock
+	group   singleflight.Group
 
 	mu    sync.Mutex
 	token string
@@ -46,14 +55,50 @@ func newWIFTokenSource(cfg config.AnthropicWIF, baseURL string) *wifTokenSource 
 
 // Token returns a valid access token, re-exchanging the identity token when
 // no token is cached or the cached one is within wifTokenRefreshMargin of
-// expiry. The lock is held across the exchange so concurrent requests do
-// not stampede the token endpoint.
+// expiry. Concurrent refreshes collapse into one shared exchange, so a
+// token-endpoint outage costs a single in-flight attempt at a time rather
+// than a serial convoy, and every waiter still honors its own context.
 func (s *wifTokenSource) Token(ctx context.Context) (string, error) {
+	if tok, ok := s.cached(); ok {
+		return tok, nil
+	}
+	ch := s.group.DoChan("exchange", func() (any, error) {
+		// Re-check under the flight: a refresh that completed between the
+		// cache miss and joining the flight already stored a fresh token.
+		if tok, ok := s.cached(); ok {
+			return tok, nil
+		}
+		// Detach from the initiating waiter's context so its cancellation
+		// cannot fail the exchange for the other waiters sharing it.
+		exCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), wifExchangeTimeout)
+		defer cancel()
+		return s.exchange(exCtx)
+	})
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return "", res.Err
+		}
+		tok, _ := res.Val.(string)
+		return tok, nil
+	}
+}
+
+// cached returns the stored token when it is present and not within the
+// refresh margin of its expiry.
+func (s *wifTokenSource) cached() (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.token != "" && (s.expiresAt.IsZero() || s.expiresAt.Sub(s.clock.Now()) > wifTokenRefreshMargin) {
-		return s.token, nil
+		return s.token, true
 	}
+	return "", false
+}
+
+// exchange performs one identity-token exchange and stores the result.
+func (s *wifTokenSource) exchange(ctx context.Context) (string, error) {
 	jwt, err := s.cfg.IdentityToken(ctx)
 	if err != nil {
 		return "", xerrors.Errorf("get WIF identity token: %w", err)
@@ -70,6 +115,8 @@ func (s *wifTokenSource) Token(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", xerrors.Errorf("exchange WIF identity token: %w", err)
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.token = creds.AccessToken
 	s.expiresAt = time.Time{}
 	if creds.ExpiresAt != nil {
@@ -157,3 +204,30 @@ func (t *wifAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// requireSecureWIFBaseURL rejects base URLs that would send the identity
+// assertion and minted access tokens over cleartext HTTP. Loopback hosts
+// are allowed for local development. This mirrors the check the SDK
+// applies to its own token exchange; an empty base URL means the SDK
+// default, https://api.anthropic.com.
+func requireSecureWIFBaseURL(base string) error {
+	if base == "" {
+		return nil
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return xerrors.Errorf("invalid WIF base URL %q: %w", base, err)
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" && isLoopbackHost(u.Hostname()) {
+		return nil
+	}
+	return xerrors.Errorf("refusing to send WIF credentials over non-https base URL %q", base)
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.ToLower(host)
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+}

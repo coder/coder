@@ -165,6 +165,25 @@ func TestNewAnthropic_WIF(t *testing.T) {
 		require.ErrorContains(t, err, "IdentityToken")
 	})
 
+	t.Run("RejectsCleartextBaseURL", func(t *testing.T) {
+		t.Parallel()
+
+		// WIF sends the identity assertion and access tokens in requests
+		// to the base URL; a non-loopback http scheme must fail at
+		// construction rather than leak credentials over cleartext.
+		_, err := NewAnthropic(context.Background(), config.Anthropic{
+			BaseURL: "http://proxy.example/api",
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+				IdentityToken: func(context.Context) (string, error) {
+					return "jwt", nil
+				},
+			},
+		}, nil)
+		require.ErrorContains(t, err, "non-https")
+	})
+
 	t.Run("ResolvesWIFCredential", func(t *testing.T) {
 		t.Parallel()
 

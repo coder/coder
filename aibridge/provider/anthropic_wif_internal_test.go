@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -286,6 +287,134 @@ func TestWIFTokenSource_RefreshMargin(t *testing.T) {
 		source.invalidate("tok-older")
 		assert.Equal(t, "tok-current", source.token)
 	})
+}
+
+type wifTokenResult struct {
+	tok string
+	err error
+}
+
+// newBlockingTokenEndpoint serves exchanges that block until release is
+// closed, so tests can hold an exchange in flight deterministically. The
+// entered channel closes when the first exchange arrives.
+func newBlockingTokenEndpoint(t *testing.T) (srv *httptest.Server, exchanges *atomic.Int64, entered <-chan struct{}, doRelease func()) {
+	t.Helper()
+	var count atomic.Int64
+	enteredCh := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	doRelease = func() { releaseOnce.Do(func() { close(release) }) }
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if count.Add(1) == 1 {
+			close(enteredCh)
+		}
+		<-release
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "tok-shared",
+			"token_type":   "Bearer",
+			"expires_in":   3600,
+		})
+	}))
+	// Cleanups run LIFO: unblock any in-flight handler before the server
+	// closes so Close cannot hang.
+	t.Cleanup(srv.Close)
+	t.Cleanup(doRelease)
+	return srv, &count, enteredCh, doRelease
+}
+
+func TestWIFTokenSource_SingleFlight(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ConcurrentRefreshesShareOneExchange", func(t *testing.T) {
+		t.Parallel()
+		srv, exchanges, entered, doRelease := newBlockingTokenEndpoint(t)
+		source := newTestWIFSource(t, srv.URL)
+		ctx := context.Background()
+
+		aCh := make(chan wifTokenResult, 1)
+		go func() {
+			tok, err := source.Token(ctx)
+			aCh <- wifTokenResult{tok, err}
+		}()
+		<-entered
+
+		// The exchange is now held in flight; a second caller must share
+		// it (or, if it arrives after completion, hit the cache) instead
+		// of starting its own.
+		bCh := make(chan wifTokenResult, 1)
+		go func() {
+			tok, err := source.Token(ctx)
+			bCh <- wifTokenResult{tok, err}
+		}()
+
+		doRelease()
+		a, b := <-aCh, <-bCh
+		require.NoError(t, a.err)
+		require.NoError(t, b.err)
+		assert.Equal(t, "tok-shared", a.tok)
+		assert.Equal(t, "tok-shared", b.tok)
+		assert.EqualValues(t, 1, exchanges.Load(), "concurrent refreshes must not each hit the token endpoint")
+	})
+
+	t.Run("CanceledWaiterReturnsEarly", func(t *testing.T) {
+		t.Parallel()
+		srv, exchanges, entered, doRelease := newBlockingTokenEndpoint(t)
+		source := newTestWIFSource(t, srv.URL)
+
+		ctxA, cancelA := context.WithCancel(context.Background())
+		defer cancelA()
+		aCh := make(chan wifTokenResult, 1)
+		go func() {
+			tok, err := source.Token(ctxA)
+			aCh <- wifTokenResult{tok, err}
+		}()
+		<-entered
+
+		// The waiter's cancellation must release it immediately even
+		// though the exchange is still blocked in flight.
+		cancelA()
+		a := <-aCh
+		require.ErrorIs(t, a.err, context.Canceled)
+
+		// The detached exchange survives the canceled waiter and caches
+		// its token for later callers.
+		doRelease()
+		tok, err := source.Token(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, "tok-shared", tok)
+		assert.EqualValues(t, 1, exchanges.Load(), "the exchange the canceled waiter started must be reused")
+	})
+}
+
+func TestRequireSecureWIFBaseURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		base        string
+		errContains string
+	}{
+		{name: "empty defaults to https", base: ""},
+		{name: "https allowed", base: "https://proxy.example/api"},
+		{name: "loopback http allowed", base: "http://localhost:8080"},
+		{name: "loopback ipv4 allowed", base: "http://127.0.0.1:8080"},
+		{name: "cleartext http rejected", base: "http://proxy.example/api", errContains: "non-https"},
+		{name: "unknown scheme rejected", base: "ftp://proxy.example", errContains: "non-https"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := requireSecureWIFBaseURL(tc.base)
+			if tc.errContains == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.errContains)
+		})
+	}
 }
 
 func TestAnthropic_WrapPassthroughTransport(t *testing.T) {

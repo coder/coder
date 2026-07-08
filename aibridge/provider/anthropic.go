@@ -101,6 +101,9 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 		if cfg.WIF.IdentityToken == nil {
 			return nil, xerrors.New("WIF config requires an IdentityToken source")
 		}
+		if err := requireSecureWIFBaseURL(cfg.BaseURL); err != nil {
+			return nil, err
+		}
 		// One token source serves both the bridged and passthrough paths,
 		// sharing its exchange cache. The SDK's own federation option is
 		// not used: its middleware derives the token-exchange URL from the
