@@ -87,7 +87,7 @@ func TestWIFPassthroughTransport(t *testing.T) {
 		srv, exchanges := newFakeTokenEndpoint(t)
 
 		var seen []*http.Request
-		transport := &wifPassthroughTransport{
+		transport := &wifAuthTransport{
 			source: newTestWIFSource(t, srv.URL),
 			inner: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				seen = append(seen, r)
@@ -117,7 +117,7 @@ func TestWIFPassthroughTransport(t *testing.T) {
 		srv, _ := newFakeTokenEndpoint(t)
 
 		var seen *http.Request
-		transport := &wifPassthroughTransport{
+		transport := &wifAuthTransport{
 			source: newTestWIFSource(t, srv.URL),
 			inner: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				seen = r
@@ -143,7 +143,7 @@ func TestWIFPassthroughTransport(t *testing.T) {
 		srv, exchanges := newFakeTokenEndpoint(t)
 
 		var seen *http.Request
-		transport := &wifPassthroughTransport{
+		transport := &wifAuthTransport{
 			source: newTestWIFSource(t, srv.URL),
 			inner: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				seen = r
@@ -168,7 +168,7 @@ func TestWIFPassthroughTransport(t *testing.T) {
 
 		var tokens []string
 		var bodies []string
-		transport := &wifPassthroughTransport{
+		transport := &wifAuthTransport{
 			source: newTestWIFSource(t, srv.URL),
 			inner: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 				tokens = append(tokens, r.Header.Get("Authorization"))
@@ -209,7 +209,7 @@ func TestWIFPassthroughTransport(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		var calls int
-		transport := &wifPassthroughTransport{
+		transport := &wifAuthTransport{
 			source: newTestWIFSource(t, srv.URL),
 			inner: roundTripFunc(func(*http.Request) (*http.Response, error) {
 				calls++
@@ -312,6 +312,6 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 			},
 		}, nil)
 		wrapped := p.WrapPassthroughTransport(inner)
-		assert.IsType(t, &wifPassthroughTransport{}, wrapped)
+		assert.IsType(t, &wifAuthTransport{}, wrapped)
 	})
 }

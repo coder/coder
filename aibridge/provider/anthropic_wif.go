@@ -22,10 +22,12 @@ import (
 const wifTokenRefreshMargin = time.Minute
 
 // wifTokenSource exchanges an OIDC identity token for a short-lived
-// Anthropic access token and caches it until it approaches expiry. The
-// bridged /v1/messages path gets the same behavior from the SDK's auth
-// middleware; this source exists for the passthrough reverse proxy, which
-// performs raw HTTP requests outside the SDK request pipeline.
+// Anthropic access token and caches it until it approaches expiry. It
+// authenticates both the bridged /v1/messages path and the passthrough
+// reverse proxy. The SDK's own WIF middleware is not used because it
+// derives the token-exchange URL from the request's scheme and host only,
+// which breaks providers configured with a path-bearing base URL (e.g.
+// https://proxy.example/api); exchanges here use the full base URL.
 type wifTokenSource struct {
 	cfg     config.AnthropicWIF
 	baseURL string
@@ -88,23 +90,25 @@ func (s *wifTokenSource) invalidate(used string) {
 	}
 }
 
-// wifPassthroughTransport injects a federation access token into
-// centralized passthrough requests. Requests that already carry upstream
-// credentials pass through unchanged: BYOK requests arrive with their own
-// headers, and when the provider also has a key pool the enclosing
-// key-failover transport injects a key before this transport runs.
-type wifPassthroughTransport struct {
+// wifAuthTransport injects a federation access token into centralized
+// requests. Requests that already carry upstream credentials pass through
+// unchanged: BYOK requests arrive with their own headers, and when the
+// provider also has a key pool the key injection runs before this
+// transport. It serves both the passthrough reverse proxy (wrapping the
+// proxy transport) and, adapted into an SDK middleware in NewAnthropic,
+// the bridged SDK request pipeline.
+type wifAuthTransport struct {
 	inner  http.RoundTripper
 	source *wifTokenSource
 }
 
-func (t *wifPassthroughTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *wifAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Header.Get(intercept.AuthHeaderXAPIKey) != "" || req.Header.Get(intercept.AuthHeaderAuthorization) != "" {
 		return t.inner.RoundTrip(req)
 	}
 
-	// Buffer the body so a single 401 retry can replay it. Passthrough
-	// bodies are bounded by the bridge's request size limit.
+	// Buffer the body so a single 401 retry can replay it. Bodies are
+	// bounded by the bridge's request size limit.
 	var body []byte
 	if req.Body != nil {
 		var err error
@@ -149,3 +153,7 @@ func (t *wifPassthroughTransport) RoundTrip(req *http.Request) (*http.Response, 
 	_ = resp.Body.Close()
 	return attempt(fresh)
 }
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

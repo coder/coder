@@ -119,8 +119,9 @@ func (b *BedrockRuntime) ResolvedSmallFastModel() string {
 }
 
 // WIFRuntime carries pre-built SDK options for Anthropic Workload
-// Identity Federation. The SDK handles token exchange, caching, and
-// refresh internally.
+// Identity Federation. The options install aibridge's own auth
+// middleware, whose token source performs path-aware exchanges,
+// caching, and refresh.
 type WIFRuntime struct {
 	// Opts are the SDK request options that enable WIF authentication.
 	Opts []option.RequestOption
