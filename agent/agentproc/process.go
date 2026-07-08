@@ -3,6 +3,7 @@ package agentproc
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"sync"
@@ -34,6 +35,18 @@ var (
 	exitedProcessReapAge = 60 * time.Minute
 )
 
+// tokenEntry tracks the process that owns an idempotency token.
+// A reservation is inserted under the manager lock before the
+// owning start drops it, so a concurrent start with the same
+// token waits on done instead of spawning a duplicate. done is
+// closed when the owning start completes; procID is set on
+// success and err on failure.
+type tokenEntry struct {
+	procID string
+	err    error
+	done   chan struct{}
+}
+
 // process represents a running or completed process.
 type process struct {
 	mu         sync.Mutex
@@ -41,6 +54,7 @@ type process struct {
 	command    string
 	workDir    string
 	background bool
+	env        map[string]string
 	chatID     string
 	// tokenKey is the manager token-index key this process was
 	// started under, or empty when no idempotency token was
@@ -88,11 +102,12 @@ type manager struct {
 	fs     afero.Fs
 	clock  quartz.Clock
 	procs  map[string]*process
-	// tokens maps a chat-scoped idempotency token key to the ID
-	// of the process it started, so retried start requests
-	// attach to the existing process instead of spawning a
-	// duplicate. Entries are freed when the process is reaped.
-	tokens     map[string]string
+	// tokens maps a chat-scoped idempotency token key to the
+	// entry of the process it started (or is starting), so
+	// retried start requests attach to the existing process
+	// instead of spawning a duplicate. Entries are freed when
+	// the process is reaped.
+	tokens     map[string]*tokenEntry
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
@@ -113,7 +128,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		fs:         fs,
 		clock:      quartz.NewReal(),
 		procs:      make(map[string]*process),
-		tokens:     make(map[string]string),
+		tokens:     make(map[string]*tokenEntry),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
@@ -141,26 +156,55 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		tokenKey = chatID + "\x00" + req.ClientToken
 	}
 
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return nil, false, xerrors.New("manager is closed")
-	}
-	// Sweep exited processes on start as well as on list so the
-	// token index cannot grow unbounded between list calls.
-	m.reapExitedLocked(m.clock.Now())
-	if tokenKey != "" {
-		if existingID, ok := m.tokens[tokenKey]; ok {
-			existing := m.procs[existingID]
-			if existing.command != req.Command || existing.workDir != workDir || existing.background != req.Background {
-				m.mu.Unlock()
-				return nil, false, errClientTokenMismatch
-			}
+	var reserved *tokenEntry
+	for {
+		m.mu.Lock()
+		if m.closed {
 			m.mu.Unlock()
-			return existing, true, nil
+			return nil, false, xerrors.New("manager is closed")
 		}
+		// Sweep exited processes on start as well as on list so
+		// the token index cannot grow unbounded between list
+		// calls.
+		m.reapExitedLocked(m.clock.Now())
+		if tokenKey == "" {
+			m.mu.Unlock()
+			break
+		}
+		entry, ok := m.tokens[tokenKey]
+		if !ok {
+			// Reserve the token before dropping the lock so a
+			// concurrent start with the same token waits for
+			// this attempt instead of spawning a duplicate.
+			reserved = &tokenEntry{done: make(chan struct{})}
+			m.tokens[tokenKey] = reserved
+			m.mu.Unlock()
+			break
+		}
+		m.mu.Unlock()
+
+		// Another start owns this token. Wait for it to finish
+		// and attach to its process.
+		<-entry.done
+		m.mu.Lock()
+		if entry.err != nil {
+			// The owning start failed and released the token.
+			// Retry the reservation.
+			m.mu.Unlock()
+			continue
+		}
+		existing, ok := m.procs[entry.procID]
+		m.mu.Unlock()
+		if !ok {
+			// The process was reaped after the owning start
+			// finished. Retry the reservation.
+			continue
+		}
+		if existing.command != req.Command || existing.workDir != workDir || existing.background != req.Background || !maps.Equal(existing.env, req.Env) {
+			return nil, false, errClientTokenMismatch
+		}
+		return existing, true, nil
 	}
-	m.mu.Unlock()
 
 	id := uuid.New().String()
 	logger := m.logger
@@ -218,7 +262,9 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 
 	if err := cmd.Start(); err != nil {
 		cancel()
-		return nil, false, xerrors.Errorf("start process: %w", err)
+		err = xerrors.Errorf("start process: %w", err)
+		m.releaseToken(tokenKey, reserved, err)
+		return nil, false, err
 	}
 
 	now := m.clock.Now().Unix()
@@ -227,6 +273,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		command:    req.Command,
 		workDir:    cmd.Dir,
 		background: req.Background,
+		env:        req.Env,
 		chatID:     chatID,
 		tokenKey:   tokenKey,
 		cmd:        cmd,
@@ -240,16 +287,23 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 
 	m.mu.Lock()
 	if m.closed {
+		err := xerrors.New("manager is closed")
+		if reserved != nil {
+			reserved.err = err
+			delete(m.tokens, tokenKey)
+			close(reserved.done)
+		}
 		m.mu.Unlock()
 		// Manager closed between our check and now. Kill the
 		// process we just started.
 		cancel()
 		_ = cmd.Wait()
-		return nil, false, xerrors.New("manager is closed")
+		return nil, false, err
 	}
 	m.procs[id] = proc
-	if tokenKey != "" {
-		m.tokens[tokenKey] = id
+	if reserved != nil {
+		reserved.procID = id
+		close(reserved.done)
 	}
 	m.mu.Unlock()
 
@@ -287,6 +341,20 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	}()
 
 	return proc, false, nil
+}
+
+// releaseToken frees a token reservation after a failed start so
+// waiters retry the reservation instead of attaching to nothing.
+// It is a no-op when no token was reserved.
+func (m *manager) releaseToken(tokenKey string, reserved *tokenEntry, err error) {
+	if reserved == nil {
+		return
+	}
+	m.mu.Lock()
+	reserved.err = err
+	delete(m.tokens, tokenKey)
+	close(reserved.done)
+	m.mu.Unlock()
 }
 
 // get returns a process by ID.

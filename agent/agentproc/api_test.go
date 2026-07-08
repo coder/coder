@@ -598,6 +598,25 @@ func TestStartProcessClientToken(t *testing.T) {
 		require.Equal(t, http.StatusConflict, w2.Code)
 	})
 
+	t.Run("SameTokenDifferentEnvConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			Env:         map[string]string{"FOO": "bar"},
+			ClientToken: "tok-1",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w2 := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			Env:         map[string]string{"FOO": "baz"},
+			ClientToken: "tok-1",
+		})
+		require.Equal(t, http.StatusConflict, w2.Code)
+	})
+
 	t.Run("SameTokenDifferentChatsIsolated", func(t *testing.T) {
 		t.Parallel()
 
