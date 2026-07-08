@@ -238,3 +238,100 @@ func TestTemplateBuilderModules(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
+
+func TestTemplateBuilderSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WizardEntry", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("ComposeCompletion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType:       codersdk.TemplateBuilderSessionEventComposeCompletion,
+			BaseTemplateID:  "docker",
+			ModuleIDs:       []string{"code-server", "git-clone"},
+			DurationSeconds: 42.5,
+			Success:         true,
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("InvalidEventType", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: "invalid_event",
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("DisabledReturns404", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.TemplateBuilder.Disabled = true
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("MemberCannotSubmit", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := memberClient.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}

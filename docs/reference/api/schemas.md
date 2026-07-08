@@ -12614,6 +12614,50 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
 | `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
 
+## codersdk.TemplateBuilderSessionEventType
+
+```json
+"wizard_entry"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                             |
+|--------------------------------------|
+| `compose_completion`, `wizard_entry` |
+
+## codersdk.TemplateBuilderSessionRequest
+
+```json
+{
+  "base_template_id": "string",
+  "duration_seconds": 0,
+  "event_type": "wizard_entry",
+  "module_ids": [
+    "string"
+  ],
+  "success": true
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                               | false    |              |             |
+| `duration_seconds` | number                                                                               | false    |              |             |
+| `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
+| `module_ids`       | array of string                                                                      | false    |              |             |
+| `success`          | boolean                                                                              | false    |              |             |
+
+#### Enumerated Values
+
+| Property     | Value(s)                             |
+|--------------|--------------------------------------|
+| `event_type` | `compose_completion`, `wizard_entry` |
+
 ## codersdk.TemplateBuilderVariableType
 
 ```json

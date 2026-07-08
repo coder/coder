@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
@@ -650,4 +651,44 @@ func (api *API) waitForProvisionerJob(
 			return job, nil
 		}
 	}
+}
+
+// @Summary Report a template builder session event
+// @ID report-template-builder-session-event
+// @Security CoderSessionToken
+// @Accept json
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderSessionRequest true "Session event"
+// @Success 204
+// @Router /api/v2/templatebuilder/sessions [post]
+func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.TemplateBuilderSessionRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
+			{
+				ID:              uuid.New(),
+				EventType:       string(req.EventType),
+				UserID:          apiKey.UserID,
+				BaseTemplateID:  req.BaseTemplateID,
+				ModuleIDs:       req.ModuleIDs,
+				DurationSeconds: req.DurationSeconds,
+				Success:         req.Success,
+				CreatedAt:       dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
 }

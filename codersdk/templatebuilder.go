@@ -150,6 +150,39 @@ type TemplateBuilderCreateTemplateResponse struct {
 	Template Template `json:"template"`
 }
 
+// TemplateBuilderSessionEventType enumerates the event types for
+// template builder session telemetry.
+type TemplateBuilderSessionEventType string
+
+const (
+	TemplateBuilderSessionEventWizardEntry       TemplateBuilderSessionEventType = "wizard_entry"
+	TemplateBuilderSessionEventComposeCompletion TemplateBuilderSessionEventType = "compose_completion"
+)
+
+// TemplateBuilderSessionRequest is the request body for
+// POST /api/v2/templatebuilder/sessions.
+type TemplateBuilderSessionRequest struct {
+	EventType       TemplateBuilderSessionEventType `json:"event_type" validate:"required,oneof=wizard_entry compose_completion"`
+	BaseTemplateID  string                          `json:"base_template_id,omitempty"`
+	ModuleIDs       []string                        `json:"module_ids,omitempty"`
+	DurationSeconds float64                         `json:"duration_seconds,omitempty"`
+	Success         bool                            `json:"success,omitempty"`
+}
+
+// TemplateBuilderSession reports a template builder session event for
+// telemetry purposes.
+func (c *Client) TemplateBuilderSession(ctx context.Context, req TemplateBuilderSessionRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/templatebuilder/sessions", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // TemplateBuilderCreateTemplate composes a template from a base and modules,
 // validates it via a provisioner import job, and creates the template.
 func (c *Client) TemplateBuilderCreateTemplate(ctx context.Context, req TemplateBuilderCreateTemplateRequest) (TemplateBuilderCreateTemplateResponse, error) {

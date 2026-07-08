@@ -7810,6 +7810,39 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templatebuilder/sessions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Report a template builder session event",
+                "operationId": "report-template-builder-session-event",
+                "parameters": [
+                    {
+                        "description": "Session event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderSessionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/templates": {
             "get": {
                 "description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
@@ -24744,6 +24777,51 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderModule"
                     }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderSessionEventType": {
+            "type": "string",
+            "enum": [
+                "wizard_entry",
+                "compose_completion"
+            ],
+            "x-enum-varnames": [
+                "TemplateBuilderSessionEventWizardEntry",
+                "TemplateBuilderSessionEventComposeCompletion"
+            ]
+        },
+        "codersdk.TemplateBuilderSessionRequest": {
+            "type": "object",
+            "required": [
+                "event_type"
+            ],
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "duration_seconds": {
+                    "type": "number"
+                },
+                "event_type": {
+                    "enum": [
+                        "wizard_entry",
+                        "compose_completion"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderSessionEventType"
+                        }
+                    ]
+                },
+                "module_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
                 }
             }
         },
