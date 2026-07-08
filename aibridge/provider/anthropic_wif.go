@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,9 +15,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/quartz"
 )
-
-// anthropicBetaHeaderName is the header carrying Anthropic beta flags.
-const anthropicBetaHeaderName = "anthropic-beta"
 
 // wifTokenRefreshMargin is how long before the cached federation token's
 // expiry a fresh exchange is performed. Refreshing early keeps passthrough
@@ -128,12 +124,7 @@ func (t *wifPassthroughTransport) RoundTrip(req *http.Request) (*http.Response, 
 		out.Header.Set(intercept.AuthHeaderAuthorization, "Bearer "+token)
 		// Bearer-token API access requires the oauth beta flag; append it
 		// without clobbering any flags the client already sent.
-		switch existing := out.Header.Get(anthropicBetaHeaderName); {
-		case existing == "":
-			out.Header.Set(anthropicBetaHeaderName, anthropiccfg.OAuthAPIBetaHeader)
-		case !strings.Contains(existing, anthropiccfg.OAuthAPIBetaHeader):
-			out.Header.Set(anthropicBetaHeaderName, existing+","+anthropiccfg.OAuthAPIBetaHeader)
-		}
+		intercept.AppendAnthropicBeta(out.Header, anthropiccfg.OAuthAPIBetaHeader)
 		return t.inner.RoundTrip(out)
 	}
 

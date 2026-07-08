@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/quartz"
 )
 
@@ -105,7 +106,7 @@ func TestWIFPassthroughTransport(t *testing.T) {
 		require.Len(t, seen, 2)
 		for _, r := range seen {
 			assert.Equal(t, "Bearer tok-1", r.Header.Get("Authorization"))
-			assert.Equal(t, anthropiccfg.OAuthAPIBetaHeader, r.Header.Get(anthropicBetaHeaderName))
+			assert.Equal(t, anthropiccfg.OAuthAPIBetaHeader, r.Header.Get(intercept.AnthropicBetaHeaderName))
 		}
 		// The second request must reuse the cached token.
 		assert.EqualValues(t, 1, exchanges.Load())
@@ -125,15 +126,15 @@ func TestWIFPassthroughTransport(t *testing.T) {
 		}
 
 		req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-		req.Header.Set(anthropicBetaHeaderName, "token-counting-2024-11-01")
+		req.Header.Set(intercept.AnthropicBetaHeaderName, "token-counting-2024-11-01")
 		resp, err := transport.RoundTrip(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 
 		assert.Equal(t, "token-counting-2024-11-01,"+anthropiccfg.OAuthAPIBetaHeader,
-			seen.Header.Get(anthropicBetaHeaderName))
+			seen.Header.Get(intercept.AnthropicBetaHeaderName))
 		// The caller's request must not be mutated.
-		assert.Equal(t, "token-counting-2024-11-01", req.Header.Get(anthropicBetaHeaderName))
+		assert.Equal(t, "token-counting-2024-11-01", req.Header.Get(intercept.AnthropicBetaHeaderName))
 		assert.Empty(t, req.Header.Get("Authorization"))
 	})
 

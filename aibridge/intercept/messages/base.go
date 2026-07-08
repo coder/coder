@@ -13,6 +13,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/bedrock"
+	anthropiccfg "github.com/anthropics/anthropic-sdk-go/config"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
@@ -310,8 +311,16 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
+		_, wifCred := i.cred.(intercept.AnthropicWIF)
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			// Rebuilding from the client headers drops the OAuth beta flag
+			// the SDK's WIF auth middleware appended to anthropic-beta.
+			// Re-append it: the API rejects bearer-token requests without
+			// the flag.
+			if wifCred {
+				intercept.AppendAnthropicBeta(req.Header, anthropiccfg.OAuthAPIBetaHeader)
+			}
 			return next(req)
 		}))
 	}
