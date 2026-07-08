@@ -1472,23 +1472,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatHeartbeats(gomock.Any(), arg).Return([]uuid.UUID{resultID}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]uuid.UUID{resultID})
 	}))
-	s.Run("UpdateChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
-		arg := database.UpdateChatMessageByIDParams{
-			ID:            msg.ID,
-			ModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-			Content: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(`{"blocks":[{"type":"text","text":"updated"}]}`),
-				Valid:      true,
-			},
-		}
-		updated := testutil.Fake(s.T(), faker, database.ChatMessage{ID: msg.ID, ChatID: chat.ID})
-		dbm.EXPECT().GetChatMessageByID(gomock.Any(), msg.ID).Return(msg, nil).AnyTimes()
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatMessageByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updated)
-	}))
 	s.Run("UpdateChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		arg := database.UpdateChatModelConfigParams{

@@ -7289,22 +7289,6 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
 }
 
-func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
-	// Authorize update on the parent chat of the edited message.
-	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
-	}
-	return q.db.UpdateChatMessageByID(ctx, arg)
-}
-
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatModelConfig{}, err
