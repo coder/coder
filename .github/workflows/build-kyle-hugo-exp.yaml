@@ -1,0 +1,87 @@
+name: build-kyle-hugo-exp
+
+on:
+  push:
+    branches:
+      - kyle-hugo-exp
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REPO: ghcr.io/coder/kyle-hugo-exp
+
+jobs:
+  build:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go node pnpm"
+
+      - name: Install pnpm dependencies
+        uses: ./.github/actions/pnpm-install
+
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/sqlc/cmd/sqlc
+
+      - name: GHCR Login
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Linux amd64 Docker image
+        run: |
+          set -euo pipefail
+          sha_tag="${REPO}:$(git rev-parse --short HEAD)"
+          staging_tag="${REPO}:staging"
+          go mod download
+          make gen/mark-fresh
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
+          CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          export CODER_IMAGE_BUILD_BASE_TAG
+          make -j build/coder_linux_amd64
+          ./scripts/build_docker.sh \
+            --arch amd64 \
+            --target "$sha_tag" \
+            --version "$version" \
+            --push \
+            build/coder_linux_amd64
+          docker tag "$sha_tag" "$staging_tag"
+          docker push "$staging_tag"
+          echo "Pushed ${sha_tag} and ${staging_tag}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Trigger Railway redeploy
+        run: |
+          set -euo pipefail
+          sha_tag="$(git rev-parse --short HEAD)"
+          curl -sS --fail-with-body -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"tag\": \"${sha_tag}\"}" \
+            "${{ secrets.RAILWAY_REDEPLOY_URL_HUGO_KYLE_EXP_BRANCH }}"
+          echo "Triggered Railway redeploy with tag ${sha_tag}" >> "$GITHUB_STEP_SUMMARY"
