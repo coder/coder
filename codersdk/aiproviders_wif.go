@@ -1,5 +1,7 @@
 package codersdk
 
+import "path/filepath"
+
 // AIProviderSettingsTypeWIF is the _type discriminator value for
 // AIProviderWIFSettings.
 const AIProviderSettingsTypeWIF = "wif"
@@ -47,4 +49,41 @@ func (AIProviderWIFSettings) settingsType() string {
 
 func (AIProviderWIFSettings) settingsVersion() int {
 	return AIProviderWIFSettingsVersion
+}
+
+// WIFIdentityTokenFileAllowed reports whether a WIF provider may read
+// identityTokenFile and exchange its contents against its base URL.
+//
+// The exchange posts the file contents as the OIDC assertion to the
+// provider's base URL, and provider rows are writable through the HTTP
+// API by Coder administrators who are not necessarily host
+// administrators. Without a restriction, such an administrator could
+// read any file visible to the server process and exfiltrate it to a
+// base URL they control. Only operator-controlled deployment
+// configuration can therefore bless a path: files listed in
+// CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES are allowed with any
+// base URL, so the operator accepts that administrators may direct these
+// tokens to a custom HTTPS endpoint.
+//
+// Matching is lexical on cleaned absolute paths. Allowlisted paths are
+// assumed to live on an operator-controlled filesystem, so symlink
+// swaps are outside the threat model and symlinks are not resolved.
+func (c AIBridgeConfig) WIFIdentityTokenFileAllowed(identityTokenFile, _ string) bool {
+	if identityTokenFile == "" {
+		return false
+	}
+	cleaned := filepath.Clean(identityTokenFile)
+	if !filepath.IsAbs(cleaned) {
+		return false
+	}
+	for _, allowed := range c.WIFAllowedIdentityTokenFiles.Value() {
+		if allowed == "" {
+			continue
+		}
+		cleanedAllowed := filepath.Clean(allowed)
+		if filepath.IsAbs(cleanedAllowed) && cleanedAllowed == cleaned {
+			return true
+		}
+	}
+	return false
 }

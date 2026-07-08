@@ -183,6 +183,18 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The daemon reads the WIF identity token file and posts its
+	// contents to the provider's base URL during token exchange, so
+	// only paths blessed by deployment configuration may be referenced;
+	// see codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed.
+	if req.Settings.WIF != nil &&
+		!api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(req.Settings.WIF.IdentityTokenFile, req.BaseURL) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: wifUntrustedIdentityTokenFileMessage,
+		})
+		return
+	}
+
 	// Generate the server-owned external ID when the provider assumes a role.
 	ensureBedrockExternalID(&req.Settings)
 
@@ -360,6 +372,14 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			if verrs := codersdk.ValidateAIProviderWIFBaseURL(ptr.NilToDefault(req.BaseURL, old.BaseUrl)); len(verrs) > 0 {
 				return errWIFCleartextBaseURL
 			}
+			// The post-merge (token file, base URL) pair must be blessed
+			// by deployment configuration; see
+			// codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed. This
+			// covers patches that introduce WIF settings, change the
+			// token file, or repoint the base URL of a WIF provider.
+			if !api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
+				return errWIFUntrustedIdentityTokenFile
+			}
 		}
 		// Generate the server-owned external ID when the provider assumes a role
 		// and lacks one.
@@ -478,6 +498,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errWIFCleartextBaseURL) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "WIF providers require an https base_url; http is allowed for loopback hosts only.",
+		})
+		return
+	}
+	if errors.Is(err, errWIFUntrustedIdentityTokenFile) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: wifUntrustedIdentityTokenFileMessage,
 		})
 		return
 	}
@@ -619,6 +645,20 @@ var errWIFLeavesExistingKeys = xerrors.New("wif providers must clear existing ap
 // 400. The daemon refuses to build such a provider, so storing it
 // would strand a provider that never serves traffic.
 var errWIFCleartextBaseURL = xerrors.New("wif providers require an https base_url")
+
+// errWIFUntrustedIdentityTokenFile is the sentinel returned from inside
+// the update transaction when the post-merge state pairs WIF settings
+// with an identity token file the deployment configuration does not
+// bless; the outer handler translates it into a 400. The daemon refuses
+// to read such a file, so storing the row would both strand the
+// provider and normalize a config shape that could exfiltrate
+// server-readable files.
+var errWIFUntrustedIdentityTokenFile = xerrors.New("wif identity_token_file is not allowed by deployment configuration")
+
+// wifUntrustedIdentityTokenFileMessage is the client-facing message for
+// errWIFUntrustedIdentityTokenFile, shared by the create and update
+// handlers.
+const wifUntrustedIdentityTokenFileMessage = "WIF identity_token_file is not allowed by deployment configuration; the deployment operator must list it in CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES."
 
 // errAIProviderExternalIDReadOnly is the sentinel returned from inside
 // the update transaction when a patch tries to change the server-owned

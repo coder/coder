@@ -20,6 +20,17 @@ import (
 	"github.com/coder/serpent"
 )
 
+// wifTrustedOptions returns coderdtest options whose deployment
+// configuration allowlists the given WIF identity token files, mirroring
+// an operator setting CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES.
+// API-created WIF providers referencing other paths are rejected.
+func wifTrustedOptions(t *testing.T, files ...string) *coderdtest.Options {
+	t.Helper()
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.WIFAllowedIdentityTokenFiles = serpent.StringArray(files)
+	return &coderdtest.Options{DeploymentValues: dv}
+}
+
 // keyIDs extracts the IDs from a slice of AIProviderKey responses, in
 // order, to make assertions on key-set membership easier to read.
 func keyIDs(keys []codersdk.AIProviderKey) []uuid.UUID {
@@ -422,7 +433,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		// discriminator are still rejected (see codersdk
 		// TestAIProviderSettings_Unmarshal), so a typo'd payload cannot
 		// be mistaken for a clear.
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -684,7 +695,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("WIFSettingsLifecycle", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -814,7 +825,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		// A WIF provider must never pair with a non-loopback http base
 		// URL: aibridged refuses to build it, so the API rejects the
 		// combination however it is reached.
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -884,6 +895,158 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "https base_url")
+	})
+
+	t.Run("WIFUntrustedIdentityTokenFile", func(t *testing.T) {
+		t.Parallel()
+
+		wifWithFile := func(file string) codersdk.AIProviderSettings {
+			return codersdk.AIProviderSettings{WIF: &codersdk.AIProviderWIFSettings{
+				FederationRuleID:  "fdrl_untrusted",
+				OrganizationID:    "00000000-0000-0000-0000-000000000001",
+				IdentityTokenFile: file,
+			}}
+		}
+
+		t.Run("RejectedByDefault", func(t *testing.T) {
+			t.Parallel()
+			// Without operator opt-in, an API-created WIF provider could
+			// point the daemon at any server-readable file and exfiltrate
+			// its contents to the configured base URL.
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			var sdkErr *codersdk.Error
+			//nolint:gocritic // Owner role is the audience for this endpoint.
+			_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeAnthropic,
+				Name:     "wif-untrusted",
+				Enabled:  true,
+				BaseURL:  "https://api.anthropic.com",
+				Settings: wifWithFile("/etc/coder/secret.pem"),
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+		})
+
+		t.Run("AllowlistNormalizesPath", func(t *testing.T) {
+			t.Parallel()
+			// Matching is lexical on cleaned paths, so a dot-dot spelling
+			// of an allowlisted file is accepted while relative paths are
+			// always refused.
+			client := coderdtest.New(t, wifTrustedOptions(t, "/var/run/secrets/anthropic/token"))
+			_ = coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			//nolint:gocritic // Owner role is the audience for this endpoint.
+			_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeAnthropic,
+				Name:     "wif-normalized",
+				Enabled:  true,
+				BaseURL:  "https://api.anthropic.com",
+				Settings: wifWithFile("/var/run/secrets/anthropic/../anthropic/token"),
+			})
+			require.NoError(t, err)
+
+			var sdkErr *codersdk.Error
+			_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeAnthropic,
+				Name:     "wif-relative",
+				Enabled:  true,
+				BaseURL:  "https://api.anthropic.com",
+				Settings: wifWithFile("var/run/secrets/anthropic/token"),
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+		})
+
+		t.Run("EnvPairScoped", func(t *testing.T) {
+			t.Parallel()
+			// Env-configured providers bless their (token file, base URL)
+			// pair only: reusing the file with a different base URL would
+			// redirect the operator's identity token to a caller-chosen
+			// endpoint.
+			dv := coderdtest.DeploymentValues(t)
+			dv.AI.BridgeConfig.Providers = []codersdk.AIProviderConfig{{
+				Type:                 string(codersdk.AIProviderTypeAnthropic),
+				Name:                 "env-wif",
+				BaseURL:              "https://gateway.internal/anthropic",
+				WIFFederationRuleID:  "fdrl_env",
+				WIFOrganizationID:    "00000000-0000-0000-0000-000000000001",
+				WIFIdentityTokenFile: "/var/run/secrets/env/token",
+			}}
+			client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+			_ = coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// The exact env pair is accepted.
+			//nolint:gocritic // Owner role is the audience for this endpoint.
+			created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeAnthropic,
+				Name:     "wif-env-pair",
+				Enabled:  true,
+				BaseURL:  "https://gateway.internal/anthropic",
+				Settings: wifWithFile("/var/run/secrets/env/token"),
+			})
+			require.NoError(t, err)
+
+			// The env file with a caller-chosen base URL is refused.
+			var sdkErr *codersdk.Error
+			_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeAnthropic,
+				Name:     "wif-env-exfil",
+				Enabled:  true,
+				BaseURL:  "https://attacker.example",
+				Settings: wifWithFile("/var/run/secrets/env/token"),
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+
+			// Repointing the stored provider's base URL breaks the pair
+			// and is refused by the merged-state check.
+			_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+				BaseURL: new("https://attacker.example"),
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+		})
+
+		t.Run("PatchOntoExistingProvider", func(t *testing.T) {
+			t.Parallel()
+			// Introducing WIF settings via PATCH must pass the same check
+			// as create.
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			//nolint:gocritic // Owner role is the audience for this endpoint.
+			keyed, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeAnthropic,
+				Name:    "keyed-then-untrusted-wif",
+				Enabled: true,
+				BaseURL: "https://api.anthropic.com",
+			})
+			require.NoError(t, err)
+
+			settings := wifWithFile("/etc/coder/secret.pem")
+			var sdkErr *codersdk.Error
+			_, err = client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
+				Settings: &settings,
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+		})
 	})
 
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {

@@ -383,7 +383,10 @@ title: Schemas
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
-  "structured_logging": true
+  "structured_logging": true,
+  "wif_allowed_identity_token_files": [
+    "string"
+  ]
 }
 ```
 
@@ -407,6 +410,7 @@ title: Schemas
 | `retention`                         | integer | false    |              |                                                                                                                                                                        |
 | `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
+| `wif_allowed_identity_token_files`  | array of string                                                      | false    |              | Wif allowed identity token files lists identity token files that WIF providers managed through the HTTP API may read. See AIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust semantics. |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -985,7 +989,10 @@ title: Schemas
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
-    "structured_logging": true
+    "structured_logging": true,
+    "wif_allowed_identity_token_files": [
+      "string"
+    ]
   },
   "chat": {
     "acquire_batch_size": 0,
@@ -7263,7 +7270,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "wif_allowed_identity_token_files": [
+          "string"
+        ]
       },
       "chat": {
         "acquire_batch_size": 0,
@@ -7869,7 +7879,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
-      "structured_logging": true
+      "structured_logging": true,
+      "wif_allowed_identity_token_files": [
+        "string"
+      ]
     },
     "chat": {
       "acquire_batch_size": 0,
