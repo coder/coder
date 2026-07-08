@@ -372,12 +372,17 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// re-checks cover patches that introduce WIF settings against a
 		// stored base URL, change the token file, or repoint the base
 		// URL of a WIF provider; request validation covers patches that
-		// carry both fields. Patches that touch neither field skip the
-		// re-checks so that a deployment configuration change, such as
-		// withdrawing a file from the allowlist, does not also block
-		// unrelated patches, such as disabling the provider; the daemon
-		// independently refuses to build such a row.
-		if existing.WIF != nil && (req.Settings != nil || req.BaseURL != nil) {
+		// carry both fields. Re-enabling a disabled provider transitions
+		// it back into serving traffic, so that re-runs the checks too:
+		// saving an enabled row the daemon refuses to build would
+		// present a provider as available that never serves. Patches
+		// that trigger none of these skip the re-checks so that a
+		// deployment configuration change, such as withdrawing a file
+		// from the allowlist, does not also block unrelated patches,
+		// such as disabling the provider; the daemon independently
+		// refuses to build such a row.
+		reenabling := req.Enabled != nil && *req.Enabled && !old.Enabled
+		if existing.WIF != nil && (req.Settings != nil || req.BaseURL != nil || reenabling) {
 			if verrs := codersdk.ValidateAIProviderWIFBaseURL(ptr.NilToDefault(req.BaseURL, old.BaseUrl)); len(verrs) > 0 {
 				return errWIFCleartextBaseURL
 			}
