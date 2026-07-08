@@ -392,6 +392,8 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeWorkspaceUseShared                  APIKeyScope = "workspace:use_shared"
+	ApiKeyScopeWorkspaceDormantUseShared           APIKeyScope = "workspace_dormant:use_shared"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -666,7 +668,9 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeWorkspaceUseShared,
+		ApiKeyScopeWorkspaceDormantUseShared:
 		return true
 	}
 	return false
@@ -910,6 +914,8 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeWorkspaceUseShared,
+		ApiKeyScopeWorkspaceDormantUseShared,
 	}
 }
 

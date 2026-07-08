@@ -30,6 +30,11 @@ const (
 	ActionUpdateAgent Action = "update_agent"
 
 	ActionShare Action = "share"
+	// ActionUseShared gates access granted through workspace ACLs. A
+	// workspace ACL entry only takes effect while the subject holds this
+	// action (member-scoped) in the workspace's organization, so revoking
+	// workspace access also revokes shared access.
+	ActionUseShared Action = "use_shared"
 )
 
 type PermissionDefinition struct {
@@ -67,7 +72,8 @@ var workspaceActions = map[Action]ActionDefinition{
 	ActionUpdateAgent: "update an existing workspace agent",
 
 	// Sharing a workspace
-	ActionShare: "share a workspace with other users or groups",
+	ActionShare:     "share a workspace with other users or groups",
+	ActionUseShared: "use a workspace shared with you via ACL",
 }
 
 var taskActions = map[Action]ActionDefinition{

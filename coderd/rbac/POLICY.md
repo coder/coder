@@ -87,6 +87,32 @@ For example, you may have a scope like...
 
 The final policy decision is determined by evaluating each of these checks in their proper precedence order from the `allow` rule.
 
+## ACL use_shared precondition
+
+ACL grants on gated resource types only take effect while the subject
+holds the type's `use_shared` action at the member level in the object's
+organization (`acl_use_precondition` / `shared_use_orgs`). A resource
+type is gated if and only if it declares `use_shared` in its policy
+action set (`coderd/rbac/policy/policy.go`); the flag reaches the policy
+as the derived input field `input.object.acl_use_gated`, computed from
+the object type in Go (`rbac.ACLUseGated`), so it is known even in
+partial evaluations and no per-type rego edits are needed.
+
+Currently gated: `workspace` and `workspace_dormant`, whose `use_shared`
+capability travels with the `organization-workspace-access` role (and,
+while `MinimumImplicitMember` is off, with the elevation bundled into
+`organization-member`). Revoking a subject's workspace access roles
+therefore also revokes any access they were granted through sharing,
+evaluated live on every authorization. Org inclusion in
+`shared_use_orgs` follows standard vote semantics: a negated matching
+permission removes the org even when a positive grant exists.
+
+Types that do not declare `use_shared` (templates, chats) keep ACL-only
+grants: templates in particular rely on the Everyone-group ACL for
+baseline access. Opting a type in later requires declaring the action,
+granting it in the appropriate role, and adding the api_key_scope enum
+migration that `make lint/check-scopes` demands.
+
 ## Unknown values
 
 This policy is specifically constructed to compress to a set of queries if 'input.object.owner' and 'input.object.org_owner' are unknown. There is no specific set of rules that will guarantee that this policy has this property, however, there are some tricks. We have tests that enforce this property, so any changes that pass the tests will be okay.

@@ -437,6 +437,7 @@ var (
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
+	//  - "ActionUseShared" :: use a workspace shared with you via ACL
 	ResourceWorkspace = Object{
 		Type: "workspace",
 	}
@@ -481,6 +482,7 @@ var (
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
 	//  - "ActionUpdate" :: edit workspace settings (scheduling, permissions, parameters)
 	//  - "ActionUpdateAgent" :: update an existing workspace agent
+	//  - "ActionUseShared" :: use a workspace shared with you via ACL
 	ResourceWorkspaceDormant = Object{
 		Type: "workspace_dormant",
 	}
@@ -569,6 +571,7 @@ func AllActions() []policy.Action {
 		policy.ActionUpdateAgent,
 		policy.ActionUpdatePersonal,
 		policy.ActionUse,
+		policy.ActionUseShared,
 		policy.ActionViewInsights,
 		policy.ActionWorkspaceStart,
 		policy.ActionWorkspaceStop,

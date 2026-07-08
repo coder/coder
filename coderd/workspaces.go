@@ -2524,6 +2524,35 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
+
+	// A workspace ACL entry only takes effect while the recipient holds the
+	// workspace.use_shared capability in this organization
+	// (acl_use_precondition in the RBAC policy). Reject ineligible users at
+	// share time so shares don't silently grant nothing; access-time
+	// enforcement still applies if the capability is revoked later.
+	for idStr, role := range req.UserRoles {
+		if role == codersdk.WorkspaceRoleDeleted {
+			continue
+		}
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			// acl.Validate reports malformed IDs.
+			continue
+		}
+		subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, id, rbac.ScopeAll)
+		if err != nil {
+			// acl.Validate reports unknown users.
+			continue
+		}
+		if err := api.Authorizer.Authorize(ctx, subject, policy.ActionUseShared,
+			rbac.ResourceWorkspace.InOrg(workspace.OrganizationID).WithOwner(idStr)); err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{
+				Field:  "user_roles",
+				Detail: fmt.Sprintf("user %q does not have workspace access in this organization, so the workspace cannot be shared with them", idStr),
+			})
+		}
+	}
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update workspace ACL",

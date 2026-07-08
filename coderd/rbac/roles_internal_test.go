@@ -149,7 +149,8 @@ func TestRegoInputValue(t *testing.T) {
 			},
 			"action": action,
 			"object": map[string]any{
-				"type": obj.Type,
+				"type":          obj.Type,
+				"acl_use_gated": ACLUseGated(obj.Type),
 			},
 		}
 

@@ -263,7 +263,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_build_orchestration:create',
     'workspace_build_orchestration:delete',
     'workspace_build_orchestration:read',
-    'workspace_build_orchestration:update'
+    'workspace_build_orchestration:update',
+    'workspace:use_shared',
+    'workspace_dormant:use_shared'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
