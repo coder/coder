@@ -20,6 +20,18 @@ var ErrUnknownRoute = xerrors.New("unknown route")
 // request is not BYOK), so it cannot be authenticated.
 var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
 
+// PassthroughTransportWrapper is an optional capability for providers
+// whose passthrough requests need upstream credentials that a bearer key
+// pool cannot supply (e.g. Anthropic WIF federation tokens). The
+// passthrough router wraps its transport with it when the provider
+// implements the interface.
+type PassthroughTransportWrapper interface {
+	// WrapPassthroughTransport wraps the passthrough reverse-proxy
+	// transport with provider-specific credential injection. It returns
+	// inner unchanged when the provider needs no injection.
+	WrapPassthroughTransport(inner http.RoundTripper) http.RoundTripper
+}
+
 // Provider defines routes (bridged and passed through) for given provider.
 // Bridged routes are processed by dedicated interceptors.
 //

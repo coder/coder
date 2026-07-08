@@ -45,13 +45,21 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 	// Build the passthrough proxy, reused across all requests for this provider.
 	// Rewrite sets proxy headers. For centralized requests, KeyFailoverTransport
-	// handles auth and failover. BYOK requests pass through.
+	// handles auth and failover. Providers implementing
+	// [provider.PassthroughTransportWrapper] (e.g. Anthropic WIF) inject
+	// credentials beneath the key failover layer, which leaves requests
+	// untouched when the provider has no key pool. BYOK requests pass through.
+	inner := apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
+	var rt http.RoundTripper = inner
+	if w, ok := prov.(provider.PassthroughTransportWrapper); ok {
+		rt = w.WrapPassthroughTransport(rt)
+	}
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			rewritePassthroughRequest(pr, provBaseURL)
 		},
 		Transport: keypool.NewKeyFailoverTransport(
-			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+			rt,
 			prov.KeyFailoverConfig(logger),
 		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
