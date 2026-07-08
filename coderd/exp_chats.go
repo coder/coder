@@ -70,6 +70,8 @@ const (
 	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
+var allowedReasoningEffortValues = strings.Join(codersdk.ChatModelReasoningEffortValues(), ", ")
+
 // chatGitRef holds the branch, remote origin, and optional chat
 // ID reported by the workspace agent during a git operation.
 type chatGitRef struct {
@@ -1235,12 +1237,19 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	reasoningEffort := req.ReasoningEffort
+	if reasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*reasoningEffort) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*reasoningEffort))
+		return
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     req.OrganizationID,
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
+		ReasoningEffort:    reasoningEffort,
 		PlanMode:           planModeToNullChatPlanMode(req.PlanMode),
 		ClientType:         clientType,
 		SystemPrompt:       req.SystemPrompt,
@@ -3154,17 +3163,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		modelConfigID = *req.ModelConfigID
 	}
 
+	reasoningEffort := req.ReasoningEffort
+	if reasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*reasoningEffort) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*reasoningEffort))
+		return
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:        chatID,
-			CreatedBy:     apiKey.UserID,
-			Content:       contentBlocks,
-			ModelConfigID: modelConfigID,
-			APIKeyID:      apiKey.ID,
-			BusyBehavior:  busyBehavior,
-			PlanMode:      sendPlanMode,
-			MCPServerIDs:  req.MCPServerIDs,
+			ChatID:          chatID,
+			CreatedBy:       apiKey.UserID,
+			Content:         contentBlocks,
+			ModelConfigID:   modelConfigID,
+			ReasoningEffort: reasoningEffort,
+			APIKeyID:        apiKey.ID,
+			BusyBehavior:    busyBehavior,
+			PlanMode:        sendPlanMode,
+			MCPServerIDs:    req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {
@@ -3312,6 +3328,12 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		editModelConfigID = *req.ModelConfigID
 	}
 
+	editReasoningEffort := req.ReasoningEffort
+	if editReasoningEffort != nil && !chatprovider.IsValidReasoningEffort(*editReasoningEffort) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, invalidReasoningEffortResponse(*editReasoningEffort))
+		return
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
@@ -3319,6 +3341,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		Content:         contentBlocks,
 		APIKeyID:        apiKey.ID,
 		ModelConfigID:   editModelConfigID,
+		ReasoningEffort: editReasoningEffort,
 	})
 	if editErr != nil {
 		if maybeWriteLimitErr(ctx, rw, editErr) {
@@ -7531,6 +7554,13 @@ func marshalChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) (json
 	return encoded, nil
 }
 
+func invalidReasoningEffortResponse(value string) codersdk.Response {
+	return codersdk.Response{
+		Message: "Invalid reasoning_effort value.",
+		Detail:  fmt.Sprintf("Invalid value %q, must be one of %s", value, allowedReasoningEffortValues),
+	}
+}
+
 func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {
 	if modelConfig == nil {
 		return nil
@@ -7575,10 +7605,10 @@ func validateChatModelReasoningEffortConfig(modelConfig *codersdk.ChatModelCallC
 		return xerrors.New("reasoning_effort.default and reasoning_effort.max must both be set")
 	}
 	if !chatprovider.IsValidReasoningEffort(*config.Default) {
-		return xerrors.New("reasoning_effort.default must be one of none, minimal, low, medium, high, xhigh, max")
+		return xerrors.Errorf("reasoning_effort.default %q must be one of %s", *config.Default, allowedReasoningEffortValues)
 	}
 	if !chatprovider.IsValidReasoningEffort(*config.Max) {
-		return xerrors.New("reasoning_effort.max must be one of none, minimal, low, medium, high, xhigh, max")
+		return xerrors.Errorf("reasoning_effort.max %q must be one of %s", *config.Max, allowedReasoningEffortValues)
 	}
 	if !chatprovider.ReasoningEffortLessOrEqual(*config.Default, *config.Max) {
 		return xerrors.New("reasoning_effort.default must not exceed reasoning_effort.max")

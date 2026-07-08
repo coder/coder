@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -83,6 +85,80 @@ func TestLatestAssistantText(t *testing.T) {
 		t.Parallel()
 		require.Empty(t, latestAssistantText(nil))
 	})
+}
+
+func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := chatdTestContext(t)
+	user := dbgen.User(t, db, database.User{})
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: database.AIProviderTypeOpenai,
+	}, "test-key")
+	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
+			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+		},
+	})
+	require.NoError(t, err)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "gpt-4o-mini",
+		Options:      modelConfigRaw,
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+	}, func(p *database.InsertChatModelConfigParams) {
+		p.Enabled = true
+	})
+
+	created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "clamp reasoning effort",
+		ClientType:        database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:          database.ChatMessageRoleUser,
+				Content:       mustMarshalText(t, "hello"),
+				Visibility:    database.ChatMessageVisibilityBoth,
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				ReasoningEffort: database.NullChatReasoningEffort{
+					ChatReasoningEffort: database.ChatReasoningEffortHigh,
+					Valid:               true,
+				},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+				APIKeyID:       sql.NullString{String: apiKey.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newInternalTestServer(
+		t,
+		db,
+		ps,
+		chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+	)
+	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
+	})
+	require.NoError(t, err)
+	t.Cleanup(prepared.Cleanup)
+
+	providerOptions, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
+	require.NotNil(t, providerOptions.ReasoningEffort)
+	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces

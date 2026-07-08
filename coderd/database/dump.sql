@@ -335,6 +335,16 @@ CREATE TYPE chat_plan_mode AS ENUM (
     'plan'
 );
 
+CREATE TYPE chat_reasoning_effort AS ENUM (
+    'none',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max'
+);
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
     'pending',
@@ -1918,7 +1928,7 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     api_key_id text,
     revision bigint NOT NULL,
-    reasoning_effort text
+    reasoning_effort chat_reasoning_effort
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -1969,7 +1979,7 @@ CREATE TABLE chat_queued_messages (
     api_key_id text,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort text
+    reasoning_effort chat_reasoning_effort
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
@@ -2047,7 +2057,7 @@ CREATE TABLE chats (
     context_dirty_since timestamp with time zone,
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
-    last_reasoning_effort text,
+    last_reasoning_effort chat_reasoning_effort,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),

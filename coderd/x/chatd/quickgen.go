@@ -360,7 +360,7 @@ func (p *Server) titleGenerationProviderOptions(
 	return chatprovider.ApplyReasoningEffort(
 		model,
 		providerOptions,
-		chatprovider.ResolveReasoningEffort(callConfig.ReasoningEffort),
+		chatprovider.ResolveReasoningEffort(nil, callConfig.ReasoningEffort),
 	)
 }
 

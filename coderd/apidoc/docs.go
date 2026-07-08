@@ -16683,6 +16683,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_reasoning_effort": {
+                    "type": "string"
+                },
                 "last_turn_summary": {
                     "type": "string"
                 },
@@ -18161,6 +18164,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -18219,6 +18225,9 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -19545,6 +19554,9 @@ const docTemplate = `{
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },

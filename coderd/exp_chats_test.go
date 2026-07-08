@@ -157,14 +157,29 @@ func insertTestChatQueuedMessage(
 	apiKeyID string,
 ) database.ChatQueuedMessage {
 	t.Helper()
+	return insertTestChatQueuedMessageWithReasoningEffort(ctx, t, db, chatID, content, modelConfigID, apiKeyID, "")
+}
+
+func insertTestChatQueuedMessageWithReasoningEffort(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	chatID uuid.UUID,
+	content json.RawMessage,
+	modelConfigID uuid.UUID,
+	apiKeyID string,
+	reasoningEffort string,
+) database.ChatQueuedMessage {
+	t.Helper()
 
 	queued, err := db.InsertChatQueuedMessage(
 		dbauthz.AsSystemRestricted(ctx),
 		database.InsertChatQueuedMessageParams{
-			ChatID:        chatID,
-			Content:       content,
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
-			APIKeyID:      sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
+			ChatID:          chatID,
+			Content:         content,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
+			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
+			APIKeyID:        sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 		},
 	)
 	require.NoError(t, err)
@@ -414,6 +429,65 @@ func TestPostChats(t *testing.T) {
 			},
 		})
 		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("WithReasoningEffort", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "think hard from the start",
+				},
+			},
+			ReasoningEffort: ptr.Ref("high"),
+		})
+		require.NoError(t, err)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.True(t, storedChat.LastReasoningEffort.Valid)
+		require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
+
+		messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		require.NoError(t, err)
+		userMsg := findUserMessage(t, messages)
+		require.True(t, userMsg.ReasoningEffort.Valid)
+		require.Equal(t, database.ChatReasoningEffortHigh, userMsg.ReasoningEffort.ChatReasoningEffort)
+	})
+
+	t.Run("RejectsInvalidReasoningEffort", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				},
+			},
+			ReasoningEffort: ptr.Ref(" HIGH "),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, `Invalid value " HIGH "`)
+		require.Contains(t, sdkErr.Detail, "must be one of none, minimal, low, medium, high, xhigh, max")
 	})
 
 	t.Run("HidesSystemPromptMessages", func(t *testing.T) {
@@ -3823,11 +3897,8 @@ func TestCreateChatModelConfig(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model config.", sdkErr.Message)
-		require.Equal(
-			t,
-			"reasoning_effort.default must be one of none, minimal, low, medium, high, xhigh, max",
-			sdkErr.Detail,
-		)
+		require.Contains(t, sdkErr.Detail, `reasoning_effort.default " HIGH "`)
+		require.Contains(t, sdkErr.Detail, "must be one of none, minimal, low, medium, high, xhigh, max")
 	})
 
 	t.Run("ReasoningEffortRejectsDefaultAboveMax", func(t *testing.T) {
@@ -6796,6 +6867,137 @@ func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
 	require.Equal(t, modelConfigB.ID, userMsg.ModelConfigID.UUID)
 }
 
+func TestSendMessageWithReasoningEffortUpdatesLastReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "per-turn reasoning effort",
+	})
+
+	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "think hard about this",
+		}},
+		ReasoningEffort: ptr.Ref("high"),
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Queued)
+
+	storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.True(t, storedChat.LastReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
+
+	messages, err := db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	userMsg := findUserMessage(t, messages)
+	require.True(t, userMsg.ReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, userMsg.ReasoningEffort.ChatReasoningEffort)
+
+	// A follow-up message without a reasoning effort leaves the chat's
+	// last effort unchanged.
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "and another thing",
+		}},
+		BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+
+	storedChat, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.True(t, storedChat.LastReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
+}
+
+func TestSendMessageRejectsInvalidReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "invalid reasoning effort",
+	})
+
+	_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "hello",
+		}},
+		ReasoningEffort: ptr.Ref(" HIGH "),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
+	require.Contains(t, sdkErr.Detail, `Invalid value " HIGH "`)
+	require.Contains(t, sdkErr.Detail, "must be one of none, minimal, low, medium, high, xhigh, max")
+}
+
+func TestSendMessageQueuesReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "queued reasoning effort",
+	})
+
+	_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		LastError:   pqtype.NullRawMessage{},
+	})
+	require.NoError(t, err)
+
+	resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "queue this with effort",
+		}},
+		ReasoningEffort: ptr.Ref("high"),
+		BusyBehavior:    codersdk.ChatBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Queued)
+	require.NotNil(t, resp.QueuedMessage)
+	queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queuedMessages, 1)
+	require.True(t, queuedMessages[0].ReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, queuedMessages[0].ReasoningEffort.ChatReasoningEffort)
+
+	storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.False(t, storedChat.LastReasoningEffort.Valid)
+}
+
 func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 	t.Parallel()
 
@@ -7928,6 +8130,94 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.True(t, foundEditedInChat)
 		require.False(t, foundOriginalInChat)
+	})
+
+	t.Run("ReasoningEffort", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name      string
+			requested *string
+			want      string
+		}{
+			{name: "PreservesByDefault", want: "low"},
+			{name: "Overrides", requested: ptr.Ref("high"), want: "high"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				client, db := newChatClientWithDatabase(t)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				_ = createChatModelConfig(t, client)
+
+				chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+					OrganizationID: firstUser.OrganizationID,
+					Content: []codersdk.ChatInputPart{{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "before edit effort",
+					}},
+					ReasoningEffort: ptr.Ref("low"),
+				})
+				require.NoError(t, err)
+
+				messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+				require.NoError(t, err)
+				userMessageID := messagesResult.Messages[0].ID
+
+				edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+					Content: []codersdk.ChatInputPart{{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "after edit effort",
+					}},
+					ReasoningEffort: tc.requested,
+				})
+				require.NoError(t, err)
+				storedMessage, err := db.GetChatMessageByID(dbauthz.AsSystemRestricted(ctx), edited.Message.ID)
+				require.NoError(t, err)
+				require.True(t, storedMessage.ReasoningEffort.Valid)
+				require.Equal(t, database.ChatReasoningEffort(tc.want), storedMessage.ReasoningEffort.ChatReasoningEffort)
+
+				storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				require.NoError(t, err)
+				require.True(t, storedChat.LastReasoningEffort.Valid)
+				require.Equal(t, database.ChatReasoningEffort(tc.want), storedChat.LastReasoningEffort.ChatReasoningEffort)
+			})
+		}
+	})
+
+	t.Run("RejectsInvalidReasoningEffort", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "before invalid effort edit",
+			}},
+		})
+		require.NoError(t, err)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		userMessageID := messagesResult.Messages[0].ID
+
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "after invalid effort edit",
+			}},
+			ReasoningEffort: ptr.Ref(" HIGH "),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, `Invalid value " HIGH "`)
+		require.Contains(t, sdkErr.Detail, "must be one of none, minimal, low, medium, high, xhigh, max")
 	})
 
 	t.Run("PreservesFileID", func(t *testing.T) {
