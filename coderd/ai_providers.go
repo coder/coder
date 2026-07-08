@@ -362,27 +362,26 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if existing.WIF != nil && old.Type != database.AIProviderTypeAnthropic {
 			return errAIProviderWIFTypeMismatch
 		}
-		// The effective base URL for a WIF provider must not be cleartext:
-		// aibridged refuses to build such a provider, so saving it would
-		// strand a provider that never serves traffic. This covers patches
-		// that add WIF against a stored http URL and patches that move a
-		// WIF provider onto one; request validation covers patches that
-		// carry both fields.
-		if existing.WIF != nil {
+		// A WIF provider's effective state must satisfy the same
+		// invariants the create path enforces: the base URL must not be
+		// cleartext, and the post-merge (token file, base URL) pair must
+		// be blessed by deployment configuration (see
+		// codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed). aibridged
+		// refuses to build a provider violating either, so saving it
+		// would strand a provider that never serves traffic. The
+		// re-checks cover patches that introduce WIF settings against a
+		// stored base URL, change the token file, or repoint the base
+		// URL of a WIF provider; request validation covers patches that
+		// carry both fields. Patches that touch neither field skip the
+		// re-checks so that a deployment configuration change, such as
+		// withdrawing a file from the allowlist, does not also block
+		// unrelated patches, such as disabling the provider; the daemon
+		// independently refuses to build such a row.
+		if existing.WIF != nil && (req.Settings != nil || req.BaseURL != nil) {
 			if verrs := codersdk.ValidateAIProviderWIFBaseURL(ptr.NilToDefault(req.BaseURL, old.BaseUrl)); len(verrs) > 0 {
 				return errWIFCleartextBaseURL
 			}
-			// The post-merge (token file, base URL) pair must be blessed
-			// by deployment configuration; see
-			// codersdk.AIBridgeConfig.WIFIdentityTokenFileAllowed. This
-			// covers patches that introduce WIF settings, change the
-			// token file, or repoint the base URL of a WIF provider.
-			// Patches that touch neither field skip the re-check so that
-			// withdrawing trust from the allowlist does not also block
-			// unrelated patches, such as disabling the provider; the
-			// daemon independently refuses to build an untrusted row.
-			if (req.Settings != nil || req.BaseURL != nil) &&
-				!api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
+			if !api.DeploymentValues.AI.BridgeConfig.WIFIdentityTokenFileAllowed(existing.WIF.IdentityTokenFile, ptr.NilToDefault(req.BaseURL, old.BaseUrl)) {
 				return errWIFUntrustedIdentityTokenFile
 			}
 		}

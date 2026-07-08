@@ -855,7 +855,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		// A WIF provider must never pair with a non-loopback http base
 		// URL: aibridged refuses to build it, so the API rejects the
 		// combination however it is reached.
-		client := coderdtest.New(t, wifTrustedOptions(t, wifTestPath("var", "run", "secrets", "anthropic", "token")))
+		client, db := coderdtest.NewWithDatabase(t, wifTrustedOptions(t, wifTestPath("var", "run", "secrets", "anthropic", "token")))
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -919,6 +919,36 @@ func TestAIProvidersCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = client.UpdateAIProvider(ctx, keyed.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "https base_url")
+
+		// A stored WIF row with a cleartext base URL is reachable only
+		// through direct DB writes, but it must still accept patches
+		// that touch neither settings nor base_url, mirroring the trust
+		// re-check; the daemon refuses to build the row either way.
+		encoded, err := json.Marshal(codersdk.AIProviderSettings{WIF: &wifSettings})
+		require.NoError(t, err)
+		seeded := dbgen.AIProvider(t, db, database.AIProvider{
+			Type:     database.AIProviderTypeAnthropic,
+			Name:     "wif-cleartext-seeded",
+			Enabled:  true,
+			BaseUrl:  "http://proxy.example/api",
+			Settings: sql.NullString{String: string(encoded), Valid: true},
+		})
+
+		updated, err := client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
+			Enabled: new(false),
+		})
+		require.NoError(t, err)
+		require.False(t, updated.Enabled)
+
+		// Re-sending settings re-runs the cleartext check against the
+		// stored http base URL.
+		_, err = client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{WIF: &wifSettings},
 		})
 		require.Error(t, err)
