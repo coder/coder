@@ -96,16 +96,22 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	return ids
 }
 
+// DefaultChatTitle is the placeholder title for chats created without
+// any text to derive a title from (for example chats created with no
+// initial user message). It is always considered replaceable by
+// automatic title generation.
+const DefaultChatTitle = "New Chat"
+
 // FallbackTitle derives a deterministic chat title from title text:
 // the first six words, ellipsized when truncated, capped at 80 runes.
-// Empty input yields "New Chat".
+// Empty input yields DefaultChatTitle.
 func FallbackTitle(message string) string {
 	const maxWords = 6
 	const maxRunes = 80
 
 	words := strings.Fields(message)
 	if len(words) == 0 {
-		return "New Chat"
+		return DefaultChatTitle
 	}
 
 	truncated := false

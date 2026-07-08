@@ -611,7 +611,11 @@ type CreateChatRequest struct {
 	// OwnerID makes another user the chat owner. It defaults to the
 	// caller. The chat runs with the owner's credentials, so setting it
 	// requires site-wide authority over that user.
-	OwnerID         *uuid.UUID        `json:"owner_id,omitempty" format:"uuid"`
+	OwnerID *uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
+	// Content is the initial user message. It is optional: when
+	// empty, the chat is created idle with no initial user message
+	// and generation starts with the first message POSTed to
+	// /chats/{chat}/messages.
 	Content         []ChatInputPart   `json:"content"`
 	SystemPrompt    string            `json:"system_prompt,omitempty"`
 	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
