@@ -13008,3 +13008,217 @@ func setupWorkspaceContextAgentConn(
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 }
+
+// TestExecuteToolReattachAcrossAttempts simulates a task retry: a
+// previous attempt reserved the execution record and started the
+// process, then died. The new attempt must re-attach to the recorded
+// process instead of starting a second one; the mock controller
+// fails the test on any StartProcess call.
+func TestExecuteToolReattachAcrossAttempts(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	recordSeeded := make(chan struct{})
+	var streamCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamCount.Add(1) == 1 {
+			// Hold the first response until the execution record
+			// exists, so the execute tool always observes it.
+			<-recordSeeded
+			chunk := chattest.OpenAIToolCallChunk("execute", `{"command":"echo hello"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "tc-reattach-1"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("all done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	exitCode := 0
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-previous", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{
+			Running:  false,
+			ExitCode: &exitCode,
+			Output:   "hello from previous attempt",
+		}, nil).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "execute-reattach",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("run echo hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Seed the record a dead previous attempt would have left behind.
+	_, err = db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
+		ChatID:      chat.ID,
+		ToolCallID:  "tc-reattach-1",
+		Command:     "echo hello",
+		TimeoutSecs: 60,
+		CreatedAt:   time.Now(),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateChatToolCallExecutionProcess(ctx, database.UpdateChatToolCallExecutionProcessParams{
+		ChatID:           chat.ID,
+		ToolCallID:       "tc-reattach-1",
+		ProcessID:        "proc-previous",
+		WorkspaceAgentID: dbAgent.ID,
+		StartedAt:        time.Now(),
+	})
+	require.NoError(t, err)
+	close(recordSeeded)
+
+	chatResult := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.NotEqual(t, database.ChatStatusError, chatResult.Status)
+
+	parts := chatToolParts(ctx, t, db, chat.ID)
+	result := requireToolResultPart(t, parts, "execute")
+	require.Equal(t, "tc-reattach-1", result.ToolCallID)
+	require.False(t, result.IsError)
+	require.Contains(t, string(result.Result), "hello from previous attempt")
+
+	// The commit cleaned up the execution record.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:     chat.ID,
+			ToolCallID: "tc-reattach-1",
+		})
+		return errors.Is(getErr, sql.ErrNoRows)
+	}, testutil.IntervalFast)
+}
+
+// TestInterruptKillsRecordedExecute asserts that interrupting a chat
+// mid-execute kills the recorded foreground process on the agent and
+// deletes the execution record.
+func TestInterruptKillsRecordedExecute(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamCount.Add(1) == 1 {
+			chunk := chattest.OpenAIToolCallChunk("execute", `{"command":"sleep 600","timeout":"10m"}`)
+			chunk.Choices[0].ToolCalls[0].ID = "tc-exec-kill"
+			return chattest.OpenAIStreamingResponse(chunk)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("after interrupt")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	toolStarted := make(chan struct{})
+	killed := make(chan struct{})
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			require.Equal(t, "sleep 600", req.Command)
+			return workspacesdk.StartProcessResponse{ID: "proc-kill", Started: true}, nil
+		}).
+		Times(1)
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-kill", gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			select {
+			case <-toolStarted:
+			default:
+				close(toolStarted)
+			}
+			<-ctx.Done()
+			return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+		}).
+		AnyTimes()
+	mockConn.EXPECT().
+		SignalProcess(gomock.Any(), "proc-kill", "kill").
+		DoAndReturn(func(_ context.Context, _ string, _ string) error {
+			close(killed)
+			return nil
+		}).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "interrupt-kills-execute",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("run a long command"),
+		},
+	})
+	require.NoError(t, err)
+
+	testutil.TryReceive(ctx, t, toolStarted)
+	queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: model.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("stop that")},
+		BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+	require.True(t, queued.Queued)
+
+	testutil.TryReceive(ctx, t, killed)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	parts := chatToolParts(ctx, t, db, chat.ID)
+	result := requireToolResultPart(t, parts, "execute")
+	require.Equal(t, "tc-exec-kill", result.ToolCallID)
+	require.True(t, result.IsError)
+
+	// The interrupt cleanup removed the execution record.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, getErr := db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{
+			ChatID:     chat.ID,
+			ToolCallID: "tc-exec-kill",
+		})
+		return errors.Is(getErr, sql.ErrNoRows)
+	}, testutil.IntervalFast)
+}

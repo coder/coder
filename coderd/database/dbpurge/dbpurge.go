@@ -51,6 +51,10 @@ const (
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
+	// Execution records are normally deleted right after their tool
+	// results commit; rows this old were left behind by attempts that
+	// died before cleanup and are safe to remove.
+	chatToolCallExecutionRetention = 7 * 24 * time.Hour
 )
 
 type Option func(*instance)
@@ -289,6 +293,12 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			return xerrors.Errorf("failed to delete old workspace build orchestrations: %w", err)
 		}
 
+		deleteChatToolCallExecutionsBefore := start.Add(-chatToolCallExecutionRetention)
+		purgedChatToolCallExecutions, err := tx.DeleteOldChatToolCallExecutions(ctx, deleteChatToolCallExecutionsBefore)
+		if err != nil {
+			return xerrors.Errorf("failed to delete old chat tool call executions: %w", err)
+		}
+
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {
 			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
@@ -322,6 +332,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
+			slog.F("chat_tool_call_executions", purgedChatToolCallExecutions),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -337,6 +348,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
+			i.recordsPurged.WithLabelValues("chat_tool_call_executions").Add(float64(purgedChatToolCallExecutions))
 		}
 
 		// chatConfigErr is returned after the tx, so do not record this

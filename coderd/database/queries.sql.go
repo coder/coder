@@ -12667,6 +12667,207 @@ func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg U
 	return i, err
 }
 
+const deleteChatToolCallExecutions = `-- name: DeleteChatToolCallExecutions :exec
+DELETE FROM chat_tool_call_executions
+WHERE chat_id = $1::uuid
+  AND tool_call_id = ANY($2::text[])
+`
+
+type DeleteChatToolCallExecutionsParams struct {
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolCallIds []string  `db:"tool_call_ids" json:"tool_call_ids"`
+}
+
+func (q *sqlQuerier) DeleteChatToolCallExecutions(ctx context.Context, arg DeleteChatToolCallExecutionsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatToolCallExecutions, arg.ChatID, pq.Array(arg.ToolCallIds))
+	return err
+}
+
+const deleteOldChatToolCallExecutions = `-- name: DeleteOldChatToolCallExecutions :execrows
+DELETE FROM chat_tool_call_executions
+WHERE created_at < $1::timestamptz
+`
+
+// Deletes stale execution records. Rows left behind by attempts that
+// never cleaned up are harmless because resolved tool calls are never
+// re-executed; this is the janitor for those leftovers.
+func (q *sqlQuerier) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldChatToolCallExecutions, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getChatToolCallExecution = `-- name: GetChatToolCallExecution :one
+SELECT chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at FROM chat_tool_call_executions
+WHERE chat_id = $1::uuid
+  AND tool_call_id = $2::text
+`
+
+type GetChatToolCallExecutionParams struct {
+	ChatID     uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolCallID string    `db:"tool_call_id" json:"tool_call_id"`
+}
+
+func (q *sqlQuerier) GetChatToolCallExecution(ctx context.Context, arg GetChatToolCallExecutionParams) (ChatToolCallExecution, error) {
+	row := q.db.QueryRowContext(ctx, getChatToolCallExecution, arg.ChatID, arg.ToolCallID)
+	var i ChatToolCallExecution
+	err := row.Scan(
+		&i.ChatID,
+		&i.ToolCallID,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.Command,
+		&i.Background,
+		&i.TimeoutSecs,
+		&i.CreatedAt,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const getChatToolCallExecutions = `-- name: GetChatToolCallExecutions :many
+SELECT chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at FROM chat_tool_call_executions
+WHERE chat_id = $1::uuid
+  AND tool_call_id = ANY($2::text[])
+`
+
+type GetChatToolCallExecutionsParams struct {
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolCallIds []string  `db:"tool_call_ids" json:"tool_call_ids"`
+}
+
+func (q *sqlQuerier) GetChatToolCallExecutions(ctx context.Context, arg GetChatToolCallExecutionsParams) ([]ChatToolCallExecution, error) {
+	rows, err := q.db.QueryContext(ctx, getChatToolCallExecutions, arg.ChatID, pq.Array(arg.ToolCallIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatToolCallExecution
+	for rows.Next() {
+		var i ChatToolCallExecution
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ToolCallID,
+			&i.WorkspaceAgentID,
+			&i.ProcessID,
+			&i.Command,
+			&i.Background,
+			&i.TimeoutSecs,
+			&i.CreatedAt,
+			&i.StartedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatToolCallExecution = `-- name: InsertChatToolCallExecution :one
+INSERT INTO chat_tool_call_executions (
+    chat_id,
+    tool_call_id,
+    command,
+    background,
+    timeout_secs,
+    created_at
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::boolean,
+    $5::bigint,
+    $6::timestamptz
+) RETURNING chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at
+`
+
+type InsertChatToolCallExecutionParams struct {
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolCallID  string    `db:"tool_call_id" json:"tool_call_id"`
+	Command     string    `db:"command" json:"command"`
+	Background  bool      `db:"background" json:"background"`
+	TimeoutSecs int64     `db:"timeout_secs" json:"timeout_secs"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+}
+
+// Reserves an execution record for a tool call. The caller detects a
+// unique violation to learn whether it created the row or a previous
+// attempt already reserved it.
+func (q *sqlQuerier) InsertChatToolCallExecution(ctx context.Context, arg InsertChatToolCallExecutionParams) (ChatToolCallExecution, error) {
+	row := q.db.QueryRowContext(ctx, insertChatToolCallExecution,
+		arg.ChatID,
+		arg.ToolCallID,
+		arg.Command,
+		arg.Background,
+		arg.TimeoutSecs,
+		arg.CreatedAt,
+	)
+	var i ChatToolCallExecution
+	err := row.Scan(
+		&i.ChatID,
+		&i.ToolCallID,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.Command,
+		&i.Background,
+		&i.TimeoutSecs,
+		&i.CreatedAt,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
+const updateChatToolCallExecutionProcess = `-- name: UpdateChatToolCallExecutionProcess :one
+UPDATE chat_tool_call_executions
+SET process_id = $1::text,
+    workspace_agent_id = $2::uuid,
+    started_at = $3::timestamptz
+WHERE chat_id = $4::uuid
+  AND tool_call_id = $5::text
+RETURNING chat_id, tool_call_id, workspace_agent_id, process_id, command, background, timeout_secs, created_at, started_at
+`
+
+type UpdateChatToolCallExecutionProcessParams struct {
+	ProcessID        string    `db:"process_id" json:"process_id"`
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	StartedAt        time.Time `db:"started_at" json:"started_at"`
+	ChatID           uuid.UUID `db:"chat_id" json:"chat_id"`
+	ToolCallID       string    `db:"tool_call_id" json:"tool_call_id"`
+}
+
+// Records the process handle once the process has started. started_at
+// is set together with process_id.
+func (q *sqlQuerier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error) {
+	row := q.db.QueryRowContext(ctx, updateChatToolCallExecutionProcess,
+		arg.ProcessID,
+		arg.WorkspaceAgentID,
+		arg.StartedAt,
+		arg.ChatID,
+		arg.ToolCallID,
+	)
+	var i ChatToolCallExecution
+	err := row.Scan(
+		&i.ChatID,
+		&i.ToolCallID,
+		&i.WorkspaceAgentID,
+		&i.ProcessID,
+		&i.Command,
+		&i.Background,
+		&i.TimeoutSecs,
+		&i.CreatedAt,
+		&i.StartedAt,
+	)
+	return i, err
+}
+
 const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,

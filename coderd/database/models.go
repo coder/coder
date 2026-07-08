@@ -5209,6 +5209,21 @@ type ChatTable struct {
 	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 }
 
+type ChatToolCallExecution struct {
+	ChatID           uuid.UUID     `db:"chat_id" json:"chat_id"`
+	ToolCallID       string        `db:"tool_call_id" json:"tool_call_id"`
+	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// NULL means the row was reserved but the process handle was never recorded; set together with started_at once the process starts.
+	ProcessID sql.NullString `db:"process_id" json:"process_id"`
+	// Recorded for mismatch diagnostics only; never used for deduplication.
+	Command    string `db:"command" json:"command"`
+	Background bool   `db:"background" json:"background"`
+	// The clamped tool timeout at reserve time.
+	TimeoutSecs int64        `db:"timeout_secs" json:"timeout_secs"`
+	CreatedAt   time.Time    `db:"created_at" json:"created_at"`
+	StartedAt   sql.NullTime `db:"started_at" json:"started_at"`
+}
+
 type ChatUsageLimitConfig struct {
 	ID                 int64     `db:"id" json:"id"`
 	Singleton          bool      `db:"singleton" json:"singleton"`

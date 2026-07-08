@@ -2137,6 +2137,17 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
+func (q *querier) DeleteChatToolCallExecutions(ctx context.Context, arg database.DeleteChatToolCallExecutionsParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatToolCallExecutions(ctx, arg)
+}
+
 func (q *querier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -2332,6 +2343,13 @@ func (q *querier) DeleteOldChatFiles(ctx context.Context, arg database.DeleteOld
 		return 0, err
 	}
 	return q.db.DeleteOldChatFiles(ctx, arg)
+}
+
+func (q *querier) DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldChatToolCallExecutions(ctx, beforeTime)
 }
 
 func (q *querier) DeleteOldChats(ctx context.Context, arg database.DeleteOldChatsParams) (int64, error) {
@@ -3519,6 +3537,28 @@ func (q *querier) GetChatTitleGenerationModelOverride(ctx context.Context) (stri
 		return "", err
 	}
 	return q.db.GetChatTitleGenerationModelOverride(ctx)
+}
+
+func (q *querier) GetChatToolCallExecution(ctx context.Context, arg database.GetChatToolCallExecutionParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.GetChatToolCallExecution(ctx, arg)
+}
+
+func (q *querier) GetChatToolCallExecutions(ctx context.Context, arg database.GetChatToolCallExecutionsParams) ([]database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatToolCallExecutions(ctx, arg)
 }
 
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
@@ -5996,6 +6036,17 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
 }
 
+func (q *querier) InsertChatToolCallExecution(ctx context.Context, arg database.InsertChatToolCallExecutionParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.InsertChatToolCallExecution(ctx, arg)
+}
+
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -7396,6 +7447,17 @@ func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateCh
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatTitleByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatToolCallExecutionProcess(ctx context.Context, arg database.UpdateChatToolCallExecutionProcessParams) (database.ChatToolCallExecution, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatToolCallExecution{}, err
+	}
+	return q.db.UpdateChatToolCallExecutionProcess(ctx, arg)
 }
 
 func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {

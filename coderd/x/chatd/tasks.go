@@ -289,16 +289,19 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 
 	var committed database.Chat
+	var canceledToolCallIDs []string
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		messages := partialMessages
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, s.opts.Clock.Now("chatworker", "interrupt"))
+		canceledToolCallIDs = nil
+		committedCancels, canceledIDs, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, s.opts.Clock.Now("chatworker", "interrupt"))
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
+		canceledToolCallIDs = canceledIDs
 		if len(committedCancels) > 0 {
 			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
 		}
@@ -318,6 +321,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return normalizeTaskTransitionError(err, "finish interruption")
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
+	s.killInterruptedExecutions(ctx, input.ChatID, canceledToolCallIDs)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
 	}
@@ -676,26 +680,27 @@ func committedPendingLocalToolCancellationMessages(
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
-) ([]chatstate.Message, error) {
+) ([]chatstate.Message, []string, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
+		return nil, nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
 	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(localCalls) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	result := make([]chatstate.Message, 0, len(localCalls))
+	toolCallIDs := make([]string, 0, len(localCalls))
 	for _, call := range localCalls {
 		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+			return nil, nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
 		}
 		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, true, false)
 		if !interruptedAt.IsZero() {
@@ -703,7 +708,7 @@ func committedPendingLocalToolCancellationMessages(
 		}
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result part: %w", err)
+			return nil, nil, xerrors.Errorf("marshal interrupted tool result part: %w", err)
 		}
 		result = append(result, chatstate.Message{
 			Role:           database.ChatMessageRoleTool,
@@ -712,6 +717,83 @@ func committedPendingLocalToolCancellationMessages(
 			ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: chat.LastModelConfigID != uuid.Nil},
 			ContentVersion: chatprompt.CurrentContentVersion,
 		})
+		toolCallIDs = append(toolCallIDs, call.ToolCallID)
 	}
-	return result, nil
+	return result, toolCallIDs, nil
+}
+
+// interruptKillDialTimeout bounds the agent dial and signal round
+// trip when killing processes on interrupt. Interrupts must stay
+// fast even when the agent is slow or unreachable.
+const interruptKillDialTimeout = 5 * time.Second
+
+// killInterruptedExecutions kills the foreground processes recorded
+// for tool calls that were canceled by an interrupt, then deletes
+// their execution records. Everything is best-effort: the interrupt
+// already committed and must not fail because an agent is slow or
+// gone. Background executes are left running; the model chose to
+// detach them.
+func (s *taskStarter) killInterruptedExecutions(ctx context.Context, chatID uuid.UUID, toolCallIDs []string) {
+	if len(toolCallIDs) == 0 {
+		return
+	}
+	// The runner may cancel the task context as soon as the
+	// interrupt's state transition lands, so run on an uncanceled
+	// context with its own bound.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Minute)
+	defer cancel()
+	records, err := s.opts.Store.GetChatToolCallExecutions(ctx, database.GetChatToolCallExecutionsParams{
+		ChatID:      chatID,
+		ToolCallIds: toolCallIDs,
+	})
+	if err != nil {
+		s.opts.Logger.Warn(ctx, "failed to load chat tool call execution records for interrupt",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+	staleIDs := make([]string, 0, len(records))
+	for _, record := range records {
+		staleIDs = append(staleIDs, record.ToolCallID)
+		if record.Background || !record.ProcessID.Valid || !record.WorkspaceAgentID.Valid {
+			continue
+		}
+		s.killRecordedProcess(ctx, record)
+	}
+	if len(staleIDs) == 0 {
+		return
+	}
+	err = s.opts.Store.DeleteChatToolCallExecutions(ctx, database.DeleteChatToolCallExecutionsParams{
+		ChatID:      chatID,
+		ToolCallIds: staleIDs,
+	})
+	if err != nil {
+		s.opts.Logger.Warn(ctx, "failed to delete chat tool call execution records after interrupt",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+func (s *taskStarter) killRecordedProcess(ctx context.Context, record database.ChatToolCallExecution) {
+	dialCtx, cancel := context.WithTimeout(ctx, interruptKillDialTimeout)
+	defer cancel()
+	conn, release, err := s.server.agentConnFn(dialCtx, record.WorkspaceAgentID.UUID)
+	if err != nil {
+		s.opts.Logger.Warn(ctx, "failed to dial agent to kill interrupted process",
+			slog.F("chat_id", record.ChatID),
+			slog.F("process_id", record.ProcessID.String),
+			slog.Error(err),
+		)
+		return
+	}
+	defer release()
+	if err := conn.SignalProcess(dialCtx, record.ProcessID.String, "kill"); err != nil {
+		s.opts.Logger.Warn(ctx, "failed to kill interrupted process",
+			slog.F("chat_id", record.ChatID),
+			slog.F("process_id", record.ProcessID.String),
+			slog.Error(err),
+		)
+	}
 }

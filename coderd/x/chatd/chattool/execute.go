@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -25,6 +28,24 @@ const (
 	// request is allowed to take when retrieving a process
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
+
+	// maxExecuteTimeout is the upper bound for the execute
+	// tool's timeout and the process_output tool's
+	// wait_timeout. Longer requests are clamped, not
+	// rejected.
+	maxExecuteTimeout = 4 * time.Hour
+
+	// nullHandleGrace is how long a pre-existing execution
+	// record without a process handle is given for its owner
+	// to record the handle before the process state is
+	// declared unknown. The grace window is anchored on the
+	// record's creation time, not on when this attempt first
+	// observed the row.
+	nullHandleGrace = 60 * time.Second
+
+	// nullHandlePollInterval is how often the record is
+	// re-read while waiting out nullHandleGrace.
+	nullHandlePollInterval = 2 * time.Second
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -87,10 +108,45 @@ type ExecuteResult struct {
 	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
 }
 
+// ExecutionRecord is a durable record of an execute tool call's
+// process, keyed by tool call ID. It lets a retried task attempt
+// re-attach to a process started by a previous attempt instead of
+// spawning a duplicate.
+type ExecutionRecord struct {
+	// ProcessID is empty while the record is reserved but the
+	// process has not been recorded as started.
+	ProcessID  string
+	Command    string
+	Background bool
+	Timeout    time.Duration
+	CreatedAt  time.Time
+	StartedAt  time.Time
+}
+
+// ExecutionRecorder persists execution records for execute tool
+// calls. Records are keyed by tool call ID, which is durable in
+// chat history before execution begins.
+type ExecutionRecorder interface {
+	// Reserve returns the existing record for the tool call or
+	// creates one. created reports whether this call inserted
+	// the row, which distinguishes the attempt that owns the
+	// fresh start from attempts that must re-attach.
+	Reserve(ctx context.Context, toolCallID string, command string, background bool, timeout time.Duration) (rec ExecutionRecord, created bool, err error)
+	// RecordStart stores the process handle for a reserved
+	// record.
+	RecordStart(ctx context.Context, toolCallID string, processID string) error
+}
+
 // ExecuteOptions configures the execute tool.
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
+	// Recorder persists per-tool-call execution records so a
+	// retried attempt re-attaches instead of starting a
+	// duplicate process. A nil Recorder disables idempotent
+	// starts and preserves the legacy start-every-time
+	// behavior.
+	Recorder ExecutionRecorder
 }
 
 // ProcessToolOptions configures a process management tool
@@ -118,7 +174,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
 		"Execute a shell command in the workspace. Runs under \"sh -c\" (POSIX). Waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
-		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -126,7 +182,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
+			return executeTool(ctx, conn, args, options, call.ID), nil
 		},
 	)
 }
@@ -135,11 +191,32 @@ func executeTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
-	optTimeout time.Duration,
+	options ExecuteOptions,
+	toolCallID string,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
 	}
+
+	timeout := options.DefaultTimeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	if args.Timeout != nil {
+		parsed, err := time.ParseDuration(*args.Timeout)
+		if err != nil {
+			return fantasy.NewTextErrorResponse(
+				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
+			)
+		}
+		if parsed <= 0 {
+			return fantasy.NewTextErrorResponse(
+				fmt.Sprintf("timeout must be positive, got %q", *args.Timeout),
+			)
+		}
+		timeout = parsed
+	}
+	timeout = min(timeout, maxExecuteTimeout)
 
 	// Build the environment map for the process request.
 	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
@@ -165,10 +242,141 @@ func executeTool(
 		workDir = *args.WorkDir
 	}
 
-	if background {
-		return executeBackground(ctx, conn, args.Command, workDir, env)
+	if options.Recorder != nil {
+		rec, created, err := options.Recorder.Reserve(ctx, toolCallID, args.Command, background, timeout)
+		if err != nil {
+			return errorResult(fmt.Sprintf("reserve execution record: %v", err))
+		}
+		if !created {
+			if rec.ProcessID == "" {
+				// A previous attempt reserved the record but died
+				// before the process handle was stored. Give its
+				// owner a short grace to record the handle, then
+				// declare the process state unknown. Starting the
+				// command again here could run it twice.
+				rec, err = awaitRecordedProcess(ctx, options.Recorder, toolCallID, args.Command, background, timeout, rec)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(
+						"a previous attempt may have started this command, but its process handle was lost and the process state is unknown. Re-run the command only if it is safe to run twice.",
+					)
+				}
+			}
+			return reattachProcess(ctx, conn, rec)
+		}
 	}
-	return executeForeground(ctx, conn, args, optTimeout, workDir, env)
+
+	if background {
+		return executeBackground(ctx, conn, options.Recorder, toolCallID, args.Command, workDir, env)
+	}
+	return executeForeground(ctx, conn, options.Recorder, toolCallID, args.Command, timeout, workDir, env)
+}
+
+// awaitRecordedProcess polls a reserved-but-unstarted execution
+// record until its process handle appears, the grace window
+// anchored on the record's creation time expires, or the context
+// is canceled. It returns an error when the handle never
+// appeared.
+func awaitRecordedProcess(
+	ctx context.Context,
+	recorder ExecutionRecorder,
+	toolCallID string,
+	command string,
+	background bool,
+	timeout time.Duration,
+	rec ExecutionRecord,
+) (ExecutionRecord, error) {
+	deadline := rec.CreatedAt.Add(nullHandleGrace)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ExecutionRecord{}, ctx.Err()
+		case <-time.After(nullHandlePollInterval):
+		}
+		latest, _, err := recorder.Reserve(ctx, toolCallID, command, background, timeout)
+		if err != nil {
+			continue
+		}
+		if latest.ProcessID != "" {
+			return latest, nil
+		}
+	}
+	return ExecutionRecord{}, xerrors.New("process handle was never recorded")
+}
+
+// reattachProcess resumes an execute tool call whose process was
+// started by a previous attempt, without starting a second
+// process.
+func reattachProcess(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	rec ExecutionRecord,
+) fantasy.ToolResponse {
+	if rec.Background {
+		// Background executes only ever return the process
+		// handle; output retrieval happens via process_output.
+		return marshalResult(ExecuteResult{
+			Success:             true,
+			BackgroundProcessID: rec.ProcessID,
+		})
+	}
+
+	snapCtx, cancel := context.WithTimeout(ctx, snapshotTimeout)
+	resp, err := conn.ProcessOutput(snapCtx, rec.ProcessID, nil)
+	cancel()
+	if err != nil {
+		// Only a definite 404 (the agent was reached and does not
+		// know the process) means the result is gone. Transport
+		// errors, cancellations, and server errors leave the
+		// process potentially retrievable.
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf(
+				"process %s is no longer known to the workspace agent; the command may have run, but its result was lost and the outcome is unknown. Re-run the command only if it is safe to run twice.",
+				rec.ProcessID,
+			))
+		}
+		return errorResultWithProcess(
+			fmt.Sprintf("re-attach to process: %v; use process_output with ID %s to retry", err, rec.ProcessID),
+			rec.ProcessID,
+		)
+	}
+
+	if !resp.Running {
+		// The process finished while no attempt was watching.
+		// Return the real result even if the deadline passed.
+		exitCode := 0
+		if resp.ExitCode != nil {
+			exitCode = *resp.ExitCode
+		}
+		result := ExecuteResult{
+			Success:   exitCode == 0,
+			Output:    truncateOutput(resp.Output),
+			ExitCode:  exitCode,
+			Truncated: resp.Truncated,
+		}
+		if !rec.StartedAt.IsZero() {
+			result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
+		}
+		return marshalResult(result)
+	}
+
+	deadline := rec.StartedAt.Add(rec.Timeout)
+	if !time.Now().Before(deadline) {
+		return marshalResult(ExecuteResult{
+			Success:             false,
+			Output:              truncateOutput(resp.Output),
+			ExitCode:            -1,
+			Error:               fmt.Sprintf("command timed out after %s", rec.Timeout),
+			Truncated:           resp.Truncated,
+			BackgroundProcessID: rec.ProcessID,
+		})
+	}
+
+	cmdCtx, cancelWait := context.WithDeadline(ctx, deadline)
+	defer cancelWait()
+	result := waitForProcess(cmdCtx, ctx, conn, rec.ProcessID, rec.Timeout)
+	result.WallDurationMs = time.Since(rec.StartedAt).Milliseconds()
+	return marshalResult(result)
 }
 
 // executeBackground starts a process in the background and
@@ -176,6 +384,8 @@ func executeTool(
 func executeBackground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	recorder ExecutionRecorder,
+	toolCallID string,
 	command string,
 	workDir string,
 	env map[string]string,
@@ -189,16 +399,21 @@ func executeBackground(
 	if err != nil {
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
+	if recorder != nil {
+		if err := recorder.RecordStart(ctx, toolCallID, resp.ID); err != nil {
+			// The process is already running; killing it here would
+			// discard real work. Surface the handle instead.
+			return errorResultWithProcess(
+				fmt.Sprintf("record process start: %v; the process is running with ID %s", err, resp.ID),
+				resp.ID,
+			)
+		}
+	}
 
-	result := ExecuteResult{
+	return marshalResult(ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error())
-	}
-	return fantasy.NewTextResponse(string(data))
+	})
 }
 
 // executeForeground starts a process and waits for its
@@ -206,32 +421,20 @@ func executeBackground(
 func executeForeground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	args ExecuteArgs,
-	optTimeout time.Duration,
+	recorder ExecutionRecorder,
+	toolCallID string,
+	command string,
+	timeout time.Duration,
 	workDir string,
 	env map[string]string,
 ) fantasy.ToolResponse {
-	timeout := optTimeout
-	if timeout <= 0 {
-		timeout = defaultTimeout
-	}
-	if args.Timeout != nil {
-		parsed, err := time.ParseDuration(*args.Timeout)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(
-				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
-			)
-		}
-		timeout = parsed
-	}
-
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()
 
 	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
-		Command:    args.Command,
+		Command:    command,
 		WorkDir:    workDir,
 		Env:        env,
 		Background: false,
@@ -239,20 +442,28 @@ func executeForeground(
 	if err != nil {
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
+	if recorder != nil {
+		// Record on the parent context so the command timeout
+		// cannot clip the write.
+		if err := recorder.RecordStart(ctx, toolCallID, resp.ID); err != nil {
+			// The process is already running; killing it here would
+			// discard real work. Surface the handle instead.
+			return errorResultWithProcess(
+				fmt.Sprintf("record process start: %v; use process_output with ID %s to retrieve the result", err, resp.ID),
+				resp.ID,
+			)
+		}
+	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	result.WallDurationMs = time.Since(start).Milliseconds()
 
 	// Add an advisory note for file-dump commands.
-	if note := detectFileDump(args.Command); note != "" {
+	if note := detectFileDump(command); note != "" {
 		result.Note = note
 	}
 
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error())
-	}
-	return fantasy.NewTextResponse(string(data))
+	return marshalResult(result)
 }
 
 // truncateOutput safely truncates output to maxOutputToModel,
@@ -389,6 +600,29 @@ func errorResult(msg string) fantasy.ToolResponse {
 	return fantasy.NewTextResponse(string(data))
 }
 
+// errorResultWithProcess is errorResult with a process handle the
+// model can use to re-attach via process_output.
+func errorResultWithProcess(msg string, processID string) fantasy.ToolResponse {
+	data, err := json.Marshal(ExecuteResult{
+		Success:             false,
+		Error:               msg,
+		BackgroundProcessID: processID,
+	})
+	if err != nil {
+		return fantasy.NewTextErrorResponse(msg)
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
+// marshalResult serializes an ExecuteResult into a tool response.
+func marshalResult(result ExecuteResult) fantasy.ToolResponse {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
 // detectFileDump checks whether the command matches a file-dump
 // pattern and returns an advisory note, or empty string if no
 // match.
@@ -454,6 +688,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				}
 				timeout = parsed
 			}
+			timeout = min(timeout, maxExecuteTimeout)
 			var opts *workspacesdk.ProcessOutputOptions
 			// Save parent context before applying timeout.
 			parentCtx := ctx

@@ -686,7 +686,45 @@ func (s *taskStarter) executeLocalTools(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages)
+	if err := s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages); err != nil {
+		return err
+	}
+	// The tool results are durable, so any execution records for
+	// these calls are stale. Cleanup is best-effort: leftover rows
+	// are harmless (resolved tool calls are never re-executed) and
+	// dbpurge removes them eventually.
+	s.deleteToolCallExecutionRecords(ctx, input.ChatID, decision.localToolCalls)
+	return nil
+}
+
+// deleteToolCallExecutionRecords removes execution records for
+// committed tool calls. Failures are logged, never propagated. The
+// runner may cancel the task context as soon as the commit's state
+// transition lands, so the delete runs on an uncanceled context with
+// its own bound.
+func (s *taskStarter) deleteToolCallExecutionRecords(ctx context.Context, chatID uuid.UUID, toolCalls []fantasy.ToolCallContent) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	ids := make([]string, 0, len(toolCalls))
+	for _, call := range toolCalls {
+		if call.ProviderExecuted {
+			continue
+		}
+		ids = append(ids, call.ToolCallID)
+	}
+	if len(ids) == 0 {
+		return
+	}
+	err := s.opts.Store.DeleteChatToolCallExecutions(ctx, database.DeleteChatToolCallExecutionsParams{
+		ChatID:      chatID,
+		ToolCallIds: ids,
+	})
+	if err != nil {
+		s.opts.Logger.Warn(ctx, "failed to delete chat tool call execution records",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
 }
 
 func (s *taskStarter) generateCompaction(

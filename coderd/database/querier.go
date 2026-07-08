@@ -145,6 +145,7 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
+	DeleteChatToolCallExecutions(ctx context.Context, arg DeleteChatToolCallExecutionsParams) error
 	DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error
 	DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
@@ -191,6 +192,10 @@ type sqlcQuerier interface {
 	// 2. Files whose every referencing chat has been archived for longer
 	//    than the retention period.
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
+	// Deletes stale execution records. Rows left behind by attempts that
+	// never cleaned up are harmless because resolved tool calls are never
+	// re-executed; this is the janitor for those leftovers.
+	DeleteOldChatToolCallExecutions(ctx context.Context, beforeTime time.Time) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
 	// All chat-scoped child tables are removed via ON DELETE CASCADE.
@@ -473,6 +478,8 @@ type sqlcQuerier interface {
 	// Returns an empty string when no allowlist has been configured (all templates allowed).
 	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
+	GetChatToolCallExecution(ctx context.Context, arg GetChatToolCallExecutionParams) (ChatToolCallExecution, error)
+	GetChatToolCallExecutions(ctx context.Context, arg GetChatToolCallExecutionsParams) ([]ChatToolCallExecution, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -1054,6 +1061,10 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
+	// Reserves an execution record for a tool call. The caller detects a
+	// unique violation to learn whether it created the row or a previous
+	// attempt already reserved it.
+	InsertChatToolCallExecution(ctx context.Context, arg InsertChatToolCallExecutionParams) (ChatToolCallExecution, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1391,6 +1402,9 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
+	// Records the process handle once the process has started. started_at
+	// is set together with process_id.
+	UpdateChatToolCallExecutionProcess(ctx context.Context, arg UpdateChatToolCallExecutionProcessParams) (ChatToolCallExecution, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

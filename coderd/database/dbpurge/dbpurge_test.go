@@ -255,6 +255,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteOldChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)
@@ -307,6 +308,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().DeleteOldChatToolCallExecutions(gomock.Any(), gomock.Any()).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)
@@ -2860,4 +2862,49 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			tc.run(t)
 		})
 	}
+}
+
+func TestDeleteOldChatToolCallExecutions(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", ContextLimit: 8192})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: mc.ID,
+		Title:             "test-chat",
+	})
+
+	now := dbtime.Now()
+	_, err := db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
+		ChatID:      chat.ID,
+		ToolCallID:  "old-call",
+		Command:     "echo old",
+		TimeoutSecs: 10,
+		CreatedAt:   now.Add(-8 * 24 * time.Hour),
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatToolCallExecution(ctx, database.InsertChatToolCallExecutionParams{
+		ChatID:      chat.ID,
+		ToolCallID:  "new-call",
+		Command:     "echo new",
+		TimeoutSecs: 10,
+		CreatedAt:   now,
+	})
+	require.NoError(t, err)
+
+	deleted, err := db.DeleteOldChatToolCallExecutions(ctx, now.Add(-7*24*time.Hour))
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, ToolCallID: "new-call"})
+	require.NoError(t, err)
+	_, err = db.GetChatToolCallExecution(ctx, database.GetChatToolCallExecutionParams{ChatID: chat.ID, ToolCallID: "old-call"})
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }

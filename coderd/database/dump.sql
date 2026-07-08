@@ -2011,6 +2011,24 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_tool_call_executions (
+    chat_id uuid NOT NULL,
+    tool_call_id text NOT NULL,
+    workspace_agent_id uuid,
+    process_id text,
+    command text NOT NULL,
+    background boolean DEFAULT false NOT NULL,
+    timeout_secs bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    started_at timestamp with time zone
+);
+
+COMMENT ON COLUMN chat_tool_call_executions.process_id IS 'NULL means the row was reserved but the process handle was never recorded; set together with started_at once the process starts.';
+
+COMMENT ON COLUMN chat_tool_call_executions.command IS 'Recorded for mismatch diagnostics only; never used for deduplication.';
+
+COMMENT ON COLUMN chat_tool_call_executions.timeout_secs IS 'The clamped tool timeout at reserve time.';
+
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -4279,6 +4297,9 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_pkey PRIMARY KEY (chat_id, tool_call_id);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -4747,6 +4768,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chat_tool_call_executions_created_at ON chat_tool_call_executions USING btree (created_at);
+
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
 
 CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
@@ -5128,6 +5151,12 @@ ALTER TABLE ONLY chat_queued_messages
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_tool_call_executions
+    ADD CONSTRAINT chat_tool_call_executions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

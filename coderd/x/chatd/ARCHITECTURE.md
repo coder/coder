@@ -871,6 +871,31 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 The worker periodically archives old, unused chats.
 
+## Execute tool idempotency
+
+Task retries re-read the committed history and re-execute unresolved tool calls. Without extra state, every retry of an in-flight `execute` tool call would start another OS process in the workspace, leaving orphaned duplicates. The `chat_tool_call_executions` table prevents this by recording each execute tool call's process, keyed by `(chat_id, tool_call_id)`. The tool call ID is durable in `chat_messages` before execution begins, which makes it a safe idempotency key. The recorded command is diagnostics only and is never used for deduplication.
+
+### Reserve and re-attach lifecycle
+
+Before starting a process, the execute tool reserves a record with a plain insert. A unique violation on the primary key means another attempt already reserved it; this insert-or-conflict is the compare-and-set that picks exactly one creator even across lease handoffs. The creator calls `StartProcess` and immediately stores the process handle (`process_id`, `workspace_agent_id`, `started_at`) on the record.
+
+An attempt that finds an existing record re-attaches instead of starting:
+
+- If the record has a process handle, the tool takes a non-blocking output snapshot first. An exited process yields the real result, even past the deadline. A running process with time left on `started_at` plus the recorded timeout is block-waited for the remainder. A running process past the deadline yields the usual graceful timed-out result with `background_process_id`.
+- Only a definite HTTP 404 from the snapshot (the agent was reached and does not know the process) produces an `is_error` result stating the command may have run but its outcome is unknown, and that it should be re-run only if safe. Transport errors, cancellations, and server errors keep the process retrievable via `process_output`.
+- If the record has no process handle (`process_id` is NULL), a previous attempt died between reserving the row and learning the process ID. The tool never blindly restarts: it waits out a short grace window anchored on the record's creation time in case the reserving attempt is still alive, then commits the unknown-state `is_error` result.
+- Background executes participate identically; re-attaching to a background record returns the usual started-in-background result with the recorded process ID.
+
+The execute timeout is clamped to 4 hours at reserve time and the clamped value is stored on the record so re-attaching attempts agree on the deadline.
+
+### Cleanup
+
+After `commitGenerationStep` persists the tool results, the worker best-effort deletes the execution records for those calls, outside the commit transaction. Stale rows are harmless because resolved tool calls are never re-executed; `dbpurge` removes leftovers after 7 days.
+
+### Interrupt kill
+
+After an interrupt commits cancellation results for unresolved local tool calls, the worker loads their execution records and, for each foreground record with a process handle, dials the recorded agent with a short timeout and sends a kill signal. This is best-effort and happens after the interrupt commit, so a slow or unreachable agent never delays the interrupt. Background processes are left running because the model explicitly detached them. The records are deleted afterwards.
+
 # Stream loop
 
 The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:
