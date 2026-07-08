@@ -705,7 +705,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		},
 	}
 
-	title, _, err := generateManualTitle(
+	title, err := generateManualTitle(
 		context.Background(),
 		messages,
 		nil,
@@ -743,7 +743,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		},
 	}
 
-	_, _, err := generateManualTitle(
+	_, err := generateManualTitle(
 		context.Background(),
 		messages,
 		nil,
@@ -753,7 +753,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) {
+func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 	t.Parallel()
 
 	messages := []database.ChatMessage{
@@ -778,7 +778,7 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		},
 	}
 
-	_, usage, err := generateManualTitle(
+	_, err := generateManualTitle(
 		context.Background(),
 		messages,
 		nil,
@@ -786,9 +786,6 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		nil,
 	)
 	require.ErrorContains(t, err, "generated title was empty")
-	require.Equal(t, int64(11), usage.InputTokens)
-	require.Equal(t, int64(7), usage.OutputTokens)
-	require.Equal(t, int64(18), usage.TotalTokens)
 }
 
 func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {

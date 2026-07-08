@@ -261,6 +261,8 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly.
 
+All `chat_messages` writes must go through state machine transitions. Because the triggers fire on every insert or meaningful update, an out-of-band write (even of a hidden or soft-deleted row) advances `history_version` without a corresponding state update, which breaks the `history_version` fence of an in-flight generation task and kills it without a replacement. Manual title endpoints (`RegenerateChatTitle`/`ProposeChatTitle`) used to violate this by inserting and soft-deleting an accounting message for token usage; they no longer write to `chat_messages` at all. Title-generation usage is tracked independently by AI Gateway.
+
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
 
 ```sql

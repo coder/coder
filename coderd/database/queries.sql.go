@@ -9889,6 +9889,12 @@ type InsertChatMessagesParams struct {
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
 }
 
+// WARNING: All chat_messages writes must go through chatstate
+// transitions. AFTER-STATEMENT triggers sync chats.history_version to
+// snapshot_version on any chat_messages insert/update, so an
+// out-of-band write (even of a hidden or soft-deleted row) breaks the
+// history_version fence of an in-flight generation task, killing it
+// without a replacement and leaving the chat stuck in running.
 func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
 	rows, err := q.db.QueryContext(ctx, insertChatMessages,
 		arg.ChatID,

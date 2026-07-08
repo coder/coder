@@ -895,15 +895,6 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	)
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
-		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
-			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
-			require.Equal(t, []string{"[]"}, arg.Content)
-			return []database.ChatMessage{{ID: 91}}, nil
-		},
-	)
-	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
 	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
 		ID:    chatID,
 		Title: wantTitle,
@@ -924,7 +915,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}
 }
 
-// With no request-level locking, recordManualTitleUsage's re-read under
+// With no request-level locking, persistManualTitle's re-read under
 // GetChatByIDForUpdate is the only protection against clobbering a title
 // that changed while the model call ran. The strict mock has no
 // UpdateChatByID expectation, so any persist attempt fails the test.
@@ -1048,8 +1039,6 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	)
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(landedChat, nil)
-	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).Return([]database.ChatMessage{{ID: 91}}, nil)
-	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
 
 	gotChat, err := server.RegenerateChatTitle(ctx, chat)
 	require.NoError(t, err)

@@ -793,6 +793,12 @@ SELECT *
 FROM chats_expanded;
 
 -- name: InsertChatMessages :many
+-- WARNING: All chat_messages writes must go through chatstate
+-- transitions. AFTER-STATEMENT triggers sync chats.history_version to
+-- snapshot_version on any chat_messages insert/update, so an
+-- out-of-band write (even of a hidden or soft-deleted row) breaks the
+-- history_version fence of an in-flight generation task, killing it
+-- without a replacement and leaving the chat stuck in running.
 WITH batch AS (
     SELECT
         (

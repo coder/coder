@@ -1041,6 +1041,12 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
+	// WARNING: All chat_messages writes must go through chatstate
+	// transitions. AFTER-STATEMENT triggers sync chats.history_version to
+	// snapshot_version on any chat_messages insert/update, so an
+	// out-of-band write (even of a hidden or soft-deleted row) breaks the
+	// history_version fence of an in-flight generation task, killing it
+	// without a replacement and leaving the chat stuck in running.
 	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	// Legacy queue insertion path. When no caller-supplied creator exists,

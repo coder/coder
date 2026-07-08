@@ -8446,6 +8446,8 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				require.Equal(t, message.ID, runs[0].HistoryTipMessageID.Int64)
 			}
 			if !tt.wantErr {
+				// Title generation must not write accounting rows to
+				// chat_messages; usage is tracked by AI Gateway.
 				var usageMessages int
 				err = rawDB.QueryRowContext(
 					ctx,
@@ -8453,7 +8455,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 					chat.ID,
 				).Scan(&usageMessages)
 				require.NoError(t, err)
-				require.Equal(t, 1, usageMessages)
+				require.Equal(t, 0, usageMessages)
 			}
 		})
 	}
