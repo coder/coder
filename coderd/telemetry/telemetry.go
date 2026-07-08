@@ -2356,9 +2356,6 @@ var agentExperiments = []agentExperiment{
 }
 
 const (
-	// defaultComputerUseProvider mirrors chattool.ComputerUseProviderAnthropic
-	// without importing chattool, which would create an import cycle.
-	defaultComputerUseProvider = "anthropic"
 	// advisorModelReuseChatModel reports that the advisor has no active
 	// dedicated model override and reuses the chat model at runtime.
 	advisorModelReuseChatModel = "reuse_chat_model"
@@ -2399,7 +2396,7 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessa
 		provider = agentExperimentUnknown
 		providerSource = agentExperimentUnknown
 	case provider == "":
-		provider = defaultComputerUseProvider
+		provider = string(codersdk.ChatComputerUseProviderAnthropic)
 		providerSource = "default"
 	}
 	val, err := json.Marshal(agentVirtualDesktopTelemetry{
@@ -2425,7 +2422,10 @@ func collectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	} else if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		// A row we can't parse is indeterminate, so leave provider and model
 		// as unknown rather than reporting a confident reuse_chat_model.
+		// Discard any fields the decoder populated before erroring so we don't
+		// ship a partial numeric next to an unknown provider.
 		opts.Logger.Warn(ctx, "parse chat advisor config for telemetry", slog.Error(err))
+		cfg = codersdk.AdvisorConfig{}
 	} else {
 		provider, model = advisorModelTelemetry(ctx, opts.Database, opts.Logger, cfg.ModelConfigID)
 	}

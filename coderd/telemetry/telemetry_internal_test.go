@@ -34,7 +34,7 @@ func TestCollectAgentVirtualDesktop(t *testing.T) {
 
 		payload := collect(t, Options{Database: db, Logger: testutil.Logger(t)})
 		require.False(t, payload.Enabled)
-		require.Equal(t, defaultComputerUseProvider, payload.ComputerUse.Provider)
+		require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, payload.ComputerUse.Provider)
 		require.Equal(t, "default", payload.ComputerUse.ProviderSource)
 	})
 
@@ -148,6 +148,20 @@ func TestCollectAgentAdvisor(t *testing.T) {
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
 
 		payload := collect(t, Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, agentExperimentUnknown, payload.Provider)
+		require.Equal(t, agentExperimentUnknown, payload.Model)
+	})
+
+	t.Run("PartialParse", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(`{"max_uses_per_run": 42, "model_config_id": "not-a-uuid"}`, nil)
+
+		payload := collect(t, Options{Database: db, Logger: testutil.Logger(t)})
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
 		require.Equal(t, agentExperimentUnknown, payload.Provider)
 		require.Equal(t, agentExperimentUnknown, payload.Model)
 	})
