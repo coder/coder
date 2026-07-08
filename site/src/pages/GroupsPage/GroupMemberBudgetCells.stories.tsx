@@ -15,7 +15,6 @@ import { emDash, GroupMemberBudgetCells } from "./GroupMemberBudgetCells";
 const group = MockGroupWithoutMembers;
 const testId = "member-ai-budget-member-1";
 
-// Cost control governed by the viewed group; each story overrides per state.
 const costControl = (
 	overrides: Partial<GroupMemberAICostControl>,
 ): GroupMemberAICostControl => ({
@@ -61,7 +60,18 @@ const meta: Meta<typeof GroupMemberBudgetCells> = {
 export default meta;
 type Story = StoryObj<typeof GroupMemberBudgetCells>;
 
-// No budget configured: governed by the everyone group, unrestricted.
+export const NoCostControl: Story = {
+	args: { costControl: undefined },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cells = canvas.getAllByRole("cell");
+		expect(cells).toHaveLength(2);
+		for (const cell of cells) {
+			await expect(cell).toHaveTextContent(emDash);
+		}
+	},
+};
+
 export const Unlimited: Story = {
 	args: {
 		costControl: costControl({
@@ -82,7 +92,6 @@ export const Unlimited: Story = {
 	},
 };
 
-// Group budget of exactly $0: disables AI spending, distinct from Unlimited.
 export const None: Story = {
 	args: {
 		costControl: costControl({
@@ -100,7 +109,6 @@ export const None: Story = {
 	},
 };
 
-// Standard group budget on the viewed group.
 export const Regular: Story = {
 	args: {
 		costControl: costControl({ current_spend_micros: 3_235_000_000 }),
@@ -114,7 +122,6 @@ export const Regular: Story = {
 	},
 };
 
-// Individual override on the viewed group.
 export const Custom: Story = {
 	args: {
 		costControl: costControl({
@@ -134,33 +141,20 @@ export const Custom: Story = {
 	},
 };
 
-// Spend approaching the limit renders in the warning color.
+// Visual variants of Regular: the amount takes the warning/exceeded color.
+
 export const NearLimit: Story = {
 	args: {
 		costControl: costControl({ current_spend_micros: 6_735_000_000 }),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const cell = await canvas.findByTestId(testId);
-		await expect(cell).toHaveTextContent("$6,735 USD");
-		await expect(cell).toHaveTextContent("Group limit $7,000");
-	},
 };
 
-// Spend at or over the limit renders in the destructive color.
 export const OverLimit: Story = {
 	args: {
 		costControl: costControl({ current_spend_micros: 7_200_000_000 }),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const cell = await canvas.findByTestId(testId);
-		await expect(cell).toHaveTextContent("$7,200 USD");
-		await expect(cell).toHaveTextContent("Group limit $7,000");
-	},
 };
 
-// Governed by another group in the same org: this group's spend, unattributed.
 export const NotAttributed: Story = {
 	args: {
 		costControl: costControl({
@@ -191,8 +185,7 @@ export const NotAttributed: Story = {
 	},
 };
 
-// While the governing group's name is still loading, show a spinner instead
-// of flashing the "unresolvable" fallback.
+// Shows a spinner while resolving, not a flash of the unresolvable fallback.
 export const ResolvingGroupName: Story = {
 	args: {
 		costControl: costControl({
@@ -214,7 +207,6 @@ export const ResolvingGroupName: Story = {
 	},
 };
 
-// Governed by a group that can't be resolved (e.g. another org): no spend shown.
 export const NotAttributedUnknownGroup: Story = {
 	args: {
 		costControl: costControl({

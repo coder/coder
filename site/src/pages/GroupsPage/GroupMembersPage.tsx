@@ -47,8 +47,8 @@ import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
 import {
+	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
-	isBudgetFromOtherGroup,
 } from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
@@ -311,7 +311,8 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onRemove,
 }) => {
 	const costControl = member.ai_cost_control;
-	const budgetFromOtherGroup = isBudgetFromOtherGroup(costControl, group);
+	const budgetFromOtherGroup =
+		effectiveBudgetGroup(costControl, group).kind === "other";
 
 	return (
 		<TableRow key={member.id}>

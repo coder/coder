@@ -104,7 +104,6 @@ export const UserAIBudgetOverrideDialog: FC<
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				// Don't close while a mutation is in flight.
 				if (!isSubmitting) {
 					onOpenChange(nextOpen);
 				}
@@ -190,8 +189,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	const overrideId = useId();
 
 	const [overrideEnabled, setOverrideEnabled] = useState(override !== null);
-	// Seed from the override, else the group budget. Neither (uncapped) seeds
-	// empty, so enabling the override prompts for a value.
+	// Uncapped (no override or group budget) seeds empty, prompting for a value.
 	const [budgetDollars, setBudgetDollars] = useState(() => {
 		const seedMicros = (override ?? groupBudget)?.spend_limit_micros;
 		return seedMicros === undefined ? "" : String(microsToDollars(seedMicros));
@@ -221,9 +219,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	// Hold the error until the field is touched, so it doesn't flag immediately.
 	const budgetInvalid = overrideEnabled && budgetTouched && !budgetValid;
 	const budgetDisablesAI = budgetValid && budgetAmount === 0;
-	// Footer shows only when there's something to save or remove.
 	const showFooter = overrideEnabled || override !== null;
-	// Submittable with a valid amount to write, or an existing override to remove.
 	const canSubmit =
 		!isSubmitting && (overrideEnabled ? budgetValid : override !== null);
 

@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import type { UserAISpend } from "#/api/api";
 import { meAISpend } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -12,12 +11,8 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import {
-	getSeverity,
-	severityBorderClassName,
-	usageProgressPercentage,
-} from "#/utils/budget";
-import { type AISpend, UserDropdownAISpend } from "./UserDropdownAISpend";
+import { getSeverity, severityBorderClassName } from "#/utils/budget";
+import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 interface UserDropdownProps {
@@ -43,7 +38,22 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 		enabled: aibridgeVisible,
 	});
 
-	const spend = toAISpend(aibridgeVisible && !isError, data);
+	// A null limit is unlimited and still shown.
+	const hasValidSpend =
+		!!data &&
+		data.current_spend_micros >= 0 &&
+		(data.spend_limit_micros === null || data.spend_limit_micros >= 0);
+	const spend =
+		aibridgeVisible && !isError && hasValidSpend
+			? {
+					currentSpend: data.current_spend_micros,
+					spendLimit: data.spend_limit_micros,
+				}
+			: null;
+	const severity =
+		spend && spend.spendLimit !== null
+			? getSeverity(spend.currentSpend, spend.spendLimit)
+			: "normal";
 
 	return (
 		<DropdownMenu>
@@ -56,9 +66,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 						fallback={user.username}
 						src={user.avatar_url}
 						size="lg"
-						className={
-							spend ? severityBorderClassName(spend.severity) : undefined
-						}
+						className={spend ? severityBorderClassName(severity) : undefined}
 					/>
 				</button>
 			</DropdownMenuTrigger>
@@ -70,7 +78,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					profileExtra={
 						spend && (
 							<UserDropdownAISpend
-								spend={spend}
+								{...spend}
 								header={<DropdownMenuSeparator />}
 							/>
 						)
@@ -82,33 +90,3 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 		</DropdownMenu>
 	);
 };
-
-/** Resolves AI spend for the avatar border and dropdown section, or null when
- * it should be hidden. */
-export function toAISpend(
-	visible: boolean,
-	data: UserAISpend | undefined,
-): AISpend | null {
-	if (!visible || !data) {
-		return null;
-	}
-
-	const { current_spend_micros: currentSpend, spend_limit_micros: spendLimit } =
-		data;
-
-	// Hide on invalid spend data. A null limit means unlimited, which is shown.
-	if (currentSpend < 0 || (spendLimit !== null && spendLimit < 0)) {
-		return null;
-	}
-
-	return {
-		currentSpend,
-		spendLimit,
-		percent:
-			spendLimit === null
-				? 0
-				: usageProgressPercentage(currentSpend, spendLimit),
-		severity:
-			spendLimit === null ? "normal" : getSeverity(currentSpend, spendLimit),
-	};
-}

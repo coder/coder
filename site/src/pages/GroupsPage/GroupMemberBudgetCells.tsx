@@ -13,63 +13,49 @@ import { InfoIconTooltip } from "./InfoIconTooltip";
 // Escaped so the emdash lint doesn't flag a literal.
 export const emDash = "\u2014";
 
-/** True when a named group other than Everyone governs this member's budget. */
-export function isBudgetFromOtherGroup(
-	costControl: GroupMemberAICostControl | undefined,
-	group: Pick<Group, "id" | "organization_id">,
-): boolean {
-	const effectiveGroupID = costControl?.effective_group_id ?? null;
-	return (
-		effectiveGroupID !== null &&
-		effectiveGroupID !== group.id &&
-		effectiveGroupID !== group.organization_id
-	);
-}
-
 /**
- * The AI budget and Budget group cells for a group member. The page only
- * reports spend against the viewed group; when another group governs the
- * member's budget, that spend isn't attributed here. Both cells share the same
- * derivation, so they're built together.
+ * The AI budget and Budget group cells for a group member. Spend only counts
+ * against the viewed group; another group's budget shows as unattributed.
  */
 export const GroupMemberBudgetCells: FC<{
 	group: Group;
 	userID: string;
 	costControl: GroupMemberAICostControl | undefined;
 }> = ({ group, userID, costControl }) => {
-	const effectiveGroupID = costControl?.effective_group_id ?? null;
-	const effectiveIsThisGroup = effectiveGroupID === group.id;
-	// The everyone group shares its id with the organization.
-	const effectiveIsEveryone = effectiveGroupID === group.organization_id;
-	// Unlike isBudgetFromOtherGroup, this also covers a null effective group
-	// (nothing resolves), which the cell must still render as unattributed.
-	const notAttributed = !effectiveIsThisGroup && !effectiveIsEveryone;
+	const effective = effectiveBudgetGroup(costControl, group);
+	const notAttributed = effective.kind === "none" || effective.kind === "other";
 
-	// Resolve the governing group's name only when it's another named group.
 	const { data: effectiveGroup, isLoading: isResolvingGroupName } = useQuery({
-		...groupById(effectiveGroupID ?? "", { exclude_members: true }),
-		enabled: Boolean(effectiveGroupID) && notAttributed,
+		...groupById(effective.kind === "other" ? effective.groupId : "", {
+			exclude_members: true,
+		}),
+		enabled: effective.kind === "other",
 	});
 	const effectiveGroupName =
 		effectiveGroup?.display_name || effectiveGroup?.name;
 	const groupName = group.display_name || group.name;
 
-	let budgetGroup: ReactNode = emDash;
-	if (costControl) {
-		if (effectiveIsEveryone) {
+	let budgetGroup: ReactNode;
+	switch (effective.kind) {
+		case "none":
+			budgetGroup = emDash;
+			break;
+		case "everyone":
 			budgetGroup = <Badge size="sm">Everyone (not allocated)</Badge>;
-		} else if (effectiveGroupID !== null) {
+			break;
+		case "this":
+		case "other": {
+			const name = effective.kind === "this" ? groupName : effectiveGroupName;
 			// "Another org" when the governing group can't be resolved.
-			const name = effectiveIsThisGroup ? groupName : effectiveGroupName;
-			budgetGroup = (
-				<Badge size="sm">
-					{name
-						? costControl.limit_source === "user_override"
-							? `${name} (individual)`
-							: name
-						: "Another org"}
-				</Badge>
-			);
+			let label = "Another org";
+			if (name) {
+				label =
+					costControl?.limit_source === "user_override"
+						? `${name} (individual)`
+						: name;
+			}
+			budgetGroup = <Badge size="sm">{label}</Badge>;
+			break;
 		}
 	}
 
@@ -96,6 +82,37 @@ export const GroupMemberBudgetCells: FC<{
 	);
 };
 
+/** Which group governs a member's AI budget, relative to the given group. */
+type EffectiveBudgetGroup =
+	| { kind: "none" }
+	| { kind: "everyone" }
+	| { kind: "this" }
+	| { kind: "other"; groupId: string };
+
+/**
+ * Resolves which group governs a member's AI budget. "none" covers missing
+ * cost control data as well as no governing group; "everyone" is the org-wide
+ * fallback when no named group sets a budget.
+ */
+export function effectiveBudgetGroup(
+	costControl: GroupMemberAICostControl | undefined,
+	group: Pick<Group, "id" | "organization_id">,
+): EffectiveBudgetGroup {
+	const groupId = costControl?.effective_group_id ?? null;
+	if (groupId === null) {
+		return { kind: "none" };
+	}
+	// The Everyone group shares its id with the organization. Checked first so
+	// it wins when the given group is Everyone itself.
+	if (groupId === group.organization_id) {
+		return { kind: "everyone" };
+	}
+	if (groupId === group.id) {
+		return { kind: "this" };
+	}
+	return { kind: "other", groupId };
+}
+
 /** The AI budget cell: a member's spend against the viewed group's budget. */
 const BudgetAmount: FC<{
 	costControl: GroupMemberAICostControl;
@@ -112,8 +129,7 @@ const BudgetAmount: FC<{
 }) => {
 	const spend = costControl.current_spend_micros;
 
-	// Governed by another group. If it can't be resolved (e.g. another org),
-	// the spend isn't shown either.
+	// Also hides the spend when the governing group can't be resolved.
 	if (notAttributed) {
 		if (isResolvingGroupName) {
 			return <Spinner loading size="sm" />;

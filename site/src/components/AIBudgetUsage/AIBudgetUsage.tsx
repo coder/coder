@@ -16,12 +16,15 @@ export const AIBudgetUsage: FC<{
 		);
 	}
 
-	const spendClassName = severityAmountClassName(
-		getSeverity(currentSpend, spendLimit),
-	);
 	return (
 		<span className="whitespace-nowrap">
-			<span className={spendClassName}>{formatBudgetUSD(currentSpend)}</span>{" "}
+			<span
+				className={severityAmountClassName(
+					getSeverity(currentSpend, spendLimit),
+				)}
+			>
+				{formatBudgetUSD(currentSpend)}
+			</span>{" "}
 			<span className="text-content-primary">
 				/ {formatBudgetUSD(spendLimit)}
 			</span>{" "}

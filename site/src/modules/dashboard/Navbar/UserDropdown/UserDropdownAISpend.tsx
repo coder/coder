@@ -1,28 +1,21 @@
 import type { FC, ReactNode } from "react";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
-import type { UsageSeverity } from "#/utils/budget";
+import { getSeverity, usageProgressPercentage } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 
-export interface AISpend {
+interface UserDropdownAISpendProps {
 	currentSpend: number;
 	/** A null limit means unlimited. */
 	spendLimit: number | null;
-	percent: number;
-	severity: UsageSeverity;
-}
-
-interface UserDropdownAISpendProps {
-	spend: AISpend;
 	/** Rendered above the section, only when the section is shown. */
 	header?: ReactNode;
 }
 
 export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
-	spend,
+	currentSpend,
+	spendLimit,
 	header,
 }) => {
-	const { currentSpend, spendLimit, percent, severity } = spend;
-
 	return (
 		<>
 			{header}
@@ -37,8 +30,8 @@ export const UserDropdownAISpend: FC<UserDropdownAISpendProps> = ({
 				{spendLimit !== null && (
 					<UsageBar
 						ariaLabel="AI spend usage"
-						percent={percent}
-						severity={severity}
+						percent={usageProgressPercentage(currentSpend, spendLimit)}
+						severity={getSeverity(currentSpend, spendLimit)}
 						className="mt-2 h-2.5"
 					/>
 				)}
