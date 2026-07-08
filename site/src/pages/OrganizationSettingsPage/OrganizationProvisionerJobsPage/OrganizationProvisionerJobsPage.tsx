@@ -2,11 +2,13 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { provisionerJobs } from "#/api/queries/organizations";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import OrganizationProvisionerJobsPageView from "./OrganizationProvisionerJobsPageView";
 
 const OrganizationProvisionerJobsPage: FC = () => {
 	const { organization } = useOrganizationSettings();
+	const { entitlements } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filter = {
 		status: searchParams.get("status") ?? "",
@@ -30,6 +32,7 @@ const OrganizationProvisionerJobsPage: FC = () => {
 			filter={filter}
 			organization={organization}
 			error={isLoadingError}
+			showPaywall={!entitlements.features.multiple_organizations.enabled}
 			onRetry={refetch}
 			onFilterChange={setSearchParams}
 		/>

@@ -10,6 +10,7 @@ import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	Select,
 	SelectContent,
@@ -78,13 +79,22 @@ type OrganizationProvisionerJobsPageViewProps = {
 	organization: Organization | undefined;
 	error: unknown;
 	filter: JobProvisionersFilter;
+	showPaywall: boolean | undefined;
 	onRetry: () => void;
 	onFilterChange: (filter: JobProvisionersFilter) => void;
 };
 
 const OrganizationProvisionerJobsPageView: FC<
 	OrganizationProvisionerJobsPageViewProps
-> = ({ jobs, organization, error, filter, onFilterChange, onRetry }) => {
+> = ({
+	jobs,
+	organization,
+	error,
+	filter,
+	showPaywall,
+	onFilterChange,
+	onRetry,
+}) => {
 	if (!organization) {
 		return (
 			<>
@@ -114,111 +124,124 @@ const OrganizationProvisionerJobsPageView: FC<
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<div className="flex items-center gap-2">
-					{filter.ids && (
-						<div className="relative">
-							<Badge className="h-10 text-sm pl-3 pr-10 font-mono">
-								{filter.ids}
-							</Badge>
-							<div className="size-10 flex items-center justify-center absolute top-0 right-0">
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											onClick={() => {
-												onFilterChange({ ...filter, ids: "" });
-											}}
-										>
-											<span className="sr-only">Clear ID</span>
-											<XIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent>Clear ID</TooltipContent>
-								</Tooltip>
-							</div>
+				{showPaywall ? (
+					<PaywallPremium
+						message="Provisioners"
+						description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
+						documentationLink={docs("/admin/provisioners")}
+					/>
+				) : (
+					<>
+						<div className="flex items-center gap-2">
+							{filter.ids && (
+								<div className="relative">
+									<Badge className="h-10 text-sm pl-3 pr-10 font-mono">
+										{filter.ids}
+									</Badge>
+									<div className="size-10 flex items-center justify-center absolute top-0 right-0">
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													onClick={() => {
+														onFilterChange({ ...filter, ids: "" });
+													}}
+												>
+													<span className="sr-only">Clear ID</span>
+													<XIcon />
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent>Clear ID</TooltipContent>
+										</Tooltip>
+									</div>
+								</div>
+							)}
+
+							<Select
+								value={filter.status}
+								onValueChange={(status) => {
+									onFilterChange({
+										...filter,
+										status,
+									});
+								}}
+							>
+								<SelectTrigger
+									className="w-[180px]"
+									data-testid="status-filter"
+								>
+									<SelectValue placeholder="All statuses" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										{StatusFilters.map((status) => (
+											<SelectItem key={status} value={status}>
+												<StatusIndicator variant={variantByStatus[status]}>
+													<StatusIndicatorDot />
+													<span className="block first-letter:uppercase">
+														{status}
+													</span>
+												</StatusIndicator>
+											</SelectItem>
+										))}
+									</SelectGroup>
+								</SelectContent>
+							</Select>
 						</div>
-					)}
 
-					<Select
-						value={filter.status}
-						onValueChange={(status) => {
-							onFilterChange({
-								...filter,
-								status,
-							});
-						}}
-					>
-						<SelectTrigger className="w-[180px]" data-testid="status-filter">
-							<SelectValue placeholder="All statuses" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectGroup>
-								{StatusFilters.map((status) => (
-									<SelectItem key={status} value={status}>
-										<StatusIndicator variant={variantByStatus[status]}>
-											<StatusIndicatorDot />
-											<span className="block first-letter:uppercase">
-												{status}
-											</span>
-										</StatusIndicator>
-									</SelectItem>
-								))}
-							</SelectGroup>
-						</SelectContent>
-					</Select>
-				</div>
-
-				<Table className="mt-6">
-					<TableHeader>
-						<TableRow>
-							<TableHead>Created</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Template</TableHead>
-							<TableHead>Tags</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead />
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{jobs ? (
-							jobs.length > 0 ? (
-								jobs.map((j) => (
-									<JobRow
-										defaultIsOpen={filter.ids.includes(j.id)}
-										key={j.id}
-										job={j}
-									/>
-								))
-							) : (
+						<Table className="mt-6">
+							<TableHeader>
 								<TableRow>
-									<TableCell colSpan={999}>
-										<EmptyState message="No provisioner jobs found" />
-									</TableCell>
+									<TableHead>Created</TableHead>
+									<TableHead>Type</TableHead>
+									<TableHead>Template</TableHead>
+									<TableHead>Tags</TableHead>
+									<TableHead>Status</TableHead>
+									<TableHead />
 								</TableRow>
-							)
-						) : error ? (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message="Error loading the provisioner jobs"
-										cta={
-											<Button size="sm" onClick={onRetry}>
-												Retry
-											</Button>
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						) : (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<Loader />
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
+							</TableHeader>
+							<TableBody>
+								{jobs ? (
+									jobs.length > 0 ? (
+										jobs.map((j) => (
+											<JobRow
+												defaultIsOpen={filter.ids.includes(j.id)}
+												key={j.id}
+												job={j}
+											/>
+										))
+									) : (
+										<TableRow>
+											<TableCell colSpan={999}>
+												<EmptyState message="No provisioner jobs found" />
+											</TableCell>
+										</TableRow>
+									)
+								) : error ? (
+									<TableRow>
+										<TableCell colSpan={999}>
+											<EmptyState
+												message="Error loading the provisioner jobs"
+												cta={
+													<Button size="sm" onClick={onRetry}>
+														Retry
+													</Button>
+												}
+											/>
+										</TableCell>
+									</TableRow>
+								) : (
+									<TableRow>
+										<TableCell colSpan={999}>
+											<Loader />
+										</TableCell>
+									</TableRow>
+								)}
+							</TableBody>
+						</Table>
+					</>
+				)}
 			</section>
 		</div>
 	);

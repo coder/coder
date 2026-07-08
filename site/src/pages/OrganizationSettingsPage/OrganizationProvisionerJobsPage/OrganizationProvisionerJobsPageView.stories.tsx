@@ -31,6 +31,17 @@ type Story = StoryObj<typeof OrganizationProvisionerJobsPageView>;
 
 export const Default: Story = {};
 
+export const Paywall: Story = {
+	args: {
+		showPaywall: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Learn about Premium");
+		expect(canvas.queryByTestId("status-filter")).not.toBeInTheDocument();
+	},
+};
+
 export const OrganizationNotFound: Story = {
 	args: {
 		organization: undefined,
