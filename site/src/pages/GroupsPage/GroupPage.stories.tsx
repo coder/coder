@@ -295,7 +295,7 @@ export const WithMemberAIBudget: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
-		await expect(await canvas.findByText("Budget type")).toBeInTheDocument();
+		await expect(await canvas.findByText("Budget Source")).toBeInTheDocument();
 		// Override source, no limit.
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${MockUserOwner.id}`),
@@ -309,7 +309,7 @@ export const WithMemberAIBudget: Story = {
 		// No spend reported for this member.
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${memberWithoutSpend.id}`),
-		).toHaveTextContent("-");
+		).toHaveTextContent("—");
 
 		// Column header tooltips.
 		const body = within(document.body);
@@ -319,25 +319,28 @@ export const WithMemberAIBudget: Story = {
 			}),
 		);
 		await expect(
-			await body.findByText(
-				"A member's AI spend against their budget for the current period.",
-			),
+			await body.findByText(/^Monthly AI API cost for this user\. Resets /),
 		).toBeInTheDocument();
 		await userEvent.click(
-			within(canvas.getByText("Budget type")).getByRole("button", {
+			within(canvas.getByText("Budget Source")).getByRole("button", {
 				name: "More info",
 			}),
 		);
 		await expect(
 			await body.findByText(
-				"Whether a member's budget comes from their group or an individual override.",
+				/Users with group type will inherit the group budget allowance\./,
+			),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByText(
+				/Users with individual type have a budget override\./,
 			),
 		).toBeInTheDocument();
 	},
 };
 
-// Budget governed by another group (effective_group_id points elsewhere): only
-// the member's spend shows, with no limit or type.
+// Budget governed by another group: both columns em-dash and a tooltip names
+// the governing group.
 export const WithMemberAIBudgetFromAnotherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
@@ -366,18 +369,20 @@ export const WithMemberAIBudgetFromAnotherGroup: Story = {
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
-		await expect(cell).toHaveTextContent("$1,345");
+		await expect(cell).toHaveTextContent("—");
 		await expect(cell).not.toHaveTextContent("USD");
 		await expect(canvas.queryByText("Group")).not.toBeInTheDocument();
-		// The info tooltip names the group that sets the budget.
+		// The info tooltip names the group that governs the budget.
 		await userEvent.click(
 			within(cell).getByRole("button", { name: "More info" }),
 		);
-		await expect(await body.findByText(/developer/)).toBeInTheDocument();
+		await expect(
+			await body.findByText(/attributed to the "developer" group/),
+		).toBeInTheDocument();
 	},
 };
 
-// AI Bridge hidden: neither the AI budget nor the budget type column renders.
+// AI Bridge hidden: neither the AI budget nor the Budget Source column renders.
 export const WithoutMemberAIBudgetColumn: Story = {
 	parameters: {
 		queries: [
@@ -390,7 +395,7 @@ export const WithoutMemberAIBudgetColumn: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Group members" });
 		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Budget type")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Budget Source")).not.toBeInTheDocument();
 	},
 };
 
@@ -448,7 +453,7 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 	},
 };
 
-// effective_group_id null: spend greys out, dialog marks no "(default)".
+// effective_group_id null: both columns em-dash; dialog marks no "(default)".
 export const WithMemberAIBudgetWithoutEffectiveGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
@@ -483,14 +488,14 @@ export const WithMemberAIBudgetWithoutEffectiveGroup: Story = {
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
-		await expect(cell).toHaveTextContent("$1,345");
+		await expect(cell).toHaveTextContent("—");
 		await expect(cell).not.toHaveTextContent("USD");
 		// Generic fallback when no group name resolves.
 		await userEvent.click(
 			within(cell).getByRole("button", { name: "More info" }),
 		);
 		await expect(
-			await body.findByText(/set by another group/),
+			await body.findByText(/attributed to another group/),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 

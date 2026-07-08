@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -47,7 +48,6 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
-import { formatBudgetUSD } from "#/utils/currency";
 import type { GroupPageOutletContext } from "./GroupPage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
@@ -76,6 +76,15 @@ const GroupMembersPage: FC = () => {
 	const aibridgeVisible =
 		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
+
+	// AI spend resets at 00:00 UTC on the first of each month, the only
+	// supported AIBudgetPeriod. dayjs renders that instant in the viewer's
+	// local time, so the displayed day and hour shift by timezone.
+	const now = new Date();
+	const resetAt = dayjs(
+		new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+	).format("MMM D, YYYY h:mm A");
+	const aiBudgetNote = `Monthly AI API cost for this user. Resets ${resetAt}`;
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -110,13 +119,23 @@ const GroupMembersPage: FC = () => {
 									<TableHead>
 										<div className="flex items-center gap-1">
 											AI budget
-											<InfoIconTooltip message="A member's AI spend against their budget for the current period." />
+											<InfoIconTooltip message={aiBudgetNote} />
 										</div>
 									</TableHead>
 									<TableHead>
 										<div className="flex items-center gap-1">
-											Budget type
-											<InfoIconTooltip message="Whether a member's budget comes from their group or an individual override." />
+											Budget Source
+											<InfoIconTooltip
+												message={
+													<>
+														Users with group type will inherit the group budget
+														allowance.
+														<br />
+														<br />
+														Users with individual type have a budget override.
+													</>
+												}
+											/>
 										</div>
 									</TableHead>
 								</>
@@ -357,27 +376,29 @@ const GroupMemberAIBudgetCells: FC<{
 	userID: string;
 	costControl: GroupMemberAICostControl | undefined;
 }> = ({ group, userID, costControl }) => {
-	// Limit and type apply only when this group is the member's effective source.
+	// Budget and source apply only on the member's effective group.
 	const onEffectiveGroup = costControl?.effective_group_id === group.id;
 
-	let budget: ReactNode = "-";
-	let type: ReactNode = "-";
-	if (costControl) {
-		// Another group sets this member's budget; surface their spend only.
-		budget = onEffectiveGroup ? (
+	let budget: ReactNode = "—";
+	let type: ReactNode = "—";
+	if (costControl && onEffectiveGroup) {
+		budget = (
 			<AIBudgetUsage
 				currentSpend={costControl.current_spend_micros}
 				spendLimit={costControl.spend_limit_micros}
 			/>
-		) : (
+		);
+		if (costControl.limit_source) {
+			type = budgetTypeLabels[costControl.limit_source];
+		}
+	} else if (costControl) {
+		// Another group governs the budget; name it in a tooltip.
+		budget = (
 			<span className="inline-flex items-center gap-1 text-content-disabled">
-				{formatBudgetUSD(costControl.current_spend_micros)}
+				—
 				<MemberBudgetSourceTooltip groupId={costControl.effective_group_id} />
 			</span>
 		);
-		if (onEffectiveGroup && costControl.limit_source) {
-			type = budgetTypeLabels[costControl.limit_source];
-		}
 	}
 
 	return (
@@ -407,8 +428,8 @@ const MemberBudgetSourceTooltip: FC<{ groupId: string | null }> = ({
 			className="text-content-disabled"
 			message={
 				name
-					? `This member's AI budget is set by the "${name}" group.`
-					: "This member's AI budget is set by another group."
+					? `This user's budget is attributed to the "${name}" group.`
+					: "This user's budget is attributed to another group."
 			}
 		/>
 	);
