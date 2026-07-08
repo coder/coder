@@ -305,6 +305,14 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		}
 		var wifCfg *config.AnthropicWIF
 		if spec.WIF != nil && spec.WIF.IsConfigured() {
+			// The exchange reads the token file and posts its contents to
+			// the provider's base URL. Provider rows are writable through
+			// the HTTP API, so only paths blessed by deployment
+			// configuration may be read; anything else would let a Coder
+			// administrator exfiltrate arbitrary server-readable files.
+			if !cfg.WIFIdentityTokenFileAllowed(spec.WIF.IdentityTokenFile, spec.BaseURL) {
+				return nil, xerrors.Errorf("anthropic provider %q: WIF identity token file %q is not allowed by deployment configuration; list it in CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES or configure the provider via CODER_AI_GATEWAY_PROVIDER_<N>_WIF_* env vars", spec.Name, spec.WIF.IdentityTokenFile)
+			}
 			wifCfg = &config.AnthropicWIF{
 				FederationRuleID: spec.WIF.FederationRuleID,
 				OrganizationID:   spec.WIF.OrganizationID,

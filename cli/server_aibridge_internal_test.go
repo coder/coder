@@ -864,6 +864,84 @@ func TestBuildProviderFromProtoBedrockWithoutSettings(t *testing.T) {
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
 }
 
+func TestBuildProviderWIFIdentityTokenFileTrust(t *testing.T) {
+	t.Parallel()
+
+	// The daemon reads the identity token file and posts its contents to
+	// the provider's base URL, so only deployment-configuration-blessed
+	// paths may be read regardless of how the row entered the database.
+	wifProvider := func(baseURL string) *proto.AIProvider {
+		return &proto.AIProvider{
+			Enabled: true,
+			Type:    string(database.AIProviderTypeAnthropic),
+			Name:    "anthropic-wif",
+			BaseUrl: baseURL,
+			Wif: &proto.AIProviderKindWIF{
+				FederationRuleId:  "fdrl_test",
+				OrganizationId:    "00000000-0000-0000-0000-000000000001",
+				IdentityTokenFile: "/var/run/secrets/anthropic/token",
+			},
+		}
+	}
+	envCfg := codersdk.AIBridgeConfig{
+		Providers: []codersdk.AIProviderConfig{{
+			Type:                 string(database.AIProviderTypeAnthropic),
+			Name:                 "anthropic-wif",
+			BaseURL:              "https://gateway.internal/anthropic",
+			WIFFederationRuleID:  "fdrl_test",
+			WIFOrganizationID:    "00000000-0000-0000-0000-000000000001",
+			WIFIdentityTokenFile: "/var/run/secrets/anthropic/token",
+		}},
+	}
+
+	tests := []struct {
+		name        string
+		provider    *proto.AIProvider
+		cfg         codersdk.AIBridgeConfig
+		errContains string
+	}{
+		{
+			name:        "UntrustedFileRejected",
+			provider:    wifProvider("https://api.anthropic.com"),
+			cfg:         codersdk.AIBridgeConfig{},
+			errContains: "is not allowed by deployment configuration",
+		},
+		{
+			name:     "AllowlistedFileAccepted",
+			provider: wifProvider("https://api.anthropic.com"),
+			cfg: codersdk.AIBridgeConfig{
+				WIFAllowedIdentityTokenFiles: serpent.StringArray{"/var/run/secrets/anthropic/token"},
+			},
+		},
+		{
+			name:     "EnvPairAccepted",
+			provider: wifProvider("https://gateway.internal/anthropic"),
+			cfg:      envCfg,
+		},
+		{
+			name:        "EnvFileWithRepointedBaseURLRejected",
+			provider:    wifProvider("https://attacker.example"),
+			cfg:         envCfg,
+			errContains: "is not allowed by deployment configuration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := buildProvider(t.Context(), protoToProviderSpec(tt.provider), tt.cfg, nil)
+			if tt.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, aibridge.ProviderAnthropic, provider.Type())
+		})
+	}
+}
+
 func assertFieldValue(t *testing.T, fields slog.Map, name string, expected interface{}) {
 	t.Helper()
 	for _, f := range fields {

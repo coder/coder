@@ -238,7 +238,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "wif_allowed_identity_token_files": [
+          "string"
+        ]
       },
       "chat": {
         "acquire_batch_size": 0,

@@ -222,6 +222,15 @@ AI GATEWAY OPTIONS:
           Emit structured logs for AI Gateway interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
+      --ai-gateway-wif-allowed-identity-token-files string-array, $CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES
+          Absolute paths of OIDC identity token files that Workload Identity
+          Federation (WIF) AI providers managed through the API may read. Files
+          referenced by CODER_AI_GATEWAY_PROVIDER_<N>_WIF_IDENTITY_TOKEN_FILE
+          are trusted automatically, but only together with that provider's
+          configured base URL. A file listed here can be sent to any HTTPS base
+          URL a Coder administrator configures on a WIF provider, so list only
+          tokens intended for AI provider federation.
+
 AI GATEWAY PROXY OPTIONS: 
       --ai-gateway-proxy-dump-dir string, $CODER_AI_GATEWAY_PROXY_DUMP_DIR
           Directory for dumping MITM request/response pairs to disk for

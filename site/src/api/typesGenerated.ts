@@ -69,6 +69,13 @@ export interface AIBridgeConfig {
 	readonly send_actor_headers: boolean;
 	readonly allow_byok: boolean;
 	/**
+	 * WIFAllowedIdentityTokenFiles lists identity token files that WIF
+	 * providers managed through the HTTP API may read. See
+	 * AIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust
+	 * semantics.
+	 */
+	readonly wif_allowed_identity_token_files: string;
+	/**
 	 * Budget settings for AI Governance cost controls.
 	 */
 	readonly budget_policy?: string;

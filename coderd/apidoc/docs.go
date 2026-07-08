@@ -17420,6 +17420,13 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
+                },
+                "wif_allowed_identity_token_files": {
+                    "description": "WIFAllowedIdentityTokenFiles lists identity token files that WIF\nproviders managed through the HTTP API may read. See\nAIBridgeConfig.WIFIdentityTokenFileAllowed for the full trust\nsemantics.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },

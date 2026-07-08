@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 func TestAIProviderSettings_Marshal(t *testing.T) {
@@ -452,4 +453,55 @@ func TestValidateAIProviderWIFBaseURL(t *testing.T) {
 			require.Contains(t, verrs[0].Detail, "https base_url")
 		})
 	}
+}
+
+func TestAIBridgeConfigWIFIdentityTokenFileAllowed(t *testing.T) {
+	t.Parallel()
+
+	cfg := codersdk.AIBridgeConfig{
+		// The empty entry must be ignored: filepath.Clean("") is ".",
+		// which must never match anything.
+		WIFAllowedIdentityTokenFiles: serpent.StringArray{"/var/run/secrets/allowed/token", "", "relative/entry"},
+		Providers: []codersdk.AIProviderConfig{
+			{
+				Type:                 "anthropic",
+				Name:                 "env-wif",
+				BaseURL:              "https://gateway.internal/anthropic",
+				WIFIdentityTokenFile: "/var/run/secrets/env/token",
+			},
+			{
+				Type: "anthropic",
+				Name: "env-keyed",
+			},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		file    string
+		baseURL string
+		want    bool
+	}{
+		{name: "allowlisted any base URL", file: "/var/run/secrets/allowed/token", baseURL: "https://attacker.example", want: true},
+		{name: "allowlisted dot-dot normalized", file: "/var/run/secrets/allowed/../allowed/token", baseURL: "https://api.anthropic.com", want: true},
+		{name: "relative candidate rejected", file: "var/run/secrets/allowed/token", baseURL: "https://api.anthropic.com", want: false},
+		{name: "relative allowlist entry ignored", file: "relative/entry", baseURL: "https://api.anthropic.com", want: false},
+		{name: "empty candidate rejected", file: "", baseURL: "https://api.anthropic.com", want: false},
+		{name: "dot candidate rejected", file: ".", baseURL: "https://api.anthropic.com", want: false},
+		{name: "unlisted file rejected", file: "/etc/coder/secret.pem", baseURL: "https://api.anthropic.com", want: false},
+		{name: "env pair matches", file: "/var/run/secrets/env/token", baseURL: "https://gateway.internal/anthropic", want: true},
+		{name: "env file with different base URL rejected", file: "/var/run/secrets/env/token", baseURL: "https://attacker.example", want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, cfg.WIFIdentityTokenFileAllowed(tc.file, tc.baseURL))
+		})
+	}
+
+	t.Run("zero config rejects everything", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, codersdk.AIBridgeConfig{}.WIFIdentityTokenFileAllowed("/var/run/secrets/allowed/token", "https://api.anthropic.com"))
+	})
 }
