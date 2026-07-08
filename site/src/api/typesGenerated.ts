@@ -9801,6 +9801,11 @@ export interface UpdateAIProviderRequest {
 	readonly enabled?: boolean;
 	readonly base_url?: string;
 	readonly api_keys?: AIProviderKeyMutation[];
+	/**
+	 * Settings patches the type-specific settings. Omitted or null keeps
+	 * the stored value, a literal {} clears it (mirroring api_keys: []
+	 * for keys), and a discriminated object replaces or merges it.
+	 */
 	readonly settings?: AIProviderSettings;
 }
 

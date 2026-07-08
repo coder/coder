@@ -28998,7 +28998,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "settings": {
-                    "$ref": "#/definitions/codersdk.AIProviderSettings"
+                    "description": "Settings patches the type-specific settings. Omitted or null keeps\nthe stored value, a literal {} clears it (mirroring api_keys: []\nfor keys), and a discriminated object replaces or merges it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderSettings"
+                        }
+                    ]
                 }
             }
         },

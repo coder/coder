@@ -15206,14 +15206,14 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type                                                                      | Required | Restrictions | Description |
-|----------------|---------------------------------------------------------------------------|----------|--------------|-------------|
-| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |             |
-| `base_url`     | string                                                                    | false    |              |             |
-| `display_name` | string                                                                    | false    |              |             |
-| `enabled`      | boolean                                                                   | false    |              |             |
-| `icon`         | string                                                                    | false    |              |             |
-| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              |             |
+| Name           | Type                                                                      | Required | Restrictions | Description                                                                                                                                                                                      |
+|----------------|---------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |                                                                                                                                                                                                  |
+| `base_url`     | string                                                                    | false    |              |                                                                                                                                                                                                  |
+| `display_name` | string                                                                    | false    |              |                                                                                                                                                                                                  |
+| `enabled`      | boolean                                                                   | false    |              |                                                                                                                                                                                                  |
+| `icon`         | string                                                                    | false    |              |                                                                                                                                                                                                  |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              | Settings patches the type-specific settings. Omitted or null keeps the stored value, a literal {} clears it (mirroring api_keys: [] for keys), and a discriminated object replaces or merges it. |
 
 ## codersdk.UpdateActiveTemplateVersion
 

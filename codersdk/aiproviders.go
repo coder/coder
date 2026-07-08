@@ -102,7 +102,10 @@ func (s AIProviderSettings) IsZero() bool {
 }
 
 // MarshalJSON emits the discriminated wire form. Empty settings encode
-// as JSON null so the column round-trips cleanly through SQL NULL.
+// as an empty object, the explicit-clear form UnmarshalJSON accepts, so
+// the zero value round-trips: a Go client sending a zero Settings in an
+// update clears the stored value. Database encoding maps the zero value
+// to SQL NULL separately (see coderd encodeAIProviderSettings).
 func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	switch {
 	case s.Bedrock != nil:
@@ -110,16 +113,24 @@ func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
 	case s.WIF != nil:
 		return marshalSettings(*s.WIF)
 	default:
-		return []byte("null"), nil
+		return []byte("{}"), nil
 	}
 }
 
 // UnmarshalJSON inspects the _type discriminator and routes to the
-// concrete settings struct that matches it.
+// concrete settings struct that matches it. A literal empty object is
+// an explicit clear: PATCH callers send "settings": {} to drop the
+// stored type-specific settings, e.g. when migrating a WIF provider
+// back to bearer keys. Objects that carry fields without a _type stay
+// errors so a typo'd payload cannot be mistaken for a clear.
 func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
 	*s = AIProviderSettings{}
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err == nil && len(fields) == 0 {
 		return nil
 	}
 	var header aiProviderSettingsHeader
@@ -359,7 +370,10 @@ type UpdateAIProviderRequest struct {
 	Enabled     *bool                    `json:"enabled,omitempty"`
 	BaseURL     *string                  `json:"base_url,omitempty"`
 	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
-	Settings    *AIProviderSettings      `json:"settings,omitempty"`
+	// Settings patches the type-specific settings. Omitted or null keeps
+	// the stored value, a literal {} clears it (mirroring api_keys: []
+	// for keys), and a discriminated object replaces or merges it.
+	Settings *AIProviderSettings `json:"settings,omitempty"`
 }
 
 // AIProviderKeyMutation describes the intended state of a single key

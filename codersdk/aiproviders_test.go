@@ -14,11 +14,14 @@ import (
 func TestAIProviderSettings_Marshal(t *testing.T) {
 	t.Parallel()
 
-	t.Run("EmptyEmitsNull", func(t *testing.T) {
+	t.Run("EmptyEmitsEmptyObject", func(t *testing.T) {
 		t.Parallel()
+		// The zero value marshals to the explicit-clear wire form so a
+		// Go client can clear stored settings by sending a zero
+		// Settings value in an update request.
 		got, err := json.Marshal(codersdk.AIProviderSettings{})
 		require.NoError(t, err)
-		require.JSONEq(t, `null`, string(got))
+		require.JSONEq(t, `{}`, string(got))
 	})
 
 	t.Run("BedrockEmitsDiscriminator", func(t *testing.T) {
@@ -99,6 +102,19 @@ func TestAIProviderSettings_Unmarshal(t *testing.T) {
 		var s codersdk.AIProviderSettings
 		err := json.Unmarshal([]byte(`{"_version":1,"region":"us-east-1"}`), &s)
 		require.ErrorContains(t, err, "missing _type discriminator")
+	})
+
+	t.Run("EmptyObjectClears", func(t *testing.T) {
+		t.Parallel()
+		// A literal {} is the explicit clear form used by PATCH callers,
+		// e.g. migrating a WIF provider back to bearer keys. Only the
+		// field-free object qualifies; see MissingTypeDiscriminator for
+		// the typo'd-payload case that must stay an error.
+		s := codersdk.AIProviderSettings{
+			WIF: &codersdk.AIProviderWIFSettings{FederationRuleID: "fdrl_test"},
+		}
+		require.NoError(t, json.Unmarshal([]byte(`{}`), &s))
+		require.True(t, s.IsZero())
 	})
 
 	t.Run("UnsupportedVersion", func(t *testing.T) {
