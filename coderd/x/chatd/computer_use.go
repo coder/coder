@@ -14,6 +14,7 @@ import (
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -43,7 +44,7 @@ func (p *Server) computerUseProviderAndModelFromConfig(
 
 	provider = strings.TrimSpace(rawProvider)
 	if provider == "" {
-		provider = chattool.ComputerUseProviderAnthropic
+		provider = string(codersdk.ChatComputerUseProviderAnthropic)
 	}
 
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
@@ -155,7 +156,7 @@ func appendComputerUseProviderTool(
 			opts.logger,
 		),
 	}
-	if opts.provider == chattool.ComputerUseProviderOpenAI {
+	if opts.provider == string(codersdk.ChatComputerUseProviderOpenAI) {
 		// OpenAI computer-use image results need detail metadata so the model receives
 		// the screenshot at original detail when the chat loop sends the tool result.
 		providerTool.ResultProviderMetadata = openaicomputeruse.ResultProviderMetadata

@@ -53,12 +53,15 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 	const serverProvider = computerUseProviderData?.provider ?? "";
 	const hasLoaded = computerUseProviderData !== undefined;
 
-	const form = useFormik({
+	const form = useFormik<{ provider: TypesGen.ChatComputerUseProvider | "" }>({
 		enableReinitialize: true,
 		initialValues: {
 			provider: serverProvider,
 		},
 		onSubmit: (values, helpers) => {
+			if (!values.provider) {
+				return;
+			}
 			onSaveComputerUseProvider(
 				{ provider: values.provider },
 				{

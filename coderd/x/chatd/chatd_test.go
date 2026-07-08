@@ -9312,9 +9312,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(chattool.ComputerUseProviderAnthropic)
+	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(string(codersdk.ChatComputerUseProviderAnthropic))
 	require.True(t, ok)
-	require.Equal(t, chattool.ComputerUseProviderAnthropic, computerUseModelProvider)
+	require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, computerUseModelProvider)
 
 	// Track tools and model from the Anthropic LLM calls (the
 	// computer use child chat). We use a raw HTTP handler because

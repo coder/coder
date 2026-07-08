@@ -99,12 +99,12 @@ func TestComputerUseProviderAndModelFromConfig(t *testing.T) {
 		{
 			name:         "DefaultAnthropic",
 			rawProvider:  "",
-			wantProvider: chattool.ComputerUseProviderAnthropic,
+			wantProvider: string(codersdk.ChatComputerUseProviderAnthropic),
 		},
 		{
 			name:         "OpenAI",
 			rawProvider:  " openai ",
-			wantProvider: chattool.ComputerUseProviderOpenAI,
+			wantProvider: string(codersdk.ChatComputerUseProviderOpenAI),
 		},
 		{
 			name:        "Unknown",
@@ -168,10 +168,10 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	keys, aiProvider, err := server.resolveUserProviderAPIKeysAndProviderForProviderType(
 		ctx,
 		ownerID,
-		chattool.ComputerUseProviderOpenAI,
+		string(codersdk.ChatComputerUseProviderOpenAI),
 	)
 	require.NoError(t, err)
-	require.Equal(t, "test-key", keys.APIKey(chattool.ComputerUseProviderOpenAI))
+	require.Equal(t, "test-key", keys.APIKey(string(codersdk.ChatComputerUseProviderOpenAI)))
 	require.NotNil(t, aiProvider)
 	require.Equal(t, providerID, aiProvider.ID)
 	require.Equal(t, database.AIProviderTypeOpenai, aiProvider.Type)
@@ -190,7 +190,7 @@ func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T)
 	_, err := server.resolveModelRouteForProviderType(
 		ctx,
 		uuid.New(),
-		chattool.ComputerUseProviderOpenAI,
+		string(codersdk.ChatComputerUseProviderOpenAI),
 	)
 	require.ErrorContains(t, err, "AI Gateway routing requires a usable AI provider")
 }
@@ -201,7 +201,7 @@ func TestAppendComputerUseProviderTool(t *testing.T) {
 	providerTools, err := appendComputerUseProviderTool(
 		nil,
 		computerUseProviderToolOptions{
-			provider:      chattool.ComputerUseProviderOpenAI,
+			provider:      string(codersdk.ChatComputerUseProviderOpenAI),
 			isComputerUse: true,
 			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		},
@@ -251,7 +251,7 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 			providerTools, err := appendComputerUseProviderTool(
 				baseTools,
 				computerUseProviderToolOptions{
-					provider:       chattool.ComputerUseProviderOpenAI,
+					provider:       string(codersdk.ChatComputerUseProviderOpenAI),
 					isPlanModeTurn: tt.isPlanModeTurn,
 					isComputerUse:  tt.isComputerUse,
 				},
@@ -269,7 +269,7 @@ func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T
 	providerTools, err := appendComputerUseProviderTool(
 		nil,
 		computerUseProviderToolOptions{
-			provider:      chattool.ComputerUseProviderAnthropic,
+			provider:      string(codersdk.ChatComputerUseProviderAnthropic),
 			isComputerUse: true,
 			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		},
