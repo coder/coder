@@ -31,6 +31,9 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -55,6 +58,11 @@ var (
 	ErrAmbiguousAuth = xerrors.New("both key and key_id set; exactly one required")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
+
+	// ErrNoAIGatewayAccess is returned when the initiator lacks permission
+	// to create AI Bridge interceptions, which is granted by the
+	// organization-ai-gateway-access role.
+	ErrNoAIGatewayAccess = xerrors.New("no AI Gateway access")
 )
 
 const (
@@ -88,6 +96,8 @@ type store interface {
 	// Authorizer-related queries.
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
+	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error)
+	CustomRoles(ctx context.Context, arg database.CustomRolesParams) ([]database.CustomRole, error)
 
 	// ProviderConfigurator-related queries. InTx wraps the provider and key
 	// reads in a single read-only transaction; AcquireLock serializes against
@@ -105,6 +115,7 @@ type Server struct {
 	lifecycleCtx        context.Context
 	store               store
 	pubsub              pubsub.Pubsub
+	authorizer          rbac.Authorizer
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
@@ -120,7 +131,7 @@ type Server struct {
 	clock        quartz.Clock
 }
 
-func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logger slog.Logger, accessURL string,
+func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, authorizer rbac.Authorizer, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
 	aiSeatTracker aiseats.SeatTracker, clock quartz.Clock,
 ) (*Server, error) {
@@ -138,6 +149,7 @@ func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logg
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
 		pubsub:              ps,
+		authorizer:          authorizer,
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
@@ -744,6 +756,43 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
+	}
+
+	// The initiator must be authorized to create AI Bridge interceptions,
+	// which is granted by the organization-ai-gateway-access role. This is
+	// what gates AI Gateway usage: recording itself happens under the
+	// aibridged system subject, so the user's own permissions are checked
+	// here, at authentication time.
+	//nolint:gocritic // Expanding the initiator's roles requires system access.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	roleRow, err := s.store.GetAuthorizationUserRoles(sysCtx, key.UserID)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to retrieve authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrUnknownUser
+	}
+	roleNames, err := roleRow.RoleNames()
+	if err != nil {
+		s.logger.Warn(ctx, "failed to parse authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrNoAIGatewayAccess
+	}
+	rbacRoles, err := rolestore.Expand(sysCtx, s.store, roleNames)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to expand authorization roles", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrNoAIGatewayAccess
+	}
+	subject := rbac.Subject{
+		Type:         rbac.SubjectTypeUser,
+		FriendlyName: roleRow.Username,
+		Email:        roleRow.Email,
+		ID:           key.UserID.String(),
+		Roles:        rbacRoles,
+		Groups:       roleRow.Groups,
+		Scope:        key.ScopeSet(),
+	}.WithCachedASTValue()
+	if err := s.authorizer.Authorize(ctx, subject, policy.ActionCreate,
+		rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(subject.ID)); err != nil {
+		s.logger.Warn(ctx, "user lacks AI Gateway access", slog.F("user_id", key.UserID), slog.Error(err))
+		return nil, ErrNoAIGatewayAccess
 	}
 
 	return &proto.IsAuthorizedResponse{
