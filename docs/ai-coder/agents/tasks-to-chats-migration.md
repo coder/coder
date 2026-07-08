@@ -193,7 +193,7 @@ defined in `codersdk.ChatStatus`:
 
 | Tasks API status | Chats API status  | Notes                                                                                                               |
 |------------------|-------------------|---------------------------------------------------------------------------------------------------------------------|
-| `pending`        | `running`         | Chats have no separate queued state; a picked-up chat reports `running`.                                            |
+| `pending`        | `running`         | Chats have no separate queued state; a chat that hasn't been picked up yet reports `running`.                       |
 | `running`        | `running`         | Agent is actively working.                                                                                          |
 | `complete`       | `waiting`         | Idle. Newly created, finished successfully, or interrupted. This is the default idle state.                         |
 | `paused`         | n/a               | The Tasks API pause stops the workspace; the Chats API equivalent is `interrupt` plus separate workspace lifecycle. |
