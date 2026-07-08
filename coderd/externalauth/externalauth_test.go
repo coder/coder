@@ -883,19 +883,17 @@ func TestRefreshTokenWithScopes(t *testing.T) {
 	newConfig := func(t *testing.T, scopes []string) *externalauth.Config {
 		t.Helper()
 		instrument := promoauth.NewFactory(prometheus.NewRegistry())
-		return &externalauth.Config{
-			ID: "test",
-			InstrumentedOAuth2Config: instrument.New("test", &oauth2.Config{
-				ClientID:     "id",
-				ClientSecret: "secret",
-				Endpoint: oauth2.Endpoint{
-					AuthURL:  "https://example.invalid/auth",
-					TokenURL: "https://example.invalid/token",
-				},
-				Scopes: scopes,
-			}),
-			Scopes: scopes,
-		}
+		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+			ID:           "test",
+			Type:         codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String(),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			AuthURL:      "https://login.microsoftonline.com/tenant/oauth2/authorize",
+			TokenURL:     "https://login.microsoftonline.com/tenant/oauth2/token",
+			Scopes:       scopes,
+		}}, &url.URL{Scheme: "https", Host: "coder.example.com"})
+		require.NoError(t, err)
+		return configs[0]
 	}
 
 	expired := dbtime.Now().Add(-time.Hour)
