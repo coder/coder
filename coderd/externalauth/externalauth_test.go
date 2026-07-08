@@ -1083,40 +1083,65 @@ func TestRevokeToken(t *testing.T) {
 
 	t.Run("RevokeTokenRFC_Timeout", func(t *testing.T) {
 		t.Parallel()
+		// These channels are buffered so the handler goroutine can
+		// always complete its sends even if the test returns
+		// early. An unbuffered send with no receiver would leak the
+		// goroutine.
 		revokeExited := make(chan bool, 1)
-		testTimeout := make(chan bool, 1)
-		handlerDone := make(chan bool)
-
-		go func() {
-			time.Sleep(5 * time.Second)
-			testTimeout <- true
-		}()
+		handlerStarted := make(chan bool, 1)
+		handlerDone := make(chan bool, 1)
+		t.Cleanup(func() {
+			select {
+			case revokeExited <- true:
+			default:
+			}
+		})
 
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRevokeTokenRFC(func() (int, error) {
+					handlerStarted <- true
 					defer func() {
 						handlerDone <- true
 					}()
 
-					select {
-					case <-testTimeout:
-						t.Error("test timeout reached before context timeout")
-						return http.StatusOK, nil
-					case <-revokeExited:
-						return http.StatusOK, nil
-					}
+					<-revokeExited
+					return http.StatusOK, nil
 				}),
 				oidctest.WithServing(),
 			},
 		})
 
 		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
-		config.RevokeTimeout = time.Millisecond * 10
-		revoked, err := config.RevokeToken(ctx, link)
+		// A short timeout forces the request's deadline to fire while
+		// the handler is blocked in-flight, exercising the revoke
+		// timeout path.
+		config.RevokeTimeout = 100 * time.Millisecond
+		type revokeResult struct {
+			revoked bool
+			err     error
+		}
+		resultCh := make(chan revokeResult, 1)
+		go func() {
+			revoked, err := config.RevokeToken(ctx, link)
+			resultCh <- revokeResult{revoked: revoked, err: err}
+		}()
+		// Wait until the request has reached the server and the
+		// handler is running before asserting. This anchors the
+		// assertions to the in-flight state and turns a slow scheduler
+		// under CI load into a fast, labeled failure instead of a 25s
+		// RequireReceive hang.
+		select {
+		case <-handlerStarted:
+		case result := <-resultCh:
+			t.Fatalf("RevokeToken returned before revoke handler started: %v", result.err)
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for revoke handler to start")
+		}
+		result := testutil.RequireReceive(ctx, t, resultCh)
 		revokeExited <- true
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-		require.False(t, revoked)
+		require.ErrorIs(t, result.err, context.DeadlineExceeded)
+		require.False(t, result.revoked)
 		_ = testutil.RequireReceive(ctx, t, handlerDone)
 	})
 
