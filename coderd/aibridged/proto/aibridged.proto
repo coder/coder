@@ -45,6 +45,12 @@ service ProviderConfigurator {
   // GetAIProviders returns the full provider set (enabled and disabled).
   // It synchronizes with provider seeding so the response is never raced.
   rpc GetAIProviders(GetAIProvidersRequest) returns (GetAIProvidersResponse);
+  // WatchAIProviders streams a signal whenever the provider set changes
+  // (env seed completion or a CRUD add/update/delete). The signal carries no
+  // payload; on each message the client refetches via GetAIProviders. The
+  // server emits one signal immediately on subscribe so a client that
+  // connected after the last change still converges.
+  rpc WatchAIProviders(WatchAIProvidersRequest) returns (stream WatchAIProvidersResponse);
 }
 
 message RecordInterceptionRequest {
@@ -197,6 +203,11 @@ message GetAIProvidersRequest {}
 message GetAIProvidersResponse {
   repeated AIProvider providers = 1;
 }
+
+message WatchAIProvidersRequest {}
+
+// WatchAIProvidersResponse is an intentionally empty change signal.
+message WatchAIProvidersResponse {}
 
 message AIProvider {
   string name = 1;

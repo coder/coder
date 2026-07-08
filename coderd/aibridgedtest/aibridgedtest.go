@@ -62,7 +62,7 @@ func StartTestAIBridgeDaemon(
 
 	// The reloader fetches providers from coderd over srv's DRPC client; the
 	// subscription drives an initial load and refreshes on change events.
-	reloader := cli.NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("reloader"), nil, metrics)
+	reloader := cli.NewPoolRPCReloader(pool, srv.ClientContext, cfg, logger.Named("reloader"), nil, metrics)
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
 	if err != nil {
 		t.Fatalf("subscribe provider reload: %v", err)
