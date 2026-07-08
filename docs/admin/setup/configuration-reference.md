@@ -1637,7 +1637,7 @@ OIDC claim field to use as the username.
 - YAML key: `oidc.usernameField`
 - Default value: `preferred_username`
 
-### OpenID connect sign in text
+### OpenID Connect sign in text
 
 The text to show on the OpenID Connect sign in button.
 
@@ -1646,7 +1646,7 @@ The text to show on the OpenID Connect sign in button.
 - YAML key: `oidc.signInText`
 - Default value: `OpenID Connect`
 
-### OpenID connect icon URL
+### OpenID Connect icon URL
 
 URL pointing to the icon to use on the OpenID Connect login button.
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/coder/serpent"
@@ -8,27 +9,32 @@ import (
 
 func TestSentenceCase(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"Send Actor Headers":          "Send actor headers",
-		"Anthropic Base URL":          "Anthropic base URL",
-		"Allow BYOK":                  "Allow BYOK",
-		"Email Authentication":        "Email authentication",
-		"Trace Honeycomb API Key":     "Trace Honeycomb API key",
-		"OpenID Connect sign in text": "OpenID connect sign in text",
-		"SSH Keygen Algorithm":        "SSH keygen algorithm",
-		"pprof":                       "pprof",
-		// Feature names keep their branded casing.
-		"AI Gateway":               "AI Gateway",
-		"AI Gateway Proxy":         "AI Gateway Proxy",
-		"Template Builder":         "Template Builder",
-		"Disable Template Builder": "Disable Template Builder",
-		// A leading symbol is preserved and does not count as the first word.
-		"⚠️ Dangerous": "⚠️ Dangerous",
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"lowercases trailing words", "Send Actor Headers", "Send actor headers"},
+		{"keeps trailing acronym", "Anthropic Base URL", "Anthropic base URL"},
+		{"keeps all-caps token", "Allow BYOK", "Allow BYOK"},
+		{"lowercases ordinary word", "Email Authentication", "Email authentication"},
+		{"keeps proper noun", "Trace Honeycomb API Key", "Trace Honeycomb API key"},
+		{"restores OpenID Connect", "OpenID Connect sign in text", "OpenID Connect sign in text"},
+		{"keeps leading mixed-case token", "SSH Keygen Algorithm", "SSH keygen algorithm"},
+		{"single lowercase word", "pprof", "pprof"},
+		{"feature name", "AI Gateway", "AI Gateway"},
+		{"longer feature name wins", "AI Gateway Proxy", "AI Gateway Proxy"},
+		{"feature name as whole title", "Template Builder", "Template Builder"},
+		{"feature name after leading word", "Disable Template Builder", "Disable Template Builder"},
+		{"leading symbol is not the first word", "⚠️ Dangerous", "⚠️ Dangerous"},
 	}
-	for in, want := range cases {
-		if got := sentenceCase(in); got != want {
-			t.Errorf("sentenceCase(%q) = %q, want %q", in, got, want)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sentenceCase(tc.in); got != tc.want {
+				t.Errorf("sentenceCase(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -112,14 +118,28 @@ func TestIsDeprecated(t *testing.T) {
 
 func TestEmphasizeDeprecation(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"Deprecated and ignored.": "**Deprecated** and ignored.",
-		"Deprecated: use X.":      "**Deprecated**: use X.",
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		// Description already starts with the marker: only the marker is bolded.
+		{"marker with sentence", "Deprecated and ignored.", "**Deprecated** and ignored."},
+		{"marker with colon", "Deprecated: use X.", "**Deprecated**: use X."},
+		// Description does not start with the marker (the UseInstead path): the
+		// marker is prepended.
+		{"no marker", "A normal description.", "**Deprecated.** A normal description."},
+		{"empty description", "", "Deprecated."},
+		// A bare marker with no trailing text is left unbolded (markdownlint MD036).
+		{"bare marker", "Deprecated", "Deprecated"},
 	}
-	for in, want := range cases {
-		if got := emphasizeDeprecation(in); got != want {
-			t.Errorf("emphasizeDeprecation(%q) = %q, want %q", in, got, want)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := emphasizeDeprecation(tc.in); got != tc.want {
+				t.Errorf("emphasizeDeprecation(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -127,5 +147,71 @@ func TestCollapse(t *testing.T) {
 	t.Parallel()
 	if got := collapse("a\n  b\tc  "); got != "a b c" {
 		t.Errorf("collapse() = %q, want %q", got, "a b c")
+	}
+}
+
+// TestRenderPipeline exercises buildTree and render end to end: section
+// nesting and ordering, option skipping, deprecated sinking, and the per-option
+// bullet list (environment variable, CLI flag anchor, YAML key, default).
+func TestRenderPipeline(t *testing.T) {
+	t.Parallel()
+
+	email := serpent.Group{Name: "Email", YAML: "email"}
+	emailAuth := serpent.Group{Name: "Email Authentication", YAML: "emailAuth", Parent: &email}
+
+	opts := serpent.OptionSet{
+		// Hidden options and options with no env/flag/YAML are skipped.
+		{Name: "Hidden Option", Env: "CODER_HIDDEN", Hidden: true},
+		{Name: "Unsettable Option"},
+		// General section (no group).
+		{Name: "Access URL", Env: "CODER_ACCESS_URL", Flag: "access-url", Default: "https://example.com", Description: "The access URL."},
+		// Deprecated via UseInstead: description does not start with "Deprecated".
+		{Name: "Email From", Env: "CODER_EMAIL_FROM", Flag: "email-from", YAML: "from", Group: &email, Description: "The sender address.", UseInstead: []serpent.Option{{Name: "Notifications Email From"}}},
+		// Active option with a flag shorthand.
+		{Name: "Email Smarthost", Env: "CODER_EMAIL_SMARTHOST", Flag: "email-smarthost", FlagShorthand: "s", YAML: "smarthost", Group: &email, Description: "The SMTP host."},
+		// Nested child section.
+		{Name: "Email Authentication Identity", Env: "CODER_EMAIL_AUTH_IDENTITY", YAML: "identity", Group: &emailAuth, Description: "The identity."},
+	}
+
+	got := render(buildTree(opts))
+
+	wantContains := []string{
+		"## General",
+		"### Access URL",
+		"- Environment variable: `CODER_ACCESS_URL`",
+		"- CLI flag: [`--access-url`](../../reference/cli/server.md#--access-url)",
+		"- Default value: `https://example.com`",
+		"## Email",
+		"### Smarthost",
+		// Flag shorthand is folded into the anchor to match the CLI reference.
+		"- CLI flag: [`--email-smarthost`](../../reference/cli/server.md#-s---email-smarthost)",
+		// YAML key is the dotted group path.
+		"- YAML key: `email.from`",
+		// Deprecated marker is prepended for the UseInstead path.
+		"**Deprecated.** The sender address.",
+		"### Email authentication",
+		"#### Identity",
+		"- YAML key: `email.emailAuth.identity`",
+	}
+	for _, w := range wantContains {
+		if !strings.Contains(got, w) {
+			t.Errorf("render() missing %q\n---\n%s", w, got)
+		}
+	}
+
+	// General (rank -1) sorts before every other top-level section.
+	if i, j := strings.Index(got, "## General"), strings.Index(got, "## Email"); i < 0 || j < 0 || i > j {
+		t.Errorf("General should render before Email (got indexes %d, %d)", i, j)
+	}
+	// Active options sort before deprecated ones within a section.
+	if i, j := strings.Index(got, "### Smarthost"), strings.Index(got, "### From"); i < 0 || j < 0 || i > j {
+		t.Errorf("active option should render before deprecated option (got indexes %d, %d)", i, j)
+	}
+	// Hidden and unsettable options never render.
+	if strings.Contains(got, "Hidden") {
+		t.Error("hidden option should be skipped")
+	}
+	if strings.Contains(got, "Unsettable") {
+		t.Error("option with no env/flag/YAML should be skipped")
 	}
 }

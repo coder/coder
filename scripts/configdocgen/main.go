@@ -242,11 +242,8 @@ func sortTree(n *node) {
 	}
 }
 
-// sectionRank fixes the display order of top-level sections. General comes
-// first because it holds the most common first-time setup options (Postgres,
-// cache directory, access URL). The Dangerous group comes last, regardless of
-// its emoji prefix, so the reference does not steer operators toward risky
-// settings. Every other section sorts alphabetically between them.
+// sectionRank orders top-level sections: General first, Dangerous last
+// (regardless of its emoji prefix), everything else alphabetical.
 func sectionRank(name string) int {
 	switch {
 	case name == generalSection:
@@ -377,10 +374,10 @@ func stripGroupPrefix(name string, g *serpent.Group) string {
 	return name
 }
 
-// properNoun lists words that keep their capitalization in sentence case.
+// properNouns lists words that keep their capitalization in sentence case.
 // They have ordinary title-case shape, so keepWord's acronym check would not
 // otherwise catch them.
-var properNoun = map[string]bool{
+var properNouns = map[string]bool{
 	"anthropic":   true,
 	"bedrock":     true,
 	"claude":      true,
@@ -397,20 +394,17 @@ var properNoun = map[string]bool{
 	"wireguard":   true,
 }
 
-// featureNames are product/feature names whose exact casing is restored after
-// sentence-casing, so headings like "AI Gateway" and "Template Builder" keep
-// their branded form. Longer names come first so they win over shorter
-// prefixes (e.g. "AI Gateway Proxy" before "AI Gateway").
+// featureNames are multi-word names whose exact casing is restored after
+// sentence-casing. A name that prefixes another comes after the longer one.
 var featureNames = []string{
 	"AI Gateway Proxy",
 	"AI Gateway",
+	"OpenID Connect",
 	"Template Builder",
 }
 
-// sentenceCase lowercases a heading's words after the first while preserving
-// the first word, acronyms and mixed-case tokens (URL, TLS, OAuth2, OpenID,
-// GitHub), known proper nouns, and the feature names above. It runs at
-// generation time so headings need no manual or AI pass.
+// sentenceCase lowercases a heading's words after the first, preserving the
+// first word, acronyms and mixed-case tokens, proper nouns, and feature names.
 func sentenceCase(s string) string {
 	words := strings.Fields(s)
 	seenFirst := false
@@ -464,7 +458,7 @@ func keepWord(w string) bool {
 	if core == "" {
 		return true
 	}
-	if properNoun[strings.ToLower(core)] {
+	if properNouns[strings.ToLower(core)] {
 		return true
 	}
 	for i, r := range core {

@@ -426,7 +426,7 @@
 						},
 						{
 							"title": "Configuration Reference",
-							"description": "Searchable table of every Coder server setting with its environment variable, CLI flag, and YAML key",
+							"description": "Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key",
 							"path": "./admin/setup/configuration-reference.md"
 						},
 						{

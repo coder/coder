@@ -7,7 +7,7 @@ full list of the options, run `coder server --help` or see our
 > [!TIP]
 > Need to look up an exact environment variable, CLI flag, or YAML key for a
 > setting? See the [configuration reference](./configuration-reference.md) for
-> a searchable table of every option.
+> a searchable list of every option.
 
 ## Access URL
 
