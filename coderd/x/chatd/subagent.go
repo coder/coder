@@ -197,9 +197,11 @@ func userCanUseProviderKeys(
 	providerKeys chatprovider.ProviderAPIKeys,
 	providerName string,
 ) bool {
+	// A present ByProvider entry with an empty key means resolution
+	// determined ambient credentials satisfy the provider (Bedrock AWS
+	// credentials, or AI Gateway-held credentials such as Anthropic WIF).
 	return providerKeys.APIKey(providerName) != "" ||
-		(chatprovider.ProviderAllowsAmbientCredentials(providerName) &&
-			providerKeys.HasProvider(providerName))
+		providerKeys.HasProvider(providerName)
 }
 
 type modelOverrideFailureMode int

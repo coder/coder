@@ -51,6 +51,11 @@ func TestResolveUserProviderKeys(t *testing.T) {
 		}
 	}
 
+	ambientProvider := func(p chatprovider.ConfiguredProvider) chatprovider.ConfiguredProvider {
+		p.AmbientCredentials = true
+		return p
+	}
+
 	openAIProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	anthropicProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	bedrockProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000003")
@@ -150,6 +155,58 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 			wantKeyPresence: map[string]bool{
 				fantasybedrock.Name: true,
+			},
+		},
+		{
+			// A WIF Anthropic provider has no api_keys by design; the
+			// AmbientCredentials flag marks the AI Gateway as holding the
+			// credential so the provider resolves as available.
+			name: "WIFAnthropicAmbientCredentialsAvailable",
+			providers: []chatprovider.ConfiguredProvider{
+				ambientProvider(configuredProvider(anthropicProviderID, fantasyanthropic.Name, true, "", false, false)),
+			},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: true,
+			},
+		},
+		{
+			// The credential policy still applies to ambient credentials:
+			// BYOK-only providers must not fall back to them.
+			name: "WIFAnthropicUserKeyRequiredWithoutFallback",
+			providers: []chatprovider.ConfiguredProvider{
+				ambientProvider(configuredProvider(anthropicProviderID, fantasyanthropic.Name, true, "", true, false)),
+			},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: false,
+			},
+		},
+		{
+			// Without the ambient flag, a keyless anthropic provider stays
+			// unavailable.
+			name: "AnthropicCentralOnlyKeyMissing",
+			providers: []chatprovider.ConfiguredProvider{
+				configuredProvider(anthropicProviderID, fantasyanthropic.Name, true, "", false, false),
+			},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: false,
 			},
 		},
 		{
