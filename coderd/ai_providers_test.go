@@ -946,6 +946,16 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, updated.Enabled)
 
+		// Re-enabling transitions the row back into serving traffic,
+		// so the cleartext check runs again.
+		_, err = client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
+			Enabled: new(true),
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "https base_url")
+
 		// Re-sending settings re-runs the cleartext check against the
 		// stored http base URL.
 		_, err = client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
@@ -1133,15 +1143,33 @@ func TestAIProvidersCRUD(t *testing.T) {
 			})
 
 			// Patches that touch neither settings nor base_url pass.
+			// Re-sending enabled on an already-enabled row is not a
+			// transition and passes too.
 			//nolint:gocritic // Owner role is the audience for this endpoint.
+			stillEnabled, err := client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
+				Enabled: new(true),
+			})
+			require.NoError(t, err)
+			require.True(t, stillEnabled.Enabled)
+
 			updated, err := client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
 				Enabled: new(false),
 			})
 			require.NoError(t, err)
 			require.False(t, updated.Enabled)
 
-			// Repointing the base URL re-runs the trust check.
+			// Re-enabling transitions the row back into serving traffic,
+			// so the trust check runs again.
 			var sdkErr *codersdk.Error
+			_, err = client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
+				Enabled: new(true),
+			})
+			require.Error(t, err)
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "identity_token_file is not allowed")
+
+			// Repointing the base URL re-runs the trust check.
 			_, err = client.UpdateAIProvider(ctx, seeded.Name, codersdk.UpdateAIProviderRequest{
 				BaseURL: new("https://attacker.example"),
 			})
