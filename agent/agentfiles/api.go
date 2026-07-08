@@ -24,8 +24,7 @@ type API struct {
 // Option configures the API.
 type Option func(*API)
 
-// WithZipFilesLimits overrides the zip files collection limits. Intended
-// for tests.
+// WithZipFilesLimits overrides the zip files collection limits for tests.
 func WithZipFilesLimits(limits workspacesdk.ZipFilesLimits) Option {
 	return func(api *API) {
 		api.zipFilesLimits = limits

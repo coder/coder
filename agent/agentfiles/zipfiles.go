@@ -26,15 +26,12 @@ const (
 	zipFilesMaxPatterns     = 32
 	zipFilesRequestMaxBytes = 64 * 1024
 	// zipFilesWriteTimeout gives slow links well over the server's 20s
-	// WriteTimeout to stream the archive. It mirrors the agent's debug log
-	// streaming timeout, duplicated here because agentfiles cannot import
-	// the agent package.
+	// WriteTimeout to stream the archive.
 	zipFilesWriteTimeout = 5 * time.Minute
 )
 
-// defaultZipFilesLimits caps a single collection. MaxFiles is a safety cap
-// against pathological globs; zip headers and manifest entries are not
-// counted by the byte budget, so the file count must be bounded separately.
+// defaultZipFilesLimits caps a single collection. Zip headers and manifest
+// entries are not counted by the byte budget, so MaxFiles bounds them.
 var defaultZipFilesLimits = workspacesdk.ZipFilesLimits{
 	MaxFiles:        10000,
 	MaxBytesPerFile: 10 * 1024 * 1024,
@@ -45,7 +42,6 @@ var (
 	errZipFilesFileLimit   = xerrors.New("zip files file count limit reached")
 	errZipFilePathEmpty    = xerrors.New("empty path")
 	errZipFilePathRelative = xerrors.New("relative path not allowed")
-	errZipFilesClientGone  = xerrors.New("client disconnected")
 )
 
 // HandleZipFiles streams a zip archive of the requested workspace files.
@@ -65,7 +61,11 @@ func (api *API) HandleZipFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	extendZipFilesWriteDeadline(r.Context(), api.logger, w)
+	// Give slow links well over the server's 20s WriteTimeout to stream
+	// the archive.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(zipFilesWriteTimeout)); err != nil {
+		api.logger.Warn(r.Context(), "extend zip files write deadline", slog.Error(err))
+	}
 
 	clientCtx := r.Context()
 	ctx, cancel := context.WithTimeout(clientCtx, zipFilesWriteTimeout)
@@ -78,19 +78,10 @@ func (api *API) HandleZipFiles(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// extendZipFilesWriteDeadline gives slow links well over the server's 20s
-// WriteTimeout to stream the archive.
-func extendZipFilesWriteDeadline(ctx context.Context, logger slog.Logger, w http.ResponseWriter) {
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(zipFilesWriteTimeout)); err != nil {
-		logger.Warn(ctx, "extend zip files write deadline", slog.Error(err))
-	}
-}
-
 // collectZipFiles streams a zip with the requested files under files/ and a
 // manifest.json describing the collection. Per-path problems are recorded in
-// the manifest, not fatal. ctx bounds the collection (timeout); clientCtx is
-// the request context. When only the timeout fires the archive is finished
-// with a truncated manifest; when the client is gone the write is aborted.
+// the manifest, not fatal. ctx bounds the collection; clientCtx is the
+// request context.
 func collectZipFiles(ctx, clientCtx context.Context, home string, req workspacesdk.ZipFilesRequest, w io.Writer, limits workspacesdk.ZipFilesLimits) error {
 	manifest := workspacesdk.ZipFilesManifest{Requested: req.Paths, Limits: limits}
 	paths := req.Paths
@@ -126,7 +117,7 @@ func collectZipFiles(ctx, clientCtx context.Context, home string, req workspaces
 	}
 	if clientCtx.Err() != nil {
 		// The client is gone; there is nobody to receive the manifest.
-		return xerrors.Errorf("%w: %w", errZipFilesClientGone, clientCtx.Err())
+		return xerrors.Errorf("client disconnected: %w", clientCtx.Err())
 	}
 
 	mf, err := zw.Create("manifest.json")
@@ -251,10 +242,9 @@ func (c *zipFilesCollector) stop(requested string, filePath string, reason strin
 	return false
 }
 
-// stopCanceled halts collection after the collection context ended. When the
-// client is still connected only the timeout fired, so the manifest records
-// the timeout and the archive is still finished; the disconnect case is
-// handled by the caller, which aborts without a manifest.
+// stopCanceled halts collection after the collection context ended: a
+// timeout is recorded in the manifest and the archive is finished, while a
+// client disconnect makes the caller abort without a manifest.
 func (c *zipFilesCollector) stopCanceled(requested string, filePath string) bool {
 	if c.clientCtx.Err() != nil {
 		return false
@@ -276,8 +266,7 @@ func zipFileMatches(ctx context.Context, home string, requested string, maxMatch
 
 	base, pattern := doublestar.SplitPattern(filepath.ToSlash(abs))
 	matches := make([]string, 0, min(maxMatches+1, 64))
-	// WithNoFollow avoids symlink cycles during traversal; glob matches are
-	// not followed, only directly requested paths are.
+	// WithNoFollow avoids symlink cycles during traversal.
 	err = doublestar.GlobWalk(zipFilesFS{ctx: ctx, fsys: os.DirFS(base)}, pattern, func(match string, _ fs.DirEntry) error {
 		matches = append(matches, filepath.Join(base, filepath.FromSlash(match)))
 		if len(matches) > maxMatches {
@@ -292,8 +281,8 @@ func zipFileMatches(ctx context.Context, home string, requested string, maxMatch
 	if matchesTruncated {
 		matches = matches[:maxMatches]
 	}
-	// doublestar does not guarantee ordering, especially with brace
-	// alternates, so sort for a deterministic archive.
+	// doublestar does not guarantee ordering, so sort for a deterministic
+	// archive.
 	slices.Sort(matches)
 	return matches, matchesTruncated, nil
 }
@@ -313,9 +302,8 @@ func (f zipFilesFS) Open(name string) (fs.File, error) {
 	return f.fsys.Open(name)
 }
 
-// zipFileAbsPattern expands a $HOME/, ${HOME}/, or ~/ prefix in requested
-// against home and returns the cleaned absolute pattern. Relative paths are
-// rejected.
+// zipFileAbsPattern expands a $HOME/, ${HOME}/, or ~/ prefix against home
+// and returns the cleaned absolute pattern. Relative paths are rejected.
 func zipFileAbsPattern(home string, requested string) (string, error) {
 	pattern := strings.TrimSpace(requested)
 	if pattern == "" {
@@ -334,9 +322,8 @@ func zipFileAbsPattern(home string, requested string) (string, error) {
 }
 
 // zipFilesArchivePath maps a cleaned absolute path to its archive entry
-// name under files/. The leading separator is trimmed and, on Windows, the
-// drive colon is dropped (C:/Users/x/a.log -> files/C/Users/x/a.log) so the
-// entry name stays fs.ValidPath-safe for the CLI unpack validation.
+// name: files/ plus the path with the leading separator trimmed and any
+// Windows drive colon dropped, keeping the name fs.ValidPath-safe.
 func zipFilesArchivePath(abs string) string {
 	p := strings.TrimPrefix(filepath.ToSlash(abs), "/")
 	if len(p) >= 2 && p[1] == ':' {
@@ -345,8 +332,7 @@ func zipFilesArchivePath(abs string) string {
 	return "files/" + p
 }
 
-// fileModeTypeName names the type of a non-regular file for manifest
-// error reasons.
+// fileModeTypeName names the type of a non-regular file.
 func fileModeTypeName(mode fs.FileMode) string {
 	switch {
 	case mode.IsDir():
