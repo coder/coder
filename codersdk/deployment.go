@@ -2121,7 +2121,8 @@ communicating directly.`,
 		Description: "Absolute paths of OIDC identity token files that Workload Identity Federation (WIF) AI providers managed through the API may read. " +
 			"Files referenced by CODER_AI_GATEWAY_PROVIDER_<N>_WIF_IDENTITY_TOKEN_FILE are trusted automatically, but only together with that provider's configured base URL. " +
 			"A file listed here can be sent to any HTTPS base URL a Coder administrator configures on a WIF provider, so list only tokens intended for AI provider federation. " +
-			"Set this option on the process that performs the token exchanges: coderd, or the standalone AI Gateway when one is used.",
+			"coderd enforces this list when providers are created or updated through the API, and the process performing the token exchanges enforces it again before reading a file; " +
+			"when the AI Gateway runs standalone, set the same value on both coderd and the gateway process.",
 		Flag:  "ai-gateway-wif-allowed-identity-token-files",
 		Env:   "CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES",
 		Value: &c.AI.BridgeConfig.WIFAllowedIdentityTokenFiles,

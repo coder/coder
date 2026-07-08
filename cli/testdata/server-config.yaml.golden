@@ -1025,9 +1025,11 @@ ai_gateway:
   # CODER_AI_GATEWAY_PROVIDER_<N>_WIF_IDENTITY_TOKEN_FILE are trusted automatically,
   # but only together with that provider's configured base URL. A file listed here
   # can be sent to any HTTPS base URL a Coder administrator configures on a WIF
-  # provider, so list only tokens intended for AI provider federation. Set this
-  # option on the process that performs the token exchanges: coderd, or the
-  # standalone AI Gateway when one is used.
+  # provider, so list only tokens intended for AI provider federation. coderd
+  # enforces this list when providers are created or updated through the API, and
+  # the process performing the token exchanges enforces it again before reading a
+  # file; when the AI Gateway runs standalone, set the same value on both coderd and
+  # the gateway process.
   # (default: <unset>, type: string-array)
   wif_allowed_identity_token_files: []
   # Enable the circuit breaker to protect against cascading failures from upstream

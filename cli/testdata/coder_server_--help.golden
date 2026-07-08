@@ -228,9 +228,11 @@ AI GATEWAY OPTIONS:
           are trusted automatically, but only together with that provider's
           configured base URL. A file listed here can be sent to any HTTPS base
           URL a Coder administrator configures on a WIF provider, so list only
-          tokens intended for AI provider federation. Set this option on the
-          process that performs the token exchanges: coderd, or the standalone
-          AI Gateway when one is used.
+          tokens intended for AI provider federation. coderd enforces this list
+          when providers are created or updated through the API, and the process
+          performing the token exchanges enforces it again before reading a
+          file; when the AI Gateway runs standalone, set the same value on both
+          coderd and the gateway process.
 
 AI GATEWAY PROXY OPTIONS: 
       --ai-gateway-proxy-dump-dir string, $CODER_AI_GATEWAY_PROXY_DUMP_DIR
