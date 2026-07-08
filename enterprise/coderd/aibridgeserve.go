@@ -138,6 +138,7 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		connCtx,
 		api.Database,
 		api.AGPL.Pubsub,
+		api.AGPL.Options.Authorizer,
 		logger,
 		api.AccessURL.String(),
 		api.DeploymentValues.AI.BridgeConfig,

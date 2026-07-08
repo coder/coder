@@ -38,6 +38,7 @@ const (
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 	orgWorkspaceAccess      string = "organization-workspace-access"
+	orgAIGatewayAccess      string = "organization-ai-gateway-access"
 )
 
 func init() {
@@ -178,6 +179,10 @@ func RoleOrgWorkspaceAccess() string {
 	return orgWorkspaceAccess
 }
 
+func RoleOrgAIGatewayAccess() string {
+	return orgAIGatewayAccess
+}
+
 // ScopedRoleOrgAdmin is the org role with the organization ID
 func ScopedRoleOrgAdmin(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgAdmin(), OrganizationID: organizationID}
@@ -212,6 +217,10 @@ func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceAccess(), OrganizationID: organizationID}
 }
 
+func ScopedRoleOrgAIGatewayAccess(organizationID uuid.UUID) RoleIdentifier {
+	return RoleIdentifier{Name: RoleOrgAIGatewayAccess(), OrganizationID: organizationID}
+}
+
 // DefaultOrgMemberRoles is the deployment-wide default for the
 // organizations.default_org_member_roles column, applied to every new
 // organization at creation time. The column has no SQL DEFAULT, so this
@@ -220,7 +229,7 @@ func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
 // Returned as a fresh slice each call to prevent accidental mutation of
 // the shared default through append or index assignment.
 func DefaultOrgMemberRoles() []string {
-	return []string{orgWorkspaceAccess}
+	return []string{orgWorkspaceAccess, orgAIGatewayAccess}
 }
 
 // OrgWorkspaceAccessMemberPerms returns the elevation perms granted by the
@@ -277,6 +286,18 @@ func OrgWorkspaceAccessMemberPerms() []Permission {
 		//   - ResourceProvisionerDaemon update/delete: only create and
 		//     read fire at Member scope via the user-scoped Upsert
 		//     path; other actions go through the bare InOrg path.
+	})
+}
+
+// OrgAIGatewayAccessMemberPerms returns the perms granted by the
+// organization-ai-gateway-access role. Holders can route AI traffic
+// through the AI Gateway: interceptions are recorded and updated under
+// their own identity (dbauthz sets WithOwner(InitiatorID) on an
+// any-organization object) but cannot be read back; reads require the
+// site-wide auditor or owner roles.
+func OrgAIGatewayAccessMemberPerms() []Permission {
+	return Permissions(map[string][]policy.Action{
+		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 	})
 }
 
@@ -452,9 +473,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-				// Members can create and update AI Bridge interceptions but
-				// cannot read them back.
-				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
+				// AI Bridge interception create/update is granted by the
+				// organization-ai-gateway-access org role, not the site
+				// member role. See OrgAIGatewayAccessMemberPerms.
 				// Workspace agents create boundary logs under their owner's
 				// identity. Create is user-scoped so agents can only write
 				// logs owned by their workspace owner.
@@ -585,7 +606,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
+							// ResourceAibridgeInterception is excluded because
+							// interceptions are deployment-scoped (their RBAC
+							// object is any-organization, not org-owned), so an
+							// org-level grant would give org admins access to
+							// every interception in the deployment. Reads stay
+							// with site-wide auditors and owners.
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration, ResourceAibridgeInterception),
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
@@ -733,6 +760,20 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		orgAIGatewayAccess: func(organizationID uuid.UUID) Role {
+			return Role{
+				Identifier:  RoleIdentifier{Name: orgAIGatewayAccess, OrganizationID: organizationID},
+				DisplayName: "Organization AI Gateway Access",
+				Site:        []Permission{},
+				User:        []Permission{},
+				ByOrgID: map[string]OrgPermissions{
+					organizationID.String(): {
+						Org:    []Permission{},
+						Member: OrgAIGatewayAccessMemberPerms(),
+					},
+				},
+			}
+		},
 		// ActionDelete is intentionally excluded because hard-deletion goes through
 		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
@@ -778,6 +819,7 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		orgAIGatewayAccess:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -795,6 +837,7 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		orgAIGatewayAccess:      true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -805,6 +848,7 @@ var assignRoles = map[string]map[string]bool{
 		member:             true,
 		orgMember:          true,
 		orgWorkspaceAccess: true,
+		orgAIGatewayAccess: true,
 		agentsAccess:       true,
 	},
 	orgAdmin: {
@@ -815,12 +859,14 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		orgAIGatewayAccess:      true,
 		customOrganizationRole:  true,
 		agentsAccess:            true,
 	},
 	orgUserAdmin: {
 		orgMember:          true,
 		orgWorkspaceAccess: true,
+		orgAIGatewayAccess: true,
 		agentsAccess:       true,
 	},
 }
@@ -1192,10 +1238,10 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// Members can create and update AI Bridge interceptions they
-		// initiate (dbauthz layer sets WithOwner(InitiatorID)) but
-		// cannot read them back.
-		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
+		// AI Bridge interception create/update is intentionally not part
+		// of the floor. It is granted by the organization-ai-gateway-access
+		// role, typically attached through default_org_member_roles. See
+		// OrgAIGatewayAccessMemberPerms.
 
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),
@@ -1273,11 +1319,10 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// Service accounts can create and update AI Bridge interceptions
-		// they initiate (dbauthz layer sets WithOwner(InitiatorID)) but
-		// cannot read them back. Chat access requires the agents-access
-		// role and is intentionally not granted here.
-		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
+		// AI Bridge interception create/update is intentionally not part
+		// of the floor; it is granted by the organization-ai-gateway-access
+		// role. Chat access requires the agents-access role and is
+		// intentionally not granted here either.
 
 		// Own session tokens and workspace agent auth keys.
 		ResourceApiKey.Type: ResourceApiKey.AvailableActions(),

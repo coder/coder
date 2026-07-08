@@ -16,4 +16,5 @@ const (
 	RoleOrganizationUserAdmin            string = "organization-user-admin"
 	RoleOrganizationWorkspaceCreationBan string = "organization-workspace-creation-ban"
 	RoleOrganizationWorkspaceAccess      string = "organization-workspace-access"
+	RoleOrganizationAIGatewayAccess      string = "organization-ai-gateway-access"
 )

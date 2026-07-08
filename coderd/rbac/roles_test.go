@@ -337,6 +337,21 @@ func TestRolePermissions(t *testing.T) {
 		}
 	}()
 
+	orgAIGatewayAccessUser := func() authSubject {
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		orgAIGatewayAccessRole, err := rbac.RoleByName(rbac.ScopedRoleOrgAIGatewayAccess(orgID))
+		require.NoError(t, err)
+		return authSubject{
+			Name: "org_ai_gateway_access",
+			Actor: rbac.Subject{
+				ID:    currentUser.String(),
+				Roles: rbac.Roles{memberRole, orgAIGatewayAccessRole},
+				Scope: rbac.ScopeAll,
+			}.WithCachedASTValue(),
+		}
+	}()
+
 	orgMemberMe := func() authSubject {
 		memberRole, err := rbac.RoleByName(rbac.RoleMember())
 		require.NoError(t, err)
@@ -1253,13 +1268,17 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Members can create/update records but can't read them afterwards.
+			// Interception create/update flows through the member-scoped
+			// perms of organization-ai-gateway-access on an any-organization
+			// object. Holders can create/update records they initiate but
+			// can't read them afterwards.
 			Name:     "AIBridgeInterceptionsCreateUpdate",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate},
-			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
+			Resource: rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {orgWorkspaceAccessUser, owner, memberMe, agentsAccessUser},
+				true: {owner, orgAIGatewayAccessUser},
 				false: {
+					memberMe, agentsAccessUser, orgWorkspaceAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -1271,11 +1290,11 @@ func TestRolePermissions(t *testing.T) {
 			// Only owners and site-wide auditors can view interceptions and their sub-resources.
 			Name:     "AIBridgeInterceptionsRead",
 			Actions:  []policy.Action{policy.ActionRead},
-			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
+			Resource: rbac.ResourceAibridgeInterception.AnyOrganization().WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, auditor},
 				false: {
-					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
+					orgWorkspaceAccessUser, orgAIGatewayAccessUser, memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
@@ -1615,6 +1634,7 @@ func TestListRoles(t *testing.T) {
 		fmt.Sprintf("organization-template-admin:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-creation-ban:%s", orgID.String()),
 		fmt.Sprintf("organization-workspace-access:%s", orgID.String()),
+		fmt.Sprintf("organization-ai-gateway-access:%s", orgID.String()),
 		fmt.Sprintf("agents-access:%s", orgID.String()),
 	},
 		orgRoleNames)
