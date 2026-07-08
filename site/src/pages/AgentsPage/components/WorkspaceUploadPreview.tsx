@@ -9,10 +9,15 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
+import {
+	isWorkspaceUploadInProgress,
+	type WorkspaceFileUpload,
+} from "../hooks/useWorkspaceFileUploads";
 
 const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 	switch (upload.status) {
+		case "deferred":
+			return "Uploads when sent";
 		case "queued":
 			return "Waiting to upload...";
 		case "uploading":
@@ -90,9 +95,9 @@ export const WorkspaceUploadPreview: FC<{
 							<TooltipContent side="top">
 								{upload.status === "uploaded"
 									? "Removes the reference. Uploaded bytes stay in the workspace."
-									: upload.status === "error"
-										? "Remove this file"
-										: "Cancel this upload"}
+									: isWorkspaceUploadInProgress(upload)
+										? "Cancel this upload"
+										: "Remove this file"}
 							</TooltipContent>
 						</Tooltip>
 					</div>
