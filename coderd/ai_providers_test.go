@@ -673,6 +673,95 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, "anthropic.claude-3-5-haiku", updated.Settings.Bedrock.SmallFastModel)
 	})
 
+	t.Run("WIFSettingsLifecycle", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		wifSettings := codersdk.AIProviderWIFSettings{
+			FederationRuleID:  "fdrl_lifecycle",
+			OrganizationID:    "00000000-0000-0000-0000-000000000001",
+			IdentityTokenFile: "/var/run/secrets/anthropic/token",
+			ServiceAccountID:  "svac_lifecycle",
+			WorkspaceID:       "wrkspc_lifecycle",
+		}
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:     codersdk.AIProviderTypeAnthropic,
+			Name:     "wif-lifecycle",
+			Enabled:  true,
+			BaseURL:  "https://api.anthropic.com",
+			Settings: codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, created.Settings.WIF)
+		require.Equal(t, wifSettings, *created.Settings.WIF)
+
+		// Read-modify-write: echoing the fetched settings back in a
+		// PATCH must preserve the WIF block rather than clearing it.
+		fetched, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.NotNil(t, fetched.Settings.WIF)
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			DisplayName: new("WIF Lifecycle"),
+			Settings:    &fetched.Settings,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.WIF)
+		require.Equal(t, wifSettings, *updated.Settings.WIF)
+
+		// A PATCH can update individual WIF fields.
+		rotated := wifSettings
+		rotated.WorkspaceID = "wrkspc_rotated"
+		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &rotated},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.WIF)
+		require.Equal(t, "wrkspc_rotated", updated.Settings.WIF.WorkspaceID)
+
+		// An incomplete WIF patch is rejected by request validation.
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &codersdk.AIProviderWIFSettings{
+				FederationRuleID: "fdrl_incomplete",
+			}},
+		})
+		var sdkErr *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.NotEmpty(t, sdkErr.Validations)
+		require.Contains(t, sdkErr.Validations[0].Detail, "WIF settings require")
+
+		// Attaching api_keys alongside WIF settings is rejected.
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &[]codersdk.AIProviderKeyMutation{{APIKey: new("sk-ant-key")}},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "WIF providers do not accept api_keys")
+
+		// Patching WIF settings onto a non-anthropic provider is a type
+		// mismatch.
+		openAI, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "openai-then-wif",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateAIProvider(ctx, openAI.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{WIF: &wifSettings},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "WIF settings are only valid for type=anthropic")
+	})
+
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

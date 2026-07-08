@@ -87,3 +87,53 @@ func TestMergeAIProviderSettingsExternalID(t *testing.T) {
 	require.Equal(t, roleARN, merged.Bedrock.RoleARN)
 	require.Equal(t, "stored-value", merged.Bedrock.ExternalID)
 }
+
+// TestMergeAIProviderSettingsWIF verifies WIF settings survive the
+// PATCH merge: a WIF patch replaces the stored value wholesale, in
+// both directions across the settings union.
+func TestMergeAIProviderSettingsWIF(t *testing.T) {
+	t.Parallel()
+
+	wif := func(rule string) *codersdk.AIProviderWIFSettings {
+		return &codersdk.AIProviderWIFSettings{
+			FederationRuleID:  rule,
+			OrganizationID:    "00000000-0000-0000-0000-000000000001",
+			IdentityTokenFile: "/var/run/secrets/anthropic/token",
+			ServiceAccountID:  "svac_test",
+			WorkspaceID:       "wrkspc_test",
+		}
+	}
+
+	t.Run("WIFPatchReplacesStoredWIF", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{WIF: wif("fdrl_old")}
+		merged := mergeAIProviderSettings(existing, codersdk.AIProviderSettings{WIF: wif("fdrl_new")})
+		require.NotNil(t, merged.WIF)
+		require.Equal(t, "fdrl_new", merged.WIF.FederationRuleID)
+		require.Equal(t, *wif("fdrl_new"), *merged.WIF)
+		require.Nil(t, merged.Bedrock)
+	})
+
+	t.Run("WIFPatchReplacesStoredBedrock", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}}
+		merged := mergeAIProviderSettings(existing, codersdk.AIProviderSettings{WIF: wif("fdrl_new")})
+		require.NotNil(t, merged.WIF)
+		require.Nil(t, merged.Bedrock)
+	})
+
+	t.Run("BedrockPatchReplacesStoredWIF", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{WIF: wif("fdrl_old")}
+		merged := mergeAIProviderSettings(existing, codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}})
+		require.Nil(t, merged.WIF)
+		require.NotNil(t, merged.Bedrock)
+	})
+
+	t.Run("EmptyPatchClearsStoredWIF", func(t *testing.T) {
+		t.Parallel()
+		existing := codersdk.AIProviderSettings{WIF: wif("fdrl_old")}
+		merged := mergeAIProviderSettings(existing, codersdk.AIProviderSettings{})
+		require.True(t, merged.IsZero())
+	})
+}
