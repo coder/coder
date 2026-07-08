@@ -6,7 +6,8 @@ USAGE:
   Manage AI Gateway
 
 SUBCOMMANDS:
-    keys    Manage AI Gateway keys
+    keys     Manage AI Gateway keys
+    start    Run a standalone AI Gateway server
 
 ———
 Run `coder --help` for a list of global options.

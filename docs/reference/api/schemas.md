@@ -905,6 +905,20 @@
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
 
+## codersdk.AIBudgetLimitSource
+
+```json
+"user_override"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                 |
+|--------------------------|
+| `group`, `user_override` |
+
 ## codersdk.AIConfig
 
 ```json
@@ -13924,6 +13938,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `spend_limit_micros` | integer | false    |              |             |
 | `updated_at`         | string  | false    |              |             |
 | `user_id`            | string  | false    |              |             |
+
+## codersdk.UserAISpendStatus
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "limit_source": "user_override",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                          |
+|------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                    |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to. Null when no budget applies.                             |
+| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                  |
+| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                |
+| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                              |
+| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited). |
+| `user_id`              | string                                                       | false    |              |                                                                                                                      |
 
 ## codersdk.UserActivity
 

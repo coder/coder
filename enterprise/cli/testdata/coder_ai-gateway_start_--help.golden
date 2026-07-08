@@ -1,0 +1,70 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder ai-gateway start [flags]
+
+  Run a standalone AI Gateway server
+
+  Runs a standalone replica of the AI Gateway. Standalone replicas serve LLM
+  client traffic on a dedicated HTTP listener and connect to coderd using the
+  Coder deployment URL and an AI Gateway key.
+  
+  Set --url or CODER_URL to the Coder deployment address, and set --key
+  (CODER_AI_GATEWAY_KEY) or --key-file (CODER_AI_GATEWAY_KEY_FILE). A user login
+  or session token is not required.
+
+OPTIONS:
+      --http-address string, $CODER_AI_GATEWAY_HTTP_ADDRESS (default: 127.0.0.1:4001)
+          The bind address to serve incoming AI Gateway client traffic.
+
+      --key string, $CODER_AI_GATEWAY_KEY
+          The AI Gateway key used to authenticate to coderd.
+
+      --key-file string, $CODER_AI_GATEWAY_KEY_FILE
+          Path to a file containing the AI Gateway key used to authenticate to
+          coderd.
+
+      --tls-cert-file string, $CODER_AI_GATEWAY_TLS_CERT_FILE
+          Path to a PEM-encoded TLS certificate. Enables TLS termination when
+          set together with --tls-key-file.
+
+      --tls-key-file string, $CODER_AI_GATEWAY_TLS_KEY_FILE
+          Path to a PEM-encoded TLS private key. Enables TLS termination when
+          set together with --tls-cert-file.
+
+      --verbose bool, $CODER_AI_GATEWAY_VERBOSE (default: false)
+          Output debug-level logs.
+
+AI GATEWAY OPTIONS: 
+      --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
+          Base directory for dumping AI Gateway request/response pairs to disk
+          for debugging. When set, each provider writes under a subdirectory
+          named after the provider. Sensitive headers are redacted. Leave empty
+          to disable.
+
+      --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
+          Allow users to provide their own LLM API keys or subscriptions. When
+          disabled, only centralized key authentication is permitted.
+
+      --ai-gateway-circuit-breaker-enabled bool, $CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED (default: false)
+          Enable the circuit breaker to protect against cascading failures from
+          upstream AI provider overload (503, 529).
+
+      --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
+          Maximum number of concurrent AI Gateway requests per replica. Set to 0
+          to disable (unlimited).
+
+      --ai-gateway-rate-limit int, $CODER_AI_GATEWAY_RATE_LIMIT (default: 0)
+          Maximum number of AI Gateway requests per second per replica. Set to 0
+          to disable (unlimited).
+
+      --ai-gateway-send-actor-headers bool, $CODER_AI_GATEWAY_SEND_ACTOR_HEADERS (default: false)
+          Once enabled, extra headers will be added to upstream requests to
+          identify the user (actor) making requests to AI Gateway. This is only
+          needed if you are using a proxy between AI Gateway and an upstream AI
+          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
+          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
+          username).
+
+———
+Run `coder --help` for a list of global options.

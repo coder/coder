@@ -236,6 +236,14 @@ export interface AIBridgeToolCall {
 	readonly created_at: string;
 }
 
+// From codersdk/aibridge.go
+export type AIBudgetLimitSource = "group" | "user_override";
+
+export const AIBudgetLimitSources: AIBudgetLimitSource[] = [
+	"group",
+	"user_override",
+];
+
 // From codersdk/deployment.go
 export type AIBudgetPeriod = "month";
 
@@ -9647,6 +9655,30 @@ export interface UserAIBudgetOverride {
 	readonly updated_at: string;
 }
 
+// From codersdk/aibridge.go
+/**
+ * UserAIBudgetSummary is the effective AI budget for a user. When no
+ * budget applies, all fields except UserID are null.
+ */
+export interface UserAIBudgetSummary {
+	readonly user_id: string;
+	/**
+	 * EffectiveGroupID is the group the spend is attributed to. Null when
+	 * no budget applies.
+	 */
+	readonly effective_group_id: string | null;
+	/**
+	 * SpendLimitMicros is the effective spend limit in micro-units.
+	 * Null when no budget applies to the user (unlimited).
+	 */
+	readonly spend_limit_micros: number | null;
+	/**
+	 * LimitSource identifies which tier produced the limit. Null when no
+	 * budget applies.
+	 */
+	readonly limit_source: AIBudgetLimitSource | null;
+}
+
 // From codersdk/chats.go
 /**
  * UserAIProviderKeyConfig is a provider summary from the current user's
@@ -9657,6 +9689,29 @@ export interface UserAIProviderKeyConfig {
 	readonly has_user_api_key: boolean;
 	readonly has_provider_api_key: boolean;
 	readonly byok_enabled: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserAISpendStatus is the current AI spend snapshot for a user within
+ * the active budget period.
+ */
+export interface UserAISpendStatus extends UserAIBudgetSummary {
+	/**
+	 * CurrentSpendMicros is the user's spend on their effective group over
+	 * the current budget period.
+	 */
+	readonly current_spend_micros: number;
+	/**
+	 * PeriodStart is the inclusive lower bound of the current budget
+	 * period.
+	 */
+	readonly period_start: string;
+	/**
+	 * PeriodEnd is the exclusive upper bound of the current budget
+	 * period.
+	 */
+	readonly period_end: string;
 }
 
 // From codersdk/insights.go

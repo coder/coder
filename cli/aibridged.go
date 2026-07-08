@@ -61,7 +61,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 	// Create daemon. Construct it before subscribing so the reloader can use
-	// srv.Client() to fetch providers over the in-memory RPC.
+	// srv.ClientContext to fetch providers over the in-memory RPC.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
 	}, logger, tracer)
@@ -72,7 +72,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	// Subscribe to ai_providers change events so the pool tracks the database
 	// without a restart, and perform the initial reload. The reload data path
 	// is the in-memory RPC.
-	reloader := NewPoolRPCReloader(pool, srv.Client, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
+	reloader := NewPoolRPCReloader(pool, srv.ClientContext, cfg, logger.Named("provider-loader"), metrics, providerMetrics)
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, reloader, logger.Named("provider-reload"))
 	if err != nil {
 		// Without the subscription the pool can never track provider changes,
@@ -91,7 +91,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 // build, replace, and reload-metric accounting live in one place.
 type poolRPCReloader struct {
 	pool            *aibridged.CachedBridgePool
-	client          func() (aibridged.DRPCClient, error)
+	client          aibridged.ClientFuncWithContext
 	cfg             codersdk.AIBridgeConfig
 	logger          slog.Logger
 	aibridgeMetrics *aibridge.Metrics
@@ -100,10 +100,12 @@ type poolRPCReloader struct {
 
 // NewPoolRPCReloader builds an [aibridged.ProviderReloader] that fetches the
 // provider set over the DRPC client returned by client and replaces pool's
-// providers, recording reload metrics against providerMetrics.
+// providers, recording reload metrics against providerMetrics. client receives
+// Reload's context, so a blocking acquisition unblocks when that context is
+// canceled.
 func NewPoolRPCReloader(
 	pool *aibridged.CachedBridgePool,
-	client func() (aibridged.DRPCClient, error),
+	client aibridged.ClientFuncWithContext,
 	cfg codersdk.AIBridgeConfig,
 	logger slog.Logger,
 	aibridgeMetrics *aibridge.Metrics,
@@ -121,8 +123,8 @@ func NewPoolRPCReloader(
 
 func (r *poolRPCReloader) Reload(ctx context.Context) error {
 	r.providerMetrics.RecordReloadAttempt()
-	// r.client() blocks until the daemon is connected to coderd.
-	client, err := r.client()
+	// r.client blocks until the daemon connects to coderd or ctx is canceled.
+	client, err := r.client(ctx)
 	if err != nil {
 		return xerrors.Errorf("get ai-gateway client: %w", err)
 	}
