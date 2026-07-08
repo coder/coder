@@ -4314,10 +4314,10 @@ func (api *API) chatCreateWorkspace(
 	return workspace, nil
 }
 
-// resolveChatStartVersion applies RequireActiveVersion policy to a
-// build request by pinning start transitions to the template's active
-// version. Returns the (possibly updated) request and whether the
-// version was bumped from the workspace's latest build version.
+// resolveChatStartVersion pins a start request to the template's
+// active version and reports whether that differs from the version of
+// the workspace's latest build. The caller is responsible for checking
+// the template's RequireActiveVersion setting first.
 func resolveChatStartVersion(
 	req codersdk.CreateWorkspaceBuildRequest,
 	latestBuildVersionID, activeVersionID uuid.UUID,
