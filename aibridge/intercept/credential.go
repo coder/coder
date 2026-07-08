@@ -75,8 +75,9 @@ func (b Bedrock) Hint() string {
 	return utils.MaskSecret(b.AccessKey)
 }
 
-// hintWIFKey is the placeholder hint for WIF credentials.
-const hintWIFKey = "<wif federation>"
+// hintWIFKey is the placeholder hint for WIF credentials. Kept within the
+// credential_hint VARCHAR(15) DB constraint.
+const hintWIFKey = "<wif fed>"
 
 // AnthropicWIF authenticates via Anthropic Workload Identity Federation.
 // The token exchange is handled externally; this credential carries the
