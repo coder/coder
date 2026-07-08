@@ -550,15 +550,26 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 	if sub == nil || !errors.Is(err, natsgo.ErrSlowConsumer) {
 		return
 	}
+	// Snapshot the candidate groups under p.mu, but match outside it:
+	// sub.get() blocks until the group's initial NATS subscribe
+	// completes, which can take up to the flush timeout and, on the
+	// error path, requires p.mu itself. Blocking in get() while holding
+	// p.mu would stall every other Pubsub operation and risk deadlock.
+	// A groupSub is safe to use after removal from the map.
 	p.mu.Lock()
-	var nsub *groupSub
+	candidates := make([]*groupSub, 0, len(p.subscriptions))
 	for _, candidate := range p.subscriptions {
+		candidates = append(candidates, candidate)
+	}
+	p.mu.Unlock()
+
+	var nsub *groupSub
+	for _, candidate := range candidates {
 		if s, _ := candidate.sub.get(); s == sub {
 			nsub = candidate
 			break
 		}
 	}
-	p.mu.Unlock()
 	if nsub == nil {
 		return
 	}
@@ -706,6 +717,12 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 
 func (p *Pubsub) subscribeGroup(g *groupSub) {
 	defer func() {
+		// Close subscribeDone before acquiring p.mu: get() callers may
+		// block on subscribeDone while a goroutine holding p.mu waits on
+		// them, so taking p.mu first could deadlock. Subscribers that
+		// find the errored group in the map before it is removed below
+		// simply observe the error via get().
+		close(g.sub.subscribeDone)
 		if g.sub.err != nil {
 			// failed to subscribe. Kick this out of the pubsub map of subscriptions, so that we don't permanently
 			// fail to subscribe to this event. The subscribe that kicked this off as well as any concurrent ones will
@@ -717,7 +734,6 @@ func (p *Pubsub) subscribeGroup(g *groupSub) {
 				p.metrics.removeEvent()
 			}
 		}
-		close(g.sub.subscribeDone)
 	}()
 	logger := p.logger.With(slog.F("event", g.event))
 	logger.Debug(context.Background(), "subscribing on nats")
