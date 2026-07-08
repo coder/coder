@@ -29,6 +29,12 @@ const wifTokenRefreshMargin = time.Minute
 // any single waiter's context, so this is its only deadline.
 const wifExchangeTimeout = 30 * time.Second
 
+// wifDiscardedBodyLimit bounds how much of a rejected 401 response body
+// the transport drains before retrying with a fresh token. Draining
+// enables connection reuse; the cap keeps a misbehaving upstream from
+// stalling the retry with an endless body.
+const wifDiscardedBodyLimit = 64 << 10
+
 // wifTokenSource exchanges an OIDC identity token for a short-lived
 // Anthropic access token and caches it until it approaches expiry. It
 // authenticates both the bridged /v1/messages path and the passthrough
@@ -154,15 +160,17 @@ func (t *wifAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return t.inner.RoundTrip(req)
 	}
 
-	// Buffer the body so a single 401 retry can replay it. Bodies are
-	// bounded by the bridge's request size limit.
+	// Buffer the body so a single 401 retry can replay it. The
+	// transport serves both the bridged SDK pipeline and the
+	// passthrough proxy; bodies on both paths are bounded by the
+	// bridge's request size limit.
 	var body []byte
 	if req.Body != nil {
 		var err error
 		body, err = io.ReadAll(req.Body)
 		_ = req.Body.Close()
 		if err != nil {
-			return nil, xerrors.Errorf("buffer passthrough request body: %w", err)
+			return nil, xerrors.Errorf("buffer request body for WIF auth retry: %w", err)
 		}
 	}
 
@@ -196,7 +204,10 @@ func (t *wifAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	if tokenErr != nil || fresh == token {
 		return resp, nil
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
+	// Drain the rejected response so the connection can be reused, but
+	// bound the read: a misbehaving upstream streaming an endless 401
+	// body must not stall the retry.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, wifDiscardedBodyLimit))
 	_ = resp.Body.Close()
 	return attempt(fresh)
 }
