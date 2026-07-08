@@ -5008,10 +5008,8 @@ type GetChatFileDataPrefixesByIDsRow struct {
 }
 
 // GetChatFileDataPrefixesByIDs returns a bounded prefix of each
-// file's content. Title derivation needs only the beginning of each
-// pasted-text attachment, so substr caps database I/O and server
-// memory regardless of stored blob size. Owner and organization
-// columns support row-level authorization.
+// file's content, keeping full blobs out of server memory. Owner and
+// organization columns support row-level authorization.
 func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetChatFileDataPrefixesByIDsParams) ([]GetChatFileDataPrefixesByIDsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatFileDataPrefixesByIDs, arg.PrefixBytes, pq.Array(arg.IDs))
 	if err != nil {

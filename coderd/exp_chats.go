@@ -6332,12 +6332,9 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if inputError != nil {
 		return nil, "", nil, inputError
 	}
-	// The shared derivation keeps this create-time titleSource
-	// identical to the extraction used by title generation, which
-	// gates auto-titling on that equality (see chatprompt.TitleText).
-	// Paste blobs are materialized as strings only when text and
-	// file-reference parts yield nothing, so mixed messages never
-	// copy attachment data they will not use.
+	// Derive titleSource through the same chatprompt.TitleText used at
+	// generation time; auto-titling gates on that equality. Paste blobs
+	// are copied only when text and file-reference parts yield nothing.
 	titleSource := chatprompt.TitleText(content, nil)
 	if titleSource == "" && len(pasteData) > 0 {
 		pasteText := make(map[uuid.UUID]string, len(pasteData))
@@ -6350,10 +6347,9 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 }
 
 // createChatInputFromParts validates input parts and converts them to
-// message content. The returned map holds raw pasted-text blobs keyed
-// by file ID; only the create path derives a title from it (see
-// createChatInputFromRequest), message send and edit callers discard
-// it without copying any blob data.
+// message content. The returned map holds pasted-text blob references
+// by file ID; the create path derives a title from it, message send
+// and edit discard it without copying blob data.
 func createChatInputFromParts(
 	ctx context.Context,
 	db database.Store,
@@ -6413,10 +6409,8 @@ func createChatInputFromParts(
 			}
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
 			fileIDs = append(fileIDs, part.FileID)
-			// Pasted-text attachments feed create-time title derivation
-			// when the message has no other title text. Only the blob
-			// reference is retained here; blobs are never copied on the
-			// message send and edit paths, which discard this map.
+			// Retain blob references for create-time title derivation;
+			// send and edit paths discard the map.
 			if chatprompt.IsSyntheticPaste(chatFile.Name, chatFile.Mimetype) {
 				if pasteData == nil {
 					pasteData = make(map[uuid.UUID][]byte)

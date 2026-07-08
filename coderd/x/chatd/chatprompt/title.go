@@ -16,18 +16,15 @@ import (
 const syntheticPasteTitleBudget = 16 * 1024
 
 // TitlePasteBytePrefix caps, in bytes, how much of a pasted-text blob
-// feeds title derivation. Four bytes per rune (the UTF-8 maximum)
-// guarantees the prefix still spans at least
-// syntheticPasteTitleBudget complete runes, so TitleText's rune
-// truncation yields the same result it would on the full content.
-// Database callers pass it to GetChatFileDataPrefixesByIDs so blobs
-// are bounded before they leave the database.
+// feeds title derivation: four bytes per rune (the UTF-8 maximum)
+// covers syntheticPasteTitleBudget runes. Database callers pass it to
+// GetChatFileDataPrefixesByIDs to bound the fetch itself.
 const TitlePasteBytePrefix = 4 * syntheticPasteTitleBudget
 
 // TitlePasteText converts pasted-text content to TitleText input,
-// copying at most TitlePasteBytePrefix bytes instead of the whole
-// blob. Every caller that builds a pasteText map must use it so all
-// derivation paths feed TitleText identical strings.
+// copying at most TitlePasteBytePrefix bytes. Every caller that
+// builds a pasteText map must use it so all derivation paths feed
+// TitleText identical strings.
 func TitlePasteText(data []byte) string {
 	return string(data[:min(len(data), TitlePasteBytePrefix)])
 }
@@ -36,8 +33,7 @@ func TitlePasteText(data []byte) string {
 // and file-reference parts are joined in part order. When they yield
 // nothing, the content of synthetic pasted-text attachments is used
 // instead, looked up in pasteText by file ID and truncated to
-// syntheticPasteTitleBudget runes per file. Map values must come from
-// TitlePasteText.
+// syntheticPasteTitleBudget runes per file.
 //
 // The chat-creation fallback title and both title-generation paths
 // must derive their input through this function: auto-titling only
