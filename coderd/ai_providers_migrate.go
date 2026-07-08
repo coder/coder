@@ -221,11 +221,15 @@ func SeedAIProvidersFromEnv(
 // Model and SmallFastModel are excluded: they're tunables, and their
 // serpent defaults shift across releases.
 type canonicalAIProvider struct {
-	Type                string `json:"type"`
-	BaseURL             string `json:"base_url"`
-	BedrockRegion       string `json:"bedrock_region"`
-	WIFFederationRuleID string `json:"wif_federation_rule_id"`
-	KeysHash            string `json:"keys_hash"`
+	Type                 string `json:"type"`
+	BaseURL              string `json:"base_url"`
+	BedrockRegion        string `json:"bedrock_region"`
+	WIFFederationRuleID  string `json:"wif_federation_rule_id"`
+	WIFOrganizationID    string `json:"wif_organization_id"`
+	WIFIdentityTokenFile string `json:"wif_identity_token_file"`
+	WIFServiceAccountID  string `json:"wif_service_account_id"`
+	WIFWorkspaceID       string `json:"wif_workspace_id"`
+	KeysHash             string `json:"keys_hash"`
 }
 
 // desiredAIProvider is a normalized provider description sourced from
@@ -258,6 +262,10 @@ func (d desiredAIProvider) canonical() canonicalAIProvider {
 	}
 	if d.WIF != nil {
 		c.WIFFederationRuleID = d.WIF.FederationRuleID
+		c.WIFOrganizationID = d.WIF.OrganizationID
+		c.WIFIdentityTokenFile = d.WIF.IdentityTokenFile
+		c.WIFServiceAccountID = d.WIF.ServiceAccountID
+		c.WIFWorkspaceID = d.WIF.WorkspaceID
 	}
 	c.KeysHash = computeKeysHash(d.Keys, d.Bedrock)
 	return c

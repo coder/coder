@@ -141,6 +141,51 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
 
+	t.Run("WIFSettingChangeIsDrift", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		wifProvider := func(mutate func(*codersdk.AIProviderConfig)) codersdk.AIBridgeConfig {
+			p := codersdk.AIProviderConfig{
+				Type:                 "anthropic",
+				Name:                 "wif-anthropic",
+				BaseURL:              "https://api.anthropic.com/",
+				WIFFederationRuleID:  "fdrl_original",
+				WIFOrganizationID:    "00000000-0000-0000-0000-000000000001",
+				WIFIdentityTokenFile: "/var/run/secrets/anthropic/token",
+				WIFServiceAccountID:  "svac_original",
+				WIFWorkspaceID:       "wrkspc_original",
+			}
+			if mutate != nil {
+				mutate(&p)
+			}
+			return codersdk.AIBridgeConfig{Providers: []codersdk.AIProviderConfig{p}}
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, wifProvider(nil), testLogger(t)))
+
+		// Re-running with identical WIF settings is a no-op.
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, wifProvider(nil), testLogger(t)))
+
+		// Every WIF field is an identity-critical exchange input, so
+		// changing any one of them must trip the drift check rather
+		// than silently keeping the stale row.
+		mutations := map[string]func(*codersdk.AIProviderConfig){
+			"federation_rule_id": func(p *codersdk.AIProviderConfig) { p.WIFFederationRuleID = "fdrl_rotated" },
+			"organization_id": func(p *codersdk.AIProviderConfig) {
+				p.WIFOrganizationID = "00000000-0000-0000-0000-000000000002"
+			},
+			"identity_token_file": func(p *codersdk.AIProviderConfig) { p.WIFIdentityTokenFile = "/etc/other/token" },
+			"service_account_id":  func(p *codersdk.AIProviderConfig) { p.WIFServiceAccountID = "svac_rotated" },
+			"workspace_id":        func(p *codersdk.AIProviderConfig) { p.WIFWorkspaceID = "wrkspc_rotated" },
+		}
+		for field, mutate := range mutations {
+			err := coderd.SeedAIProvidersFromEnv(ctx, db, wifProvider(mutate), testLogger(t))
+			require.Error(t, err, "changing WIF %s must be detected as drift", field)
+			require.Contains(t, err.Error(), "differs from the current environment configuration")
+		}
+	})
+
 	t.Run("LegacyBedrockOnlyKeepsBedrockSettings", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
