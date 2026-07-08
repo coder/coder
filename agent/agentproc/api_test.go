@@ -533,6 +533,120 @@ func TestStartProcess(t *testing.T) {
 	})
 }
 
+func TestStartProcessClientToken(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SameTokenAttaches", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		req := workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-1",
+		}
+
+		w := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var first workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&first))
+		require.True(t, first.Started)
+		require.False(t, first.Attached)
+		require.Equal(t, "tok-1", first.ClientToken)
+
+		w2 := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w2.Code)
+		var second workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w2.Body).Decode(&second))
+		require.Equal(t, first.ID, second.ID)
+		require.False(t, second.Started)
+		require.True(t, second.Attached)
+		require.Equal(t, "tok-1", second.ClientToken)
+	})
+
+	t.Run("SameTokenDifferentCommandConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-1",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w2 := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo goodbye",
+			ClientToken: "tok-1",
+		})
+		require.Equal(t, http.StatusConflict, w2.Code)
+	})
+
+	t.Run("SameTokenDifferentBackgroundConflicts", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-1",
+		})
+		require.Equal(t, http.StatusOK, w.Code)
+
+		w2 := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			Background:  true,
+			ClientToken: "tok-1",
+		})
+		require.Equal(t, http.StatusConflict, w2.Code)
+	})
+
+	t.Run("SameTokenDifferentChatsIsolated", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		req := workspacesdk.StartProcessRequest{
+			Command:     "echo hello",
+			ClientToken: "tok-1",
+		}
+		headerA := http.Header{}
+		headerA.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+		headerB := http.Header{}
+		headerB.Set(workspacesdk.CoderChatIDHeader, uuid.New().String())
+
+		idA := startAndGetID(t, handler, req, headerA)
+
+		w := postStart(t, handler, req, headerB)
+		require.Equal(t, http.StatusOK, w.Code)
+		var respB workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&respB))
+		require.True(t, respB.Started)
+		require.False(t, respB.Attached)
+		require.NotEqual(t, idA, respB.ID)
+	})
+
+	t.Run("NoTokenAlwaysStartsNew", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		req := workspacesdk.StartProcessRequest{
+			Command: "echo hello",
+		}
+
+		w := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w.Code)
+		var first workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&first))
+		require.True(t, first.Started)
+		require.False(t, first.Attached)
+		require.Empty(t, first.ClientToken)
+
+		w2 := postStart(t, handler, req)
+		require.Equal(t, http.StatusOK, w2.Code)
+		var second workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w2.Body).Decode(&second))
+		require.True(t, second.Started)
+		require.NotEqual(t, first.ID, second.ID)
+	})
+}
+
 func TestListProcesses(t *testing.T) {
 	t.Parallel()
 

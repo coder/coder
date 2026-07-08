@@ -18,6 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -2091,4 +2092,110 @@ func TestProcessOutputToolRejectsNegativeWaitTimeout(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, resp.IsError)
 	assert.Contains(t, resp.Content, "must not be negative")
+}
+
+func TestExecuteToolClientToken(t *testing.T) {
+	t.Parallel()
+
+	// runExecute runs "echo hi" against a mock whose StartProcess
+	// response is produced by respond, returning the parsed result
+	// and the captured log entries. Every variant must produce the
+	// same tool result; only the logging differs.
+	runExecute := func(t *testing.T, respond func(req workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse) (chattool.ExecuteResult, *testutil.FakeSink) {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		sink := testutil.NewFakeSink(t)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, "exec-call-1", req.ClientToken)
+				return respond(req), nil
+			})
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "done",
+			}, nil)
+
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			Logger:   sink.Logger(),
+			Recorder: newFakeRecorder(),
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hi"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result, sink
+	}
+
+	missingSupport := func(entry slog.SinkEntry) bool {
+		return entry.Message == "workspace agent does not support idempotent process starts"
+	}
+	deduped := func(entry slog.SinkEntry) bool {
+		return entry.Message == "execute_agent_deduped"
+	}
+
+	t.Run("EchoWithoutAttach", func(t *testing.T) {
+		t.Parallel()
+
+		result, sink := runExecute(t, func(req workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse {
+			return workspacesdk.StartProcessResponse{
+				ID:          "proc-1",
+				Started:     true,
+				ClientToken: req.ClientToken,
+			}
+		})
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		assert.Empty(t, sink.Entries(missingSupport))
+		assert.Empty(t, sink.Entries(deduped))
+	})
+
+	t.Run("EchoWithAttachLogsDeduped", func(t *testing.T) {
+		t.Parallel()
+
+		result, sink := runExecute(t, func(req workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse {
+			return workspacesdk.StartProcessResponse{
+				ID:          "proc-1",
+				ClientToken: req.ClientToken,
+				Attached:    true,
+			}
+		})
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		assert.Empty(t, sink.Entries(missingSupport))
+		assert.Len(t, sink.Entries(deduped), 1)
+	})
+
+	t.Run("MissingEchoLogsAndKeepsBehavior", func(t *testing.T) {
+		t.Parallel()
+
+		result, sink := runExecute(t, func(workspacesdk.StartProcessRequest) workspacesdk.StartProcessResponse {
+			// An agent that predates idempotent starts drops the
+			// unknown request field and echoes nothing back.
+			return workspacesdk.StartProcessResponse{
+				ID:      "proc-1",
+				Started: true,
+			}
+		})
+		assert.True(t, result.Success)
+		assert.Equal(t, "done", result.Output)
+		assert.Len(t, sink.Entries(missingSupport), 1)
+		assert.Empty(t, sink.Entries(deduped))
+	})
 }

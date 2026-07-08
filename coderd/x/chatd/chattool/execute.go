@@ -457,6 +457,27 @@ func executeTool(
 	return executeForeground(ctx, conn, options, toolCallID, rec, args.Command, timeout, workDir, env), nil
 }
 
+// logStartIdempotency records whether the agent honored the
+// idempotency token (the execution ID) sent with a StartProcess
+// request. A missing echo means the agent predates idempotent
+// starts, so only the durable execution ledger protects against
+// duplicate processes.
+func logStartIdempotency(ctx context.Context, logger slog.Logger, resp workspacesdk.StartProcessResponse, toolCallID string) {
+	if resp.ClientToken == "" {
+		logger.Warn(ctx, "workspace agent does not support idempotent process starts",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", resp.ID),
+		)
+		return
+	}
+	if resp.Attached {
+		logger.Info(ctx, "execute_agent_deduped",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("process_id", resp.ID),
+		)
+	}
+}
+
 // resumeExecution handles a tool call whose ledger row is owned by
 // another claim or already carries a lifecycle outcome. It never
 // dispatches a fresh process.
@@ -776,10 +797,11 @@ func executeBackground(
 	env map[string]string,
 ) fantasy.ToolResponse {
 	resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
-		Command:    command,
-		WorkDir:    workDir,
-		Env:        env,
-		Background: true,
+		Command:     command,
+		WorkDir:     workDir,
+		Env:         env,
+		Background:  true,
+		ClientToken: rec.ID,
 	})
 	if err != nil {
 		// The request may or may not have reached the agent, so
@@ -787,6 +809,7 @@ func executeBackground(
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
+	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	// Mark detached only when the handle write landed: a detached
 	// row with no recorded process would make a retry return
 	// success without a usable handle instead of re-resolving the
@@ -880,10 +903,11 @@ func executeForeground(
 	start := time.Now()
 
 	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
-		Command:    command,
-		WorkDir:    workDir,
-		Env:        env,
-		Background: false,
+		Command:     command,
+		WorkDir:     workDir,
+		Env:         env,
+		Background:  false,
+		ClientToken: rec.ID,
 	})
 	if err != nil {
 		// The request may or may not have reached the agent, so
@@ -891,6 +915,7 @@ func executeForeground(
 		markTerminal(ctx, options, toolCallID, ExecutionStatusUnknown)
 		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
+	logStartIdempotency(ctx, options.Logger, resp, toolCallID)
 	recorded := recordProcessStart(ctx, options, toolCallID, rec.ClaimEpoch, resp.ID)
 
 	result, lost := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)

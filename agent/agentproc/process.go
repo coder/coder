@@ -21,12 +21,17 @@ import (
 )
 
 var (
-	errProcessNotFound   = xerrors.New("process not found")
-	errProcessNotRunning = xerrors.New("process is not running")
+	errProcessNotFound     = xerrors.New("process not found")
+	errProcessNotRunning   = xerrors.New("process is not running")
+	errClientTokenMismatch = xerrors.New("client token was already used to start a process with different parameters")
 
 	// exitedProcessReapAge is how long an exited process is
 	// kept before being automatically removed from the map.
-	exitedProcessReapAge = 5 * time.Minute
+	// It also bounds how long an idempotency token keeps
+	// deduplicating starts after the process exits, so it must
+	// comfortably exceed the window in which a retried caller
+	// may re-send a start request for the same token.
+	exitedProcessReapAge = 60 * time.Minute
 )
 
 // process represents a running or completed process.
@@ -37,15 +42,19 @@ type process struct {
 	workDir    string
 	background bool
 	chatID     string
-	cmd        *exec.Cmd
-	cancel     context.CancelFunc
-	buf        *HeadTailBuffer
-	logger     slog.Logger
-	running    bool
-	exitCode   *int
-	startedAt  int64
-	exitedAt   *int64
-	done       chan struct{} // closed when process exits
+	// tokenKey is the manager token-index key this process was
+	// started under, or empty when no idempotency token was
+	// supplied. It lets reaping free the index entry.
+	tokenKey  string
+	cmd       *exec.Cmd
+	cancel    context.CancelFunc
+	buf       *HeadTailBuffer
+	logger    slog.Logger
+	running   bool
+	exitCode  *int
+	startedAt int64
+	exitedAt  *int64
+	done      chan struct{} // closed when process exits
 }
 
 // info returns a snapshot of the process state.
@@ -73,12 +82,17 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 
 // manager tracks processes spawned by the agent.
 type manager struct {
-	mu         sync.Mutex
-	logger     slog.Logger
-	execer     agentexec.Execer
-	fs         afero.Fs
-	clock      quartz.Clock
-	procs      map[string]*process
+	mu     sync.Mutex
+	logger slog.Logger
+	execer agentexec.Execer
+	fs     afero.Fs
+	clock  quartz.Clock
+	procs  map[string]*process
+	// tokens maps a chat-scoped idempotency token key to the ID
+	// of the process it started, so retried start requests
+	// attach to the existing process instead of spawning a
+	// duplicate. Entries are freed when the process is reaped.
+	tokens     map[string]string
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
@@ -99,6 +113,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		fs:         fs,
 		clock:      quartz.NewReal(),
 		procs:      make(map[string]*process),
+		tokens:     make(map[string]string),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
@@ -109,11 +124,41 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 // processes use a long-lived context so the process survives
 // the HTTP request lifecycle. The background flag only affects
 // client-side polling behavior.
-func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, error) {
+//
+// When the request carries a client token that already started a
+// process for the same chat, the existing process is returned
+// with attached true instead of spawning a duplicate. A repeated
+// token with different parameters fails with
+// errClientTokenMismatch.
+func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
+	workDir := m.resolveWorkingDirectory(req.WorkDir)
+
+	// The chat ID is a UUID string and cannot contain NUL, so
+	// the key splits unambiguously and cannot collide across
+	// chats.
+	var tokenKey string
+	if req.ClientToken != "" {
+		tokenKey = chatID + "\x00" + req.ClientToken
+	}
+
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
-		return nil, xerrors.New("manager is closed")
+		return nil, false, xerrors.New("manager is closed")
+	}
+	// Sweep exited processes on start as well as on list so the
+	// token index cannot grow unbounded between list calls.
+	m.reapExitedLocked(m.clock.Now())
+	if tokenKey != "" {
+		if existingID, ok := m.tokens[tokenKey]; ok {
+			existing := m.procs[existingID]
+			if existing.command != req.Command || existing.workDir != workDir || existing.background != req.Background {
+				m.mu.Unlock()
+				return nil, false, errClientTokenMismatch
+			}
+			m.mu.Unlock()
+			return existing, true, nil
+		}
 	}
 	m.mu.Unlock()
 
@@ -128,7 +173,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	// the process is not tied to any HTTP request.
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := m.execer.CommandContext(ctx, "sh", "-c", req.Command)
-	cmd.Dir = m.resolveWorkingDirectory(req.WorkDir)
+	cmd.Dir = workDir
 	cmd.Stdin = nil
 	cmd.SysProcAttr = procSysProcAttr()
 
@@ -173,7 +218,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 
 	if err := cmd.Start(); err != nil {
 		cancel()
-		return nil, xerrors.Errorf("start process: %w", err)
+		return nil, false, xerrors.Errorf("start process: %w", err)
 	}
 
 	now := m.clock.Now().Unix()
@@ -183,6 +228,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		workDir:    cmd.Dir,
 		background: req.Background,
 		chatID:     chatID,
+		tokenKey:   tokenKey,
 		cmd:        cmd,
 		cancel:     cancel,
 		buf:        buf,
@@ -199,9 +245,12 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		// process we just started.
 		cancel()
 		_ = cmd.Wait()
-		return nil, xerrors.New("manager is closed")
+		return nil, false, xerrors.New("manager is closed")
 	}
 	m.procs[id] = proc
+	if tokenKey != "" {
+		m.tokens[tokenKey] = id
+	}
 	m.mu.Unlock()
 
 	go func() {
@@ -237,7 +286,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		close(proc.done)
 	}()
 
-	return proc, nil
+	return proc, false, nil
 }
 
 // get returns a process by ID.
@@ -256,26 +305,37 @@ func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	now := m.clock.Now()
+	m.reapExitedLocked(m.clock.Now())
+
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
-	for id, proc := range m.procs {
-		info := proc.info()
-		// Reap processes that exited more than 5 minutes ago
-		// to prevent unbounded map growth.
-		if !info.Running && info.ExitedAt != nil {
-			exitedAt := time.Unix(*info.ExitedAt, 0)
-			if now.Sub(exitedAt) > exitedProcessReapAge {
-				delete(m.procs, id)
-				continue
-			}
-		}
+	for _, proc := range m.procs {
 		// Filter by chatID if provided.
 		if chatID != "" && proc.chatID != chatID {
 			continue
 		}
-		infos = append(infos, info)
+		infos = append(infos, proc.info())
 	}
 	return infos
+}
+
+// reapExitedLocked removes processes that exited more than
+// exitedProcessReapAge ago, together with their idempotency
+// token index entries, to prevent unbounded map growth. The
+// manager mutex must be held.
+func (m *manager) reapExitedLocked(now time.Time) {
+	for id, proc := range m.procs {
+		info := proc.info()
+		if info.Running || info.ExitedAt == nil {
+			continue
+		}
+		if now.Sub(time.Unix(*info.ExitedAt, 0)) <= exitedProcessReapAge {
+			continue
+		}
+		delete(m.procs, id)
+		if proc.tokenKey != "" {
+			delete(m.tokens, proc.tokenKey)
+		}
+	}
 }
 
 // signal sends a signal to a running process. It returns

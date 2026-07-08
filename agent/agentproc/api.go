@@ -87,8 +87,15 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		chatID = chatContext.ID.String()
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	proc, attached, err := api.manager.start(req, chatID)
 	if err != nil {
+		if errors.Is(err, errClientTokenMismatch) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Client token was already used to start a process with different parameters.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
 			Detail:  err.Error(),
@@ -99,7 +106,9 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	// Notify git watchers after the process finishes so that
 	// file changes made by the command are visible in the scan.
 	// If a workdir is provided, track it as a path as well.
-	if api.pathStore != nil {
+	// Attaching returns a process whose watcher was already
+	// registered by the request that started it.
+	if api.pathStore != nil && !attached {
 		if chatContext, ok := agentchat.FromContext(ctx); ok {
 			allIDs := append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...)
 			go func() {
@@ -114,8 +123,10 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{
-		ID:      proc.id,
-		Started: true,
+		ID:          proc.id,
+		Started:     !attached,
+		ClientToken: req.ClientToken,
+		Attached:    attached,
 	})
 }
 
