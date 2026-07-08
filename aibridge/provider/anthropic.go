@@ -96,32 +96,34 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	}
 
 	var wifRT *messages.WIFRuntime
-	var wifPassthrough *wifTokenSource
+	var wifSource *wifTokenSource
 	if cfg.WIF != nil {
 		if cfg.WIF.IdentityToken == nil {
 			return nil, xerrors.New("WIF config requires an IdentityToken source")
 		}
-		wifOpt := option.WithFederationTokenProvider(
-			cfg.WIF.IdentityToken,
-			option.FederationOptions{
-				FederationRuleID: cfg.WIF.FederationRuleID,
-				OrganizationID:   cfg.WIF.OrganizationID,
-				ServiceAccountID: cfg.WIF.ServiceAccountID,
-				WorkspaceID:      cfg.WIF.WorkspaceID,
-			},
-		)
+		// One token source serves both the bridged and passthrough paths,
+		// sharing its exchange cache. The SDK's own federation option is
+		// not used: its middleware derives the token-exchange URL from the
+		// request's scheme and host, silently dropping any path prefix in
+		// the provider base URL.
+		wifSource = newWIFTokenSource(*cfg.WIF, cfg.BaseURL)
+		// The middleware routes bridged requests through the same
+		// path-aware transport and token source as the passthrough proxy.
+		wifMW := option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+			t := &wifAuthTransport{inner: roundTripperFunc(next), source: wifSource}
+			return t.RoundTrip(req)
+		})
 		wifRT = &messages.WIFRuntime{
-			Opts:             []option.RequestOption{wifOpt},
+			Opts:             []option.RequestOption{wifMW},
 			FederationRuleID: cfg.WIF.FederationRuleID,
 		}
-		wifPassthrough = newWIFTokenSource(*cfg.WIF, cfg.BaseURL)
 	}
 
 	return &Anthropic{
 		cfg:            cfg,
 		bedrock:        bedrock,
 		wif:            wifRT,
-		wifPassthrough: wifPassthrough,
+		wifPassthrough: wifSource,
 	}, nil
 }
 
@@ -262,7 +264,7 @@ func (p *Anthropic) WrapPassthroughTransport(inner http.RoundTripper) http.Round
 	if p.wifPassthrough == nil {
 		return inner
 	}
-	return &wifPassthroughTransport{inner: inner, source: p.wifPassthrough}
+	return &wifAuthTransport{inner: inner, source: p.wifPassthrough}
 }
 
 func (p *Anthropic) CircuitBreakerConfig() *config.CircuitBreaker {

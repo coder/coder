@@ -256,6 +256,60 @@ func TestNewAnthropic_WIF(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("MessagesPathAwareTokenExchange", func(t *testing.T) {
+		t.Parallel()
+
+		// The provider base URL carries a path prefix, as when Anthropic
+		// is reached through a gateway. The token exchange must respect
+		// it: deriving the exchange URL from the scheme and host alone
+		// (as the SDK's own federation middleware does) posts to the
+		// host root and breaks such deployments.
+		var exchangePath string
+		var receivedAuth string
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/v1/oauth/token", func(w http.ResponseWriter, r *http.Request) {
+			exchangePath = r.URL.Path
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"tok-federated","token_type":"Bearer","expires_in":3600}`))
+		})
+		mux.HandleFunc("POST /api/v1/messages", func(w http.ResponseWriter, r *http.Request) {
+			receivedAuth = r.Header.Get("Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"msg-123","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":"claude-opus-4-5","stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`))
+		})
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			t.Errorf("unexpected upstream request outside base path: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		})
+		upstream := httptest.NewServer(mux)
+		t.Cleanup(upstream.Close)
+
+		provider := newTestAnthropic(t, config.Anthropic{
+			BaseURL: upstream.URL + "/api",
+			WIF: &config.AnthropicWIF{
+				FederationRuleID: "fdrl_test",
+				OrganizationID:   "org-test",
+				IdentityToken: func(context.Context) (string, error) {
+					return "test-jwt", nil
+				},
+			},
+		}, nil)
+
+		body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
+		req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
+		w := httptest.NewRecorder()
+
+		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+		require.NoError(t, err)
+		interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
+
+		processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
+		require.NoError(t, interceptor.ProcessRequest(w, processReq))
+
+		assert.Equal(t, "/api/v1/oauth/token", exchangePath)
+		assert.Equal(t, "Bearer tok-federated", receivedAuth)
+	})
 }
 
 func TestAnthropic_CreateInterceptor(t *testing.T) {
