@@ -398,6 +398,18 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 		validations = append(validations, validateAIProviderBedrockModels(*req.Settings.Bedrock)...)
 	}
+	if req.Settings != nil && req.Settings.WIF != nil && req.Settings.Bedrock != nil {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF and Bedrock settings are mutually exclusive",
+		})
+	}
+	if req.Settings != nil && req.Settings.WIF != nil && !req.Settings.WIF.IsConfigured() {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "WIF settings require federation_rule_id, organization_id, and identity_token_file",
+		})
+	}
 	return validations
 }
 
