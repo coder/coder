@@ -1586,3 +1586,52 @@ export const OverflowPopoverSuppressesStatusTooltip: Story = {
 		}
 	},
 };
+
+export const DeferredErrorChipKeepsSendEnabled: Story = {
+	args: {
+		workspaceUploads: {
+			uploads: [
+				{
+					id: "wf-err",
+					file: createMockFile("dataset.zip", "application/zip"),
+					status: "error",
+					error: "upload failed",
+				},
+			],
+			onAttach: fn(),
+			onRemove: fn(),
+			deferred: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Deferred submits re-upload failed entries, so a failed chip
+		// alone must keep the retry path available.
+		await waitFor(() => {
+			expect(canvas.getByRole("button", { name: "Send" })).toBeEnabled();
+		});
+	},
+};
+
+export const ErrorChipAloneKeepsSendDisabled: Story = {
+	args: {
+		workspaceUploads: {
+			uploads: [
+				{
+					id: "wf-err",
+					file: createMockFile("dataset.zip", "application/zip"),
+					status: "error",
+					error: "upload failed",
+				},
+			],
+			onAttach: fn(),
+			onRemove: fn(),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Outside deferred mode a failed upload is not retried by
+		// sending, so it contributes no sendable content.
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+	},
+};

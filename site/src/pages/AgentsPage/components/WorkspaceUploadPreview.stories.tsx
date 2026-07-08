@@ -34,6 +34,18 @@ export const Uploaded: Story = {
 	},
 };
 
+export const Deferred: Story = {
+	args: {
+		uploads: [
+			{
+				id: "deferred-1",
+				file: createMockFile("bundle.zip", "application/zip"),
+				status: "deferred",
+			},
+		],
+	},
+};
+
 export const Uploading: Story = {
 	args: {
 		uploads: [
