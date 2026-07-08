@@ -108,8 +108,10 @@ connectLoop:
 			continue
 		}
 
-		// TODO: log this with INFO level when we implement external aibridge daemons.
-		logConnect(s.lifecycleCtx, "successfully connected to coderd")
+		// Logged at info so operators of standalone (external) gateways
+		// can see initial connection and reconnection after a dial
+		// failure (paired with the warning logged above).
+		s.logger.Info(s.lifecycleCtx, "successfully connected to coderd")
 		retrier.Reset()
 		s.initConnectionOnce.Do(func() {
 			close(s.initConnectionCh)

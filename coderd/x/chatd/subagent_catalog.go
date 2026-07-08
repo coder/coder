@@ -114,8 +114,8 @@ func allSubagentDefinitions() []subagentDefinition {
 				if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 					return `type "computer_use" is unavailable in plan mode`
 				}
-				if !p.isDesktopEnabled(ctx) {
-					return `type "computer_use" is unavailable because desktop access is not enabled`
+				if !p.experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
+					return `type "computer_use" is unavailable because the chat-virtual-desktop experiment is not enabled`
 				}
 				_, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
@@ -299,7 +299,12 @@ func buildSpawnAgentDescription(
 		"subagents modify the same files they will conflict with each other, " +
 		"so ensure parallel subagent tasks are independent. The child agent " +
 		"receives the same workspace tools but cannot spawn its own subagents. " +
-		"After spawning, use wait_agent to collect the result."
+		"After spawning, use wait_agent to retrieve the result. Agents persist " +
+		"after completion; reuse an agent via message_agent for follow-up work " +
+		"when it already has relevant context. Spawned agents are your " +
+		"responsibility: do not abandon one in a working state (pending or " +
+		"running); retrieve its result, redirect it with message_agent, or stop " +
+		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +
 			"\" is for non-mutating substantial investigation and planning support, " +
@@ -340,7 +345,7 @@ func planningOverlaySubagentGuidance() string {
 
 	return "Use read_file, execute, process_output, list_templates, read_template, " +
 		spawnAgentToolName + ", and approved external MCP tools when available to gather context. " +
-		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, close_agent, and computer-use actions remain unavailable. In Plan Mode, " +
+		"Workspace MCP tools are not available in root plan mode, and side-effecting built-in tools such as process_list, process_signal, message_agent, interrupt_agent, and computer-use actions remain unavailable. In Plan Mode, " +
 		spawnAgentToolName + " delegation is for investigation and planning " +
 		"support, not code writing or implementation. Use type=\"" + subagentTypeGeneral +
 		"\" for substantial investigation, reasoning, and planning support. " +

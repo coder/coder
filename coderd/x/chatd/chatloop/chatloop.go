@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -63,16 +62,13 @@ type PendingToolCall struct {
 	Args       string
 }
 
-// PersistedStep contains the full content of a completed or
-// interrupted agent step. Content includes both assistant blocks
-// (text, reasoning, tool calls) and tool result blocks. The
-// persistence layer is responsible for splitting these into
-// separate database messages by role.
+// PersistedStep is the unit the persistence layer splits into role-separated
+// database messages. Content mixes assistant blocks (text, reasoning, tool
+// calls) and tool result blocks from one completed or interrupted agent step.
 type PersistedStep struct {
-	Content            []fantasy.Content
-	Usage              fantasy.Usage
-	ContextLimit       sql.NullInt64
-	ProviderResponseID string
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -162,19 +158,8 @@ type RunOptions struct {
 	)
 	// Callers should attach correlation fields (chat_id, owner_id, etc.)
 	// using Logger.With before passing the logger in.
-	Logger           slog.Logger
-	Compaction       *CompactionOptions
-	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
-	DisableChainMode func()
-	// PrepareMessages is called at least once before each LLM step
-	// with the current message history. If it returns non-nil, the
-	// returned slice replaces messages for this and all subsequent
-	// steps.
-	// Used to inject system context that becomes available mid-loop
-	// (e.g. AGENTS.md after create_workspace).
-	// NOTE: It may be called more than once per step in case of a
-	// retry, so callbacks should avoid duplicating messages.
-	PrepareMessages func([]fantasy.Message) []fantasy.Message
+	Logger     slog.Logger
+	Compaction *CompactionOptions
 
 	// PrepareTools is called once before each LLM step with the
 	// current tool list. If it returns non-nil, the returned slice
@@ -254,6 +239,17 @@ type ExecuteLocalToolsOptions struct {
 	ModelProvider      string
 	ModelName          string
 
+	// ContextLimit is the model's context window in tokens. It is used
+	// to derive a per-result byte budget so a single oversized tool
+	// result cannot overflow the prompt. Zero means unknown, in which
+	// case a default budget applies.
+	ContextLimit int64
+
+	// ToolNameAliases maps a non-advertised tool name to the canonical
+	// tool it dispatches to. Used for backward compatibility when a tool
+	// is renamed but old chat histories still reference the old name.
+	ToolNameAliases map[string]string
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
@@ -275,7 +271,6 @@ type GenerateCompactionOptions struct {
 	ContextLimitFallback int64
 	SummaryPrompt        string
 	SystemSummaryPrefix  string
-	Timeout              time.Duration
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
 
@@ -425,7 +420,6 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Content:              result.content,
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
-		ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:              opts.Clock.Since(stepStart),
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,
@@ -520,6 +514,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		}}, nil
 	}
 
+	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
 	toolResults := executeTools(
 		ctx,
 		opts.Clock,
@@ -532,6 +527,8 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		provider,
 		modelName,
 		opts.BuiltinToolNames,
+		maxResultBytes,
+		opts.ToolNameAliases,
 		func(tr fantasy.ToolResultContent, completedAt time.Time) {
 			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
@@ -567,11 +564,6 @@ func prepareMessagesForRequest(
 	totalSteps int,
 ) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
 	canonical = messages
-	if opts.PrepareMessages != nil {
-		if updated := opts.PrepareMessages(canonical); updated != nil {
-			canonical = updated
-		}
-	}
 	// Copy messages so provider-specific caching mutations don't leak
 	// back to the canonical message slice.
 	prompt = slices.Clone(canonical)
@@ -997,6 +989,8 @@ func executeTools(
 	logger slog.Logger,
 	provider, model string,
 	builtinToolNames map[string]bool,
+	maxResultBytes int,
+	toolNameAliases map[string]string,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1075,6 +1069,8 @@ func executeTools(
 				activeTools,
 				providerRunnerNames,
 				resultProviderMetadata,
+				maxResultBytes,
+				toolNameAliases,
 			)
 		}()
 	}
@@ -1194,6 +1190,8 @@ func executeSingleTool(
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
+	maxResultBytes int,
+	toolNameAliases map[string]string,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1213,31 +1211,40 @@ func executeSingleTool(
 		}
 	}()
 
-	_, isProviderRunner := providerRunnerNames[tc.ToolName]
-	if !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
+	// Resolve backward-compatible tool aliases (for example a renamed
+	// tool whose old name still appears in chat history) to the canonical
+	// tool before the active-tool and dispatch lookups.
+	resolvedName := tc.ToolName
+	if alias, ok := toolNameAliases[tc.ToolName]; ok {
+		resolvedName = alias
+	}
+
+	_, isProviderRunner := providerRunnerNames[resolvedName]
+	if !isProviderRunner && !isToolActive(resolvedName, activeTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
+			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
 		return result
 	}
 
-	tool, exists := toolMap[tc.ToolName]
+	tool, exists := toolMap[resolvedName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not found: " + tc.ToolName),
+			Error: xerrors.New("Tool not found: " + resolvedName),
 		}
 		return result
 	}
 
 	logger.Debug(ctx, "tool execution",
 		slog.F("tool_name", tc.ToolName),
+		slog.F("resolved_tool_name", resolvedName),
 		slog.F("tool_call_id", tc.ToolCallID),
-		slog.F("builtin", builtinToolNames[tc.ToolName]),
+		slog.F("builtin", builtinToolNames[resolvedName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
-		Name:  tc.ToolName,
+		Name:  resolvedName,
 		Input: tc.Input,
 	})
 	if err != nil {
@@ -1254,25 +1261,42 @@ func executeSingleTool(
 	}
 
 	result.ClientMetadata = resp.Metadata
+
+	// Cap tool output so a single oversized result (most often a large
+	// MCP response) cannot overflow the model's context window on the
+	// next request. Only the text payload is bounded; binary media data
+	// is passed through untouched.
+	content := resp.Content
+	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
+		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
+		logger.Warn(ctx, "tool result truncated to fit model context",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.F("original_bytes", len(content)),
+			slog.F("max_bytes", maxResultBytes),
+		)
+		content = truncated
+	}
+
 	switch {
 	case resp.IsError:
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New(resp.Content),
+			Error: xerrors.New(content),
 		}
 		logger.Info(ctx, "tool returned error result",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
-			slog.F("tool_error", resp.Content),
+			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(resp.Content, "\uFFFD"),
+			Text:      strings.ToValidUTF8(content, "\uFFFD"),
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
-			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
+			Text: strings.ToValidUTF8(content, "\uFFFD"),
 		}
 	}
 

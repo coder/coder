@@ -99,7 +99,7 @@ func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigC
 	}
 
 	for i := range modelConfigs {
-		matchesProvider := modelConfigs[i].AIProviderID != nil && *modelConfigs[i].AIProviderID == provider.ID
+		matchesProvider := modelConfigs[i].AIProviderID == provider.ID
 		matchesModel := modelConfigs[i].Model == scaletestModelName
 		if !matchesProvider || !matchesModel {
 			continue

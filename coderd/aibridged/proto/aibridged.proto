@@ -34,6 +34,17 @@ service Authorizer {
   // IsAuthorized validates that a given Coder key is valid and the user is authorized to use AI Bridge.
   // TODO: add authorization; currently only key validation takes place.
   rpc IsAuthorized(IsAuthorizedRequest) returns (IsAuthorizedResponse);
+  // IsBudgetExceeded reports whether the user's AI spend has reached their
+  // effective limit over [period_start, now].
+  rpc IsBudgetExceeded(IsBudgetExceededRequest) returns (IsBudgetExceededResponse);
+}
+
+// ProviderConfigurator serves AI provider configuration to embedded and
+// standalone AI Gateway daemons. The database is the single source of truth.
+service ProviderConfigurator {
+  // GetAIProviders returns the full provider set (enabled and disabled).
+  // It synchronizes with provider seeding so the response is never raced.
+  rpc GetAIProviders(GetAIProvidersRequest) returns (GetAIProvidersResponse);
 }
 
 message RecordInterceptionRequest {
@@ -102,6 +113,10 @@ message RecordToolUsageRequest {
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
+  // Specific to the OpenAI Responses API: the unique id of the output item that
+  // carried the tool call, distinct from tool_call_id (the call_id correlation
+  // key). Empty for chat completions and Anthropic messages.
+  string item_id = 11;
 }
 message RecordToolUsageResponse {}
 
@@ -158,4 +173,49 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+}
+
+message IsBudgetExceededRequest {
+  string user_id = 1; // UUID
+  // The spend aggregation window is [period_start, now].
+  google.protobuf.Timestamp period_start = 2;
+}
+
+message IsBudgetExceededResponse {
+  // exceeded is true when the user's aggregated spend has reached the
+  // effective limit. False when no budget is configured for the user OR
+  // they are within their limit.
+  bool exceeded = 1;
+  // spend_limit_micros is the effective spend limit in micro-units.
+  // Unset when no budget is configured for the user (unlimited).
+  // 0 when a group is explicitly configured with a 0 limit (blocked).
+  optional int64 spend_limit_micros = 2;
+}
+
+message GetAIProvidersRequest {}
+
+message GetAIProvidersResponse {
+  repeated AIProvider providers = 1;
+}
+
+message AIProvider {
+  string name = 1;
+  string type = 2;
+  bool enabled = 3;
+  string base_url = 4;
+  // keys carries bearer API keys, populated only for enabled providers.
+  repeated string keys = 5;
+  // bedrock is populated when the provider's settings include Bedrock
+  // credentials (regardless of provider type).
+  AIProviderKindBedrock bedrock = 6;
+}
+
+message AIProviderKindBedrock {
+  string region = 1;
+  string access_key = 2;
+  string access_key_secret = 3;
+  string model = 4;
+  string small_fast_model = 5;
+  string role_arn = 6;
+  string external_id = 7;
 }

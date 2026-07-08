@@ -279,17 +279,19 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, server.UpdateNow(ctx))
 		requireNoCallback(t, called)
 	})
-	t.Run("PrimaryPeerAddresses", func(t *testing.T) {
+	t.Run("FetchNATSPeers", func(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		primary, err := db.InsertReplica(ctx, database.InsertReplicaParams{
+		_, err := db.InsertReplica(ctx, database.InsertReplicaParams{
 			ID:           uuid.New(),
 			CreatedAt:    dbtime.Now(),
 			StartedAt:    dbtime.Now(),
 			UpdatedAt:    dbtime.Now(),
-			RelayAddress: "nats://primary.example:6222",
+			RelayAddress: "https://primary-relay.example",
 			Primary:      true,
+			ClusterHost:  "primary.example",
+			NATSPort:     6222,
 		})
 		require.NoError(t, err)
 		_, err = db.InsertReplica(ctx, database.InsertReplicaParams{
@@ -297,7 +299,7 @@ func TestReplica(t *testing.T) {
 			CreatedAt:    dbtime.Now(),
 			StartedAt:    dbtime.Now(),
 			UpdatedAt:    dbtime.Now(),
-			RelayAddress: "nats://proxy.example:6222",
+			RelayAddress: "https://proxy-relay.example",
 			Primary:      false,
 		})
 		require.NoError(t, err)
@@ -310,15 +312,24 @@ func TestReplica(t *testing.T) {
 		})
 		require.NoError(t, err)
 		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
-			RelayAddress: "nats://self.example:6222",
+			RelayAddress:   "https://self-relay.example",
+			ClusterHost:    "self.example",
+			UpdateInterval: time.Hour, // we'll explicitly trigger this
 		})
 		require.NoError(t, err)
 		defer server.Close()
-		require.Contains(t, server.PrimaryPeerAddresses(), primary.RelayAddress)
 		require.ElementsMatch(t, []string{
 			"nats://primary.example:6222",
-			"nats://self.example:6222",
-		}, server.PrimaryPeerAddresses())
+		}, server.FetchNATSPeers())
+
+		server.SetSelfNATSPort(6223)
+		err = server.UpdateNow(ctx)
+		require.NoError(t, err)
+
+		require.ElementsMatch(t, []string{
+			"nats://primary.example:6222",
+			"nats://self.example:6223",
+		}, server.FetchNATSPeers())
 	})
 	t.Run("TwentyConcurrent", func(t *testing.T) {
 		// Ensures that twenty concurrent replicas can spawn and all

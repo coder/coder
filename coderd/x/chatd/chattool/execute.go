@@ -49,6 +49,31 @@ var fileDumpPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^(rg|grep)\s+-l\s+`),
 }
 
+const (
+	// shNotFoundFragment omits the trailing path variable
+	// (%PATH% vs $PATH) for OS portability. Only transport
+	// errors from StartProcess contain it, never command output.
+	shNotFoundFragment = `exec: "sh": executable file not found`
+
+	// shNotFoundGuidance is model-facing remediation text, relayed
+	// to the user. Keep the docs anchor in sync with
+	// docs/ai-coder/agents/architecture.md.
+	shNotFoundGuidance = "The workspace has no POSIX shell (sh) on its PATH. " +
+		"Coder Agents run commands with \"sh -c\". On Windows, install sh " +
+		"via Git Bash, MSYS2, or WSL, then restart the workspace to pick " +
+		"up the updated PATH. See " +
+		"https://coder.com/docs/ai-coder/agents/architecture#windows-workspace-shell-requirement"
+)
+
+// enrichStartError appends actionable guidance when a StartProcess
+// error indicates the workspace has no sh binary.
+func enrichStartError(msg string) string {
+	if strings.Contains(msg, shNotFoundFragment) {
+		return msg + "\n\n" + shNotFoundGuidance
+	}
+	return msg
+}
+
 // ExecuteResult is the structured response from the execute
 // tool.
 type ExecuteResult struct {
@@ -162,7 +187,7 @@ func executeBackground(
 		Background: true,
 	})
 	if err != nil {
-		return errorResult(fmt.Sprintf("start background process: %v", err))
+		return errorResult(enrichStartError(fmt.Sprintf("start background process: %v", err)))
 	}
 
 	result := ExecuteResult{
@@ -212,7 +237,7 @@ func executeForeground(
 		Background: false,
 	})
 	if err != nil {
-		return errorResult(fmt.Sprintf("start process: %v", err))
+		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err)))
 	}
 
 	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)

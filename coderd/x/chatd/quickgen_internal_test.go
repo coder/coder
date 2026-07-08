@@ -342,6 +342,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
+			require.Contains(t, prompt, "same language as the user's messages")
 
 			if tt.wantConversationSample {
 				require.Contains(t, prompt, "Conversation sample:")
@@ -360,16 +361,6 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestPreferredShortTextCandidatesNilUnderAIGateway(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{aiGatewayRoutingEnabled: true}
-	candidates := server.preferredShortTextCandidates(database.Chat{}, chatprovider.ProviderAPIKeys{
-		ByProvider: map[string]string{"openai": "test-key"},
-	})
-	require.Nil(t, candidates)
 }
 
 func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
@@ -391,8 +382,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider: "openai",
-		Model:    "test-model",
+		Model: "test-model",
 	})
 
 	userPrompt := "summarize failed workspace build logs"
@@ -405,13 +395,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		ClientType:        database.ChatClientTypeUi,
 	})
 
-	expectedUpdatedAt := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
-	chat, err := db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
-		ID:        chat.ID,
-		Status:    chat.Status,
-		UpdatedAt: expectedUpdatedAt,
-	})
-	require.NoError(t, err)
+	expectedUpdatedAt := chat.UpdatedAt
 
 	const wantTitle = "Failed workspace logs"
 	model := &chattest.FakeModel{
@@ -441,8 +425,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		"openai",
 		"test-model",
 		model,
-		resolvedModelRoute{},
-		chatprovider.ProviderAPIKeys{},
+		aiGatewayModelRoute{},
 		modelBuildOptions{},
 		generated,
 		logger,
@@ -469,6 +452,8 @@ func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
+	require.Contains(t, titleGenerationPrompt, "same language as the user's message")
+	require.Contains(t, titleGenerationPrompt, "Examples:")
 	require.NotContains(t, titleGenerationPrompt, "I am a title generator")
 }
 
@@ -586,24 +571,23 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
 		t.Parallel()
 
-		configs := []database.ChatModelConfig{
-			{Provider: preferredTitleModels[2].provider, Model: preferredTitleModels[2].model},
-			{Provider: preferredTitleModels[1].provider, Model: preferredTitleModels[1].model},
-			{Provider: "openai", Model: "gpt-4.1"},
+		configs := []database.GetEnabledChatModelConfigsRow{
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[2].model}, Provider: preferredTitleModels[2].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: preferredTitleModels[1].model}, Provider: preferredTitleModels[1].provider},
+			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
 		}
 
 		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 		require.True(t, ok)
-		require.Equal(t, preferredTitleModels[1].provider, got.Provider)
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
 	})
 
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.ChatModelConfig{{
-			Provider: "openai",
-			Model:    "gpt-4.1",
+		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
+			Provider:        "openai",
 		}})
 		require.False(t, ok)
 		require.Equal(t, database.ChatModelConfig{}, got)
@@ -687,6 +671,8 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 
 	body := testutil.TryReceive(t.Context(), t, requests)
 	require.Equal(t, "required", body["tool_choice"])
+	require.Equal(t, quickgenTemperature, body["temperature"],
+		"title generation should pin temperature for repeatable output")
 }
 
 func newOpenAICompatStructuredOutputServer(
@@ -797,6 +783,8 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 
 		body := testutil.TryReceive(t.Context(), t, requests)
 		require.Equal(t, "required", body["tool_choice"])
+		require.Equal(t, quickgenTemperature, body["temperature"],
+			"status-label generation should pin temperature for repeatable output")
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {

@@ -1,5 +1,6 @@
-import { CheckIcon } from "lucide-react";
+import { BadgeCheckIcon, CheckIcon } from "lucide-react";
 import { useId } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
@@ -8,6 +9,7 @@ type ModuleCardProps = {
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
+	official?: boolean;
 	selected?: boolean;
 	onSelect?: () => void;
 };
@@ -17,6 +19,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 	description,
 	iconUrl,
 	detailsUrl,
+	official = true,
 	selected = false,
 	onSelect,
 }) => {
@@ -43,17 +46,11 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 			}}
 		>
 			<div className="flex items-start justify-between mb-3">
-				<div className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border">
-					{iconUrl ? (
-						<img src={iconUrl} alt="" className="size-7 object-contain" />
-					) : (
-						<div className="size-7 rounded bg-surface-primary" />
-					)}
-				</div>
+				<Avatar src={iconUrl} size="lg" variant="icon" />
 				<div
 					aria-hidden="true"
 					className={cn(
-						"flex items-center justify-center size-4 rounded-xs mt-0.5 shrink-0",
+						"relative flex items-center justify-center size-4 rounded-xs mt-0.5 shrink-0",
 						"border border-solid border-border-secondary",
 						selected ? "bg-content-primary" : "bg-surface-secondary",
 					)}
@@ -65,8 +62,14 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 			</div>
 
 			<div>
-				<h3 id={nameId} className="text-md font-semibold text-content-primary">
+				<h3
+					id={nameId}
+					className="flex items-center gap-1.5 text-md font-semibold text-content-primary"
+				>
 					{name}
+					{official && (
+						<BadgeCheckIcon className="size-4 text-highlight-sky shrink-0" />
+					)}
 				</h3>
 				<p className="text-sm font-normal text-content-secondary">
 					{description}
@@ -78,7 +81,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 						target="_blank"
 						className="text-sm font-normal"
 					>
-						View Details
+						View details
 					</Link>
 				</div>
 			</div>

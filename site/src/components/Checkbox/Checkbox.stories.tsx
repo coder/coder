@@ -51,7 +51,7 @@ export const DisabledChecked: Story = {
 
 export const CustomStyling: Story = {
 	args: {
-		className: "h-6 w-6 rounded-full",
+		className: "size-6 rounded-full",
 	},
 };
 

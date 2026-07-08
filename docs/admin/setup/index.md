@@ -56,7 +56,7 @@ If you are providing TLS certificates directly to the Coder server, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via
-   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+   [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
    [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
    [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line

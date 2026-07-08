@@ -67,8 +67,10 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.ActivityBumpMillis = ptr.Ref((3 * time.Hour).Milliseconds())
+			ctr.TimeTilAutostopNotifyMillis = ptr.Ref((5 * time.Minute).Milliseconds())
 		})
 		assert.Equal(t, (3 * time.Hour).Milliseconds(), expected.ActivityBumpMillis)
+		assert.Equal(t, (5 * time.Minute).Milliseconds(), expected.TimeTilAutostopNotifyMillis)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -78,6 +80,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
 		assert.Equal(t, expected.ActivityBumpMillis, got.ActivityBumpMillis)
+		assert.Equal(t, expected.TimeTilAutostopNotifyMillis, got.TimeTilAutostopNotifyMillis)
 		assert.Equal(t, expected.UseClassicParameterFlow, false) // Current default is false
 
 		require.Len(t, auditor.AuditLogs(), 3)
@@ -139,6 +142,62 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, err.Error(), "default_ttl_ms: Must be a positive integer")
+	})
+
+	t.Run("TimeTilAutostopNotifyTooLow", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:                        "testing",
+			VersionID:                   version.ID,
+			TimeTilAutostopNotifyMillis: ptr.Ref(int64(30_000)),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		assert.Equal(t, "time_til_autostop_notify_ms", apiErr.Validations[0].Field)
+		assert.Equal(t, "Must be 0 (disabled) or at least one minute.", apiErr.Validations[0].Detail)
+	})
+
+	t.Run("TimeTilAutostopNotifyExactlyOneMinute", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:                        "testing",
+			VersionID:                   version.ID,
+			TimeTilAutostopNotifyMillis: ptr.Ref(time.Minute.Milliseconds()),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, time.Minute.Milliseconds(), got.TimeTilAutostopNotifyMillis)
+	})
+
+	t.Run("TimeTilAutostopNotifyNegative", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:                        "testing",
+			VersionID:                   version.ID,
+			TimeTilAutostopNotifyMillis: ptr.Ref(int64(-1)),
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Len(t, apiErr.Validations, 1)
+		assert.Equal(t, "time_til_autostop_notify_ms", apiErr.Validations[0].Field)
+		assert.Equal(t, "Must be a positive integer.", apiErr.Validations[0].Detail)
 	})
 
 	t.Run("NoDefaultTTL", func(t *testing.T) {
@@ -907,6 +966,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Icon:                         ptr.Ref("/icon/new-icon.png"),
 			DefaultTTLMillis:             ptr.Ref(12 * time.Hour.Milliseconds()),
 			ActivityBumpMillis:           ptr.Ref(3 * time.Hour.Milliseconds()),
+			TimeTilAutostopNotifyMillis:  ptr.Ref(5 * time.Minute.Milliseconds()),
 			AllowUserCancelWorkspaceJobs: ptr.Ref(false),
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
@@ -924,6 +984,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, *req.Icon, updated.Icon)
 		assert.Equal(t, *req.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, *req.ActivityBumpMillis, updated.ActivityBumpMillis)
+		assert.Equal(t, *req.TimeTilAutostopNotifyMillis, updated.TimeTilAutostopNotifyMillis)
 		assert.False(t, *req.AllowUserCancelWorkspaceJobs)
 
 		// Extra paranoid: did it _really_ happen?
@@ -936,6 +997,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, *req.Icon, updated.Icon)
 		assert.Equal(t, *req.DefaultTTLMillis, updated.DefaultTTLMillis)
 		assert.Equal(t, *req.ActivityBumpMillis, updated.ActivityBumpMillis)
+		assert.Equal(t, *req.TimeTilAutostopNotifyMillis, updated.TimeTilAutostopNotifyMillis)
 		assert.False(t, *req.AllowUserCancelWorkspaceJobs)
 
 		require.Len(t, auditor.AuditLogs(), 5)
@@ -1343,6 +1405,32 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 	})
 
+	t.Run("TimeTilAutostopNotifyPreservedWhenOmitted", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.TimeTilAutostopNotifyMillis = ptr.Ref((5 * time.Minute).Milliseconds())
+		})
+		require.Equal(t, (5 * time.Minute).Milliseconds(), template.TimeTilAutostopNotifyMillis)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Patch an unrelated field, omitting TimeTilAutostopNotifyMillis.
+		req := codersdk.UpdateTemplateMeta{
+			Description: ptr.Ref("updated description"),
+		}
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+
+		updated, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "updated description", updated.Description)
+		assert.Equal(t, template.TimeTilAutostopNotifyMillis, updated.TimeTilAutostopNotifyMillis)
+	})
+
 	t.Run("Invalid", func(t *testing.T) {
 		t.Parallel()
 
@@ -1373,6 +1461,62 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.Icon, updated.Icon)
 		assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+	})
+
+	t.Run("TimeTilAutostopNotifyInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Sub-minute (non-zero) values are rejected.
+		req := codersdk.UpdateTemplateMeta{
+			TimeTilAutostopNotifyMillis: ptr.Ref(int64(30_000)),
+		}
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Contains(t, apiErr.Message, "Invalid request")
+		require.Len(t, apiErr.Validations, 1)
+		assert.Equal(t, "time_til_autostop_notify_ms", apiErr.Validations[0].Field)
+		assert.Equal(t, "Must be 0 (disabled) or at least one minute.", apiErr.Validations[0].Detail)
+
+		// Negative values are rejected.
+		req = codersdk.UpdateTemplateMeta{
+			TimeTilAutostopNotifyMillis: ptr.Ref(int64(-1)),
+		}
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.ErrorAs(t, err, &apiErr)
+		require.Contains(t, apiErr.Message, "Invalid request")
+		require.Len(t, apiErr.Validations, 1)
+		assert.Equal(t, "time_til_autostop_notify_ms", apiErr.Validations[0].Field)
+		assert.Equal(t, "Must be a positive integer.", apiErr.Validations[0].Detail)
+	})
+
+	t.Run("TimeTilAutostopNotifyDisableAfterEnable", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.TimeTilAutostopNotifyMillis = ptr.Ref((5 * time.Minute).Milliseconds())
+		})
+		require.Equal(t, (5 * time.Minute).Milliseconds(), template.TimeTilAutostopNotifyMillis)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Explicitly disable by sending 0, which must not be treated as omitted.
+		req := codersdk.UpdateTemplateMeta{
+			TimeTilAutostopNotifyMillis: ptr.Ref(int64(0)),
+		}
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), updated.TimeTilAutostopNotifyMillis)
 	})
 
 	t.Run("RemoveIcon", func(t *testing.T) {

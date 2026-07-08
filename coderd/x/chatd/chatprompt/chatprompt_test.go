@@ -63,7 +63,7 @@ func TestConvertMessagesWithFilesPreservesEmptyRedactedReasoning(t *testing.T) {
 			Content:        content,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		},
-	}, nil, slogtest.Make(t, nil))
+	}, nil, slogtest.Make(t, nil), nil)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
 	require.Len(t, prompt[0].Content, 2)
@@ -146,7 +146,7 @@ func TestConvertMessagesWithFilesRoundTripsAnthropicInterleavedWebSearch(t *test
 			Content:        storedContent,
 			ContentVersion: chatprompt.CurrentContentVersion,
 		},
-	}, nil, slogtest.Make(t, nil))
+	}, nil, slogtest.Make(t, nil), nil)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
 	require.Len(t, prompt[0].Content, 5)
@@ -198,6 +198,7 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 		messages,
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	return prompt
@@ -337,6 +338,7 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 		},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -395,6 +397,7 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 				}},
 				resolver,
 				slogtest.Make(t, nil),
+				nil,
 			)
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
@@ -442,6 +445,7 @@ func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
 		}},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Empty(t, prompt)
@@ -494,6 +498,7 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 		}},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -560,6 +565,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 		},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1485,6 +1491,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1533,6 +1540,7 @@ func TestFileReferencePreservation(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1588,6 +1596,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1732,6 +1741,7 @@ func TestMixedFormatConversation(t *testing.T) {
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(), messages, resolver, slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 6, "all 6 messages should produce prompt entries")
@@ -1852,6 +1862,7 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 		}},
 		nil,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -2167,6 +2178,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleUser, parts)},
 			nil,
 			slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, err)
 		require.Len(t, prompt, 1)
@@ -2213,6 +2225,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
 			slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, err)
 		// 2 messages: assistant + synthetic tool result injected
@@ -2247,6 +2260,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
 			slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, err)
 		require.Empty(t, prompt, "all-empty message should be dropped entirely")
@@ -2425,6 +2439,7 @@ func TestConvertMessagesWithFiles_AssistantAttachmentIsNotReplayed(t *testing.T)
 		},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	require.Len(t, resolverCalls, 1)
@@ -2478,6 +2493,7 @@ func convertSingleResolvedFileMessage(t *testing.T, fileID uuid.UUID, fileData c
 		}},
 		resolver,
 		slogtest.Make(t, nil),
+		nil,
 	)
 	require.NoError(t, err)
 	return prompt
@@ -2500,12 +2516,12 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider: "anthropic",
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "test-model",
 		IsDefault:    true,
 		ContextLimit: 200000,
@@ -2567,6 +2583,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		require.NoError(t, loadErr)
 		prompt, convErr := chatprompt.ConvertMessagesWithFiles(
 			ctx, dbMsgs, nil, slogtest.Make(t, nil),
+			nil,
 		)
 		require.NoError(t, convErr)
 		return prompt

@@ -11,7 +11,7 @@ Claude Code can be configured using environment variables. All modes require a *
 
 ```bash
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your Coder API token, used for authentication with AI Gateway.
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
@@ -21,7 +21,7 @@ export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 
 ```bash
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your personal Anthropic API key, forwarded to Anthropic.
 export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
@@ -37,7 +37,7 @@ unset ANTHROPIC_AUTH_TOKEN
 
 ```bash
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your Coder API token, used for authentication with AI Gateway.
 export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-api-token>"

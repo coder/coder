@@ -64,14 +64,14 @@ SELECT * FROM boundary_logs WHERE id = @id;
 
 -- name: ListBoundaryLogsBySessionID :many
 -- Lists boundary logs for a session, sorted by sequence number ascending.
--- Supports optional exclusive sequence number bounds (seq_after, seq_before)
--- for fetching events between two known interceptions.
+-- Supports an inclusive lower bound (seq_after) and an exclusive upper bound
+-- (seq_before) for fetching events between two known interceptions.
 SELECT *
 FROM boundary_logs
 WHERE
     session_id = @session_id
     AND CASE
-        WHEN sqlc.narg('seq_after')::int IS NOT NULL THEN sequence_number > sqlc.narg('seq_after')
+        WHEN sqlc.narg('seq_after')::int IS NOT NULL THEN sequence_number >= sqlc.narg('seq_after')
         ELSE true
     END
     AND CASE

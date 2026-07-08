@@ -56,6 +56,21 @@ func (mr *MockDRPCClientMockRecorder) DRPCConn() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DRPCConn", reflect.TypeOf((*MockDRPCClient)(nil).DRPCConn))
 }
 
+// GetAIProviders mocks base method.
+func (m *MockDRPCClient) GetAIProviders(ctx context.Context, in *proto.GetAIProvidersRequest) (*proto.GetAIProvidersResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviders", ctx, in)
+	ret0, _ := ret[0].(*proto.GetAIProvidersResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviders indicates an expected call of GetAIProviders.
+func (mr *MockDRPCClientMockRecorder) GetAIProviders(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockDRPCClient)(nil).GetAIProviders), ctx, in)
+}
+
 // GetMCPServerAccessTokensBatch mocks base method.
 func (m *MockDRPCClient) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.GetMCPServerAccessTokensBatchRequest) (*proto.GetMCPServerAccessTokensBatchResponse, error) {
 	m.ctrl.T.Helper()
@@ -99,6 +114,21 @@ func (m *MockDRPCClient) IsAuthorized(ctx context.Context, in *proto.IsAuthorize
 func (mr *MockDRPCClientMockRecorder) IsAuthorized(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAuthorized", reflect.TypeOf((*MockDRPCClient)(nil).IsAuthorized), ctx, in)
+}
+
+// IsBudgetExceeded mocks base method.
+func (m *MockDRPCClient) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsBudgetExceeded", ctx, in)
+	ret0, _ := ret[0].(*proto.IsBudgetExceededResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsBudgetExceeded indicates an expected call of IsBudgetExceeded.
+func (mr *MockDRPCClientMockRecorder) IsBudgetExceeded(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsBudgetExceeded", reflect.TypeOf((*MockDRPCClient)(nil).IsBudgetExceeded), ctx, in)
 }
 
 // RecordInterception mocks base method.

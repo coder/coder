@@ -720,13 +720,6 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
-		LastInjectedContext: pqtype.NullRawMessage{
-			// Use a context-file part to verify internal
-			// fields are not present (they are stripped at
-			// write time by chatd, not at read time).
-			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
-			Valid:      true,
-		},
 		DynamicTools: pqtype.NullRawMessage{
 			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
 			Valid:      true,
@@ -958,7 +951,6 @@ func TestChat_LastErrorFallback(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

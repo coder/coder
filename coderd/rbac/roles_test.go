@@ -988,6 +988,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "WorkspaceBuildOrchestration",
+			Actions:  crud,
+			Resource: rbac.ResourceWorkspaceBuildOrchestration.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOrgNotMe, setOtherOrg, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
 			// Any owner/admin across may access any users' preferences
 			// Members may not access other members' preferences
 			Name:     "NotificationPreferencesOwn",
@@ -1303,6 +1312,25 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
+					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
+			// Updating an AI Gateway key records last-used liveness when a
+			// Gateway replica authenticates. It is reserved for the system
+			// actor, so no user-facing role, including owner, is authorized.
+			Name:     "AIGatewayKeyUpdate",
+			Actions:  []policy.Action{policy.ActionUpdate},
+			Resource: rbac.ResourceAIGatewayKey,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {},
+				false: {
+					owner,
 					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor,

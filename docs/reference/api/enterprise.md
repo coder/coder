@@ -125,18 +125,71 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get agent firewall session logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-firewall/sessions/{id}/logs`
+
+### Parameters
+
+| Name         | In    | Type         | Required | Description                                    |
+|--------------|-------|--------------|----------|------------------------------------------------|
+| `id`         | path  | string(uuid) | true     | Agent firewall session ID                      |
+| `seq_after`  | query | integer      | false    | Inclusive lower bound on sequence number       |
+| `seq_before` | query | integer      | false    | Exclusive upper bound on sequence number       |
+| `limit`      | query | integer      | false    | Maximum number of logs to return (default 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "results": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentFirewallSessionLogsResponse](schemas.md#codersdkagentfirewallsessionlogsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI Gateway keys
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/aibridge/keys \
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/v2/aibridge/keys`
+`GET /api/v2/ai-gateway/keys`
 
 ### Example responses
 
@@ -148,7 +201,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/keys \
     "created_at": "2019-08-24T14:15:22Z",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "key_prefix": "string",
-    "last_used_at": "2019-08-24T14:15:22Z",
+    "last_heartbeat_at": "2019-08-24T14:15:22Z",
     "name": "string"
   }
 ]
@@ -164,14 +217,14 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/keys \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description |
-|------------------|-------------------|----------|--------------|-------------|
-| `[array item]`   | array             | false    |              |             |
-| `» created_at`   | string(date-time) | false    |              |             |
-| `» id`           | string(uuid)      | false    |              |             |
-| `» key_prefix`   | string            | false    |              |             |
-| `» last_used_at` | string(date-time) | false    |              |             |
-| `» name`         | string            | false    |              |             |
+| Name                  | Type              | Required | Restrictions | Description |
+|-----------------------|-------------------|----------|--------------|-------------|
+| `[array item]`        | array             | false    |              |             |
+| `» created_at`        | string(date-time) | false    |              |             |
+| `» id`                | string(uuid)      | false    |              |             |
+| `» key_prefix`        | string            | false    |              |             |
+| `» last_heartbeat_at` | string(date-time) | false    |              |             |
+| `» name`              | string            | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -181,13 +234,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/aibridge/keys \
+curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/v2/aibridge/keys`
+`POST /api/v2/ai-gateway/keys`
 
 > Body parameter
 
@@ -231,11 +284,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/aibridge/keys/{key} \
+curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/v2/aibridge/keys/{key}`
+`DELETE /api/v2/ai-gateway/keys/{key}`
 
 ### Parameters
 
@@ -248,6 +301,26 @@ curl -X DELETE http://coder-server:8080/api/v2/aibridge/keys/{key} \
 | Status | Meaning                                                         | Description | Schema |
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## AI Gateway serve
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
+  -H 'X-AI-Governance-Gateway-Key: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/serve`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

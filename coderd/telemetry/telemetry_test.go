@@ -585,6 +585,46 @@ func TestTelemetry(t *testing.T) {
 		deployment, _ = collectSnapshot(ctx, t, db, nil)
 		require.True(t, *deployment.IDPOrgSync)
 	})
+	t.Run("SCIM", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// 1. Default Options: both flags false (and reported as such).
+		deployment, _ := collectSnapshot(ctx, t, db, nil)
+		require.NotNil(t, deployment.SCIMEnabled)
+		require.False(t, *deployment.SCIMEnabled)
+		require.NotNil(t, deployment.SCIMUseLegacy)
+		require.False(t, *deployment.SCIMUseLegacy)
+
+		// 2. Both Options flags true: both reported true.
+		deployment, _ = collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.SCIMEnabled = true
+			opts.SCIMUseLegacy = true
+			return opts
+		})
+		require.True(t, *deployment.SCIMEnabled)
+		require.True(t, *deployment.SCIMUseLegacy)
+
+		// 3. Enabled only: enabled true, legacy false.
+		deployment, _ = collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.SCIMEnabled = true
+			return opts
+		})
+		require.True(t, *deployment.SCIMEnabled)
+		require.False(t, *deployment.SCIMUseLegacy)
+
+		// 4. The reporter never reads DeploymentConfig.SCIMAPIKey directly:
+		//    even if a non-empty key sneaks through (it would not in production
+		//    because of WithoutSecrets), SCIMEnabled reflects only Options.
+		deployment, _ = collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.DeploymentConfig = &codersdk.DeploymentValues{
+				SCIMAPIKey: "a-secret-bearer-token",
+			}
+			return opts
+		})
+		require.False(t, *deployment.SCIMEnabled)
+	})
 }
 
 // nolint:paralleltest
@@ -1560,18 +1600,18 @@ func TestChatsTelemetry(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 
 	// Create chat providers (required FK for model configs).
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "anthropic",
 		DisplayName: "Anthropic",
 	})
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+	openaiProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "openai",
 		DisplayName: "OpenAI",
 	})
 
 	// Create a model config.
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-sonnet-4-20250514",
 		DisplayName:  "Claude Sonnet",
 		IsDefault:    true,
@@ -1580,14 +1620,14 @@ func TestChatsTelemetry(t *testing.T) {
 
 	// Create a second model config to test full dump.
 	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:    "openai",
-		Model:       "gpt-4o",
-		DisplayName: "GPT-4o",
+		AIProviderID: uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
+		Model:        "gpt-4o",
+		DisplayName:  "GPT-4o",
 	})
 
 	// Create a soft-deleted model config — should NOT appear in telemetry.
 	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-deleted",
 		DisplayName:  "Deleted Model",
 		ContextLimit: 100000,
@@ -1908,13 +1948,13 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
 
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+	anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:    "anthropic",
 		DisplayName: "Anthropic",
 	})
 
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     "anthropic",
+		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-sonnet-4-20250514",
 		DisplayName:  "Claude Sonnet",
 		IsDefault:    true,

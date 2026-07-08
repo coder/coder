@@ -453,6 +453,26 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	subjectAPIKeyRevoker = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeAPIKeyRevoker,
+			FriendlyName: "API Key Revoker",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "apikeyrevoker"},
+					DisplayName: "API Key Revoker",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceApiKey.Type: {policy.ActionDelete},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -462,30 +482,32 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "system"},
 				DisplayName: "Coder",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceWildcard.Type:               {policy.ActionRead},
-					rbac.ResourceApiKey.Type:                 rbac.ResourceApiKey.AvailableActions(),
-					rbac.ResourceGroup.Type:                  {policy.ActionCreate, policy.ActionUpdate},
-					rbac.ResourceAssignRole.Type:             rbac.ResourceAssignRole.AvailableActions(),
-					rbac.ResourceAssignOrgRole.Type:          rbac.ResourceAssignOrgRole.AvailableActions(),
-					rbac.ResourceSystem.Type:                 {policy.WildcardSymbol},
-					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
-					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
-					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:              {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-					rbac.ResourceWorkspaceProxy.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceDeploymentConfig.Type:       {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationMessage.Type:    {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationPreference.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceFile.Type:                   {policy.ActionCreate, policy.ActionRead},
-					rbac.ResourceProvisionerJobs.Type:        {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
-					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceChat.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceAIProvider.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceWildcard.Type:                    {policy.ActionRead},
+					rbac.ResourceApiKey.Type:                      rbac.ResourceApiKey.AvailableActions(),
+					rbac.ResourceGroup.Type:                       {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceAssignRole.Type:                  rbac.ResourceAssignRole.AvailableActions(),
+					rbac.ResourceAssignOrgRole.Type:               rbac.ResourceAssignOrgRole.AvailableActions(),
+					rbac.ResourceSystem.Type:                      {policy.WildcardSymbol},
+					rbac.ResourceOrganization.Type:                {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceOrganizationMember.Type:          {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
+					rbac.ResourceProvisionerDaemon.Type:           {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUser.Type:                        rbac.ResourceUser.AvailableActions(),
+					rbac.ResourceWorkspaceDormant.Type:            {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspace.Type:                   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
+					rbac.ResourceWorkspaceProxy.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionUpdate, policy.ActionRead},
+					rbac.ResourceDeploymentConfig.Type:            {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:         {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationPreference.Type:      {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceNotificationTemplate.Type:        {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceCryptoKey.Type:                   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceFile.Type:                        {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceProvisionerJobs.Type:             {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
+					rbac.ResourceOauth2App.Type:                   {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceOauth2AppSecret.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceChat.Type:                        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIProvider.Type:                  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIGatewayKey.Type:                {policy.ActionRead, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -637,12 +659,12 @@ var (
 	// See aibridged package.
 	subjectAibridged = rbac.Subject{
 		Type:         rbac.SubjectAibridged,
-		FriendlyName: "AI Bridge Daemon",
+		FriendlyName: "AI Gateway Daemon",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
 				Identifier:  rbac.RoleIdentifier{Name: "aibridged"},
-				DisplayName: "AI Bridge Daemon",
+				DisplayName: "AI Gateway Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceUser.Type: {
 						policy.ActionRead,         // Required to validate API key owner is active.
@@ -670,10 +692,11 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "dbpurge"},
 				DisplayName: "DB Purge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:               {policy.ActionDelete},
-					rbac.ResourceNotificationMessage.Type:  {policy.ActionDelete},
-					rbac.ResourceApiKey.Type:               {policy.ActionDelete},
-					rbac.ResourceAibridgeInterception.Type: {policy.ActionDelete},
+					rbac.ResourceSystem.Type:                      {policy.ActionDelete},
+					rbac.ResourceNotificationMessage.Type:         {policy.ActionDelete},
+					rbac.ResourceApiKey.Type:                      {policy.ActionDelete},
+					rbac.ResourceAibridgeInterception.Type:        {policy.ActionDelete},
+					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionDelete},
 					// Chat auto-archive sets archived=true on inactive chats.
 					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
 					// Purge old boundary logs past the retention period.
@@ -842,6 +865,12 @@ func AsResourceMonitor(ctx context.Context) context.Context {
 // handling the lifecycle of sub agents.
 func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) context.Context {
 	return As(ctx, subjectSubAgentAPI(userID, orgID))
+}
+
+// AsAPIKeyRevoker returns a context with an actor that can revoke API
+// keys owned by the specified user, and nothing else.
+func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectAPIKeyRevoker(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -1723,13 +1752,6 @@ func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.Aut
 	return q.db.AutoArchiveInactiveChats(ctx, arg)
 }
 
-func (q *querier) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return nil, err
-	}
-	return q.db.BackfillChatModelConfigProvider(ctx, arg)
-}
-
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	// This is a system-level operation used by the gitsync
 	// background worker to reschedule failed refreshes. Same
@@ -1858,17 +1880,6 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 		return err
 	}
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
-}
-
-func (q *querier) ClearChatMessageProviderResponseIDsByChatID(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.ClearChatMessageProviderResponseIDsByChatID(ctx, chatID)
 }
 
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -2110,13 +2121,6 @@ func (q *querier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiPr
 		return err
 	}
 	return q.db.DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID)
-}
-
-func (q *querier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.DeleteChatModelConfigsByProvider(ctx, provider)
 }
 
 func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
@@ -2386,6 +2390,13 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
+}
+
+func (q *querier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg database.DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldWorkspaceBuildOrchestrations(ctx, arg)
 }
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
@@ -2751,6 +2762,16 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 		return nil, err
 	}
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
+}
+
+// Authenticates a standalone AI Gateway replica by its hashed key secret, returning the matched key.
+func (q *querier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor reading the AI Gateway key it authenticates against.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayKey); err != nil {
+		return database.AIGatewayKey{}, err
+	}
+	return q.db.GetAIGatewayKeyByHashedSecret(ctx, hashedSecret)
 }
 
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
@@ -3666,7 +3687,7 @@ func (q *querier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUI
 	return q.db.GetEnabledChatModelConfigByID(ctx, id)
 }
 
-func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
+func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.GetEnabledChatModelConfigsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -3982,6 +4003,13 @@ func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uui
 		return nil, err
 	}
 	return q.db.GetMCPServerUserTokensByUserID(ctx, userID)
+}
+
+func (q *querier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx)
 }
 
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -4874,6 +4902,13 @@ func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) 
 	return q.db.GetUserAISeatStates(ctx, userIDs)
 }
 
+func (q *querier) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
+	if _, err := q.GetUserByID(ctx, arg.UserID); err != nil { // AuthZ check
+		return database.GetUserAISpendSinceRow{}, err
+	}
+	return q.db.GetUserAISpendSince(ctx, arg)
+}
+
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
@@ -5686,8 +5721,8 @@ func (q *querier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid
 	return q.db.GetWorkspacesByTemplateID(ctx, templateID)
 }
 
-func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
-	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
+func (q *querier) GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForLifecycleActionRow, error) {
+	return q.db.GetWorkspacesEligibleForLifecycleAction(ctx, now)
 }
 
 func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
@@ -5695,6 +5730,16 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 		return nil, err
 	}
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
+}
+
+func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	// This query authorizes provisioner module-file downloads. The caller
+	// must be able to read files in the target organization; the actual
+	// tenant isolation comes from the organization_id filter in the query.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.InOrg(arg.OrganizationID)); err != nil {
+		return false, err
+	}
+	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
 }
 
 func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
@@ -5717,6 +5762,13 @@ func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UU
 	}
 	_ = chat
 	return q.db.IncrementChatGenerationAttempt(ctx, id)
+}
+
+func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.IncrementUserAIDailySpendParams) (database.AIUserDailySpend, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
+		return database.AIUserDailySpend{}, err
+	}
+	return q.db.IncrementUserAIDailySpend(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
@@ -6430,6 +6482,66 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 	return q.db.InsertWorkspaceBuild(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceBuildOrchestration(ctx context.Context, arg database.InsertWorkspaceBuildOrchestrationParams) (database.WorkspaceBuildOrchestration, error) {
+	// Read through the raw q.db to fetch the authz context; authorization
+	// happens via q.authorizeContext below, as in InsertWorkspaceBuild.
+	parentBuild, err := q.db.GetWorkspaceBuildByID(ctx, arg.ParentBuildID)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("get parent workspace build by id: %w", err)
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, parentBuild.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("get workspace by id: %w", err)
+	}
+	if workspace.IsPrebuild() {
+		return database.WorkspaceBuildOrchestration{}, xerrors.New("cannot orchestrate prebuild workspace builds")
+	}
+
+	// The current API flow inserts this row immediately after
+	// creating the parent build, so the parent transition has already
+	// been authorized. Still, make sure future callers cannot attach
+	// the child intent to a parent build the actor could not initiate.
+	parentAction, err := workspaceTransitionAction(parentBuild.Transition)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	if err := q.authorizeContext(ctx, parentAction, workspace); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+
+	// The orchestrator uses system authority to create the child
+	// build after the parent succeeds, so the initiating actor must
+	// be authorized now.
+	childAction, err := workspaceTransitionAction(arg.ChildTransition)
+	if err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	if err := q.authorizeContext(ctx, childAction, workspace); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+
+	if arg.ChildTransition == database.WorkspaceTransitionStart && arg.ChildTemplateVersionID.Valid {
+		// Only template admins may queue child builds with a durable
+		// template version pin, since the active version can change
+		// before the worker creates the child build.
+		template, err := q.db.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("get template by id: %w", err)
+		}
+
+		err = q.authorizeContext(ctx, policy.ActionUpdate, template)
+		var notAuthorized NotAuthorizedError
+		if xerrors.As(err, &notAuthorized) {
+			return database.WorkspaceBuildOrchestration{}, err
+		} else if err != nil {
+			return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("cannot pin template version for child build: %w", err)
+		}
+	}
+
+	return q.db.InsertWorkspaceBuildOrchestration(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	// TODO: Optimize this. We always have the workspace and build already fetched.
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.WorkspaceBuildID)
@@ -7012,6 +7124,16 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
 }
 
+// Records heartbeat liveness for a key used in active DRPC session between coderd and standalone AI Gateway.
+func (q *querier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	// Standalone AI Gateway has no Coder identity, so this runs under the
+	// system actor recording connection liveness on the AI Gateway key.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayKey); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
+}
+
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
 		return database.AIProvider{}, err
@@ -7121,17 +7243,6 @@ func (q *querier) UpdateChatLabelsByID(ctx context.Context, arg database.UpdateC
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatLabelsByID(ctx, arg)
-}
-
-func (q *querier) UpdateChatLastInjectedContext(ctx context.Context, arg database.UpdateChatLastInjectedContextParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatLastInjectedContext(ctx, arg)
 }
 
 func (q *querier) UpdateChatLastModelConfigByID(ctx context.Context, arg database.UpdateChatLastModelConfigByIDParams) (database.Chat, error) {
@@ -7247,17 +7358,6 @@ func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatS
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatus(ctx, arg)
-}
-
-func (q *querier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg database.UpdateChatStatusPreserveUpdatedAtParams) (database.Chat, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
-	}
-	return q.db.UpdateChatStatusPreserveUpdatedAt(ctx, arg)
 }
 
 func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {
@@ -8413,6 +8513,52 @@ func (q *querier) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg databas
 		return err
 	}
 	return q.db.UpdateWorkspaceBuildFlagsByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationFailedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationFailedByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationRetryByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization()); err != nil {
+		return database.WorkspaceBuildOrchestration{}, err
+	}
+	return q.db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {

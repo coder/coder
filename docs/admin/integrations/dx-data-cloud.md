@@ -81,7 +81,7 @@ After the attribute is uploaded, you'll have a Coder filter option within your D
 
 ## Related Resources
 
-- [DX Data Cloud Documentation](https://help.getdx.com/en/)
+- [DX Data Cloud Documentation](https://docs.getdx.com/)
 - [Coder CLI](../../reference/cli/users.md)
 - [Coder API](../../reference/api/users.md)
 - [PlatformX Integration](./platformx.md)

@@ -1,7 +1,8 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import type { Group } from "#/api/typesGenerated";
+import type { GroupWithAICostControl } from "#/api/api";
+import { AIBudgetUsage } from "#/components/AIBudgetUsage/AIBudgetUsage";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -24,17 +25,20 @@ import {
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
+import { InfoIconTooltip } from "./InfoIconTooltip";
 
 type GroupsPageViewProps = {
-	groups: Group[] | undefined;
+	groups: GroupWithAICostControl[] | undefined;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
+	showAIBudget: boolean;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
 	canCreateGroup,
 	groupsEnabled,
+	showAIBudget,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -47,32 +51,48 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	}
 
 	return (
-		<Table>
+		<Table aria-label="Groups">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-2/5">Name</TableHead>
-					<TableHead className="w-3/5">Users</TableHead>
+					<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
+						Users
+					</TableHead>
+					{showAIBudget && (
+						<TableHead className="w-2/5">
+							<div className="flex items-center gap-1">
+								AI budget
+								<InfoIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+							</div>
+						</TableHead>
+					)}
 					<TableHead className="w-auto" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				<GroupsTableBody groups={groups} canCreateGroup={canCreateGroup} />
+				<GroupsTableBody
+					groups={groups}
+					canCreateGroup={canCreateGroup}
+					showAIBudget={showAIBudget}
+				/>
 			</TableBody>
 		</Table>
 	);
 };
 
 interface GroupsTableBodyProps {
-	groups: Group[] | undefined;
+	groups: GroupWithAICostControl[] | undefined;
 	canCreateGroup: boolean;
+	showAIBudget: boolean;
 }
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
+	showAIBudget,
 }) => {
 	if (groups === undefined) {
-		return <TableLoader />;
+		return <TableLoader showAIBudget={showAIBudget} />;
 	}
 	if (groups.length === 0) {
 		return (
@@ -103,17 +123,18 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	return (
 		<>
 			{groups.map((group) => (
-				<GroupRow key={group.id} group={group} />
+				<GroupRow key={group.id} group={group} showAIBudget={showAIBudget} />
 			))}
 		</>
 	);
 };
 
 interface GroupRowProps {
-	group: Group;
+	group: GroupWithAICostControl;
+	showAIBudget: boolean;
 }
 
-const GroupRow: FC<GroupRowProps> = ({ group }) => {
+const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const navigate = useNavigate();
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
@@ -159,6 +180,19 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 				)}
 			</TableCell>
 
+			{showAIBudget && (
+				<TableCell>
+					{group.ai_cost_control ? (
+						<AIBudgetUsage
+							currentSpend={group.ai_cost_control.current_spend_micros}
+							spendLimit={group.ai_cost_control.spend_limit_micros}
+						/>
+					) : (
+						"-"
+					)}
+				</TableCell>
+			)}
+
 			<TableCell>
 				<div className="flex">
 					<ChevronRightIcon className="size-icon-sm" />
@@ -168,7 +202,7 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
@@ -180,6 +214,11 @@ const TableLoader: FC = () => {
 				<TableCell>
 					<Skeleton variant="text" width="25%" />
 				</TableCell>
+				{showAIBudget && (
+					<TableCell>
+						<Skeleton variant="text" width="50%" />
+					</TableCell>
+				)}
 				<TableCell>
 					<Skeleton variant="text" width="25%" />
 				</TableCell>

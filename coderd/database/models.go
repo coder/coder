@@ -386,6 +386,12 @@ const (
 	ApiKeyScopeAIGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
 	ApiKeyScopeAIGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	ApiKeyScopeAIGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
+	ApiKeyScopeAIGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
+	ApiKeyScopeWorkspaceBuildOrchestration         APIKeyScope = "workspace_build_orchestration:*"
+	ApiKeyScopeWorkspaceBuildOrchestrationCreate   APIKeyScope = "workspace_build_orchestration:create"
+	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
+	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
+	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -654,7 +660,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAIGatewayKey,
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
-		ApiKeyScopeAIGatewayKeyRead:
+		ApiKeyScopeAIGatewayKeyRead,
+		ApiKeyScopeAIGatewayKeyUpdate,
+		ApiKeyScopeWorkspaceBuildOrchestration,
+		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
+		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
+		ApiKeyScopeWorkspaceBuildOrchestrationRead,
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
 		return true
 	}
 	return false
@@ -892,6 +904,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
+		ApiKeyScopeAIGatewayKeyUpdate,
+		ApiKeyScopeWorkspaceBuildOrchestration,
+		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
+		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
+		ApiKeyScopeWorkspaceBuildOrchestrationRead,
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
 	}
 }
 
@@ -1884,6 +1902,7 @@ const (
 	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureNATSCA              CryptoKeyFeature = "nats_ca"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -1926,7 +1945,8 @@ func (e CryptoKeyFeature) Valid() bool {
 	case CryptoKeyFeatureWorkspaceAppsToken,
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
-		CryptoKeyFeatureTailnetResume:
+		CryptoKeyFeatureTailnetResume,
+		CryptoKeyFeatureNATSCA:
 		return true
 	}
 	return false
@@ -1938,6 +1958,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
+		CryptoKeyFeatureNATSCA,
 	}
 }
 
@@ -4596,6 +4617,8 @@ type AIBridgeToolUsage struct {
 	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
+	// Specific to the OpenAI Responses API: the unique id of the output item that carried the tool call. Distinct from provider_tool_call_id (the call_id correlation key), which is empty for hosted tools. Empty for the chat completions and Anthropic messages APIs, which have no separate item id.
+	ProviderItemID sql.NullString `db:"provider_item_id" json:"provider_item_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge
@@ -4615,9 +4638,9 @@ type AIGatewayKey struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Name      string    `db:"name" json:"name"`
 	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -4649,6 +4672,7 @@ type AIProvider struct {
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+	Icon          string         `db:"icon" json:"icon"`
 }
 
 // API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
@@ -4670,6 +4694,18 @@ type AISeatState struct {
 	LastEventType        AISeatUsageReason `db:"last_event_type" json:"last_event_type"`
 	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
 	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
+}
+
+// Daily AI spend per user and effective group.
+type AIUserDailySpend struct {
+	// The user who incurred the spend.
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The group this spend is attributed to for budget purposes.
+	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
+	// UTC calendar day the spend was incurred.
+	Day time.Time `db:"day" json:"day"`
+	// Accumulated spend in micro-units (1 unit = 1,000,000).
+	SpendMicros int64 `db:"spend_micros" json:"spend_micros"`
 }
 
 type APIKey struct {
@@ -4787,7 +4823,6 @@ type Chat struct {
 	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
 	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	LastInjectedContext      pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
 	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
 	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
@@ -4948,7 +4983,6 @@ type ChatMessage struct {
 
 type ChatModelConfig struct {
 	ID                   uuid.UUID       `db:"id" json:"id"`
-	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
@@ -4977,36 +5011,35 @@ type ChatQueuedMessage struct {
 }
 
 type ChatTable struct {
-	ID                  uuid.UUID             `db:"id" json:"id"`
-	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title               string                `db:"title" json:"title"`
-	Status              ChatStatus            `db:"status" json:"status"`
-	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
-	Mode                NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels              StringMap             `db:"labels" json:"labels"`
-	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
-	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
-	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
-	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
-	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
+	ID                uuid.UUID             `db:"id" json:"id"`
+	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title             string                `db:"title" json:"title"`
+	Status            ChatStatus            `db:"status" json:"status"`
+	WorkerID          uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt         sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt       sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt         time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID      uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID        uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived          bool                  `db:"archived" json:"archived"`
+	LastError         pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	Mode              NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs      []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels            StringMap             `db:"labels" json:"labels"`
+	BuildID           uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID           uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder          int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	DynamicTools      pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID    uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode          NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType        ChatClientType        `db:"client_type" json:"client_type"`
+	LastTurnSummary   sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL           ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL          ChatACL               `db:"group_acl" json:"group_acl"`
 	// Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.
 	SnapshotVersion int64 `db:"snapshot_version" json:"snapshot_version"`
 	// Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.
@@ -5560,18 +5593,23 @@ type ProvisionerKey struct {
 }
 
 type Replica struct {
-	ID              uuid.UUID    `db:"id" json:"id"`
-	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
-	StartedAt       time.Time    `db:"started_at" json:"started_at"`
-	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
-	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
-	Hostname        string       `db:"hostname" json:"hostname"`
-	RegionID        int32        `db:"region_id" json:"region_id"`
-	RelayAddress    string       `db:"relay_address" json:"relay_address"`
-	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
-	Version         string       `db:"version" json:"version"`
-	Error           string       `db:"error" json:"error"`
-	Primary         bool         `db:"primary" json:"primary"`
+	ID        uuid.UUID    `db:"id" json:"id"`
+	CreatedAt time.Time    `db:"created_at" json:"created_at"`
+	StartedAt time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
+	Hostname  string       `db:"hostname" json:"hostname"`
+	RegionID  int32        `db:"region_id" json:"region_id"`
+	// URL for DERP relays.
+	RelayAddress    string `db:"relay_address" json:"relay_address"`
+	DatabaseLatency int32  `db:"database_latency" json:"database_latency"`
+	Version         string `db:"version" json:"version"`
+	Error           string `db:"error" json:"error"`
+	Primary         bool   `db:"primary" json:"primary"`
+	// Hostname or IP address the replica is reachable at for clustering purposes.
+	ClusterHost string `db:"cluster_host" json:"cluster_host"`
+	// Port number for NATS clustering. 0 means NATS is disabled.
+	NATSPort int32 `db:"nats_port" json:"nats_port"`
 }
 
 type SiteConfig struct {
@@ -5706,6 +5744,7 @@ type Template struct {
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
+	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5756,6 +5795,8 @@ type TemplateTable struct {
 	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
+	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
+	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -6413,25 +6454,51 @@ type WorkspaceAppStatus struct {
 
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
-	ID                      uuid.UUID           `db:"id" json:"id"`
-	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber             int32               `db:"build_number" json:"build_number"`
-	Transition              WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                time.Time           `db:"deadline" json:"deadline"`
-	Reason                  BuildReason         `db:"reason" json:"reason"`
-	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
-	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
-	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
-	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
+	ID                       uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID              uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID        uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber              int32               `db:"build_number" json:"build_number"`
+	Transition               WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID              uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	JobID                    uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                 time.Time           `db:"deadline" json:"deadline"`
+	Reason                   BuildReason         `db:"reason" json:"reason"`
+	DailyCost                int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline              time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID  uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask                sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgent         sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
+	NotifiedAutostopDeadline time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername      string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName          string              `db:"initiator_by_name" json:"initiator_by_name"`
+}
+
+// Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.
+type WorkspaceBuildOrchestration struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	// Unique because we only support sequences with one child build per parent build.
+	ParentBuildID uuid.UUID `db:"parent_build_id" json:"parent_build_id"`
+	// Nullable because the child build is created only after the parent build completes successfully.
+	ChildBuildID                 uuid.NullUUID       `db:"child_build_id" json:"child_build_id"`
+	ChildTransition              WorkspaceTransition `db:"child_transition" json:"child_transition"`
+	ChildTemplateVersionID       uuid.NullUUID       `db:"child_template_version_id" json:"child_template_version_id"`
+	ChildTemplateVersionPresetID uuid.NullUUID       `db:"child_template_version_preset_id" json:"child_template_version_preset_id"`
+	ChildRichParameterValues     json.RawMessage     `db:"child_rich_parameter_values" json:"child_rich_parameter_values"`
+	ChildLogLevel                string              `db:"child_log_level" json:"child_log_level"`
+	ChildReason                  NullBuildReason     `db:"child_reason" json:"child_reason"`
+	// Counts retryable child build creation failures for this orchestration row.
+	AttemptCount int32 `db:"attempt_count" json:"attempt_count"`
+	// When set, the orchestrator skips this pending row until the timestamp has passed.
+	NextRetryAfter sql.NullTime   `db:"next_retry_after" json:"next_retry_after"`
+	Status         string         `db:"status" json:"status"`
+	Error          sql.NullString `db:"error" json:"error"`
 }
 
 type WorkspaceBuildParameter struct {
@@ -6460,6 +6527,8 @@ type WorkspaceBuildTable struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
+	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
+	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
 }
 
 type WorkspaceLatestBuild struct {

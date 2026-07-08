@@ -17,12 +17,15 @@ const defaultClusterTokenUsername = "coder"
 
 // PeerFetcher fetches NATS peer route addresses.
 type PeerFetcher interface {
-	PrimaryPeerAddresses() []string
+	FetchNATSPeers() []string
+	SetSelfNATSPort(port int32)
 }
 
 type NopPeerFetcher struct{}
 
-func (NopPeerFetcher) PrimaryPeerAddresses() []string {
+func (NopPeerFetcher) SetSelfNATSPort(int32) {}
+
+func (NopPeerFetcher) FetchNATSPeers() []string {
 	return nil
 }
 
@@ -35,6 +38,14 @@ func (p *Pubsub) SetPeerFetcher(fetcher PeerFetcher) {
 	}
 	p.peerFetcher = fetcher
 	p.mu.Unlock()
+	if ca := p.Server.ClusterAddr(); ca != nil {
+		if ca.Port >= 1 && ca.Port <= 65535 {
+			//nolint:gosec // range checked above so conversion is safe.
+			fetcher.SetSelfNATSPort(int32(ca.Port))
+		} else {
+			p.logger.Warn(p.ctx, "unexpected NATS cluster port", slog.F("port", ca.Port))
+		}
+	}
 	p.RefreshPeers()
 }
 
@@ -53,7 +64,7 @@ func (p *Pubsub) runPeerRefresh() {
 		fetcher := p.peerFetcher
 		p.mu.Unlock()
 
-		addrs := fetcher.PrimaryPeerAddresses()
+		addrs := fetcher.FetchNATSPeers()
 		if err := p.setPeerAddresses(addrs); err != nil {
 			if errors.Is(err, errClosed) && p.ctx.Err() != nil {
 				return
@@ -81,7 +92,7 @@ func (p *Pubsub) setPeerAddresses(addresses []string) error {
 		return xerrors.New("nats pubsub was not started with clustering enabled")
 	}
 
-	routes, err := p.parsePeerAddresses(addresses)
+	routes, err := parsePeerAddresses(addresses)
 	if err != nil {
 		return err
 	}
@@ -109,7 +120,7 @@ func (p *Pubsub) setPeerAddresses(addresses []string) error {
 	return nil
 }
 
-func (p *Pubsub) parsePeerAddresses(addresses []string) ([]*url.URL, error) {
+func parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 	routesByAddress := make(map[string]*url.URL, len(addresses))
 	for i, address := range addresses {
 		trimmed := strings.TrimSpace(address)
@@ -120,16 +131,6 @@ func (p *Pubsub) parsePeerAddresses(addresses []string) ([]*url.URL, error) {
 		host, port, err := normalizeHostPort(trimmed)
 		if err != nil {
 			return nil, err
-		}
-
-		// This is a hack to enable testing with an arbitrary port. The logic here
-		// is to presume if the default port is being used then we are running in prod
-		// and all peers are using the same port. If the port is not the default then
-		// we are running a test in which case we should pass through the custom port.
-		// This hack will be removed when https://github.com/coder/scaletest/issues/149
-		// is resolved.
-		if p.opts.ClusterPort == defaultClusterPort {
-			port = defaultClusterPort
 		}
 
 		hostPort := net.JoinHostPort(host, strconv.Itoa(port))
@@ -167,6 +168,9 @@ func normalizeHostPort(address string) (string, int, error) {
 	}
 	if route.Path != "" || route.RawQuery != "" || route.Fragment != "" {
 		return "", 0, xerrors.Errorf("peer address %q must not include path, query, or fragment", address)
+	}
+	if route.Scheme != "nats" {
+		return "", 0, xerrors.Errorf("peer address %q must use nats scheme", address)
 	}
 
 	host, port, err := net.SplitHostPort(route.Host)

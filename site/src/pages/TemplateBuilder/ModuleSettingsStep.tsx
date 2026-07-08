@@ -7,7 +7,15 @@ import type {
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
-import type { ConfigurationFieldDefinition } from "./ConfigurationField";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import {
+	type ConfigurationFieldDefinition,
+	ConfigurationFieldLabel,
+} from "./ConfigurationField";
+import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
 interface ModuleSettingsStepProps {
@@ -27,12 +35,13 @@ function variableToField(
 	onChange: (name: string, value: string) => void,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
+	const label = <ConfigurationFieldLabel variable={variable} />;
 
 	if (variable.type === "bool") {
 		return {
 			type: "switch",
 			id,
-			label: variable.name,
+			label,
 			description: variable.description || undefined,
 			required: variable.required,
 			checked: value === "true",
@@ -44,10 +53,12 @@ function variableToField(
 	return {
 		type: "text",
 		id,
-		label: variable.name,
+		label,
 		description: variable.description || undefined,
 		required: variable.required,
-		placeholder: variable.required ? "Required" : "Optional",
+		placeholder:
+			defaultPlaceholder(variable.default) ??
+			(variable.required ? "Required" : "Optional"),
 		field: {
 			name: variable.name,
 			id,
@@ -110,24 +121,32 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	};
 
 	return (
-		<div className="border border-border border-solid p-6 rounded-lg">
-			<h2 className="text-lg font-semibold mb-1">Configure modules</h2>
-			<p className="text-sm text-content-secondary mb-4">
+		<>
+			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Set values for module variables.
-			</p>
+			</TemplateBuilderSubtitle>
 
-			<div className="flex flex-col gap-6">
+			{/* 340px accounts for navbar, page header, card padding, and nav controls */}
+			<div className="flex flex-col gap-6 max-h-[calc(100vh-340px)] overflow-y-auto">
 				{selectedModules.map((mod) => {
 					const configurableVars = mod.variables.filter((v) => !v.sensitive);
 					const sensitiveVars = mod.variables.filter((v) => v.sensitive);
 					const vars = moduleVariables[mod.id] ?? {};
 
-					const fields: ConfigurationFieldDefinition[] = configurableVars.map(
-						(v) =>
-							variableToField(mod.id, v, vars[v.name] ?? "", (name, val) =>
-								handleChange(mod.id, name, val),
-							),
-					);
+					const toField = (v: TemplateBuilderModuleVariable) =>
+						variableToField(
+							mod.id,
+							v,
+							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
+							(name, val) => handleChange(mod.id, name, val),
+						);
+
+					const requiredVars = configurableVars.filter((v) => v.required);
+					const optionalVars = configurableVars.filter((v) => !v.required);
+
+					const requiredFields = requiredVars.map(toField);
+					const optionalFields = optionalVars.map(toField);
 
 					return (
 						<div key={mod.id}>
@@ -136,8 +155,10 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								description={mod.description}
 								iconUrl={mod.icon}
 								detailsUrl={moduleDetailsUrl(mod.id)}
-								fields={fields}
+								fields={requiredFields}
+								optionalFields={optionalFields}
 							/>
+
 							{sensitiveVars.length > 0 && (
 								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-sm text-content-secondary">
 									<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />
@@ -158,6 +179,6 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					);
 				})}
 			</div>
-		</div>
+		</>
 	);
 };

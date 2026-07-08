@@ -191,40 +191,6 @@ describe("resolveModelFromChatConfig", () => {
 		);
 	});
 
-	it("matches by provider:model combined candidate", () => {
-		// The model field alone doesn't match an option id, but
-		// provider + model concatenated does.
-		const config = { model: "gpt-4", provider: "openai" };
-		expect(resolveModelFromChatConfig(config, options)).toBe("openai:gpt-4");
-	});
-
-	it("falls back to model field match on option.model property", () => {
-		// Neither `model` nor `provider:model` match an option id,
-		// so the function falls through to matching option.model.
-		const altOptions: ModelSelectorOption[] = [
-			buildOption("custom-id-1", "openai", "gpt-4"),
-		];
-		const config = { model: "gpt-4", provider: "openai" };
-		expect(resolveModelFromChatConfig(config, altOptions)).toBe("custom-id-1");
-	});
-
-	it("falls back to model field match ignoring provider when provider is absent", () => {
-		const altOptions: ModelSelectorOption[] = [
-			buildOption("custom-id-1", "openai", "gpt-4"),
-		];
-		const config = { model: "gpt-4" };
-		expect(resolveModelFromChatConfig(config, altOptions)).toBe("custom-id-1");
-	});
-
-	it("respects provider when matching on option.model", () => {
-		const altOptions: ModelSelectorOption[] = [
-			buildOption("id-a", "azure", "gpt-4"),
-			buildOption("id-b", "openai", "gpt-4"),
-		];
-		const config = { model: "gpt-4", provider: "openai" };
-		expect(resolveModelFromChatConfig(config, altOptions)).toBe("id-b");
-	});
-
 	it("returns first option when no match is found", () => {
 		const config = { model: "unknown-model" };
 		expect(resolveModelFromChatConfig(config, options)).toBe("openai:gpt-4");

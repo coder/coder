@@ -1,3 +1,4 @@
+import type { UseQueryResult } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../components/ChatElements";
 import {
@@ -5,22 +6,12 @@ import {
 	asString,
 } from "../components/ChatElements/runtimeTypeUtils";
 
-type RuntimeModelRef = {
-	readonly provider?: unknown;
-	readonly model?: unknown;
-};
-
-type ModelRefLike =
-	| Pick<TypesGen.ChatModel, "provider" | "model">
-	| Pick<TypesGen.ChatModelConfig, "provider" | "model">
-	| RuntimeModelRef;
-
 type CatalogModelLike =
 	| TypesGen.ChatModel
-	| (RuntimeModelRef & {
+	| {
 			readonly id?: unknown;
 			readonly display_name?: unknown;
-	  });
+	  };
 
 type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
 	readonly models?: readonly CatalogModelLike[];
@@ -29,15 +20,6 @@ type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
 type ModelCatalogLike = {
 	readonly providers?: readonly CatalogProviderLike[];
 };
-
-type ModelOptionConfigLike =
-	| TypesGen.ChatModelConfig
-	| (RuntimeModelRef & {
-			readonly id?: unknown;
-			readonly display_name?: unknown;
-			readonly enabled?: unknown;
-			readonly context_limit?: unknown;
-	  });
 
 export const hasConfiguredProviderConfigs = (
 	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
@@ -63,16 +45,6 @@ export const countConfiguredProviderConfigs = (
 			return provider !== "" && availableProviders.has(provider);
 		}).length ?? 0
 	);
-};
-
-export const getNormalizedModelRef = (
-	value: ModelRefLike,
-): { readonly provider: string; readonly model: string } => {
-	const modelRef = value ?? {};
-	return {
-		provider: asString(modelRef.provider).trim().toLowerCase(),
-		model: asString(modelRef.model).trim(),
-	};
 };
 
 const getCatalogProviders = (
@@ -119,6 +91,35 @@ export const hasUserFixableProviders = (
 	);
 };
 
+const getCatalogUnsupportedProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly TypesGen.ChatUnsupportedProvider[] => {
+	const unsupported = catalog?.unsupported_providers;
+	return Array.isArray(unsupported) ? unsupported : [];
+};
+
+/**
+ * Display names of configured providers the Agents harness cannot serve,
+ * but only when no supported provider is configured. A supported provider
+ * missing its API key returns an empty list, keeping normal setup guidance.
+ */
+export const getUnsupportedProviderNames = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly string[] => {
+	const unsupported = getCatalogUnsupportedProviders(catalog);
+	if (unsupported.length === 0) {
+		return [];
+	}
+	if (getCatalogProviders(catalog).length > 0) {
+		return [];
+	}
+	return unsupported.map(
+		(provider) =>
+			asString(provider.display_name).trim() ||
+			asString(provider.provider).trim(),
+	);
+};
+
 const getAvailableProviders = (
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): ReadonlySet<string> => {
@@ -136,10 +137,9 @@ const getAvailableProviders = (
 };
 
 /**
- * Resolves a stored model reference (config ID or legacy
- * "provider:model" string) to the ID of a matching model option.
- * Returns the matched option ID, or an empty string if no match is
- * found.
+ * Resolves a stored model config ID to the ID of a matching model
+ * option. Returns the matched option ID, or an empty string when the
+ * stored ID is blank or no longer matches an available option.
  */
 export const resolveModelOptionId = (
 	storedRef: string | null | undefined,
@@ -155,19 +155,78 @@ export const resolveModelOptionId = (
 		return directMatch.id;
 	}
 
-	const legacyMatch = modelOptions.find(
-		(option) => `${option.provider}:${option.model}` === normalized,
-	);
-	if (legacyMatch) {
-		return legacyMatch.id;
-	}
-
 	return "";
 };
+
+export type ProviderInfo = {
+	readonly provider: string;
+	readonly displayName: string;
+	readonly icon: string;
+};
+
+// providerInfoByIDFromConfigs and providerInfoByIDFromUserConfigs build
+// the ai_provider_id -> provider metadata lookup that
+// getModelOptionsFromConfigs needs. The admin and user provider endpoints
+// expose the provider id under different field names (id vs provider_id), so
+// each source has its own helper to bake in the correct field.
+export const providerInfoByIDFromConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+): ReadonlyMap<string, ProviderInfo> =>
+	new Map(
+		(providerConfigs ?? []).map((providerConfig) => [
+			providerConfig.id,
+			{
+				provider: providerConfig.provider,
+				displayName: providerConfig.display_name,
+				icon: providerConfig.icon,
+			},
+		]),
+	);
+
+export const providerInfoByIDFromUserConfigs = (
+	providerConfigs:
+		| readonly TypesGen.UserChatProviderConfig[]
+		| null
+		| undefined,
+): ReadonlyMap<string, ProviderInfo> =>
+	new Map(
+		(providerConfigs ?? []).map((providerConfig) => [
+			providerConfig.provider_id,
+			{
+				provider: providerConfig.provider,
+				displayName: providerConfig.display_name,
+				icon: providerConfig.icon,
+			},
+		]),
+	);
+
+export const providerTypeByIDFromConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+): ReadonlyMap<string, string> =>
+	new Map(
+		Array.from(providerInfoByIDFromConfigs(providerConfigs), ([id, info]) => [
+			id,
+			info.provider,
+		]),
+	);
+
+export const providerTypeByIDFromUserConfigs = (
+	providerConfigs:
+		| readonly TypesGen.UserChatProviderConfig[]
+		| null
+		| undefined,
+): ReadonlyMap<string, string> =>
+	new Map(
+		Array.from(
+			providerInfoByIDFromUserConfigs(providerConfigs),
+			([id, info]) => [id, info.provider],
+		),
+	);
 
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 ): readonly ModelSelectorOption[] => {
 	if (!configs || !catalog) {
 		return [];
@@ -176,25 +235,30 @@ export const getModelOptionsFromConfigs = (
 	const availableProviders = getAvailableProviders(catalog);
 	const options: ModelSelectorOption[] = [];
 
-	for (const config of configs as readonly ModelOptionConfigLike[]) {
-		if (config.enabled !== true) {
+	for (const config of configs) {
+		if (!config.enabled) {
 			continue;
 		}
 
-		const configID = asString(config.id).trim();
-		const { provider, model } = getNormalizedModelRef(config);
-		if (!configID || !provider || !model) {
+		const configID = config.id.trim();
+		const providerInfo = providerInfoByID.get(config.ai_provider_id);
+		const provider = asString(providerInfo?.provider).trim().toLowerCase();
+		const model = config.model.trim();
+		if (!configID || !providerInfo || !provider || !model) {
 			continue;
 		}
 		if (!availableProviders.has(provider)) {
 			continue;
 		}
 
-		const displayName = asString(config.display_name).trim() || model;
+		const displayName = config.display_name.trim() || model;
 		const contextLimit = asNumber(config.context_limit);
 		options.push({
 			id: configID,
 			provider,
+			providerId: config.ai_provider_id,
+			providerLabel: providerInfo.displayName,
+			providerIcon: providerInfo.icon,
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
@@ -202,13 +266,54 @@ export const getModelOptionsFromConfigs = (
 	}
 
 	return options.sort((a, b) => {
-		const providerCompare = a.provider.localeCompare(b.provider);
+		const providerCompare = (a.providerLabel ?? a.provider).localeCompare(
+			b.providerLabel ?? b.provider,
+		);
 		if (providerCompare !== 0) {
 			return providerCompare;
 		}
 		return a.displayName.localeCompare(b.displayName);
 	});
 };
+
+// Read slice of a react-query result. The field types come from UseQueryResult
+// by indexed access, not Pick (which would distribute over v5's status union),
+// so they track the library rather than being hand-maintained.
+type SelectorQuery<T> = {
+	readonly data: UseQueryResult<T>["data"];
+	readonly isLoading: UseQueryResult<T>["isLoading"];
+};
+
+interface ModelSelectorState {
+	readonly options: readonly ModelSelectorOption[];
+	readonly isModelCatalogLoading: boolean;
+	readonly modelCatalog: TypesGen.ChatModelsResponse | undefined;
+	readonly hasConfiguredModels: boolean;
+}
+
+// Provider identity comes from a separate query (userChatProviderConfigs).
+// Folding all three loading states into one flag here spares every caller the
+// "configs loaded but providers still pending" window that would otherwise
+// build an empty provider map, drop every option, and flash "No Models".
+export const resolveModelSelector = (
+	modelConfigs: SelectorQuery<readonly TypesGen.ChatModelConfig[]>,
+	catalog: SelectorQuery<TypesGen.ChatModelsResponse>,
+	userProviderConfigs: SelectorQuery<
+		readonly TypesGen.UserChatProviderConfig[]
+	>,
+): ModelSelectorState => ({
+	options: getModelOptionsFromConfigs(
+		modelConfigs.data,
+		catalog.data,
+		providerInfoByIDFromUserConfigs(userProviderConfigs.data),
+	),
+	isModelCatalogLoading:
+		modelConfigs.isLoading ||
+		catalog.isLoading ||
+		userProviderConfigs.isLoading,
+	modelCatalog: catalog.data,
+	hasConfiguredModels: hasConfiguredModelsInCatalog(catalog.data),
+});
 
 // getProviderForModelOption returns the provider string for the
 // currently-selected model option, or undefined when the selection

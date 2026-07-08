@@ -1,5 +1,11 @@
 # Write a template from scratch
 
+> [!TIP]
+> If you want to create a template without writing Terraform, use the
+> [template builder](../admin/templates/creating-templates.md#template-builder)
+> instead. The builder guides you through selecting base infrastructure and
+> adding modules through a visual interface.
+
 A template is a common configuration that you use to deploy workspaces.
 
 This tutorial teaches you how to create a template that provisions a workspace
@@ -373,7 +379,7 @@ through the CLI, or through the Coder dashboard:
 
 #### CLI
 
-1. Run `coder templates create` from the directory with your template files:
+1. Run `coder templates push` from the directory with your template files:
 
    ```console
    $ pwd

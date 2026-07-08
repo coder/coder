@@ -190,6 +190,13 @@ networking:
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
+  # Configure network clustering. Coder Servers in the primary region form a cluster
+  # by
+  # communicating directly.
+  cluster:
+    # Hostname or (more commonly) IP to reach this replica for clustering.
+    # (default: <unset>, type: string)
+    clusterHost: ""
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
@@ -434,6 +441,20 @@ oidc:
   # next login.
   # (default: true, type: bool)
   oidc-repair-links: true
+  # INSECURE: Allow OIDC logins to fall back to email-based matching when the
+  # linked_id (issuer+subject) does not match an existing user link. Required for
+  # IdP brokers that do not issue a stable 'sub' for the same user across
+  # connections. The existing user_link's linked_id is preserved on fallback. Only
+  # enable if you understand and accept the risk.
+  # (default: <unset>, type: bool)
+  dangerousOidcEmailFallback: false
+  # An allowlist of hostnames that may be used as the host of the OIDC redirect_uri.
+  # When set, the redirect_uri sent to the OIDC provider is built from the incoming
+  # request's Host header (validated against this list) instead of from access-url.
+  # Every listed host must also be registered as a valid redirect URI in the OIDC
+  # provider. Ignored when oidc-redirect-url is set.
+  # (default: <unset>, type: string-array)
+  oidcRedirectAllowedHosts: []
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
@@ -782,9 +803,8 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
-  # Route chat model requests through AI Gateway when both chat routing and AI
-  # Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats
-  # without API key metadata may need a retry or temporary direct routing.
+  # Deprecated: AI Gateway routing is now the only routing path. Setting this value
+  # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
 aibridge:
@@ -958,7 +978,7 @@ ai_gateway:
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
   send_actor_headers: false
-  # Base directory for dumping AI Bridge request/response pairs to disk for
+  # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.
   # (default: <unset>, type: string)
@@ -1145,5 +1165,5 @@ templateBuilder:
   disabled: false
   # The base URL of the module registry used by the template builder for module
   # source paths.
-  # (default: https://registry.coder.com, type: string)
-  registryURL: https://registry.coder.com
+  # (default: registry.coder.com, type: string)
+  registryURL: registry.coder.com

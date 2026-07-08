@@ -221,6 +221,17 @@ describe("mapSubagentStatusToToolStatus", () => {
 		);
 	});
 
+	it("treats interrupted as an unknown status, not a chat status", () => {
+		// The interrupt_agent rename returns an `interrupted: true` response
+		// boolean, which is not a chat status. Status mapping only handles
+		// chat status strings, so "interrupted" falls back like any unknown
+		// value and "terminated" keeps mapping to completed.
+		expect(mapSubagentStatusToToolStatus("interrupted", "running")).toBe(
+			"running",
+		);
+		expect(mapSubagentStatusToToolStatus("interrupted", "error")).toBe("error");
+	});
+
 	it("maps error to error", () => {
 		expect(mapSubagentStatusToToolStatus("error", "running")).toBe("error");
 	});

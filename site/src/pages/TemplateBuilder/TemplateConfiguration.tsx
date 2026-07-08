@@ -1,16 +1,18 @@
-import { Link } from "#/components/Link/Link";
+import type { PropsWithChildren } from "react";
+import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
 import {
 	ConfigurationField,
+	ConfigurationFieldContainer,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
-type TemplateConfigurationProps = {
+type TemplateConfigurationProps = PropsWithChildren<{
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
 	fields?: ConfigurationFieldDefinition[];
-};
+}>;
 
 export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	name,
@@ -18,47 +20,27 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	iconUrl,
 	detailsUrl,
 	fields,
+	children,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
 			<header className="mb-6">
-				<figure className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border m-0 mb-3">
-					{iconUrl ? (
-						<img
-							src={iconUrl}
-							alt={`${name} icon`}
-							className="size-7 object-contain"
-						/>
-					) : (
-						<div className="size-7 rounded bg-surface-primary" />
-					)}
-				</figure>
-				<div>
-					<h3 className="text-md font-semibold text-content-primary">{name}</h3>
-					<p className="text-sm font-normal text-content-secondary inline">
-						{description}
-					</p>
-					{detailsUrl && (
-						<Link
-							href={detailsUrl}
-							target="_blank"
-							rel="noreferrer"
-							size="sm"
-							className="text-sm font-normal ml-1"
-						>
-							View details
-						</Link>
-					)}
-				</div>
+				<TemplateBuilderAvatarData
+					name={name}
+					description={description}
+					iconUrl={iconUrl}
+					detailsUrl={detailsUrl}
+				/>
 			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="space-y-6">
+				<ConfigurationFieldContainer>
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
-				</div>
+				</ConfigurationFieldContainer>
 			)}
+			{children}
 		</section>
 	);
 };

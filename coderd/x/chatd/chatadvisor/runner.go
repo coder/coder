@@ -43,10 +43,8 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
-	// Clone per invocation and reset inherited state so chatloop cannot
-	// mutate the Runtime's stored options across calls, and so the nested
-	// call never runs as a chain-mode continuation against stale parent
-	// state or persists an orphan stored response on the provider side.
+	// resetProviderOptionsForNestedCall mutates its argument; give it a
+	// clone so the Runtime's stored options stay unchanged across calls.
 	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
 	resetProviderOptionsForNestedCall(nestedProviderOptions)
 

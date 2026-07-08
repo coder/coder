@@ -4,9 +4,10 @@ Templates are written in
 [Terraform](https://developer.hashicorp.com/terraform/intro) and define the
 underlying infrastructure that all Coder workspaces run on.
 
-![Starter templates](../../images/admin/templates/starter-templates.png)
-
-<small>The "Starter Templates" page within the Coder dashboard.</small>
+The [template builder](./creating-templates.md#template-builder) is
+the recommended way to create templates. It guides you through selecting base
+infrastructure, adding modules, and configuring your template without writing
+Terraform.
 
 ## Learn the concepts
 
@@ -18,12 +19,14 @@ If you are unfamiliar with Terraform, see
 [Hashicorp's Tutorials](https://developer.hashicorp.com/terraform/tutorials) for
 common cloud providers.
 
-## Starter templates
+## Create a template
 
-After learning the basics, use starter templates to import a template with
-sensible defaults for popular platforms (e.g. AWS, Kubernetes, Docker, etc).
-Docs:
-[Create a template from a starter template](./creating-templates.md#from-a-starter-template).
+The fastest way to get started is with the
+[template builder](./creating-templates.md#template-builder), which
+composes a working template from a base infrastructure template and optional
+registry modules. Starter templates for popular platforms (AWS, Kubernetes,
+Docker, and others) are available as base templates in the builder, or through
+the [CLI](./creating-templates.md#cli).
 
 ## Extending templates
 

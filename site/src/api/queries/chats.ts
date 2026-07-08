@@ -10,9 +10,7 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
-import { formatProviderLabel } from "#/utils/aiProviders";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -235,6 +233,119 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
+// Inverse of infiniteChatsKey, which builds keys as [...chatsKey, filters?].
+// The optional filter object lives in the slot immediately after the
+// chatsKey prefix, so derive both the expected length and the filter index
+// from chatsKey. If infiniteChatsKey's shape changes, this must change with
+// it; the "infiniteChatsKey shape" test in chats.test.ts guards that contract.
+const archivedFilterForChatListKey = (
+	queryKey: readonly unknown[],
+): boolean | undefined => {
+	if (queryKey.length !== chatsKey.length + 1) {
+		return undefined;
+	}
+	const filters = queryKey[chatsKey.length];
+	if (!filters || typeof filters !== "object") {
+		return undefined;
+	}
+	const archived = (filters as { archived?: unknown }).archived;
+	return typeof archived === "boolean" ? archived : undefined;
+};
+
+const isInfiniteChatsCacheData = (
+	data: unknown,
+): data is InfiniteChatsCacheData => {
+	if (!data || typeof data !== "object") {
+		return false;
+	}
+	const maybeData = data as { pages?: unknown; pageParams?: unknown };
+	return Array.isArray(maybeData.pages) && Array.isArray(maybeData.pageParams);
+};
+
+const patchChatArchiveState = (
+	chat: TypesGen.Chat,
+	archived: boolean,
+): TypesGen.Chat => {
+	const pinOrder = archived ? 0 : chat.pin_order;
+	if (chat.archived === archived && chat.pin_order === pinOrder) {
+		return chat;
+	}
+	return { ...chat, archived, pin_order: pinOrder };
+};
+
+/**
+ * Applies an accepted archive state to loaded sidebar and detail caches.
+ * Removes the chat from any filtered list whose archived filter conflicts
+ * with the new state, and resets pin_order to 0 when archiving.
+ */
+export const applyChatArchiveStateToCaches = (
+	queryClient: QueryClient,
+	chatId: string,
+	archived: boolean,
+) => {
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatKey(chatId),
+		(chat) => (chat ? patchChatArchiveState(chat, archived) : chat),
+	);
+
+	if (archived) {
+		removeChildFromParentInCache(queryClient, chatId);
+	} else {
+		updateChildInParentCache(
+			queryClient,
+			(child) => patchChatArchiveState(child, archived),
+			chatId,
+		);
+	}
+
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
+
+	for (const [queryKey, data] of queries) {
+		if (!isInfiniteChatsCacheData(data)) {
+			continue;
+		}
+		const archivedFilter = archivedFilterForChatListKey(queryKey);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
+			if (!isInfiniteChatsCacheData(prev)) {
+				return prev;
+			}
+
+			let changed = false;
+			const pages = prev.pages.map((page) => {
+				let pageChanged = false;
+				const nextPage: TypesGen.Chat[] = [];
+				for (const chat of page) {
+					if (chat.id !== chatId) {
+						nextPage.push(chat);
+						continue;
+					}
+
+					if (archivedFilter !== undefined && archivedFilter !== archived) {
+						pageChanged = true;
+						continue;
+					}
+
+					const updatedChat = patchChatArchiveState(chat, archived);
+					if (updatedChat !== chat) {
+						pageChanged = true;
+					}
+					nextPage.push(updatedChat);
+				}
+				if (pageChanged) {
+					changed = true;
+					return nextPage;
+				}
+				return page;
+			});
+
+			return changed ? { ...prev, pages } : prev;
+		});
+	}
+};
+
 const parseUpdatedAtInstant = (updatedAt: string) => {
 	const match = updatedAt.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/);
 	if (!match) {
@@ -310,6 +421,7 @@ export const mergeWatchedChatSummary = (
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
+	const isContextDirtyEvent = eventKind === "context_dirty";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -325,6 +437,15 @@ export const mergeWatchedChatSummary = (
 	const nextDiffStatus = isDiffStatusEvent
 		? watchedChat.diff_status
 		: cachedChat.diff_status;
+	// Context drift is tracked outside chats.updated_at (it is driven by
+	// agent context pushes), so apply context_dirty payloads regardless of
+	// the summary timestamp. Merge rather than replace so the pinned
+	// resources a single-chat GET populated are preserved while the dirty
+	// flags update; the open chat refetches the full detail.
+	const nextContext =
+		isContextDirtyEvent && watchedChat.context
+			? { ...cachedChat.context, ...watchedChat.context }
+			: cachedChat.context;
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -358,7 +479,8 @@ export const mergeWatchedChatSummary = (
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
 		nextHasUnread === cachedChat.has_unread &&
-		nextUpdatedAt === cachedChat.updated_at
+		nextUpdatedAt === cachedChat.updated_at &&
+		nextContext === cachedChat.context
 	) {
 		return cachedChat;
 	}
@@ -374,6 +496,7 @@ export const mergeWatchedChatSummary = (
 		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
+		context: nextContext,
 	};
 };
 
@@ -664,18 +787,20 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		);
 		// Flip archived flag in the flat root list; strip the
 		// chat from any parent's embedded children (individual
-		// child archive).
+		// child archive). Reuse patchChatArchiveState so the
+		// optimistic snapshot matches the confirmed onSuccess state,
+		// including the pin_order reset for an archived chat.
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, archived: true } : chat,
+				chat.id === chatId ? patchChatArchiveState(chat, true) : chat,
 			),
 		);
 		removeChildFromParentInCache(queryClient, chatId);
 		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
-				...previousChat,
-				archived: true,
-			});
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				patchChatArchiveState(previousChat, true),
+			);
 		}
 		return { previousChat };
 	},
@@ -697,13 +822,16 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			);
 		}
 	},
-	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+	onSuccess: (_data: unknown, chatId: string) => {
+		applyChatArchiveStateToCaches(queryClient, chatId, true);
+	},
+	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({
+		void queryClient.invalidateQueries({
 			queryKey: chatsByWorkspaceKeyPrefix,
 		});
 	},
@@ -724,16 +852,18 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Reuse patchChatArchiveState so the optimistic snapshot
+		// matches the confirmed onSuccess state.
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, archived: false } : chat,
+				chat.id === chatId ? patchChatArchiveState(chat, false) : chat,
 			),
 		);
 		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
-				...previousChat,
-				archived: false,
-			});
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				patchChatArchiveState(previousChat, false),
+			);
 		}
 		return { previousChat };
 	},
@@ -755,13 +885,16 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			);
 		}
 	},
-	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+	onSuccess: (_data: unknown, chatId: string) => {
+		applyChatArchiveStateToCaches(queryClient, chatId, false);
+	},
+	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({
+		void queryClient.invalidateQueries({
 			queryKey: chatsByWorkspaceKeyPrefix,
 		});
 	},
@@ -1064,38 +1197,6 @@ export const reorderPinnedChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const regenerateChatTitle = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.experimental.regenerateChatTitle(chatId),
-
-	onSuccess: (updatedChat: TypesGen.Chat) => {
-		queryClient.setQueryData<TypesGen.Chat>(
-			chatKey(updatedChat.id),
-			(previousChat) =>
-				previousChat ? { ...previousChat, ...updatedChat } : updatedChat,
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === updatedChat.id
-					? { ...chat, title: updatedChat.title }
-					: chat,
-			),
-		);
-	},
-
-	onSettled: async (
-		_data: TypesGen.Chat | undefined,
-		_error: unknown,
-		chatId: string,
-	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
-			queryKey: chatKey(chatId),
-			exact: true,
-		});
-		void invalidateChatDebugRuns(queryClient, chatId);
-	},
-});
-
 export const proposeChatTitle = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
 
@@ -1127,13 +1228,13 @@ export const updateChatTitle = (queryClient: QueryClient) => ({
 		);
 	},
 
-	onSettled: async (
+	onSettled: (
 		_data: unknown,
 		_error: unknown,
 		{ chatId }: UpdateChatTitleVariables,
 	) => {
-		await invalidateChatListQueries(queryClient);
-		await queryClient.invalidateQueries({
+		void invalidateChatListQueries(queryClient);
+		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
@@ -1344,6 +1445,39 @@ export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
+/**
+ * Re-pins the chat to its agent's latest context snapshot, clearing the
+ * dirty marker. On success the returned chat (carrying the freshly pinned
+ * resources) is written into the open-chat cache, and the lightweight
+ * context flags are propagated across the list caches so the dirty
+ * indicator clears in the sidebar too.
+ */
+export const refreshChatContext = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: () => API.experimental.refreshChatContext(chatId),
+	onSuccess: (updatedChat: TypesGen.Chat) => {
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (cached) =>
+			cached ? { ...cached, context: updatedChat.context } : updatedChat,
+		);
+		const applyContext = (chat: TypesGen.Chat): TypesGen.Chat =>
+			chat.id === chatId ? { ...chat, context: updatedChat.context } : chat;
+		updateInfiniteChatsCache(queryClient, (chats) => {
+			let changed = false;
+			const next = chats.map((chat) => {
+				const updated = applyContext(chat);
+				if (updated !== chat) {
+					changed = true;
+				}
+				return updated;
+			});
+			return changed ? next : chats;
+		});
+		updateChildInParentCache(queryClient, applyContext, chatId);
+	},
+});
+
 export const deleteChatQueuedMessage = (
 	queryClient: QueryClient,
 	chatId: string,
@@ -1411,22 +1545,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatPlanModeInstructionsKey,
-		});
-	},
-});
-
-const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
-
-export const chatDesktopEnabled = () => ({
-	queryKey: chatDesktopEnabledKey,
-	queryFn: () => API.experimental.getChatDesktopEnabled(),
-});
-
-export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
-	mutationFn: API.experimental.updateChatDesktopEnabled,
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatDesktopEnabledKey,
 		});
 	},
 });
@@ -1667,6 +1785,7 @@ const toChatProviderConfig = (
 	id: provider.id,
 	provider: provider.type,
 	display_name: provider.display_name || provider.type,
+	icon: provider.icon,
 	enabled: provider.enabled,
 	has_api_key: provider.api_keys.length > 0,
 	central_api_key_enabled: true,
@@ -1706,6 +1825,7 @@ export const userChatProviderConfigs = () => ({
 			provider_id: config.provider.id,
 			provider: config.provider.type,
 			display_name: config.provider.display_name || config.provider.type,
+			icon: config.provider.icon,
 			has_user_api_key: config.has_user_api_key,
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
@@ -1751,82 +1871,6 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
 	]);
 };
-
-const generatedAIProviderName = (provider: string): string => {
-	const suffix =
-		globalThis.crypto?.randomUUID?.() ??
-		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-	return `${provider}-${suffix}`;
-};
-
-const normalizeAIProviderType = (provider: string): AIProviderType => {
-	const normalized = provider.trim().toLowerCase();
-	const aliased =
-		normalized === "openai-compatible" || normalized === "openai_compatible"
-			? "openai-compat"
-			: normalized;
-	const providerType = AIProviderTypes.find(
-		(candidate) => candidate === aliased,
-	);
-	if (!providerType) {
-		throw new Error(`Unsupported AI provider type "${provider}".`);
-	}
-	return providerType;
-};
-
-export const createChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) => {
-		const providerType = normalizeAIProviderType(req.provider);
-		const apiKey = req.api_key;
-		return API.experimental.createAIProvider({
-			type: providerType,
-			name: generatedAIProviderName(providerType),
-			display_name: req.display_name || formatProviderLabel(providerType),
-			base_url: req.base_url ?? "",
-			enabled: req.enabled ?? true,
-			api_keys: apiKey ? [apiKey] : undefined,
-		});
-	},
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
-
-type UpdateChatProviderConfigMutationArgs = {
-	providerConfigId: string;
-	req: TypesGen.UpdateChatProviderConfigRequest;
-};
-
-export const updateChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: async ({
-		providerConfigId,
-		req,
-	}: UpdateChatProviderConfigMutationArgs) => {
-		const apiKey = req.api_key;
-		return API.experimental.updateAIProvider(providerConfigId, {
-			display_name: req.display_name,
-			base_url: req.base_url,
-			enabled: req.enabled,
-			api_keys:
-				req.api_key === undefined
-					? undefined
-					: apiKey
-						? [{ api_key: apiKey }]
-						: [],
-		});
-	},
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
-
-export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteAIProvider(providerConfigId),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
 
 export const createChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>

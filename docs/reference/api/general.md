@@ -233,6 +233,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -432,6 +435,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "email_domain": [
         "string"
       ],
+      "email_fallback": true,
       "email_field": "string",
       "group_allow_list": [
         "string"
@@ -460,6 +464,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_allowed_hosts": [
+        "string"
+      ],
       "redirect_url": {
         "forceQuery": true,
         "fragment": "string",

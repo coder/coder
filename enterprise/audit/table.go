@@ -130,6 +130,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"use_classic_parameter_flow":        ActionTrack,
 		"cors_behavior":                     ActionTrack,
 		"disable_module_cache":              ActionTrack,
+		"time_til_autostop_notify":          ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -213,6 +214,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
+		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
 	},
 	&database.AuditableGroup{}: {
 		"id":                      ActionTrack,
@@ -398,6 +400,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"type":            ActionTrack,
 		"name":            ActionTrack,
 		"display_name":    ActionTrack,
+		"icon":            ActionTrack,
 		"enabled":         ActionTrack,
 		"deleted":         ActionTrack,
 		"base_url":        ActionTrack,
@@ -415,12 +418,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
 	},
 	&database.AIGatewayKey{}: {
-		"id":            ActionTrack,
-		"name":          ActionTrack,
-		"secret_prefix": ActionTrack,
-		"hashed_secret": ActionSecret, // Bearer token hash, never expose.
-		"created_at":    ActionIgnore, // Implicit; not useful in a diff.
-		"last_used_at":  ActionIgnore, // Bumped on every use.
+		"id":                ActionTrack,
+		"name":              ActionTrack,
+		"secret_prefix":     ActionTrack,
+		"hashed_secret":     ActionSecret, // Bearer token hash, never expose.
+		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
+		"last_heartbeat_at": ActionIgnore, // Bumped on every heartbeat.
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,
@@ -464,7 +467,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"group_acl":                   ActionTrack,
 		"pin_order":                   ActionTrack,
 		"last_read_message_id":        ActionIgnore, // User-scoped read cursor.
-		"last_injected_context":       ActionIgnore, // Internal lifecycle.
 		"context_aggregate_hash":      ActionIgnore, // Agent-pushed context snapshot state.
 		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
 		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.

@@ -82,7 +82,7 @@
     {
       "name": "open_in",
       "type": "string",
-      "description": "Determines where the app will be opened. Valid values are `\"tab\"` and `\"slim-window\" (default)`.\n`\"tab\"` opens in a new tab in the same browser window.\n`\"slim-window\"` opens a new browser window without navigation controls.\n",
+      "description": "Where to open the app: \"tab\" or \"slim-window\" (default).",
       "default": "slim-window",
       "required": false,
       "sensitive": false,

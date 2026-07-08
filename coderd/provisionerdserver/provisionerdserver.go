@@ -1285,6 +1285,13 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 
 		s.notifyWorkspaceBuildFailed(ctx, workspace, build)
 
+		// Wake the orchestrator before the workspace event publish
+		// below, which returns on error, so a failed UI event cannot
+		// skip the wake.
+		if err := wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub); err != nil {
+			s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake", slog.Error(err))
+		}
+
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,
 			WorkspaceID: workspace.ID,
@@ -1582,6 +1589,26 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 	case sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES:
 		// This check is not perfect. If these conditions are not true, then the file is not a modules file.
 		if file.CreatedBy != uuid.Nil || file.Mimetype != tarMimeType {
+			return fail(xerrors.Errorf("file %s is not a modules file", fid))
+		}
+		// Ensure the requested module file belongs to a template version in
+		// this provisioner daemon's organization. Without this, any
+		// authenticated provisioner could download cached module archives
+		// (Terraform source) belonging to other organizations (ANT-2026-22440).
+		ok, err := s.Database.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, database.HasTemplateVersionsUsingCachedModuleFileInOrgParams{
+			FileID:         fid,
+			OrganizationID: s.OrganizationID,
+		})
+		if err != nil {
+			return fail(xerrors.Errorf("authorize module file: %w", err))
+		}
+		if !ok {
+			s.Logger.Warn(ctx, "module file download rejected: file not referenced by any template version in daemon org",
+				slog.F("file_id", fid),
+				slog.F("organization_id", s.OrganizationID),
+			)
+			// Use the same error as the metadata check above so the handler
+			// does not confirm the existence of files in other organizations.
 			return fail(xerrors.Errorf("file %s is not a modules file", fid))
 		}
 	default:
@@ -2530,6 +2557,15 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				)
 			}
 		}
+	}
+
+	// Wake the orchestrator before the workspace event publish below,
+	// which returns on error, so a failed UI event cannot skip the
+	// wake.
+	if err := wspubsub.PublishWorkspaceBuildOrchestrationWake(ctx, s.Pubsub); err != nil {
+		s.Logger.Warn(ctx, "failed to publish workspace build orchestration wake",
+			slog.Error(err),
+		)
 	}
 
 	msg, err := json.Marshal(wspubsub.WorkspaceEvent{

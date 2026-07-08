@@ -20,7 +20,9 @@ const defaultProps = {
 	},
 	onArchiveAgent: fn(),
 	onArchiveAndDeleteWorkspace: fn(),
-	onRegenerateTitle: fn(),
+	onPinAgent: fn(),
+	onUnpinAgent: fn(),
+	onOpenRenameDialog: fn(),
 	onUnarchiveAgent: fn(),
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: fn(),
@@ -38,13 +40,6 @@ export default meta;
 type Story = StoryObj<typeof ChatTopBar>;
 
 export const Default: Story = {};
-
-export const RegeneratingTitle: Story = {
-	args: {
-		...Default.args,
-		isRegeneratingTitle: true,
-	},
-};
 
 export const SharedChat: Story = {
 	args: {
@@ -106,6 +101,12 @@ export const Archived: Story = {
 export const NoTitle: Story = {
 	args: {
 		chatTitle: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByLabelText("Open agent actions"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -254,14 +255,89 @@ export const MobileWithClosedPR: Story = {
 	},
 };
 
-export const GenerateTitle: Story = {
+export const RenameChatItem: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByLabelText("Open agent actions");
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Generate new title")).toBeInTheDocument();
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const PinAgentItem: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const UnpinAgentItem: Story = {
+	args: {
+		isPinned: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Unpin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const ChildChatHidesPinAction: Story = {
+	args: {
+		isChildChat: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+	},
+};
+
+export const ArchiveAndDeleteWorkspaceItem: Story = {
+	args: {
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
 	},
 };
@@ -311,7 +387,7 @@ export const ShareChatButton: Story = {
 		expect(await body.findByText("Share chat")).toBeInTheDocument();
 
 		await userEvent.click(canvas.getByLabelText("Open agent actions"));
-		await body.findByText("Generate new title");
+		await body.findByText("Rename chat");
 		expect(
 			body.queryByRole("menuitem", { name: "Share" }),
 		).not.toBeInTheDocument();
@@ -332,7 +408,7 @@ export const ShareChatButtonHiddenWithoutPermission: Story = {
 		).not.toBeInTheDocument();
 		await userEvent.click(canvas.getByLabelText("Open agent actions"));
 		const body = within(document.body);
-		await body.findByText("Generate new title");
+		await body.findByText("Rename chat");
 		expect(
 			body.queryByRole("menuitem", { name: "Share" }),
 		).not.toBeInTheDocument();
@@ -346,19 +422,18 @@ export const ArchivedWithUnarchive: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Open the actions dropdown
 		const trigger = canvas.getByLabelText("Open agent actions");
 		await userEvent.click(trigger);
-		// Verify "Unarchive Agent" is shown instead of "Archive Agent"
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByText("Unarchive Agent")).toBeInTheDocument();
+			expect(body.getByText("Unarchive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
-		expect(body.queryByText("Generate new title")).not.toBeInTheDocument();
-		expect(body.queryByText("Archive Agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Rename chat")).not.toBeInTheDocument();
+		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
 		expect(
-			body.queryByText("Archive & Delete Workspace"),
+			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
 	},
 };

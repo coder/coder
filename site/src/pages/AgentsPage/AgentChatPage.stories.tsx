@@ -60,8 +60,8 @@ const AgentChatPageLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							requestPinAgent: () => {},
 							requestUnpinAgent: () => {},
-							onRegenerateTitle: () => {},
-							regeneratingTitleChatIds: [],
+							isArchiving: false,
+							archivingChatId: undefined,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
@@ -112,6 +112,7 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 			],
 		},
 	],
+	unsupported_providers: [],
 };
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
@@ -755,21 +756,22 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// close_agent -- terminate a subagent
+		// interrupt_agent: interrupt a subagent
 		{
 			type: "tool-call",
-			tool_call_id: "every-close-agent",
-			tool_name: "close_agent",
+			tool_call_id: "every-interrupt-agent",
+			tool_name: "interrupt_agent",
 			args: { chat_id: "every-explore-child" },
 		},
 		{
 			type: "tool-result",
-			tool_call_id: "every-close-agent",
-			tool_name: "close_agent",
+			tool_call_id: "every-interrupt-agent",
+			tool_name: "interrupt_agent",
 			result: {
 				chat_id: "every-explore-child",
 				type: "explore",
 				status: "completed",
+				interrupted: true,
 			},
 		},
 
@@ -812,6 +814,22 @@ const meta: Meta<typeof AgentChatPageLayout> = {
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 		spyOn(API.experimental, "updateChat").mockResolvedValue();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-1",
+					type: "openai",
+					name: "openai",
+					display_name: "OpenAI",
+					icon: "",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
+			},
+		]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
@@ -1477,7 +1495,7 @@ export const CompletedWithDiffPanel: Story = {
 		// Verify menu items are rendered.
 		const body = within(document.body);
 		await waitFor(() => {
-			expect(body.getByText("Archive Agent")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		// Workspace items moved to the workspace pill popover.
 		expect(body.queryByText("Open in Cursor")).not.toBeInTheDocument();
@@ -1544,6 +1562,7 @@ export const WithSubagentCards: Story = {
  *  that opens the right sidebar panel and switches to the Desktop tab. */
 export const WithComputerUseAgent: Story = {
 	parameters: {
+		experiments: ["chat-virtual-desktop"],
 		queries: [
 			...buildQueries(
 				{
@@ -1609,11 +1628,6 @@ export const WithComputerUseAgent: Story = {
 				},
 				{ diffUrl: undefined },
 			),
-			// Enable the desktop feature so the Desktop tab appears in the sidebar.
-			{
-				key: ["chat-desktop-enabled"],
-				data: { enable_desktop: true },
-			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -1693,18 +1707,19 @@ export const WithMixedSubagentTranscript: Story = {
 							},
 							{
 								type: "tool-call",
-								tool_call_id: "legacy-close",
-								tool_name: "close_agent",
+								tool_call_id: "legacy-interrupt",
+								tool_name: "interrupt_agent",
 								args: { chat_id: "legacy-child" },
 							},
 							{
 								type: "tool-result",
-								tool_call_id: "legacy-close",
-								tool_name: "close_agent",
+								tool_call_id: "legacy-interrupt",
+								tool_name: "interrupt_agent",
 								result: {
 									chat_id: "legacy-child",
 									type: "general",
 									status: "completed",
+									interrupted: "true",
 								},
 							},
 						],
@@ -2471,6 +2486,7 @@ export const WithEveryTool: Story = {
  *  (SubagentTool with computer-use variant) instead of the plain SubagentTool card. */
 export const WithWaitAgentComputerUseVNC: Story = {
 	parameters: {
+		experiments: ["chat-virtual-desktop"],
 		queries: [
 			...buildQueries(
 				{
@@ -2514,10 +2530,6 @@ export const WithWaitAgentComputerUseVNC: Story = {
 				},
 				{ diffUrl: undefined },
 			),
-			{
-				key: ["chat-desktop-enabled"],
-				data: { enable_desktop: true },
-			},
 		],
 		// The wait_agent arrives via WebSocket so it renders in
 		// the streaming/running state (no tool-result yet).

@@ -1,8 +1,8 @@
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
-import { chatPromptsQuery } from "#/api/queries/chats";
+import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -176,6 +176,8 @@ interface ChatPageInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	aiGatewayDisabled?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -208,7 +210,9 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	// Pinned workspace-context state for the chat, surfaced by the
+	// context indicator (dirty marker and pinned resources).
+	chatContext?: TypesGen.ChatContext;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
@@ -243,6 +247,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames,
+	aiGatewayDisabled,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -262,7 +268,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	lastInjectedContext,
+	chatContext,
 	workspaceOptions,
 	chatOrganizationId,
 	selectedWorkspaceId,
@@ -300,9 +306,25 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
 	const rawUsage = getLatestContextUsage(messages);
-	const latestContextUsage = rawUsage
-		? { ...rawUsage, compressionThreshold, lastInjectedContext }
-		: rawUsage;
+	const latestContextUsage =
+		rawUsage || chatContext
+			? {
+					...(rawUsage ?? {}),
+					compressionThreshold,
+					context: chatContext,
+				}
+			: rawUsage;
+	const queryClient = useQueryClient();
+	const refreshContextMutation = useMutation(
+		refreshChatContext(queryClient, chatId ?? ""),
+	);
+	const handleRefreshContext = chatId
+		? () =>
+				refreshContextMutation.mutate(undefined, {
+					onSuccess: () => toast.success("Context refreshed."),
+					onError: () => toast.error("Failed to refresh context."),
+				})
+		: undefined;
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -475,6 +497,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onInterrupt={onInterrupt}
 			isInterruptPending={isInterruptPending}
 			contextUsage={latestContextUsage}
+			onRefreshContext={handleRefreshContext}
+			isRefreshingContext={refreshContextMutation.isPending}
 			hasModelOptions={hasModelOptions}
 			selectedModel={selectedModel}
 			onModelChange={onModelChange}
@@ -501,6 +525,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			canConfigureAgentSetup={canConfigureAgentSetup}
 			providerCount={providerCount}
 			modelCount={modelCount}
+			unsupportedProviderNames={unsupportedProviderNames}
+			aiGatewayDisabled={aiGatewayDisabled}
 		/>
 	);
 

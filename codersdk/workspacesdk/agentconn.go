@@ -98,13 +98,13 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
-	DebugLogs(ctx context.Context) ([]byte, error)
+	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+	AppHTTPClient() *http.Client
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
-	ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error)
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
@@ -158,6 +158,7 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 type AgentConnOptions struct {
 	AgentID   uuid.UUID
 	CloseFunc func() error
+	Logger    slog.Logger
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -370,6 +371,24 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 	}
 }
 
+// AppHTTPClient returns an HTTP client for reaching HTTP apps served by this
+// workspace agent. Redirects are blocked to prevent misuse.
+func (c *agentConn) AppHTTPClient() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			// Disable keep-alives so these short-lived clients don't leave
+			// idle connections (and their goroutines) lingering after they're
+			// discarded.
+			DisableKeepAlives: true,
+			// Host locked to agent, port from URL.
+			DialContext: c.DialContext,
+		},
+	}
+}
+
 // ListeningPorts lists the ports that are currently in use by the workspace.
 func (c *agentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
@@ -443,11 +462,29 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
-func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+// DebugLogsOption configures a DebugLogs request.
+type DebugLogsOption func(*debugLogsConfig)
+
+type debugLogsConfig struct {
+	after time.Time
+}
+
+// WithLogsAfter also returns rotated logs modified at or after t, separated by
+// boundary markers (100 MiB combined cap).
+func WithLogsAfter(t time.Time) DebugLogsOption {
+	return func(c *debugLogsConfig) { c.after = t }
+}
+
+// DebugLogs returns up to 10 MiB of the active agent log. Pass WithLogsAfter to
+// also include rotated logs.
+func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error) {
+	var cfg debugLogsConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(cfg.after), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
@@ -460,6 +497,14 @@ func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 		return nil, xerrors.Errorf("read response body: %w", err)
 	}
 	return bs, nil
+}
+
+func debugLogsPath(after time.Time) string {
+	query := neturl.Values{}
+	if !after.IsZero() {
+		query.Set("after", after.UTC().Format(time.RFC3339Nano))
+	}
+	return agentAPIPath("/debug/logs", query)
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint
@@ -1106,12 +1151,6 @@ type FileEditResult struct {
 	Diff string `json:"diff"`
 }
 
-// ListMCPToolsResponse is the response from the agent's
-// MCP tool discovery endpoint.
-type ListMCPToolsResponse struct {
-	Tools []MCPToolInfo `json:"tools"`
-}
-
 // MCPToolInfo describes a single tool discovered from an MCP
 // server configured in the workspace's .mcp.json file.
 type MCPToolInfo struct {
@@ -1186,23 +1225,6 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListProcessesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// ListMCPTools returns tools discovered from MCP servers configured
-// in the workspace.
-func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/mcp/tools", nil)
-	if err != nil {
-		return ListMCPToolsResponse{}, xerrors.Errorf("do request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp ListMCPToolsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -1360,7 +1382,12 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 // scoped to a single request: its transport cancels in-flight dials
 // once reqCtx ends.
 func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
+	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
 	return &http.Client{
+		// Redirects are blocked to prevent misuse.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
 			// request, and this triggers goleak in tests
@@ -1374,10 +1401,16 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 				if err != nil {
 					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
 				}
-
-				// Verify that the port is TailnetStatisticsPort.
 				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
+				}
+				if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
+					c.opts.Logger.Warn(ctx, "blocked workspace agent API request to unintended host",
+						slog.F("agent_id", c.opts.AgentID),
+						slog.F("request_host", host),
+						slog.F("intended_agent_addr", agentAddr.Addr()),
+					)
+					return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
 				}
 
 				// http.Transport detaches ctx from the request context so
@@ -1396,12 +1429,8 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 				}
 
-				ipAddr, err := netip.ParseAddr(host)
-				if err != nil {
-					return nil, xerrors.Errorf("parse host addr: %w", err)
-				}
-
-				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
+				// Always dial the pinned agent address, never the request host.
+				conn, err := c.Conn.DialContextTCP(ctx, agentAddr)
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}

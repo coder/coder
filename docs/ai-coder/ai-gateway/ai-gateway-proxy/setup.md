@@ -153,7 +153,7 @@ AI tools need to trust the CA certificate before connecting through the proxy.
 For **self-signed certificates**, AI tools must be configured to trust the CA certificate. The certificate (without the private key) is available at:
 
 ```shell
-https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
+https://<coder-url>/api/v2/ai-gateway/proxy/ca-cert.pem
 ```
 
 For **corporate CA certificates**, if the systems where AI tools run already trust your organization's root CA, and the intermediate certificate chains correctly to that root, no additional certificate distribution is needed.
@@ -308,7 +308,7 @@ Download the certificate:
 ```shell
 curl -o coder-ai-gateway-proxy-ca.pem \
   -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-  https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
+  https://<coder-url>/api/v2/ai-gateway/proxy/ca-cert.pem
 ```
 
 Replace `<coder-url>` with your Coder deployment URL.

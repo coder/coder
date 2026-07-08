@@ -63,6 +63,7 @@ zizmor = "1.11.0"
 # `coder external-auth` into `gh`, and a mise shim earlier in
 # PATH would bypass it.
 "aqua:crate-ci/typos" = "1.46.1"
+"aqua:errata-ai/vale" = "3.7.1"
 "aqua:jj-vcs/jj" = "0.41.0"
 "aqua:watchexec/watchexec" = "2.5.1"
 doctl = "1.158.0"

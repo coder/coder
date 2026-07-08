@@ -11,7 +11,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
@@ -78,8 +77,10 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, srv, logger.Named("provider-reload"))
 	if err != nil {
-		logger.Warn(ctx, "subscribe aibridgeproxyd to ai providers change channel", slog.Error(err))
-		unsubscribe = func() {}
+		// Without the subscription the proxy can never track provider changes,
+		// so fail startup rather than serve a permanently stale snapshot.
+		_ = srv.Close()
+		return nil, xerrors.Errorf("subscribe aibridgeproxyd to ai providers change channel: %w", err)
 	}
 
 	// Register the handler so coderd can serve the proxy endpoints.

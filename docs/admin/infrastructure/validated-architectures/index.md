@@ -157,7 +157,7 @@ to schedule the control plane pods on the appropriate node group.
 
 Coder workspaces can be deployed either as Pods or Deployments in Kubernetes.
 See our
-[example Kubernetes workspace template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
+[example Kubernetes workspace template](../../../../examples/templates/kubernetes).
 Configure the workspace node group to be auto-scaling, to dynamically allocate
 compute as users start/stop workspaces at the beginning and end of their day.
 Set nodeSelectors, affinities, and tolerations in Coder templates to assign
@@ -378,7 +378,7 @@ could affect workspace users experience once the platform is live.
 ### Helm Chart Configuration
 
 1. Reference our
-   [Helm chart values file](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+   [Helm chart values file](../../../../helm/coder/values.yaml)
    and identify the required values for deployment.
 1. Create a `values.yaml` and add it to your version control system.
 1. Determine the necessary environment variables. Here is the

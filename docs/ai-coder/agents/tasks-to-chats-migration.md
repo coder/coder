@@ -71,8 +71,8 @@ configured once in the control plane:
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
-1. Navigate to the **Agents** page, open **Settings** > **Manage Agents** >
-   **Models**, add at least one model, and set it as the default.
+1. Navigate to **Admin settings** > **AI** > **Models**, add at least one model,
+   and set it as the default.
 
 You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 

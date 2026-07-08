@@ -11,6 +11,7 @@ import (
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -204,6 +205,88 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 		default:
 		}
 	})
+}
+
+func Test_Pubsub_connectedMetric(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ps := newPubsub(ctx, logger, defaultTestOptions())
+	handlers := ps.buildConnHandlers()
+
+	// Two owned connections, all up.
+	ps.metrics.markConnected(2)
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	// First disconnect drops the gauge to 0 and counts a disconnection.
+	handlers.disconnectErr(nil, xerrors.New("boom"))
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	// Second disconnect: still down, counts again.
+	handlers.disconnectErr(nil, xerrors.New("boom"))
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 2.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	// One reconnect with the other still down keeps the gauge at 0.
+	handlers.reconnect(nil)
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Once every owned connection is back the gauge returns to 1.
+	handlers.reconnect(nil)
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+}
+
+func Test_Pubsub_failureMetrics(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ps := newPubsub(ctx, logger, defaultTestOptions())
+	// Closing makes Publish and Subscribe fail fast so we can exercise the
+	// success="false" label without needing the embedded server to error.
+	require.NoError(t, ps.Close())
+
+	require.Error(t, ps.Publish("evt", []byte("payload")))
+	_, err := ps.Subscribe("evt", func(context.Context, []byte) {})
+	require.Error(t, err)
+
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.publishesTotal.WithLabelValues("false")))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.subscribesTotal.WithLabelValues("false")))
+}
+
+func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
+	t.Parallel()
+
+	ps := newTestPubsub(t, defaultTestOptions())
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	handlers := ps.buildConnHandlers()
+	require.NoError(t, ps.Close())
+
+	// Close reports disconnected even though the disconnect handler is
+	// suppressed for our own connection closes.
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Late reconnect callbacks during the shutdown window must not flip
+	// the gauge back to 1: markClosed zeroes totalConns so the connected
+	// guard stays false even if every owned connection reports a
+	// reconnect. Fire one per owned connection to exercise that.
+	for range len(ps.publishPool) + len(ps.subscribePool) {
+		handlers.reconnect(nil)
+	}
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Closing our own connections must not invoke the disconnect handler,
+	// so disconnections_total stays 0. The async callback would fire
+	// within milliseconds if it were going to, so a short window catches a
+	// regression without making the test slow.
+	require.Never(t, func() bool {
+		return promtestutil.ToFloat64(ps.metrics.disconnectionsTotal) > 0
+	}, 2*time.Second, testutil.IntervalFast)
 }
 
 func Test_localSub(t *testing.T) {

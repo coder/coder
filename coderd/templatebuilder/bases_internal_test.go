@@ -27,6 +27,9 @@ func TestParseBasesFromFS(t *testing.T) {
 			"bases/docker/main.tf.tmpl": &fstest.MapFile{
 				Data: []byte(`image = "{{ .ContainerImage }}"`),
 			},
+			"bases/docker/README.md": &fstest.MapFile{
+				Data: []byte("# Docker\n"),
+			},
 		}
 
 		bases, err := parseBasesFromFS(fsys)
@@ -52,11 +55,17 @@ func TestParseBasesFromFS(t *testing.T) {
 			"bases/alpha/main.tf.tmpl": &fstest.MapFile{
 				Data: []byte(`resource "alpha" {}`),
 			},
+			"bases/alpha/README.md": &fstest.MapFile{
+				Data: []byte("# Alpha\n"),
+			},
 			"bases/beta/base.json": &fstest.MapFile{
 				Data: []byte(`{"id": "beta", "os": "linux"}`),
 			},
 			"bases/beta/main.tf.tmpl": &fstest.MapFile{
 				Data: []byte(`resource "beta" {}`),
+			},
+			"bases/beta/README.md": &fstest.MapFile{
+				Data: []byte("# Beta\n"),
 			},
 		}
 
@@ -93,6 +102,9 @@ func TestParseBasesFromFS(t *testing.T) {
 			"bases/mybase/cloud-init/config.yaml.tftpl": &fstest.MapFile{
 				Data: []byte(`${some_terraform_var}`),
 			},
+			"bases/mybase/README.md": &fstest.MapFile{
+				Data: []byte("# My Base\n"),
+			},
 		}
 
 		bases, err := parseBasesFromFS(fsys)
@@ -103,6 +115,22 @@ func TestParseBasesFromFS(t *testing.T) {
 		require.Contains(t, b.Templates, "main.tf.tmpl")
 		// .tftpl files should not be pre-parsed as Go templates.
 		require.NotContains(t, b.Templates, "cloud-init/config.yaml.tftpl")
+	})
+
+	t.Run("RejectsMissingReadme", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/bad/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "bad", "os": "linux"}`),
+			},
+			"bases/bad/main.tf.tmpl": &fstest.MapFile{
+				Data: []byte(`resource {}`),
+			},
+		}
+
+		_, err := parseBasesFromFS(fsys)
+		require.ErrorContains(t, err, "read README.md for base")
 	})
 
 	t.Run("RejectsDirWithoutManifest", func(t *testing.T) {
@@ -136,8 +164,14 @@ func TestParseBasesFromFS(t *testing.T) {
 			"bases/a/base.json": &fstest.MapFile{
 				Data: []byte(`{"id": "dupe", "os": "linux"}`),
 			},
+			"bases/a/README.md": &fstest.MapFile{
+				Data: []byte("# A\n"),
+			},
 			"bases/b/base.json": &fstest.MapFile{
 				Data: []byte(`{"id": "dupe", "os": "linux"}`),
+			},
+			"bases/b/README.md": &fstest.MapFile{
+				Data: []byte("# B\n"),
 			},
 		}
 
@@ -207,10 +241,34 @@ func TestParseBasesFromFS(t *testing.T) {
 			"bases/nospec/base.json": &fstest.MapFile{
 				Data: []byte(`{"id": "nospec"}`),
 			},
+			"bases/nospec/README.md": &fstest.MapFile{
+				Data: []byte("# No Spec\n"),
+			},
 		}
 
 		bases, err := parseBasesFromFS(fsys)
 		require.NoError(t, err)
 		require.Equal(t, "", bases["nospec"].Manifest.OS)
+	})
+
+	t.Run("AcceptsWindowsOS", func(t *testing.T) {
+		t.Parallel()
+
+		fsys := fstest.MapFS{
+			"bases/winbox/base.json": &fstest.MapFile{
+				Data: []byte(`{"id": "winbox", "os": "windows"}`),
+			},
+			"bases/winbox/main.tf.tmpl": &fstest.MapFile{
+				Data: []byte(`resource "coder_agent" "main" {}`),
+			},
+			"bases/winbox/README.md": &fstest.MapFile{
+				Data: []byte("# Windows\n"),
+			},
+		}
+
+		bases, err := parseBasesFromFS(fsys)
+		require.NoError(t, err)
+		require.Equal(t, "windows", bases["winbox"].Manifest.OS)
+		require.Equal(t, BaseOSWindows, validBaseOS[bases["winbox"].Manifest.OS])
 	})
 }

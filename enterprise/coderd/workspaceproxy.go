@@ -667,6 +667,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				Error:           req.ReplicaError,
 				DatabaseLatency: 0,
 				Primary:         false,
+				ClusterHost:     "",
+				NATSPort:        0, // proxies do not run NATS
 			})
 			if err != nil {
 				return xerrors.Errorf("update replica: %w", err)
@@ -684,6 +686,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 				Version:         req.Version,
 				DatabaseLatency: 0,
 				Primary:         false,
+				ClusterHost:     "",
+				NATSPort:        0, // proxies do not run NATS
 			})
 			if err != nil {
 				return xerrors.Errorf("insert replica: %w", err)
@@ -826,6 +830,8 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 			Error:           replica.Error,
 			DatabaseLatency: replica.DatabaseLatency,
 			Primary:         replica.Primary,
+			ClusterHost:     "",
+			NATSPort:        0, // proxies do not run NATS
 		})
 		if err != nil {
 			return xerrors.Errorf("update replica: %w", err)

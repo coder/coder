@@ -1,11 +1,14 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import { API } from "#/api/api";
+import {
+	API,
+	type GroupMembersResponseWithAICostControl,
+	type GroupWithAICostControl,
+} from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
 	Group,
 	GroupAIBudget,
-	GroupMembersResponse,
 	GroupRequest,
 	PatchGroupRequest,
 	UsersRequest,
@@ -35,7 +38,7 @@ export const groupsByOrganization = (organization: string) => {
 	return {
 		queryKey: getGroupsByOrganizationQueryKey(organization),
 		queryFn: () => API.getGroupsByOrganization(organization),
-	} satisfies UseQueryOptions<Group[]>;
+	} satisfies UseQueryOptions<GroupWithAICostControl[]>;
 };
 
 const getRootGroupQueryKey = (organization: string, groupName: string) => [
@@ -44,6 +47,22 @@ const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"group",
 	groupName,
 ];
+
+export const getGroupByIdQueryKey = (groupId: string, req: GroupRequest) => [
+	"group",
+	groupId,
+	req,
+];
+
+export const groupById = (
+	groupId: string,
+	req: GroupRequest,
+): UseQueryOptions<Group> => {
+	return {
+		queryKey: getGroupByIdQueryKey(groupId, req),
+		queryFn: ({ signal }) => API.getGroupById(groupId, req, signal),
+	};
+};
 
 export const getGroupQueryKey = (
 	organization: string,
@@ -78,7 +97,10 @@ export function groupMembers(
 	organization: string,
 	groupName: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<GroupMembersResponse, UsersRequest> {
+): UsePaginatedQueryOptions<
+	GroupMembersResponseWithAICostControl,
+	UsersRequest
+> {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
@@ -109,7 +131,11 @@ export function groupsByUserIdInOrganization(organization: string) {
 	return {
 		...groupsByOrganization(organization),
 		select: selectGroupsByUserId,
-	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
+	} satisfies UseQueryOptions<
+		GroupWithAICostControl[],
+		unknown,
+		GroupsByUserId
+	>;
 }
 
 function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
@@ -133,10 +159,20 @@ function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	return userIdMapper as GroupsByUserId;
 }
 
-export function groupsForUser(userId: string) {
+export const getGroupsForUserQueryKey = (
+	userId: string,
+	organizationId?: string,
+) => [
+	...groupsQueryKey,
+	"user",
+	userId,
+	...(organizationId ? ["organization", organizationId] : []),
+];
+
+export function groupsForUser(userId: string, organizationId?: string) {
 	return {
-		queryKey: groupsQueryKey,
-		queryFn: () => API.getGroups({ userId }),
+		queryKey: getGroupsForUserQueryKey(userId, organizationId),
+		queryFn: () => API.getGroups({ userId, organization: organizationId }),
 	} as const satisfies UseQueryOptions<Group[]>;
 }
 

@@ -40,6 +40,26 @@ export const NoIcon: Story = {
 	},
 };
 
+export const Community: Story = {
+	args: {
+		name: "Docker Containers",
+		description: "Provision Docker containers as Coder workspaces.",
+		iconUrl: "/icon/docker.svg",
+		official: false,
+		selected: false,
+	},
+};
+
+export const CommunitySelected: Story = {
+	args: {
+		name: "Docker Containers",
+		description: "Provision Docker containers as Coder workspaces.",
+		iconUrl: "/icon/docker.svg",
+		official: false,
+		selected: true,
+	},
+};
+
 export const LongDescription: Story = {
 	args: {
 		name: "Kubernetes Pods",

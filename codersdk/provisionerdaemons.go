@@ -343,13 +343,11 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 		}
 		return nil, ReadBodyAsError(res)
 	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	// Use background context because caller should close the client.
 	_, wsNetConn := WebsocketNetConn(context.Background(), conn, websocket.MessageBinary)
+	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 	session, err := yamux.Client(wsNetConn, config)
 	if err != nil {
 		_ = conn.Close(websocket.StatusGoingAway, "")

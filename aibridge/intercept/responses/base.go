@@ -123,7 +123,7 @@ func (i *responsesInterceptionBase) baseTraceAttributes(r *http.Request, streami
 
 func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.ResponseWriter) error {
 	if i.reqPayload.background() {
-		err := xerrors.New("background requests are currently not supported by AI Bridge")
+		err := xerrors.New("background requests are currently not supported by AI Gateway")
 		i.sendCustomErr(ctx, w, http.StatusNotImplemented, err)
 		return err
 	}
@@ -257,25 +257,49 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 	for _, item := range response.Output {
 		var args recorder.ToolArgs
 
-		// recording other function types to be considered: https://github.com/coder/aibridge/issues/121
+		// Whitelist the output item types that represent tool calls. Every
+		// other output type (message, reasoning, *_output, etc.) is skipped.
+		// Only function_call and custom_tool_call carry arguments we parse;
+		// the remaining built-in tool calls are recorded for visibility but
+		// have no uniform argument representation.
 		switch item.Type {
 		case string(constant.ValueOf[constant.FunctionCall]()):
 			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments)
 		case string(constant.ValueOf[constant.CustomToolCall]()):
 			args = item.Input
+		case string(constant.ValueOf[constant.WebSearchCall]()),
+			// computer_call has no SDK constant; only computer_call_output does.
+			"computer_call",
+			string(constant.ValueOf[constant.LocalShellCall]()),
+			string(constant.ValueOf[constant.ShellCall]()),
+			string(constant.ValueOf[constant.ApplyPatchCall]()),
+			string(constant.ValueOf[constant.CodeInterpreterCall]()),
+			string(constant.ValueOf[constant.McpCall]()),
+			string(constant.ValueOf[constant.FileSearchCall]()),
+			string(constant.ValueOf[constant.ImageGenerationCall]()):
+			// Built-in tool calls carry no uniform argument payload.
 		default:
 			continue
+		}
+
+		// Built-in tools usually have no name, so fall back to the type.
+		toolName := item.Name
+		if toolName == "" {
+			toolName = item.Type
 		}
 
 		if err := i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
 			InterceptionID: i.ID().String(),
 			MsgID:          response.ID,
-			ToolCallID:     item.CallID,
-			Tool:           item.Name,
-			Args:           args,
-			Injected:       false,
+			// ItemID is always present; ToolCallID (call_id) is empty for
+			// hosted tools that the provider executes internally.
+			ItemID:     item.ID,
+			ToolCallID: item.CallID,
+			Tool:       toolName,
+			Args:       args,
+			Injected:   false,
 		}); err != nil {
-			i.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", item.Name))
+			i.logger.Warn(ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", toolName))
 		}
 	}
 }
@@ -389,7 +413,7 @@ type responseCopier struct {
 	// this closer to makes sure whole response body is in the buffer.
 	responseBody io.ReadCloser
 
-	// responseReceived flag is used to determine if AI Bridge needs to write custom error:
+	// responseReceived flag is used to determine if AI Gateway needs to write custom error:
 	// - If responseReceived is true, the upstream response is forwarded as-is.
 	// - If responseReceived is false, no response was returned and there is nothing to forward (eg. connection/client error). Custom error will be returned.
 	responseReceived atomic.Bool

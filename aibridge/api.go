@@ -45,8 +45,8 @@ func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) co
 	return aibcontext.AsActor(ctx, actorID, metadata)
 }
 
-func NewAnthropicProvider(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) provider.Provider {
-	return provider.NewAnthropic(cfg, bedrockCfg)
+func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
 }
 
 func NewOpenAIProvider(cfg config.OpenAI) provider.Provider {

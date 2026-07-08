@@ -1,0 +1,80 @@
+name: Publish to MCP Registry
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (semver, e.g. 2.20.0). Used only for manual runs."
+        required: false
+        type: string
+      publish:
+        description: "Actually publish to the live registry. Leave false to validate only."
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  publish-mcp:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for GitHub OIDC
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Determine version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "release" ]; then
+            # Tag refs look like refs/tags/v2.20.0
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="${INPUT_VERSION}"
+          fi
+
+          if [ -z "${VERSION}" ]; then
+            echo "::error::No version provided. Pass the 'version' input for manual runs."
+            exit 1
+          fi
+
+          # Reject anything that isn't clean semver so we never publish refs/heads/... etc.
+          if ! echo "${VERSION}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Refusing to publish invalid version '${VERSION}'."
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set version in server.json
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          jq --arg v "${VERSION}" '.version = $v' server.json > server.tmp
+          mv server.tmp server.json
+          cat server.json
+
+      - name: Validate server.json (no publish)
+        run: ./mcp-publisher validate
+
+      - name: Authenticate to MCP Registry
+        if: github.event_name == 'release' || inputs.publish
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish server to MCP Registry
+        if: github.event_name == 'release' || inputs.publish
+        run: ./mcp-publisher publish

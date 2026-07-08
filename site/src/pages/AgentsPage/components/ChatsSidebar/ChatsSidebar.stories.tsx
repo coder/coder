@@ -8,7 +8,7 @@ import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -45,7 +45,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: "config-openai-gpt-4o",
-		provider: "openai",
+		ai_provider_id: "prov-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -77,6 +77,7 @@ const agentsRouting = [
 ];
 
 const settingsRouting = [
+	{ path: "/ai/settings/coder-agents", useStoryElement: true },
 	{ path: "/agents/settings/:section", useStoryElement: true },
 	{ path: "/agents/settings", useStoryElement: true },
 	...agentsRouting,
@@ -103,7 +104,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		isSearchDialogOpen: false,
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
-		regeneratingTitleChatIds: [],
 		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
@@ -264,7 +264,7 @@ export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-		chromatic: { disableSnapshot: true },
+		pixel: { exclude: true },
 	},
 	render: (args) => {
 		const initialSummary = "Added Docker and Terraform validation";
@@ -944,66 +944,6 @@ export const SearchDialogKeyboardShortcutHandlesRenameInput: Story = {
 	},
 };
 
-export const RenameChatAvailableDuringRegeneration: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "regenerating-chat",
-				title: "Regenerating agent",
-				updated_at: recentTimestamp,
-			}),
-			buildChat({
-				id: "idle-chat",
-				title: "Idle agent",
-				updated_at: recentTimestamp,
-			}),
-		],
-		regeneratingTitleChatIds: ["regenerating-chat"],
-		onProposeTitle: fn(async () => "Proposed replacement"),
-		onRenameTitle: fn(async () => {}),
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(document.body);
-
-		await expect(canvas.getByText("Regenerating agent")).toHaveAttribute(
-			"aria-busy",
-			"true",
-		);
-
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: "Open actions for Regenerating agent",
-			}),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Rename chat" }),
-		).toBeInTheDocument();
-
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(
-				body.queryByRole("menuitem", { name: "Rename chat" }),
-			).not.toBeInTheDocument();
-		});
-
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: "Open actions for Idle agent",
-			}),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Rename chat" }),
-		).toBeInTheDocument();
-	},
-};
-
 export const RenameChatSubmitsNewTitle: Story = {
 	args: {
 		chats: [
@@ -1211,6 +1151,115 @@ export const RenameChatGenerateErrorSurfacesAlert: Story = {
 		const alert = await body.findByRole("alert");
 		expect(alert).toHaveTextContent(
 			"Proposal provider is temporarily unavailable.",
+		);
+		// Plain errors have no API detail, so no developer-console hint or
+		// second line may leak into the alert.
+		expect(alert).not.toHaveTextContent("developer console");
+		await waitFor(() => {
+			expect(input).toHaveAttribute("aria-invalid", "true");
+		});
+		expect(input).toHaveValue("Original title");
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+	},
+};
+
+export const RenameChatGenerateApiErrorWithoutDetailHidesHint: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-api-error-no-detail",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw mockApiError({
+				message: "No default chat model config is configured.",
+			});
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent(
+			"No default chat model config is configured.",
+		);
+		// An API error without a detail field must not surface the generic
+		// developer-console hint as a second line.
+		expect(alert).not.toHaveTextContent("developer console");
+	},
+};
+
+export const RenameChatGenerateApiErrorShowsDetail: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-api-error",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onProposeTitle: fn(async () => {
+			throw mockApiError({
+				message: "Failed to generate chat title.",
+				detail: "No default chat model config is configured.",
+			});
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent("Failed to generate chat title.");
+		expect(alert).toHaveTextContent(
+			"No default chat model config is configured.",
 		);
 		await waitFor(() => {
 			expect(input).toHaveAttribute("aria-invalid", "true");
@@ -1949,6 +1998,45 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 };
 
+export const AgentWithWorkspaceMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-workspace",
+				title: "Agent with workspace",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Agent with workspace")).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText(
+			"Open actions for Agent with workspace",
+		);
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.getByText("Rename chat")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
 export const PinnedChatsSection: Story = {
 	args: {
 		chats: [
@@ -2118,8 +2206,10 @@ export const SettingsAPIKeysNonAdmin: Story = {
 						provider_id: "prov-1",
 						provider: "openai",
 						display_name: "OpenAI",
+						icon: "",
 						has_user_api_key: false,
 						has_central_api_key_fallback: false,
+						byok_enabled: true,
 					},
 				],
 			},
@@ -2232,28 +2322,13 @@ export const SettingsUserAgentsAdmin: Story = {
 		const canvas = within(canvasElement);
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(
-			canvas.getByRole("link", { name: "Manage agents" }),
-		).toBeInTheDocument();
-	},
-};
-
-export const SettingsAdminAgentsEntryPreserved: Story = {
-	args: {
-		chats: [],
-		isAdmin: true,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/agents" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const agentsLink = canvas.getByRole("link", { name: "Agents" });
-		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		expect(canvas.getByText("Manage agents")).toBeInTheDocument();
+		const manageAgentsLink = canvas.getByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
 	},
 };
 

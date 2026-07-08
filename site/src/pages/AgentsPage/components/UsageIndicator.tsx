@@ -19,17 +19,24 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { UsageBar } from "#/components/UsageBar/UsageBar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
+import {
+	clampPercentage,
+	getSeverity,
+	severityRingClassName,
+	severityTextClassName,
+	type UsageSeverity,
+	usageProgressPercentage,
+} from "#/utils/budget";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
-import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
 import { SvgRingProgress } from "./SvgRingProgress";
-
-type UsageSeverity = "normal" | "warning" | "exceeded";
 
 type UsageSectionData = {
 	id: string;
@@ -80,7 +87,7 @@ export const UsageIndicator: FC = () => {
 			id: "ai-usage",
 			title: `${periodLabel} usage`,
 			progressLabel: `${periodLabel} spend usage`,
-			percent: getPercent(currentSpend, spendLimit),
+			percent: usageProgressPercentage(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
 			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
@@ -120,7 +127,7 @@ export const UsageIndicator: FC = () => {
 			id: "workspace-quota",
 			title: "Workspace quota",
 			progressLabel: "Workspace quota usage",
-			percent: getPercent(creditsConsumed, quota.budget),
+			percent: usageProgressPercentage(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
 			icon: <ServerIcon className="size-3.5" />,
 			hoverLabel: workspaceHoverLabel,
@@ -210,7 +217,7 @@ const UsageRingProgress: FC<{
 	severity?: UsageSeverity;
 	icon: ReactNode;
 }> = ({ ariaLabel, percent, severity = "normal", icon }) => {
-	const clampedPercent = clampPercent(percent);
+	const clampedPercent = clampPercentage(percent);
 
 	return (
 		<div
@@ -226,13 +233,13 @@ const UsageRingProgress: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				progressClassName={getRingStrokeClassName(severity)}
+				progressClassName={severityRingClassName(severity)}
 			/>
 			<span
 				aria-hidden="true"
 				className={cn(
 					"absolute inset-0 flex items-center justify-center",
-					getTextClassName(severity),
+					severityTextClassName(severity),
 				)}
 			>
 				{icon}
@@ -251,14 +258,17 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 					{section.title}
 				</span>
 				<span
-					className={cn("shrink-0 text-xs", getTextClassName(section.severity))}
+					className={cn(
+						"shrink-0 text-xs",
+						severityTextClassName(section.severity),
+					)}
 				>
 					{roundedPercent}%
 				</span>
 			</div>
 
 			<div className="px-2 pb-2">
-				<UsageProgress
+				<UsageBar
 					ariaLabel={section.progressLabel}
 					percent={section.percent}
 					severity={section.severity}
@@ -306,100 +316,6 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 		</>
 	);
 };
-
-const UsageProgress: FC<{
-	ariaLabel: string;
-	percent: number;
-	severity?: UsageSeverity;
-	className?: string;
-}> = ({ ariaLabel, percent, severity = "normal", className }) => {
-	const clampedPercent = clampPercent(percent);
-
-	return (
-		<div
-			role="progressbar"
-			aria-label={ariaLabel}
-			aria-valuemin={0}
-			aria-valuemax={100}
-			aria-valuenow={Math.round(clampedPercent)}
-			className={cn(
-				"h-1.5 overflow-hidden rounded-full bg-surface-tertiary",
-				className,
-			)}
-		>
-			<div
-				className={cn(
-					"h-full rounded-full transition-all duration-300 ease-out",
-					getProgressClassName(severity),
-				)}
-				style={{ width: `${clampedPercent}%` }}
-			/>
-		</div>
-	);
-};
-
-function getPercent(used: number, budget: number): number {
-	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
-		return 0;
-	}
-	if (budget === 0) {
-		return used > 0 ? 100 : 0;
-	}
-	return clampPercent((used / budget) * 100);
-}
-
-function clampPercent(percent: number): number {
-	if (!Number.isFinite(percent)) {
-		return 0;
-	}
-	return Math.min(Math.max(percent, 0), 100);
-}
-
-function getSeverity(used: number, budget: number): UsageSeverity {
-	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
-		return "normal";
-	}
-	if (budget === 0) {
-		return used > 0 ? "exceeded" : "normal";
-	}
-	if (used >= budget) {
-		return "exceeded";
-	}
-	return used / budget >= 0.85 ? "warning" : "normal";
-}
-
-function getProgressClassName(severity: UsageSeverity): string {
-	switch (severity) {
-		case "exceeded":
-			return "bg-content-destructive";
-		case "warning":
-			return "bg-content-warning";
-		case "normal":
-			return "bg-content-secondary";
-	}
-}
-
-function getRingStrokeClassName(severity: UsageSeverity): string {
-	switch (severity) {
-		case "exceeded":
-			return "stroke-content-destructive";
-		case "warning":
-			return "stroke-content-warning";
-		case "normal":
-			return "stroke-content-secondary";
-	}
-}
-
-function getTextClassName(severity: UsageSeverity = "normal"): string {
-	switch (severity) {
-		case "exceeded":
-			return "text-content-destructive";
-		case "warning":
-			return "text-content-warning";
-		case "normal":
-			return "text-content-secondary";
-	}
-}
 
 function getWorkspaceCount(count: number | undefined): number | undefined {
 	if (count === undefined || !Number.isFinite(count) || count < 0) {

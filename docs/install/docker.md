@@ -23,14 +23,14 @@ You can install and run Coder using the official Docker images published on
 ## Install Coder via `docker compose`
 
 Coder publishes a
-[docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
+[docker compose example](../../compose.yaml)
 which includes a PostgreSQL container and volume.
 
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
 
 1. Download the
-   [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/compose.yaml)
+   [`docker-compose.yaml`](../../compose.yaml)
    file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
@@ -111,7 +111,7 @@ Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:
 
 Docker is not installed or not running on the host. Install Docker and start the
 daemon before creating a workspace from a Docker-based template. Refer to the
-[quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
+[Troubleshooting section of the get started guide](../get-started/index.md#cannot-connect-to-the-docker-daemon)
 for platform-specific steps.
 
 ### Docker-based workspace is stuck in "Connecting..."

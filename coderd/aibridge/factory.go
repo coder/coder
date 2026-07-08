@@ -59,7 +59,7 @@ func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
 //
 // The returned RoundTripper is responsible for adapting the caller's request
 // to the aibridge daemon's mount path: callers hand it an upstream-shaped
-// request and the transport rewrites URL.Path to "/api/v2/aibridge/<name>/..."
+// request and the transport rewrites URL.Path to "/api/v2/ai-gateway/<name>/..."
 // before dispatching. Routing keys on the provider's instance name so callers
 // can use the same string the proxy daemon and the bridge mount use.
 //

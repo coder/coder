@@ -64,7 +64,7 @@ const defaultModelConfig = buildModelConfig({
 
 const claudeModelConfig = buildModelConfig({
 	id: "model-claude-sonnet-4",
-	provider: "anthropic",
+	ai_provider_id: "provider-anthropic",
 	model: "claude-sonnet-4",
 	display_name: "Claude Sonnet 4",
 	context_limit: 200_000,
@@ -79,7 +79,7 @@ const disabledModelConfig = buildModelConfig({
 
 const inaccessibleModelConfig = buildModelConfig({
 	id: "model-inaccessible",
-	provider: "bedrock",
+	ai_provider_id: "provider-bedrock",
 	model: "claude-3-5-sonnet",
 	display_name: "Bedrock Claude",
 });
@@ -94,14 +94,14 @@ const modelConfigs = [
 const modelOptions: ModelSelectorOption[] = [
 	{
 		id: defaultModelConfig.id,
-		provider: defaultModelConfig.provider,
+		provider: "openai",
 		model: defaultModelConfig.model,
 		displayName: defaultModelConfig.display_name,
 		contextLimit: defaultModelConfig.context_limit,
 	},
 	{
 		id: claudeModelConfig.id,
-		provider: claudeModelConfig.provider,
+		provider: "anthropic",
 		model: claudeModelConfig.model,
 		displayName: claudeModelConfig.display_name,
 		contextLimit: claudeModelConfig.context_limit,

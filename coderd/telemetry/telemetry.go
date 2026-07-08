@@ -61,6 +61,16 @@ type Options struct {
 	BuiltinPostgres  bool
 	Tunnel           bool
 
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the server.
+	// Must be derived from the pre-WithoutSecrets DeploymentValues because the
+	// SCIM API key is annotated as a secret and is cleared before the config
+	// is handed to the telemetry reporter.
+	SCIMEnabled bool
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY. Not secret-scrubbed, but accepted alongside
+	// SCIMEnabled so both come from the same source.
+	SCIMUseLegacy bool
+
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
 }
@@ -332,6 +342,9 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
+	scimEnabled := r.options.SCIMEnabled
+	scimUseLegacy := r.options.SCIMUseLegacy
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -352,6 +365,8 @@ func (r *remoteReporter) deployment() error {
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
 		IDPOrgSync:      &idpOrgSync,
+		SCIMEnabled:     &scimEnabled,
+		SCIMUseLegacy:   &scimUseLegacy,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -759,7 +774,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	eg.Go(func() error {
 		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
 		if err != nil {
-			return xerrors.Errorf("generate AI Bridge interceptions telemetry summaries: %w", err)
+			return xerrors.Errorf("generate AI Gateway interceptions telemetry summaries: %w", err)
 		}
 		snapshot.AIBridgeInterceptionsSummaries = summaries
 		return nil
@@ -863,7 +878,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		return nil, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("insert AI Bridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
+		return nil, xerrors.Errorf("insert AI Gateway interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
 	}
 
 	// List the summary categories that need to be calculated.
@@ -872,7 +887,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 		EndedAtBefore: endedAtBefore, // exclusive
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("list AI Bridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
+		return nil, xerrors.Errorf("list AI Gateway interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
 	}
 
 	// Calculate and convert the summaries for all categories.
@@ -891,7 +906,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 				EndedAtBefore: endedAtBefore,
 			})
 			if err != nil {
-				return xerrors.Errorf("calculate AI Bridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
+				return xerrors.Errorf("calculate AI Gateway interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
 			}
 
 			// Double check that at least one interception was found in the
@@ -1636,6 +1651,15 @@ type Deployment struct {
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
 	IDPOrgSync *bool `json:"idp_org_sync"`
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the deployment.
+	// Reports configuration state, not license entitlement. Nullable so older
+	// Coder versions that do not emit the field decode as nil.
+	SCIMEnabled *bool `json:"scim_enabled"`
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY instead of the SCIM 2.0 handler in
+	// enterprise/coderd/scim. Nullable for the same backward compatibility
+	// reason as SCIMEnabled.
+	SCIMUseLegacy *bool `json:"scim_use_legacy"`
 }
 
 type APIKey struct {

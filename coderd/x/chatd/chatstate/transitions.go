@@ -19,23 +19,22 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
-	OrganizationID      uuid.UUID
-	OwnerID             uuid.UUID
-	WorkspaceID         uuid.NullUUID
-	BuildID             uuid.NullUUID
-	AgentID             uuid.NullUUID
-	ParentChatID        uuid.NullUUID
-	RootChatID          uuid.NullUUID
-	LastModelConfigID   uuid.UUID
-	Title               string
-	Mode                database.NullChatMode
-	PlanMode            database.NullChatPlanMode
-	MCPServerIDs        []uuid.UUID
-	Labels              pqtype.NullRawMessage
-	DynamicTools        pqtype.NullRawMessage
-	ClientType          database.ChatClientType
-	InitialMessages     []Message
-	LastInjectedContext pqtype.NullRawMessage
+	OrganizationID    uuid.UUID
+	OwnerID           uuid.UUID
+	WorkspaceID       uuid.NullUUID
+	BuildID           uuid.NullUUID
+	AgentID           uuid.NullUUID
+	ParentChatID      uuid.NullUUID
+	RootChatID        uuid.NullUUID
+	LastModelConfigID uuid.UUID
+	Title             string
+	Mode              database.NullChatMode
+	PlanMode          database.NullChatPlanMode
+	MCPServerIDs      []uuid.UUID
+	Labels            pqtype.NullRawMessage
+	DynamicTools      pqtype.NullRawMessage
+	ClientType        database.ChatClientType
+	InitialMessages   []Message
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -105,14 +104,6 @@ func CreateChat(
 		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
-		}
-		if input.LastInjectedContext.Valid {
-			if _, err := store.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
-				ID:                  chat.ID,
-				LastInjectedContext: input.LastInjectedContext,
-			}); err != nil {
-				return xerrors.Errorf("set last injected context: %w", err)
-			}
 		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {

@@ -112,7 +112,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 										fallback="No description"
 									/>
 								</TableCell>
-								<TableCell data-chromatic="ignore">
+								<TableCell data-pixel="ignore">
 									{relativeTime(secret.updated_at)}
 								</TableCell>
 								<TableCell>

@@ -32,6 +32,8 @@ var syntheticPasteTruncationWarning = fmt.Sprintf(
 	syntheticPasteInlineBudget,
 )
 
+const inlinedFilePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its full content is inlined below for direct model consumption.\n\n"
+
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
@@ -96,12 +98,15 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 // prompt messages, resolving user file references via the provided
 // resolver. Missing-data placeholders are emitted only for replayed
 // user uploads; assistant-side and tool-side file metadata without
-// bytes is dropped from later model turns.
+// bytes is dropped from later model turns. acceptsFilePart, when
+// non-nil, gates whether text-family file parts are inlined as text for
+// providers that would drop them; nil preserves them as FilePart.
 func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
 	resolver FileResolver,
 	logger slog.Logger,
+	acceptsFilePart func(mediaType string) bool,
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
@@ -183,6 +188,7 @@ func ConvertMessagesWithFiles(
 				pm.parts,
 				resolved,
 				userMissingFilePolicy,
+				acceptsFilePart,
 			)
 			if len(userParts) == 0 {
 				continue
@@ -193,7 +199,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles),
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -217,7 +223,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles)
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -896,10 +902,12 @@ func matchingAttachmentForMedia(
 	return chattool.AttachmentMetadata{}, false
 }
 
-// Keep in sync with coderd/x/chatd/subagent.go.
+// isSubagentLifecycleToolName lists subagent tools whose error results
+// may carry structured JSON. Keep in sync with coderd/x/chatd/subagent.go.
+// See subagentToolNameAliases for the full alias map.
 func isSubagentLifecycleToolName(name string) bool {
 	switch name {
-	case "spawn_agent", "wait_agent", "message_agent", "close_agent":
+	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
 		return true
 	default:
 		return false
@@ -1278,6 +1286,41 @@ func formatSyntheticPasteText(name string, body []byte) string {
 	return sb.String()
 }
 
+// isInlinableTextMediaType reports whether mediaType is a text-family
+// type whose bytes may be decoded and inlined as prompt text. The set
+// is deliberately narrow so binary or unknown content is never decoded.
+// Any new text type added to codersdk.AllChatAttachmentMediaTypes must
+// also be added here, or it will be silently dropped on providers that
+// reject it as a file part.
+func isInlinableTextMediaType(mediaType string) bool {
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		mediaType = parsed
+	}
+	switch mediaType {
+	case "text/plain", "text/markdown", "text/csv", "application/json":
+		return true
+	default:
+		return false
+	}
+}
+
+// formatInlinedFileText renders a file's full content as prompt text
+// for providers that would drop the file part. Unlike the
+// synthetic-paste path, no truncation is applied.
+func formatInlinedFileText(name string, body []byte) string {
+	const fileNameLabel = "Attachment filename: "
+	const fileNameSuffix = "\n\n"
+
+	var sb strings.Builder
+	sb.Grow(len(inlinedFilePrefix) + len(fileNameLabel) + len(name) + len(fileNameSuffix) + len(body))
+	_, _ = sb.WriteString(inlinedFilePrefix)
+	if name != "" {
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", fileNameLabel, name, fileNameSuffix)
+	}
+	_, _ = sb.Write(body)
+	return sb.String()
+}
+
 func formatMissingAttachmentText(mediaType string) string {
 	const missingAttachmentBody = "[missing-attachment] The user attached a file here, but the content has expired and is no longer available."
 	const missingAttachmentAction = " If you need to inspect it, ask the user to re-upload."
@@ -1443,14 +1486,17 @@ const (
 
 // partsToMessageParts converts SDK chat message parts into fantasy
 // message parts for LLM dispatch. resolved is a lookup map for file
-// bytes, and policy controls whether missing file-backed parts are
-// dropped or replaced with text placeholders.
+// bytes, policy controls whether missing file-backed parts are dropped
+// or replaced with text placeholders, and acceptsFilePart (when non-nil)
+// gates whether text-family file parts are inlined as text for providers
+// that would drop them.
 func partsToMessageParts(
 	ctx context.Context,
 	logger slog.Logger,
 	parts []codersdk.ChatMessagePart,
 	resolved map[uuid.UUID]FileData,
 	policy missingFilePolicy,
+	acceptsFilePart func(mediaType string) bool,
 ) []fantasy.MessagePart {
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
@@ -1534,6 +1580,26 @@ func partsToMessageParts(
 				// uploads, or provider-invalid prompt content. Unresolved
 				// file-backed parts are handled above so empty uploads do
 				// not look expired.
+				continue
+			}
+			// When the target provider would drop a text-family file part,
+			// inline the content as text so the model still sees it.
+			//
+			// This must run after the isSyntheticPaste check above;
+			// synthetic pastes use a truncating path and must not fall
+			// through to the non-truncating inline path.
+			if acceptsFilePart != nil &&
+				isInlinableTextMediaType(mediaType) &&
+				!acceptsFilePart(mediaType) {
+				logger.Info(ctx,
+					"inlining text-family file part as text for provider that would drop it",
+					slog.F("file_name", name),
+					slog.F("media_type", mediaType),
+				)
+				result = append(result, fantasy.TextPart{
+					Text:            formatInlinedFileText(name, data),
+					ProviderOptions: opts,
+				})
 				continue
 			}
 			result = append(result, fantasy.FilePart{

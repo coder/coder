@@ -25,11 +25,10 @@ const (
 
 // stepData is the durable content produced by one provider attempt.
 type stepData struct {
-	Content            []fantasy.Content
-	Usage              fantasy.Usage
-	ContextLimit       sql.NullInt64
-	ProviderResponseID string
-	Runtime            time.Duration
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
+	Runtime      time.Duration
 
 	ToolCallCreatedAt    map[string]time.Time
 	ToolResultCreatedAt  map[string]time.Time

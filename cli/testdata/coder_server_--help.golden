@@ -117,7 +117,7 @@ AI GATEWAY OPTIONS:
           limit, and is currently the only supported value.
 
       --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
-          Base directory for dumping AI Bridge request/response pairs to disk
+          Base directory for dumping AI Gateway request/response pairs to disk
           for debugging. When set, each provider writes under a subdirectory
           named after the provider. Sensitive headers are redacted. Leave empty
           to disable.
@@ -911,7 +911,7 @@ TEMPLATE BUILDER OPTIONS:
           Disable the template builder feature for guided template creation.
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
-      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
           The base URL of the module registry used by the template builder for
           module source paths.
 
@@ -963,6 +963,9 @@ These options are only available in the Enterprise Edition.
 
       --browser-only bool, $CODER_BROWSER_ONLY
           Whether Coder only allows connections to workspaces via the browser.
+
+      --cluster-host string, $CODER_CLUSTER_HOST
+          Hostname or (more commonly) IP to reach this replica for clustering.
 
       --derp-server-relay-url url, $CODER_DERP_SERVER_RELAY_URL
           An HTTP URL that is accessible by other replicas to relay DERP

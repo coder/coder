@@ -7,7 +7,7 @@ import { isAfter, relativeTime, subtractTime } from "#/utils/time";
 interface LastSeenProps
 	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
 	at: dayjs.ConfigType;
-	"data-chromatic"?: string; // prevents a type error in the stories
+	"data-pixel"?: string; // prevents a type error in the stories
 }
 
 export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
@@ -39,7 +39,7 @@ export const LastSeen: FC<LastSeenProps> = ({ at, className, ...attrs }) => {
 
 	return (
 		<span
-			data-chromatic="ignore"
+			data-pixel="ignore"
 			style={{ color }}
 			{...attrs}
 			className={cn(["whitespace-nowrap", className])}

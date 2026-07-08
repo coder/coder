@@ -200,7 +200,16 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 			return nil, xerrors.Errorf("parse oidc redirect url %q", err)
 		}
 		logger.Warn(ctx, "custom OIDC redirect URL used instead of 'access_url', ensure this matches the value configured in your OIDC provider")
+		if len(vals.OIDC.RedirectAllowedHosts.Value()) > 0 {
+			// Static override takes precedence; keep the behavior explicit and
+			// loud rather than silently mixing the two modes.
+			logger.Warn(ctx, "ignoring CODER_OIDC_REDIRECT_ALLOWED_HOSTS because CODER_OIDC_REDIRECT_URL is set")
+		}
 	}
+	// Capture the configured scheme for the dynamic-host code path so that
+	// the dynamic redirect_uri uses the same scheme as the static one even
+	// when upstream proxies report a misleading X-Forwarded-Proto.
+	redirectDefaultScheme := redirectURL.Scheme
 
 	// If the scopes contain 'groups', we enable group support.
 	// Do not override any custom value set by the user.
@@ -259,6 +268,17 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		return nil, xerrors.Errorf("pkce detect in claims: %w", err)
 	}
 
+	// CODER_OIDC_REDIRECT_URL is a strict override: when set, the redirect_uri
+	// is fixed at startup and dynamic-host selection is disabled. Otherwise,
+	// surface the allowlist to the middleware.
+	var redirectAllowedHosts []string
+	if vals.OIDC.RedirectURL.String() == "" {
+		redirectAllowedHosts = vals.OIDC.RedirectAllowedHosts.Value()
+	} else {
+		// Static-override mode does not need the dynamic default scheme.
+		redirectDefaultScheme = ""
+	}
+
 	return &coderd.OIDCConfig{
 		OAuth2Config: useCfg,
 		Provider:     oidcProvider,
@@ -268,18 +288,21 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 			// matches the issuer URL. This is not recommended.
 			SkipIssuerCheck: vals.OIDC.SkipIssuerChecks.Value(),
 		}),
-		EmailDomain:         vals.OIDC.EmailDomain,
-		AllowSignups:        vals.OIDC.AllowSignups.Value(),
-		UsernameField:       vals.OIDC.UsernameField.String(),
-		NameField:           vals.OIDC.NameField.String(),
-		EmailField:          vals.OIDC.EmailField.String(),
-		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
-		SecondaryClaims:     secondaryClaimsSrc,
-		SignInText:          vals.OIDC.SignInText.String(),
-		SignupsDisabledText: vals.OIDC.SignupsDisabledText.String(),
-		IconURL:             vals.OIDC.IconURL.String(),
-		IgnoreEmailVerified: vals.OIDC.IgnoreEmailVerified.Value(),
-		PKCEMethods:         pkceSupport.CodeChallengeMethodsSupported,
+		EmailDomain:           vals.OIDC.EmailDomain,
+		AllowSignups:          vals.OIDC.AllowSignups.Value(),
+		UsernameField:         vals.OIDC.UsernameField.String(),
+		NameField:             vals.OIDC.NameField.String(),
+		EmailField:            vals.OIDC.EmailField.String(),
+		AuthURLParams:         vals.OIDC.AuthURLParams.Value,
+		SecondaryClaims:       secondaryClaimsSrc,
+		SignInText:            vals.OIDC.SignInText.String(),
+		SignupsDisabledText:   vals.OIDC.SignupsDisabledText.String(),
+		IconURL:               vals.OIDC.IconURL.String(),
+		IgnoreEmailVerified:   vals.OIDC.IgnoreEmailVerified.Value(),
+		PKCEMethods:           pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:         vals.OIDC.EmailFallback.Value(),
+		RedirectAllowedHosts:  redirectAllowedHosts,
+		RedirectDefaultScheme: redirectDefaultScheme,
 	}, nil
 }
 
@@ -821,7 +844,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Use NATS for pubsub if the experiment is enabled.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
-				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
 				})
 				if err != nil {
@@ -829,6 +852,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				options.Pubsub = natsps
 				defer natsps.Close()
+
+				if options.DeploymentValues.Prometheus.Enable {
+					options.PrometheusRegistry.MustRegister(natsps)
+				}
 			}
 
 			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
@@ -984,6 +1011,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				URL:              vals.Telemetry.URL.Value(),
 				Tunnel:           tunnel != nil,
 				DeploymentConfig: deploymentConfigWithoutSecrets,
+				// SCIMAPIKey is a secret and is scrubbed by WithoutSecrets above,
+				// so we derive SCIMEnabled from vals (pre-scrub) instead.
+				SCIMEnabled:   vals.SCIMAPIKey != "",
+				SCIMUseLegacy: vals.UseLegacySCIM.Value(),
 				ParseLicenseJWT: func(lic *telemetry.License) error {
 					// This will be nil when running in AGPL-only mode.
 					if options.ParseLicenseClaims == nil {
@@ -1108,13 +1139,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			// Must run after newAPI so options.Database is dbcrypt-wrapped.
 			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
-			// Must run after BackfillBedrockProviderType; shares aibridgeInitCtx so
-			// a timeout on the first backfill will skip this one until next startup.
-			coderd.BackfillChatModelConfigProviderStrings(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
-			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
 			// in AGPL builds it does not exist at all. The daemon starts here
 			// unconditionally when the bridge feature is enabled by config so
@@ -1125,12 +1153,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
 				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
-				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
-				if err != nil {
-					return xerrors.Errorf("build AI providers: %w", err)
-				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -2387,6 +2411,15 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
 	if customCacheDir != "" {
 		cachePath = filepath.Join(customCacheDir, "postgres")
+	}
+	// Tests get a fresh config root per invocation, so the default cache path
+	// never hits and each test re-downloads the archive from Maven, which
+	// rate-limits CI runners. EMBEDDED_PG_CACHE_DIR (restored from the actions
+	// cache) lets them share one copy.
+	if flag.Lookup("test.v") != nil {
+		if dir := os.Getenv("EMBEDDED_PG_CACHE_DIR"); dir != "" {
+			cachePath = dir
+		}
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 

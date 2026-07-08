@@ -6,12 +6,15 @@ import * as Yup from "yup";
 import type { AIProviderType } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { Label } from "#/components/Label/Label";
 import { Link as DocsLink } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { IconPickerField } from "#/pages/AISettingsPage/MCPServersPage/components/IconPickerField";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
@@ -20,11 +23,13 @@ export type ProviderFormValues = {
 	type: AIProviderType | "";
 	name: string;
 	displayName: string;
+	icon: string;
 	baseUrl: string;
 	model: string;
 	smallFastModel: string;
 	accessKey: string;
 	accessKeySecret: string;
+	roleArn: string;
 	apiKey: string;
 	enabled: boolean;
 };
@@ -61,11 +66,13 @@ const defaultInitialValues: ProviderFormValues = {
 	type: "anthropic",
 	name: "",
 	displayName: "",
+	icon: "",
 	baseUrl: "",
 	model: "",
 	smallFastModel: "",
 	accessKey: "",
 	accessKeySecret: "",
+	roleArn: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -128,6 +135,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
@@ -158,6 +166,7 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(
@@ -195,6 +204,7 @@ const makeCopilotSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		icon: Yup.string(),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
@@ -240,11 +250,15 @@ type ProviderFormProps = {
 	editing?: boolean;
 	/** When editing Bedrock and the API already has keys, show masked placeholders until cleared. */
 	bedrockSavedAccessCredentials?: boolean;
+	/** Server-generated STS external ID, shown read-only when a role is assumed. */
+	bedrockExternalId?: string;
 	/** When editing openai/anthropic and a key is on file, show a masked placeholder until cleared. */
 	openAiAnthropicSavedApiKey?: boolean;
 	/** Masked rendering of the saved openai/anthropic key (e.g. `sk-***...ABCD`). Falls back to a generic mask when omitted. */
 	openAiAnthropicMaskedApiKey?: string;
 	initialValues?: Partial<ProviderFormValues>;
+	/** Fires whenever the icon field changes, so page headers can preview it. */
+	onIconChange?: (icon: string) => void;
 	onSubmit?: (values: ProviderFormValues) => void;
 	isLoading?: boolean;
 	submitError?: unknown;
@@ -269,9 +283,11 @@ const baseUrlPlaceholder = (provider: string) =>
 export const ProviderForm: FC<ProviderFormProps> = ({
 	editing = false,
 	bedrockSavedAccessCredentials = false,
+	bedrockExternalId,
 	openAiAnthropicSavedApiKey = false,
 	openAiAnthropicMaskedApiKey,
 	initialValues,
+	onIconChange,
 	onSubmit,
 	isLoading = false,
 	submitError,
@@ -314,6 +330,25 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
+
+	const handleIconChange = (value: string) => {
+		void form.setFieldValue("icon", value);
+		onIconChange?.(value);
+	};
+
+	const iconField = (
+		<div className="flex flex-col gap-2">
+			<Label htmlFor="icon">Icon</Label>
+			<div className="text-xs text-content-secondary">
+				Optional. URL or emoji shown for this provider.
+			</div>
+			<IconPickerField
+				id="icon"
+				value={form.values.icon}
+				onChange={handleIconChange}
+			/>
+		</div>
+	);
 
 	const typeSelectValue = form.values.type;
 
@@ -396,6 +431,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								className="w-full"
 							/>
 						</div>
+						{iconField}
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
@@ -455,6 +491,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								className="w-full"
 							/>
 						</div>
+						{iconField}
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
@@ -526,11 +563,32 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								View docs
 							</DocsLink>
 						</p>
+						<FormField
+							field={getFieldHelpers("roleArn")}
+							label="Role ARN"
+							className="w-full"
+							placeholder="arn:aws:iam::123456789012:role/BedrockRole"
+						/>
+						<p className="text-xs text-content-secondary m-0">
+							Optional. When a role ARN is set, the gateway assumes that role
+							(using the base identity) before calling Bedrock.
+						</p>
+						{editing && bedrockExternalId && (
+							<div className="flex flex-col gap-2">
+								<Label>External ID</Label>
+								<CodeExample secret={false} code={bedrockExternalId} />
+								<p className="text-xs text-content-secondary m-0">
+									Server-generated. Add it to the assumed role's trust policy as
+									an <code>sts:ExternalId</code> condition so only this
+									deployment can assume the role.
+								</p>
+							</div>
+						)}
 					</>
 				)}
 
 				<div className="flex justify-end gap-4">
-					<Link to="/ai/settings">
+					<Link to="/ai/settings/providers">
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>

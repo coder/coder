@@ -80,12 +80,12 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 						<TableRow>
 							<TableHead>Name</TableHead>
 							<TableHead>Key prefix</TableHead>
-							<TableHead>Last used</TableHead>
+							<TableHead>Last heartbeat</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead className="w-8" />
 						</TableRow>
 					</TableHeader>
-					<TableBody>
+					<TableBody size="lg">
 						{isLoading ? (
 							<TableLoader />
 						) : error ? (
@@ -111,9 +111,9 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 										</span>
 									</TableCell>
 									<TableCell>
-										{key.last_used_at ? (
+										{key.last_heartbeat_at ? (
 											<span className="block first-letter:uppercase">
-												{relativeTime(new Date(key.last_used_at))}
+												{relativeTime(new Date(key.last_heartbeat_at))}
 											</span>
 										) : (
 											<span className="text-content-disabled">Never</span>

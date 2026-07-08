@@ -38,7 +38,6 @@ import {
 	prependToInfiniteChatsCache,
 	promoteChatQueuedMessage,
 	proposeChatTitle,
-	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	setChatGroupRole,
@@ -48,6 +47,7 @@ import {
 	unpinChat,
 	updateChatAdvisorConfig,
 	updateChatPlanMode,
+	updateChatTitle,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
 } from "./chats";
@@ -66,7 +66,6 @@ vi.mock("#/api/api", () => ({
 			interruptChat: vi.fn(),
 			promoteChatQueuedMessage: vi.fn(),
 			proposeChatTitle: vi.fn(),
-			regenerateChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
 			getChatACL: vi.fn(),
@@ -323,6 +322,65 @@ describe("updateChatPlanMode optimistic update", () => {
 	});
 });
 
+describe("updateChatTitle cache update", () => {
+	it("patches chat detail and infinite chat list caches after success", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { title: "Old" }),
+		);
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { title: "Old" }),
+			makeChat("chat-2", { title: "Other" }),
+		]);
+		seedInfiniteChats(
+			queryClient,
+			[makeChat(chatId, { archived: true, title: "Old" })],
+			{ archived: true },
+		);
+
+		const mutation = updateChatTitle(queryClient);
+		mutation.onSuccess(undefined, { chatId, title: "New" });
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.title,
+		).toBe("New");
+		expect(
+			readInfiniteChats(queryClient)?.find((chat) => chat.id === chatId),
+		).toMatchObject({ title: "New" });
+		expect(
+			readInfiniteChats(queryClient, { archived: true })?.find(
+				(chat) => chat.id === chatId,
+			),
+		).toMatchObject({ title: "New" });
+	});
+
+	it("does not return pending invalidation promises from settlement", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const invalidateSpy = vi
+			.spyOn(queryClient, "invalidateQueries")
+			.mockReturnValue(new Promise<void>(() => {}));
+
+		const mutation = updateChatTitle(queryClient);
+		const result = mutation.onSettled(undefined, undefined, {
+			chatId,
+			title: "New",
+		});
+
+		expect(result).toBeUndefined();
+		expect(invalidateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({ queryKey: chatsKey }),
+		);
+		expect(invalidateSpy).toHaveBeenCalledWith({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		invalidateSpy.mockRestore();
+	});
+});
+
 describe("archiveChat optimistic update", () => {
 	it("optimistically sets archived to true in the chats list", async () => {
 		const queryClient = createTestQueryClient();
@@ -378,6 +436,52 @@ describe("archiveChat optimistic update", () => {
 		const result = readInfiniteChats(queryClient);
 		expect(result?.[0].children).toHaveLength(1);
 		expect(result?.[0].children?.[0].id).toBe("child-2");
+	});
+
+	it("removes an archived root chat from active filtered lists after success", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(
+			queryClient,
+			[
+				makeChat(chatId, { pin_order: 2 }),
+				makeChat("chat-2", { archived: false }),
+			],
+			{ archived: false },
+		);
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { pin_order: 2 }),
+		);
+
+		const mutation = archiveChat(queryClient);
+		mutation.onSuccess(undefined, chatId);
+
+		expect(
+			readInfiniteChats(queryClient, { archived: false })?.map(
+				(chat) => chat.id,
+			),
+		).toEqual(["chat-2"]);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+		).toMatchObject({
+			archived: true,
+			pin_order: 0,
+		});
+	});
+
+	it("clears pin order for archived chats that remain in unfiltered lists", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { pin_order: 3 })]);
+
+		const mutation = archiveChat(queryClient);
+		mutation.onSuccess(undefined, chatId);
+
+		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
+			archived: true,
+			pin_order: 0,
+		});
 	});
 
 	it("rolls back the chats list on error by invalidating", async () => {
@@ -456,14 +560,20 @@ describe("archiveChat optimistic update", () => {
 		expect(context?.previousChat).toBeUndefined();
 	});
 
-	it("invalidates queries on settled regardless of outcome", async () => {
+	it("invalidates on settled without returning pending promises", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		// Mock invalidateQueries to never resolve so a regression back to
+		// an awaited (async) onSettled surfaces as a pending promise return
+		// value, which is what keeps the mutation's loading state stuck.
+		const invalidateSpy = vi
+			.spyOn(queryClient, "invalidateQueries")
+			.mockReturnValue(new Promise<void>(() => {}));
 
 		const mutation = archiveChat(queryClient);
-		await mutation.onSettled(undefined, undefined, chatId);
+		const result = mutation.onSettled(undefined, undefined, chatId);
 
+		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatsKey }),
 		);
@@ -471,6 +581,7 @@ describe("archiveChat optimistic update", () => {
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		invalidateSpy.mockRestore();
 	});
 });
 
@@ -501,6 +612,37 @@ describe("unarchiveChat optimistic update", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.archived,
 		).toBe(false);
+	});
+
+	it("removes an unarchived root chat from archived filtered lists after success", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(
+			queryClient,
+			[
+				makeChat(chatId, { archived: true }),
+				makeChat("chat-2", { archived: true }),
+			],
+			{ archived: true },
+		);
+		queryClient.setQueryData(
+			chatKey(chatId),
+			makeChat(chatId, { archived: true }),
+		);
+
+		const mutation = unarchiveChat(queryClient);
+		mutation.onSuccess(undefined, chatId);
+
+		expect(
+			readInfiniteChats(queryClient, { archived: true })?.map(
+				(chat) => chat.id,
+			),
+		).toEqual(["chat-2"]);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId)),
+		).toMatchObject({
+			archived: false,
+		});
 	});
 
 	it("rolls back both caches on error", async () => {
@@ -535,14 +677,20 @@ describe("unarchiveChat optimistic update", () => {
 		).toBe(true);
 	});
 
-	it("invalidates queries on settled", async () => {
+	it("invalidates on settled without returning pending promises", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		// Mock invalidateQueries to never resolve so a regression back to
+		// an awaited (async) onSettled surfaces as a pending promise return
+		// value, which is what keeps the mutation's loading state stuck.
+		const invalidateSpy = vi
+			.spyOn(queryClient, "invalidateQueries")
+			.mockReturnValue(new Promise<void>(() => {}));
 
 		const mutation = unarchiveChat(queryClient);
-		await mutation.onSettled(undefined, undefined, chatId);
+		const result = mutation.onSettled(undefined, undefined, chatId);
 
+		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatsKey }),
 		);
@@ -550,6 +698,7 @@ describe("unarchiveChat optimistic update", () => {
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		invalidateSpy.mockRestore();
 	});
 });
 
@@ -689,51 +838,6 @@ describe("reorderPinnedChat", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: chatKey(chatId),
 			exact: true,
-		});
-	});
-});
-
-describe("regenerateChatTitle cache updates", () => {
-	it("preserves existing chat detail fields when the response is partial", () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		const cachedChat = makeChat(chatId, {
-			diff_status: {
-				chat_id: chatId,
-				url: "https://example.com/pr/1",
-				pull_request_state: "open",
-				pull_request_title: "",
-				pull_request_draft: false,
-				changes_requested: false,
-				additions: 1,
-				deletions: 2,
-				changed_files: 3,
-				refreshed_at: "2025-01-01T00:00:00.000Z",
-				stale_at: "2025-01-01T01:00:00.000Z",
-			},
-		});
-		queryClient.setQueryData(chatKey(chatId), cachedChat);
-		seedInfiniteChats(queryClient, [cachedChat]);
-
-		const mutation = regenerateChatTitle(queryClient);
-		const updatedChat = {
-			id: chatId,
-			title: "New title",
-		} satisfies Partial<TypesGen.Chat>;
-
-		mutation.onSuccess(updatedChat as TypesGen.Chat);
-
-		const cachedDetail = queryClient.getQueryData<TypesGen.Chat>(
-			chatKey(chatId),
-		);
-		expect(cachedDetail).toEqual({
-			...cachedChat,
-			title: "New title",
-		});
-		expect(cachedDetail?.diff_status).toEqual(cachedChat.diff_status);
-		expect(readInfiniteChats(queryClient)?.[0]).toMatchObject({
-			id: chatId,
-			title: "New title",
 		});
 	});
 });
@@ -1353,28 +1457,6 @@ describe("mutation invalidation scope", () => {
 		}
 	});
 
-	it("regenerateChatTitle invalidates debug runs so the title_generation run surfaces immediately", async () => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		seedAllActiveQueries(queryClient, chatId);
-
-		const mutation = regenerateChatTitle(queryClient);
-		await mutation.onSettled(undefined, undefined, chatId);
-
-		expect(
-			queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,
-			"chatDebugRunsKey should be invalidated",
-		).toBe(true);
-
-		for (const { label, key } of unrelatedKeys(chatId)) {
-			const state = queryClient.getQueryState(key);
-			expect(
-				state?.isInvalidated,
-				`${label} should NOT be invalidated by regenerateChatTitle`,
-			).not.toBe(true);
-		}
-	});
-
 	for (const { label, error } of [
 		{ label: "success", error: undefined },
 		{ label: "failure", error: new Error("proposal failed") },
@@ -1480,6 +1562,18 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatsKey)?.isInvalidated,
 			"flat chats should NOT be invalidated",
 		).not.toBe(true);
+	});
+});
+
+describe("infiniteChatsKey shape", () => {
+	it("places the filter object one slot after the chatsKey prefix", () => {
+		// archivedFilterForChatListKey reads the archived filter from the
+		// slot immediately after the chatsKey prefix. If this layout ever
+		// changes, that helper silently stops removing chats from
+		// conflicting filtered lists, so keep the two in sync.
+		const key = infiniteChatsKey({ archived: true });
+		expect(key.length).toBe(chatsKey.length + 1);
+		expect(key[chatsKey.length]).toEqual({ archived: true });
 	});
 });
 
@@ -2062,6 +2156,68 @@ describe("updateChildInParentCache", () => {
 });
 
 describe("mergeWatchedChatSummary", () => {
+	it("applies context_dirty flags while preserving the pinned resource list", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 10,
+						status: "ok",
+					},
+				],
+			},
+		});
+		const watchedChat = makeChat("chat-1", {
+			// Drift is tracked outside updated_at, so an older event timestamp
+			// still applies the dirty flags.
+			updated_at: "2024-12-31T00:00:00.000Z",
+			context: { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" },
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "context_dirty",
+			}).context,
+		).toEqual({
+			dirty: true,
+			dirty_since: "2025-01-02T00:00:00.000Z",
+			// The lightweight watch payload omits resources; the merge keeps the
+			// pinned list a prior single-chat GET populated.
+			resources: [
+				{
+					source: "/AGENTS.md",
+					kind: "instruction_file",
+					size_bytes: 10,
+					status: "ok",
+				},
+			],
+		});
+	});
+
+	it("leaves context untouched for non-context events", () => {
+		const context = { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" };
+		const cachedChat = makeChat("chat-1", {
+			status: "pending",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			context,
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:05:00.000Z",
+			context: { dirty: false },
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).context,
+		).toBe(context);
+	});
+
 	it("merges fresh status updates without clobbering a newer title snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "pending",

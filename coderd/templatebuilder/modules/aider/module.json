@@ -53,7 +53,7 @@
     {
       "name": "api_key",
       "type": "string",
-      "description": "API key for the selected AI provider. This will be set as the appropriate environment variable based on the provider.",
+      "description": "API key for the selected AI provider.",
       "default": "",
       "required": false,
       "sensitive": true,
@@ -62,7 +62,7 @@
     {
       "name": "base_aider_config",
       "type": "string",
-      "description": "Base Aider configuration in yaml format. Will be stored in .aider.conf.yml file.\n    \noptions include:\nread:\n  - CONVENTIONS.md\n  - anotherfile.txt\n  - thirdfile.py\nmodel: xxx\n##Specify the OpenAI API key\nopenai-api-key: xxx\n## (deprecated, use --set-env OPENAI_API_TYPE=\u003cvalue\u003e)\nopenai-api-type: xxx\n## (deprecated, use --set-env OPENAI_API_VERSION=\u003cvalue\u003e)\nopenai-api-version: xxx\n## (deprecated, use --set-env OPENAI_API_DEPLOYMENT_ID=\u003cvalue\u003e)\nopenai-api-deployment-id: xxx\n## Set an environment variable (to control API settings, can be used multiple times)\nset-env: xxx\n## Specify multiple values like this:\nset-env:\n  - xxx\n  - yyy\n  - zzz\n\nReference : https://aider.chat/docs/config/aider_conf.html\n",
+      "description": "Base Aider configuration in YAML format. Stored in .aider.conf.yml.",
       "required": false,
       "sensitive": false,
       "computed": false
@@ -132,7 +132,7 @@
     {
       "name": "model",
       "type": "string",
-      "description": "AI model to use with Aider. Can use Aider's built-in aliases like '4o' (gpt-4o), 'sonnet' (claude-3-7-sonnet), 'opus' (claude-3-opus), etc.",
+      "description": "AI model to use with Aider.",
       "required": true,
       "sensitive": false,
       "computed": false

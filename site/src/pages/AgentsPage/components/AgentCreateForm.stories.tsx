@@ -61,7 +61,7 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
-		provider: "anthropic",
+		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
 		context_limit: 200_000,
@@ -457,7 +457,7 @@ export const LoadingPersonalModelOverrides: Story = {
 export const NoModelsConfigured: Story = {
 	args: {
 		...defaultArgs,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
@@ -470,7 +470,7 @@ export const MissingProviderAndModelSetup: Story = {
 		canConfigureAgentSetup: true,
 		providerCount: 0,
 		modelCount: 0,
-		modelCatalog: { providers: [] },
+		modelCatalog: { providers: [], unsupported_providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
@@ -490,11 +490,25 @@ export const MissingProviderAndModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/ai/settings",
+			"/ai/settings/providers",
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
+		);
+	},
+};
+
+export const AIGatewayDisabled: Story = {
+	args: {
+		...defaultArgs,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
 		);
 	},
 };

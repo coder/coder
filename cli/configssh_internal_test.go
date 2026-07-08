@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -510,6 +512,184 @@ func Test_sshConfigOptions_addOption(t *testing.T) {
 			slices.Sort(tt.Expect)
 			slices.Sort(o.sshOptions)
 			require.Equal(t, tt.Expect, o.sshOptions)
+		})
+	}
+}
+
+func TestSSHConfigOptions_writeToBuffer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		opts    sshConfigOptions
+		want    []string // substrings that must appear
+		notWant []string // substrings that must not appear
+	}{
+		{
+			name: "wildcard suffix",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host *.coder\n", "ProxyCommand", "--hostname-suffix coder %h"},
+			notWant: []string{"Host workspace"},
+		},
+		{
+			name: "wildcard prefix",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host coder.*\n", "ProxyCommand", "--ssh-host-prefix coder. %h"},
+			notWant: []string{"Host coder.workspace"},
+		},
+		{
+			name: "no-wildcard suffix with workspaces",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1", "workspace2"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host workspace1.coder\n",
+				"Host workspace2.coder\n",
+				"Match host workspace1.coder !exec",
+				"Match host workspace2.coder !exec",
+				"--hostname-suffix coder %h",
+			},
+			notWant: []string{"Host *.coder", "Match host *.coder"},
+		},
+		{
+			name: "no-wildcard suffix with zero workspaces produces no host entries",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   nil,
+				waitEnum:         "auto",
+			},
+			notWant: []string{"Host", "ProxyCommand", "Match"},
+		},
+		{
+			name: "no-wildcard prefix with workspaces",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1", "workspace2"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host coder.workspace1\n",
+				"Host coder.workspace2\n",
+				"--ssh-host-prefix coder. %h",
+			},
+			notWant: []string{"Host coder.*"},
+		},
+		{
+			name: "no-wildcard suffix skips proxy command when skipProxyCommand is set",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1"},
+				skipProxyCommand: true,
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host workspace1.coder\n"},
+			notWant: []string{"ProxyCommand", "Match host", "Host *.coder"},
+		},
+		{
+			name: "no-wildcard prefix skips proxy command when skipProxyCommand is set",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1"},
+				skipProxyCommand: true,
+				waitEnum:         "auto",
+			},
+			want:    []string{"Host coder.workspace1\n"},
+			notWant: []string{"ProxyCommand", "Host coder.*"},
+		},
+		{
+			name: "no-wildcard suffix SSH options appear in every workspace entry",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1", "workspace2"},
+				sshOptions:       []string{"ForwardAgent=yes", "LogLevel=DEBUG"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host workspace1.coder\n",
+				"\tForwardAgent=yes\n",
+				"\tLogLevel=DEBUG\n",
+				"Host workspace2.coder\n",
+			},
+		},
+		{
+			name: "wildcard suffix SSH options appear in host block",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				hostnameSuffix:   "coder",
+				sshOptions:       []string{"ForwardAgent=yes"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host *.coder\n",
+				"\tForwardAgent=yes\n",
+			},
+		},
+		{
+			name: "no-wildcard with both prefix and suffix generates entries for both",
+			opts: sshConfigOptions{
+				coderBinaryPath:  "/usr/bin/coder",
+				globalConfigPath: "/tmp/coder",
+				userHostPrefix:   "coder.",
+				hostnameSuffix:   "testy",
+				noWildcard:       true,
+				workspaceNames:   []string{"workspace1"},
+				waitEnum:         "auto",
+			},
+			want: []string{
+				"Host coder.workspace1\n",
+				"Host workspace1.testy\n",
+				"Match host workspace1.testy !exec",
+			},
+			notWant: []string{"Host coder.*", "Host *.testy"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+			err := tt.opts.writeToBuffer(&buf)
+			require.NoError(t, err)
+
+			got := buf.String()
+			for _, w := range tt.want {
+				assert.Contains(t, got, w, "expected substring not found")
+			}
+			for _, nw := range tt.notWant {
+				assert.NotContains(t, got, nw, "unexpected substring found")
+			}
 		})
 	}
 }

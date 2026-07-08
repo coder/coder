@@ -43,6 +43,51 @@ Or, you can configure plain SSH on your client below.
 > SSH command. For users who need the full functionality of SSH, use the
 > configuration method below.
 
+### Running remote commands with quoting
+
+Arguments after `--` are joined with spaces into a single command
+string before being sent to the workspace agent (per
+[RFC 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5),
+which defines the SSH exec request as a single string). Your local
+shell consumes outer quotes before the CLI ever sees the arguments,
+so inner quoting is not preserved on the wire.
+
+This means a common pattern from interactive shells does not behave
+as you might expect:
+
+```console
+# Surprising: prints an empty line, NOT "ready"
+coder ssh my-workspace -- bash -c 'echo ready'
+```
+
+The local shell strips the single-quotes, the CLI receives the argv
+`[bash, -c, echo, ready]`, and the remote agent runs
+`bash -c echo ready`; `echo` gets no arguments and `ready` is bound to
+`$0`. The same caveat applies to plain `ssh user@host -- bash -c '...'`;
+this is SSH protocol semantics, not a `coder ssh` limitation.
+
+For commands that need preserved quoting, use one of these patterns:
+
+**Heredoc via stdin** (recommended for multi-line scripts):
+
+```console
+coder ssh my-workspace -- bash <<'EOF'
+echo ready
+EOF
+```
+
+**A single-argument script payload**:
+
+```console
+coder ssh my-workspace -- /path/to/script.sh
+```
+
+**Exit-code-only probe** (when you only need to know if the command succeeded):
+
+```console
+coder ssh my-workspace -- true && echo "agent is reachable"
+```
+
 ### Configure SSH
 
 Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for
@@ -79,6 +124,13 @@ successful, you'll see the following message:
 
 Your workspace is now accessible via `ssh coder.<workspace_name>`
 (for example, `ssh coder.myEnv` if your workspace is named `myEnv`).
+
+> [!TIP]
+> If you use a third-party SSH client that discovers hosts by parsing
+> `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that
+> enumerate known hosts), run `coder config-ssh --no-wildcard` instead. This
+> generates an individual `Host` entry per workspace rather than a single
+> wildcard block, making your workspaces visible to those tools.
 
 ## Visual Studio Code
 

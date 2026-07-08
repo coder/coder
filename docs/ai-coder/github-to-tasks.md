@@ -24,7 +24,7 @@ This guide walks you through how to configure GitHub and Coder together so that 
 
 The below steps outline how to use the Coder [Create Task Action GHA](https://github.com/coder/create-task-action) in a GitHub workflow to solve a bug. The guide makes the following assumptions:
 
-- You have access to a Coder Server that is running. If you don't have a Coder Server running, follow our [Quickstart Guide](https://coder.com/docs/tutorials/quickstart)
+- You have access to a Coder Server that is running. If you don't have a Coder Server running, follow our [Get started guide](../get-started/index.md)
 - Your Coder Server is accessible from GitHub
 - You have an AI-enabled Task Template that can successfully create a Coder Task. If you don't have a Task Template available, follow our [Getting Started with Tasks Guide](https://coder.com/docs/ai-coder/tasks#getting-started-with-tasks)
 - Check the [Requirements section of the GHA](https://github.com/coder/create-task-action?tab=readme-ov-file#requirements) for specific version requirements for your Coder deployment and the following

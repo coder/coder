@@ -60,7 +60,7 @@ func (p *Server) computerUseProviderAndModelFromConfig(
 func (p *Server) resolveComputerUseModel(
 	ctx context.Context,
 	chat database.Chat,
-	route resolvedModelRoute,
+	route aiGatewayModelRoute,
 	computerUseProvider string,
 	computerUseModelProvider string,
 	computerUseModelName string,

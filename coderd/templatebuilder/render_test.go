@@ -2,6 +2,7 @@ package templatebuilder_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,26 @@ import (
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")
+
+// testRenderContext builds a BaseRenderContext from defaults and fills
+// in deterministic test values for any required variables that have no
+// default. This keeps the all-bases test loops working without silently
+// producing broken HCL.
+func testRenderContext(exampleID string) templatebuilder.BaseRenderContext {
+	rc := templatebuilder.DefaultBaseRenderContext(exampleID)
+	if rc.Variables == nil {
+		rc.Variables = make(map[string]string)
+	}
+	for _, v := range templatebuilder.BaseVariables(exampleID) {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if _, ok := rc.Variables[v.Name]; !ok {
+			rc.Variables[v.Name] = fmt.Sprintf("%q", "test-"+v.Name)
+		}
+	}
+	return rc
+}
 
 func TestRenderBaseTemplate(t *testing.T) {
 	t.Parallel()
@@ -58,6 +79,10 @@ func TestRenderBaseTemplate(t *testing.T) {
 		renderCtx := templatebuilder.BaseRenderContext{
 			ContainerImage: "custom/image:latest",
 			ImageOptions:   imageOpts,
+			Variables: map[string]string{
+				"namespace":      `"test-ns"`,
+				"use_kubeconfig": "false",
+			},
 		}
 		out, err := templatebuilder.RenderBaseTemplate("kubernetes", "main.tf.tmpl", renderCtx)
 		require.NoError(t, err)
@@ -211,7 +236,28 @@ func TestExtractAgentResourceName(t *testing.T) {
 
 		name, err := templatebuilder.ExtractAgentResourceName(rendered)
 		require.NoError(t, err)
-		require.Equal(t, "dev", name)
+		require.Equal(t, "dev[0]", name, "counted agent should include index")
+	})
+
+	t.Run("CountedAgent", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`resource "coder_agent" "myagent" {
+  count = data.coder_workspace.me.start_count
+  arch  = "amd64"
+}`)
+		name, err := templatebuilder.ExtractAgentResourceName(hcl)
+		require.NoError(t, err)
+		require.Equal(t, "myagent[0]", name)
+	})
+
+	t.Run("UncountedAgent", func(t *testing.T) {
+		t.Parallel()
+		hcl := []byte(`resource "coder_agent" "main" {
+  arch = "amd64"
+}`)
+		name, err := templatebuilder.ExtractAgentResourceName(hcl)
+		require.NoError(t, err)
+		require.Equal(t, "main", name)
 	})
 
 	t.Run("NoAgent", func(t *testing.T) {
@@ -266,6 +312,24 @@ func TestModuleTemplateFS(t *testing.T) {
 	})
 }
 
+func TestAllBasesRenderAndExtractAgent(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range templatebuilder.BaseTemplateIDs() {
+		t.Run(id, func(t *testing.T) {
+			t.Parallel()
+			renderCtx := testRenderContext(id)
+			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", renderCtx)
+			require.NoError(t, err, "base %q should render without error", id)
+			require.NotEmpty(t, rendered)
+
+			name, err := templatebuilder.ExtractAgentResourceName(rendered)
+			require.NoError(t, err, "base %q should have exactly one coder_agent", id)
+			require.NotEmpty(t, name)
+		})
+	}
+}
+
 func TestBaseTemplateSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -275,13 +339,19 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		{exampleID: "docker"},
 		{exampleID: "kubernetes"},
 		{exampleID: "aws-linux"},
+		{exampleID: "aws-windows"},
+		{exampleID: "azure-linux"},
+		{exampleID: "digitalocean-linux"},
+		{exampleID: "gcp-linux"},
+		{exampleID: "gcp-windows"},
+		{exampleID: "scratch"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.exampleID, func(t *testing.T) {
 			t.Parallel()
 
-			renderCtx := templatebuilder.DefaultBaseRenderContext(tc.exampleID)
+			renderCtx := testRenderContext(tc.exampleID)
 			rendered, err := templatebuilder.RenderBaseTemplate(tc.exampleID, "main.tf.tmpl", renderCtx)
 			require.NoError(t, err)
 			require.NotEmpty(t, rendered)

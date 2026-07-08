@@ -622,8 +622,7 @@ func TestNew(t *testing.T) {
 			MITMKeyFile:    mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
-		require.Equal(t, "80", srv.CoderAccessURL().Port())
+		require.Equal(t, "localhost", srv.CoderAccessURL().Host)
 	})
 
 	t.Run("CoderAccessURLDefaultHTTPSPort", func(t *testing.T) {
@@ -639,8 +638,7 @@ func TestNew(t *testing.T) {
 			MITMKeyFile:    mitmKeyFile,
 		})
 		require.NoError(t, err)
-		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
-		require.Equal(t, "443", srv.CoderAccessURL().Port())
+		require.Equal(t, "localhost", srv.CoderAccessURL().Host)
 	})
 
 	t.Run("CoderAccessURLExplicitPort", func(t *testing.T) {
@@ -948,6 +946,45 @@ func TestNew(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, srv)
+	})
+
+	t.Run("CoderAccessURLHostPreserved", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:          "127.0.0.1:0",
+			CoderAccessURL:      "https://coder.example.com",
+			MITMCertFile:        mitmCertFile,
+			MITMKeyFile:         mitmKeyFile,
+			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
+
+		require.Equal(t, "coder.example.com", srv.CoderAccessURL().Host,
+			"Host must not have :443 appended")
+	})
+
+	t.Run("CoderAccessURLExplicitPortPreserved", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:          "127.0.0.1:0",
+			CoderAccessURL:      "https://coder.example.com:8443",
+			MITMCertFile:        mitmCertFile,
+			MITMKeyFile:         mitmKeyFile,
+			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
+
+		require.Equal(t, "coder.example.com:8443", srv.CoderAccessURL().Host)
 	})
 }
 
@@ -1284,7 +1321,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com/v1/messages", nil
 			},
-			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1294,7 +1331,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com:8443/v1/messages", nil
 			},
-			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1304,7 +1341,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1314,7 +1351,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com:8443/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1852,7 +1889,7 @@ func TestUpstreamProxy(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) string {
 				return "https://api.anthropic.com:443/v1/messages"
 			},
-			expectedAIBridgePath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedAIBridgePath: "/api/v2/ai-gateway/anthropic/v1/messages",
 		},
 	}
 
@@ -2138,7 +2175,7 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 
 	// The proxy should route through the aibridge path using the custom
 	// provider name.
-	require.Equal(t, "/api/v2/aibridge/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
+	require.Equal(t, "/api/v2/ai-gateway/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
 	require.Equal(t, "coder-token", receivedBYOK)
 }
 

@@ -52,7 +52,7 @@
     {
       "name": "post_clone_script",
       "type": "string",
-      "description": "Custom script to run after cloning the repository. Runs always after git clone, even if the repository already exists.",
+      "description": "Custom script to run after cloning the repository.",
       "required": false,
       "sensitive": false,
       "computed": false
@@ -60,7 +60,7 @@
     {
       "name": "pre_clone_script",
       "type": "string",
-      "description": "Custom script to run before cloning the repository. Runs before git clone, even if the repository already exists.",
+      "description": "Custom script to run before cloning the repository.",
       "required": false,
       "sensitive": false,
       "computed": false

@@ -12,6 +12,7 @@ import {
 	parseBedrockRegionFromBaseUrl,
 	SAVED_CREDENTIAL_MASK,
 } from "./ProviderForm";
+import { getProviderIcon } from "./ProviderIcon";
 
 /** Drop placeholder masks so they don't round-trip back to the API. */
 const sanitizeCredential = (
@@ -53,6 +54,15 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	}
 	const s = provider.settings as SettingsWire | null;
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
+};
+
+// Server-generated STS external ID; read-only.
+export const bedrockExternalId = (provider: AIProvider): string | undefined => {
+	if (!isBedrockProvider(provider)) {
+		return undefined;
+	}
+	const s = provider.settings as SettingsWire | null;
+	return s?.external_id || undefined;
 };
 
 export const hasBedrockStoredCredentials = (provider: AIProvider): boolean => {
@@ -109,6 +119,7 @@ const buildBedrockSettings = (
 	smallFastModel: string,
 	accessKey: string,
 	accessKeySecret: string,
+	roleArn: string,
 ): BedrockSettingsWire => ({
 	_type: BEDROCK_SETTINGS_TYPE,
 	_version: BEDROCK_SETTINGS_VERSION,
@@ -117,6 +128,7 @@ const buildBedrockSettings = (
 	small_fast_model: smallFastModel,
 	...(accessKey ? { access_key: accessKey } : {}),
 	...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
+	...(roleArn ? { role_arn: roleArn } : {}),
 });
 
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
@@ -126,9 +138,11 @@ export const providerFormValuesToCreate = (
 	values: ProviderFormValues,
 ): CreateAIProviderRequest => {
 	const displayName = values.displayName.trim();
+	const icon = values.icon.trim();
 	const base: Omit<CreateAIProviderRequest, "type"> = {
 		name: values.name.trim(),
 		...(displayName ? { display_name: displayName } : {}),
+		...(icon ? { icon } : {}),
 		base_url: values.baseUrl.trim(),
 		enabled: values.enabled,
 	};
@@ -141,9 +155,10 @@ export const providerFormValuesToCreate = (
 			values.smallFastModel.trim(),
 			sanitizeCredential(values.accessKey),
 			sanitizeCredential(values.accessKeySecret),
+			values.roleArn.trim(),
 		);
 		return {
-			type: "anthropic",
+			type: "bedrock",
 			...base,
 			settings: settings as AIProviderSettings,
 		};
@@ -176,6 +191,7 @@ export const providerFormValuesToUpdate = (
 ): UpdateAIProviderRequest => {
 	const base: UpdateAIProviderRequest = {
 		display_name: values.displayName.trim(),
+		icon: values.icon.trim(),
 		enabled: values.enabled,
 		base_url: values.baseUrl.trim(),
 	};
@@ -215,6 +231,7 @@ export const providerFormValuesToUpdate = (
 		values.smallFastModel.trim(),
 		credentialsChanged ? newAccessKey : "",
 		credentialsChanged ? newAccessKeySecret : "",
+		values.roleArn.trim(),
 	);
 
 	return { ...base, settings: settings as AIProviderSettings };
@@ -233,11 +250,13 @@ export const aiProviderToFormValues = (
 			type: "bedrock",
 			name: provider.name,
 			displayName,
+			icon: provider.icon || (getProviderIcon("bedrock") ?? ""),
 			baseUrl: provider.base_url,
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
 			accessKey: "",
 			accessKeySecret: "",
+			roleArn: s.role_arn ?? "",
 			enabled: provider.enabled,
 		};
 	}
@@ -247,15 +266,18 @@ export const aiProviderToFormValues = (
 			type: "copilot",
 			name: provider.name,
 			displayName,
+			icon: provider.icon || (getProviderIcon("copilot") ?? ""),
 			baseUrl: provider.base_url,
 			enabled: provider.enabled,
 		};
 	}
 
+	const displayType = getProviderDisplayType(provider);
 	return {
-		type: getProviderDisplayType(provider),
+		type: displayType,
 		name: provider.name,
 		displayName,
+		icon: provider.icon || (getProviderIcon(displayType) ?? ""),
 		baseUrl: provider.base_url,
 		apiKey: "",
 		enabled: provider.enabled,

@@ -161,6 +161,126 @@ func TestFixOIDCLinks(t *testing.T) {
 		require.Equal(t, expectedIssuer+"||sub-correct", link.LinkedID)
 	})
 
+	t.Run("ForceResetAll", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		t.Cleanup(cancel)
+
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		db := database.New(sqlDB)
+
+		// Seed users with different issuers.
+		user1 := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user1.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://accounts.google.com||sub-1",
+		})
+
+		user2 := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user2.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://old-issuer.example.com||sub-2",
+		})
+
+		inv, _ := clitest.New(t,
+			"server", "fix-oidc-links",
+			"--postgres-url", connectionURL,
+			"--force-reset-all",
+			"--yes",
+		)
+
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Linked to other issuers:")
+		stdout.ExpectMatch(ctx, "Reset 2 linked IDs.")
+		w.RequireSuccess()
+
+		// Verify both links were reset.
+		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user1.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", link.LinkedID)
+
+		link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user2.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", link.LinkedID)
+	})
+
+	t.Run("ForceResetAllDryRun", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		t.Cleanup(cancel)
+
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		db := database.New(sqlDB)
+
+		// Seed users with different issuers.
+		user1 := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user1.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://accounts.google.com||sub-1",
+		})
+
+		user2 := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user2.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://old-issuer.example.com||sub-2",
+		})
+
+		inv, _ := clitest.New(t,
+			"server", "fix-oidc-links",
+			"--postgres-url", connectionURL,
+			"--force-reset-all",
+			"--dry-run",
+		)
+
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Total OIDC users:")
+		stdout.ExpectMatch(ctx, "Linked to other issuers:")
+		w.RequireSuccess()
+
+		// Verify no changes were made.
+		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user1.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "https://accounts.google.com||sub-1", link.LinkedID, "dry-run must not modify the database")
+
+		link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user2.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "https://old-issuer.example.com||sub-2", link.LinkedID, "dry-run must not modify the database")
+	})
+
 	t.Run("NothingToDo", func(t *testing.T) {
 		t.Parallel()
 

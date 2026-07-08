@@ -300,13 +300,11 @@ func BenchmarkSearch_ConcurrentReads_Throughput(b *testing.B) {
 				perGoroutine = 1
 			}
 			for gi := 0; gi < g; gi++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					for j := 0; j < perGoroutine; j++ {
 						_ = filefinder.SearchSnapshotForTest(plan, snap, maxCands)
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			totalOps := float64(g * perGoroutine)

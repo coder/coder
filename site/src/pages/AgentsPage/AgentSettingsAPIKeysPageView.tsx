@@ -63,13 +63,11 @@ interface ProviderKeyPanelProps {
 	isRemoving: boolean;
 	onSave: (providerConfigId: string, apiKey: string) => void;
 	onRemove: (providerConfigId: string) => void;
-	hasAmbiguousProviderType: boolean;
 }
 
 const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	provider,
 	models,
-	hasAmbiguousProviderType,
 	isModelsLoading,
 	areModelsUnavailable,
 	isSaving,
@@ -85,15 +83,9 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const status = getProviderStatus(provider);
-	const enabledModels = models.filter((model) => {
-		return (
-			model.enabled &&
-			(model.ai_provider_id === provider.provider_id ||
-				(!model.ai_provider_id &&
-					!hasAmbiguousProviderType &&
-					model.provider === provider.provider))
-		);
-	});
+	const enabledModels = models.filter(
+		(model) => model.enabled && model.ai_provider_id === provider.provider_id,
+	);
 	const hasApiKeyValue = apiKey.trim().length > 0;
 	const hasAPIKeyWhitespace =
 		apiKey !== API_KEY_PLACEHOLDER && apiKey.trim() !== apiKey;
@@ -273,14 +265,6 @@ export const AgentSettingsAPIKeysPageView: FC<
 	onSave,
 	onRemove,
 }) => {
-	const providerTypeCounts = new Map<string, number>();
-	for (const item of providerItems) {
-		providerTypeCounts.set(
-			item.provider.provider,
-			(providerTypeCounts.get(item.provider.provider) ?? 0) + 1,
-		);
-	}
-
 	return (
 		<div>
 			<section className="flex flex-col gap-8">
@@ -311,9 +295,6 @@ export const AgentSettingsAPIKeysPageView: FC<
 									isRemoving={item.isRemoving}
 									onSave={onSave}
 									onRemove={onRemove}
-									hasAmbiguousProviderType={
-										(providerTypeCounts.get(item.provider.provider) ?? 0) > 1
-									}
 								/>
 							))}
 						</div>

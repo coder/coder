@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"slices"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -26,6 +27,24 @@ const (
 	// DefaultKeyDuration is the default duration for which a key is valid. It applies to all features.
 	DefaultKeyDuration = time.Hour * 24 * 30
 )
+
+// defaultRotatedFeatures are the crypto key features the rotator manages. It
+// intentionally excludes features that are gated behind an experiment or
+// deployment flag so that a dormant feature's enum value does not cause the
+// rotator to mint keys it has no generator for. Gated features are opted in by
+// the caller that owns their generator.
+var defaultRotatedFeatures = []database.CryptoKeyFeature{
+	database.CryptoKeyFeatureWorkspaceAppsToken,
+	database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+	database.CryptoKeyFeatureOIDCConvert,
+	database.CryptoKeyFeatureTailnetResume,
+}
+
+// DefaultRotatedFeatures returns the crypto key features the rotator manages by
+// default. It excludes experiment-gated features such as the NATS CA.
+func DefaultRotatedFeatures() []database.CryptoKeyFeature {
+	return slices.Clone(defaultRotatedFeatures)
+}
 
 // rotator is responsible for rotating keys in the database.
 type rotator struct {
@@ -62,7 +81,7 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 		logger:      logger.Named("keyrotator"),
 		clock:       quartz.NewReal(),
 		keyDuration: DefaultKeyDuration,
-		features:    database.AllCryptoKeyFeatureValues(),
+		features:    defaultRotatedFeatures,
 	}
 
 	for _, opt := range opts {

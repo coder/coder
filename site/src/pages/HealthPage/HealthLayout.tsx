@@ -122,7 +122,7 @@ export const HealthLayout: FC = () => {
 							<div className="flex flex-col">
 								<span className="font-medium">Last check</span>
 								<span
-									data-chromatic="ignore"
+									data-pixel="ignore"
 									className="text-content-secondary line-height-[150%]"
 								>
 									{createDayString(healthStatus.time)}
@@ -132,7 +132,7 @@ export const HealthLayout: FC = () => {
 							<div className="flex flex-col">
 								<span className="font-medium">Version</span>
 								<span
-									data-chromatic="ignore"
+									data-pixel="ignore"
 									className="text-content-secondary line-height-[150%]"
 								>
 									{healthStatus.coder_version}

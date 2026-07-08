@@ -41,7 +41,7 @@ without restarting `coderd`.
 1. Save the provider
 
 Each provider gets its own AI Gateway route at
-`/api/v2/aibridge/<provider-name>/`.
+`/api/v2/ai-gateway/<provider-name>/`.
 
 > [!NOTE]
 > Provider names must be unique and use lowercase, hyphen-separated identifiers

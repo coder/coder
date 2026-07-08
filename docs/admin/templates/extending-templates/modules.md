@@ -73,7 +73,7 @@ for complete setup instructions.
 
 Air-gapped users can clone the [coder/registry](https://github.com/coder/registry/)
 repo and publish a
-[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/set-up-a-terraform-module/provider-registry)
+[local terraform module repository](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
 
 1. Create a local-terraform-repository with name `coder-modules-local`
@@ -122,9 +122,9 @@ Based on the instructions
 #### Example template
 
 We have an example template
-[here](https://github.com/coder/coder/blob/main/examples/jfrog/remote/main.tf)
+[here](../../../../examples/jfrog/remote/main.tf)
 that uses our
-[JFrog Docker](https://github.com/coder/coder/blob/main/examples/jfrog/docker/main.tf)
+[JFrog Docker](../../../../examples/jfrog/docker/main.tf)
 template as the underlying module.
 
 ### Private git repository
@@ -203,6 +203,6 @@ coder:
 ### Next steps
 
 - JFrog's
-  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
+  [Terraform Registry support](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 - [Configuring the JFrog toolchain inside a workspace](../../integrations/jfrog-artifactory.md)
 - [Coder Module Registry](https://registry.coder.com/modules)

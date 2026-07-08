@@ -82,6 +82,45 @@ coder_derp_server_unknown_frames_total 0
 # HELP coder_derp_server_watchers Current watchers.
 # TYPE coder_derp_server_watchers gauge
 coder_derp_server_watchers 0
+# HELP coder_nats_pubsub_connected Whether we are connected (1) or not connected (0) to nats
+# TYPE coder_nats_pubsub_connected gauge
+coder_nats_pubsub_connected 0
+# HELP coder_nats_pubsub_current_events The current number of pubsub event channels listened for
+# TYPE coder_nats_pubsub_current_events gauge
+coder_nats_pubsub_current_events 0
+# HELP coder_nats_pubsub_current_subscribers The current number of active pubsub subscribers
+# TYPE coder_nats_pubsub_current_subscribers gauge
+coder_nats_pubsub_current_subscribers 0
+# HELP coder_nats_pubsub_disconnections_total Total number of times we disconnected unexpectedly from nats
+# TYPE coder_nats_pubsub_disconnections_total counter
+coder_nats_pubsub_disconnections_total 0
+# HELP coder_nats_pubsub_latency_measure_errs_total The number of pubsub latency measurement failures
+# TYPE coder_nats_pubsub_latency_measure_errs_total counter
+coder_nats_pubsub_latency_measure_errs_total 0
+# HELP coder_nats_pubsub_latency_measures_total The number of pubsub latency measurements
+# TYPE coder_nats_pubsub_latency_measures_total counter
+coder_nats_pubsub_latency_measures_total 0
+# HELP coder_nats_pubsub_messages_total Total number of messages received from nats
+# TYPE coder_nats_pubsub_messages_total counter
+coder_nats_pubsub_messages_total{size=""} 0
+# HELP coder_nats_pubsub_published_bytes_total Total number of bytes successfully published across all publishes
+# TYPE coder_nats_pubsub_published_bytes_total counter
+coder_nats_pubsub_published_bytes_total 0
+# HELP coder_nats_pubsub_publishes_total Total number of calls to Publish
+# TYPE coder_nats_pubsub_publishes_total counter
+coder_nats_pubsub_publishes_total{success=""} 0
+# HELP coder_nats_pubsub_receive_latency_seconds The time taken to receive a message from a pubsub event channel
+# TYPE coder_nats_pubsub_receive_latency_seconds gauge
+coder_nats_pubsub_receive_latency_seconds 0
+# HELP coder_nats_pubsub_received_bytes_total Total number of bytes received across all messages
+# TYPE coder_nats_pubsub_received_bytes_total counter
+coder_nats_pubsub_received_bytes_total 0
+# HELP coder_nats_pubsub_send_latency_seconds The time taken to send a message into a pubsub event channel
+# TYPE coder_nats_pubsub_send_latency_seconds gauge
+coder_nats_pubsub_send_latency_seconds 0
+# HELP coder_nats_pubsub_subscribes_total Total number of calls to Subscribe/SubscribeWithErr
+# TYPE coder_nats_pubsub_subscribes_total counter
+coder_nats_pubsub_subscribes_total{success=""} 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0
@@ -252,13 +291,16 @@ coderd_chatd_steps_total{provider="",model=""} 0
 coderd_chatd_stream_buffer_dropped_total 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
-coderd_chatd_stream_retries_total{provider="",model="",kind="",chain_broken=""} 0
+coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
 # HELP coderd_chatd_tool_errors_total Total tool calls that returned an error result.
 # TYPE coderd_chatd_tool_errors_total counter
 coderd_chatd_tool_errors_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_tool_result_size_bytes Size in bytes of each tool execution result.
 # TYPE coderd_chatd_tool_result_size_bytes histogram
 coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
+# HELP coderd_chatd_tool_result_truncated_total Total tool results truncated to fit the model context window.
+# TYPE coderd_chatd_tool_result_truncated_total counter
+coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to first streamed chunk.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0

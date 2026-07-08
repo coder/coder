@@ -80,6 +80,11 @@ func TestSupportBundle(t *testing.T) {
 		agents[0].Env["SECRET_VALUE"] = secretValue
 		return agents
 	})
+	workspaceWithRotatedAgentLogs := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+		// This should not show up in the bundle output
+		agents[0].Env["SECRET_VALUE"] = secretValue
+		return agents
+	})
 	workspaceWithoutAgent := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, owner.UserID, nil)
 	memberWorkspace := setupSupportBundleTestFixture(setupCtx, t, api.Database, owner.OrganizationID, member.ID, nil)
 
@@ -103,6 +108,57 @@ func TestSupportBundle(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 		assertBundleContents(t, path, true, true, []string{secretValue})
+	})
+
+	t.Run("WorkspaceWithRotatedAgentLogs", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		logPath := filepath.Join(tempDir, "coder-agent.log")
+		require.NoError(t, os.WriteFile(logPath, []byte("hello from the agent"), 0o600))
+
+		rotatedPath := filepath.Join(tempDir, "coder-agent-2026-05-18T00-00-00.000.log")
+		require.NoError(t, os.WriteFile(rotatedPath, []byte("rotated log"), 0o600))
+		oldRotatedPath := filepath.Join(tempDir, "coder-agent-2026-05-17T00-00-00.000.log")
+		require.NoError(t, os.WriteFile(oldRotatedPath, []byte("old rotated log"), 0o600))
+		now := time.Now()
+		require.NoError(t, os.Chtimes(rotatedPath, now, now))
+		oldRotatedTime := now.Add(-48 * time.Hour)
+		require.NoError(t, os.Chtimes(oldRotatedPath, oldRotatedTime, oldRotatedTime))
+
+		agt := agenttest.New(t, client.URL, workspaceWithRotatedAgentLogs.AgentToken, func(o *agent.Options) {
+			o.LogDir = tempDir
+		})
+		defer agt.Close()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceWithRotatedAgentLogs.Workspace.ID).Wait()
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		inv, root := clitest.New(t, "support", "bundle", workspaceWithRotatedAgentLogs.Workspace.Name, "--output-file", path, "--yes")
+		//nolint: gocritic // requires owner privilege
+		clitest.SetupConfig(t, client, root)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		r, err := zip.OpenReader(path)
+		require.NoError(t, err, "open zip file")
+		defer r.Close()
+
+		found := false
+		for _, f := range r.File {
+			assertDoesNotContain(t, f, secretValue)
+			if f.Name != "agent/logs.txt" {
+				continue
+			}
+			found = true
+			bs := readBytesFromZip(t, f)
+			body := string(bs)
+			require.Contains(t, body, "hello from the agent")
+			require.Contains(t, body, "rotated log")
+			require.NotContains(t, body, "old rotated log")
+		}
+		require.True(t, found, "expected agent/logs.txt in bundle")
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {

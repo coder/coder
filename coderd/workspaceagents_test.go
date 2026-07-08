@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/tailcfg"
@@ -3464,6 +3466,7 @@ func TestReinit(t *testing.T) {
 				InitiatorID:       claimerID,
 				Transition:        database.WorkspaceTransitionStart,
 			}).
+			MarkPrebuiltWorkspaceClaim().
 			WithAgent()
 		if !complete {
 			builder = builder.Starting()
@@ -3562,6 +3565,52 @@ func TestReinit(t *testing.T) {
 		require.Equal(t, user.UserID, reinitEvent.OwnerID)
 	})
 
+	// Verifies that the durable claim check only applies while the
+	// latest build is the claim build. A workspace that was claimed
+	// in the past and has since had user-initiated builds must get a
+	// 409 instead of another reinit, otherwise its agent would be
+	// restarted on every /reinit reconnection for the rest of the
+	// workspace's life.
+	t.Run("workspace claimed in the past gets 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an unclaimed prebuild (build 1, completed) and claim
+		// it (build 2, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+		claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
+
+		// A later build initiated by the owner (e.g. a restart) means
+		// the claim has already been handled.
+		ws := r.Workspace
+		ws.OwnerID = user.UserID
+		laterR := dbfake.WorkspaceBuild(t, db, ws).
+			Seed(database.WorkspaceBuild{
+				TemplateVersionID: r.TemplateVersion.ID,
+				BuildNumber:       3,
+				InitiatorID:       user.UserID,
+				Transition:        database.WorkspaceTransitionStart,
+			}).
+			WithAgent().
+			Do()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(laterR.AgentToken))
+
+		// WaitForReinit should return an error wrapping a 409.
+		_, err := agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
 	// Verifies that when the claim build completed with an error,
 	// the handler returns 409 so the agent treats it as terminal
 	// and stops retrying (WaitForReinitLoop exits on any 409).
@@ -3650,4 +3699,106 @@ func (p *pubsubReinitSpy) Subscribe(event string, listener pubsub.Listener) (can
 	}
 	p.Unlock()
 	return cancel, err
+}
+
+// TestWorkspaceAgentsExternalAuthExpiresAt verifies that the expiry stored on
+// an ExternalAuthLink is returned in ExternalAuthResponse.ExpiresAt via the
+// full HTTP round-trip, covering both a non-zero and zero expiry.
+func TestWorkspaceAgentsExternalAuthExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	const providerID = "test-provider"
+
+	// seedToken is both the access token value stored in the DB and the one
+	// the fake OAuth2 provider returns. When they match, RefreshToken detects
+	// no change and skips the DB update, preserving the seeded OAuthExpiry.
+	const seedToken = "seed-token"
+
+	// newSetup creates a coderdtest server with a minimal external-auth
+	// provider that has no ValidateURL (all tokens accepted as valid) and
+	// returns seedToken so that RefreshToken does not overwrite the link.
+	newSetup := func(t *testing.T) (agentToken string, agentClient *agentsdk.Client, db database.Store, ownerID uuid.UUID) {
+		t.Helper()
+
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{
+					// Return seedToken so token.AccessToken == originalAccessToken
+					// in RefreshToken, preventing a DB update that would overwrite
+					// the seeded OAuthExpiry.
+					Token: &oauth2.Token{
+						AccessToken:  seedToken,
+						RefreshToken: "refresh-token",
+						Expiry:       dbtime.Now().Add(24 * time.Hour),
+					},
+				},
+				ID:    providerID,
+				Regex: regexp.MustCompile(`.*`),
+				Type:  codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				// ValidateURL intentionally omitted: tokens are always valid.
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+
+		ac := agentsdk.New(ownerClient.URL, agentsdk.WithFixedToken(r.AgentToken))
+		return r.AgentToken, ac, db, user.ID
+	}
+
+	t.Run("NonZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, agentClient, db, userID := newSetup(t)
+
+		// Seed a link with an 8-hour expiry and verify the response carries it.
+		want := dbtime.Now().Add(8 * time.Hour).UTC().Truncate(time.Second)
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:       providerID,
+			UserID:           userID,
+			OAuthAccessToken: seedToken,
+			OAuthExpiry:      want,
+		})
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			ID: providerID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.URL, "token should be valid, no redirect URL expected")
+		require.Equal(t, want, resp.ExpiresAt.UTC().Truncate(time.Second),
+			"ExpiresAt should match the expiry stored in the database")
+	})
+
+	t.Run("ZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, agentClient, db, userID := newSetup(t)
+
+		// dbgen.ExternalAuthLink uses takeFirst which skips zero time.Time
+		// values and fills in a 24-hour default. Insert the link directly to
+		// store an explicit zero OAuthExpiry (token never expires).
+		_, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+			ProviderID:       providerID,
+			UserID:           userID,
+			OAuthAccessToken: seedToken,
+			OAuthExpiry:      time.Time{},
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		resp, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			ID: providerID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, resp.URL)
+		require.True(t, resp.ExpiresAt.IsZero(),
+			"ExpiresAt should be zero when the token has no expiry")
+	})
 }

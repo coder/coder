@@ -66,7 +66,6 @@ import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
-import { formatProviderLabel } from "../utils/modelOptions";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -162,6 +161,11 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
+	// Re-pins the chat to the workspace's latest context snapshot,
+	// surfaced by the context indicator when the pinned context has
+	// drifted.
+	onRefreshContext?: () => void;
+	isRefreshingContext?: boolean;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -187,6 +191,10 @@ interface AgentChatInputProps {
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
+	unsupportedProviderNames?: readonly string[];
+	// AI Gateway is disabled deployment-wide, independent of provider/model
+	// configuration. Forces the setup notice regardless of the counts above.
+	aiGatewayDisabled?: boolean;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -367,6 +375,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onCancelHistoryEdit,
 	userPromptHistory = [],
 	contextUsage,
+	onRefreshContext,
+	isRefreshingContext,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -387,13 +397,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
+	unsupportedProviderNames = [],
+	aiGatewayDisabled,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
-	const showAgentSetupNotice = canConfigureAgentSetup
-		? providerCount !== undefined &&
-			modelCount !== undefined &&
-			(providerCount === 0 || modelCount === 0)
-		: modelCount !== undefined && modelCount === 0;
+	const showAgentSetupNotice =
+		aiGatewayDisabled ||
+		(canConfigureAgentSetup
+			? providerCount !== undefined &&
+				modelCount !== undefined &&
+				(providerCount === 0 || modelCount === 0)
+			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -631,15 +645,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
 			const visibleViewportTop = viewport?.offsetTop ?? 0;
 			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
-			// Distance from the fixed-position viewport bottom to a point
-			// just above the composer's top edge.
+			// Keep the dropdown's bottom edge above the software keyboard,
+			// which covers the bottom of the layout viewport without moving
+			// fixed-positioned elements.
+			const keyboardInset = viewport
+				? Math.max(
+						0,
+						fixedViewportBottom - (viewport.offsetTop + viewport.height),
+					)
+				: 0;
 			const aboveComposerBottom = Math.max(
 				0,
 				fixedViewportBottom - rect.top + composerGap,
+				keyboardInset + composerGap,
 			);
+			const dropdownBottomEdgeTop = fixedViewportBottom - aboveComposerBottom;
 			const maxHeightCandidates = [
-				rect.top - visibleViewportTop - composerGap - viewportPadding,
-				rect.top - composerGap - viewportPadding,
+				dropdownBottomEdgeTop - visibleViewportTop - viewportPadding,
+				dropdownBottomEdgeTop - viewportPadding,
 			].filter((height) => height > 0);
 			const aboveComposerMaxHeight = Math.max(
 				minimumMenuHeight,
@@ -1056,19 +1079,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 mb-[-2.5rem]">
-					{canConfigureAgentSetup &&
-					providerCount !== undefined &&
-					modelCount !== undefined ? (
+					{(aiGatewayDisabled ||
+						(providerCount !== undefined && modelCount !== undefined)) &&
+					canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
-							providerCount={providerCount}
-							modelCount={modelCount}
+							providerCount={providerCount ?? 0}
+							modelCount={modelCount ?? 0}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
 						/>
 					) : (
 						<AgentSetupNotice
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							unsupportedProviderNames={unsupportedProviderNames}
+							aiGatewayDisabled={aiGatewayDisabled}
 						/>
 					)}
 				</div>
@@ -1397,10 +1424,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
 								className="md:shrink"
 								dropdownSide="top"
-								dropdownAlign="center"
+								dropdownAlign="start"
 								enableMobileFullWidthDropdown
 							/>
 						)}
@@ -1537,7 +1563,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator usage={contextUsage} />
+							<ContextUsageIndicator
+								usage={contextUsage}
+								onRefreshContext={onRefreshContext}
+								isRefreshingContext={isRefreshingContext}
+							/>
 						)}
 						{isStreaming && onInterrupt && (
 							<Button

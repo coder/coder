@@ -1,4 +1,6 @@
+import { BadgeCheckIcon } from "lucide-react";
 import { useId } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Link } from "#/components/Link/Link";
 import { cn } from "#/utils/cn";
 
@@ -7,6 +9,7 @@ type TemplateCardProps = {
 	description: string;
 	iconUrl?: string;
 	detailsUrl: string;
+	official?: boolean;
 	selected?: boolean;
 	onSelect?: () => void;
 };
@@ -16,6 +19,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 	description,
 	iconUrl,
 	detailsUrl,
+	official = true,
 	selected = false,
 	onSelect,
 }) => {
@@ -42,13 +46,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			}}
 		>
 			<div className="flex items-start justify-between mb-3">
-				<div className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border">
-					{iconUrl ? (
-						<img src={iconUrl} alt="" className="size-7 object-contain" />
-					) : (
-						<div className="size-7 rounded bg-surface-primary" />
-					)}
-				</div>
+				<Avatar src={iconUrl} size="lg" variant="icon" />
 				<div
 					aria-hidden="true"
 					className={cn(
@@ -63,8 +61,14 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			</div>
 
 			<div>
-				<h3 id={nameId} className="text-md font-semibold text-content-primary">
+				<h3
+					id={nameId}
+					className="flex items-center gap-1.5 text-md font-semibold text-content-primary"
+				>
 					{name}
+					{official && (
+						<BadgeCheckIcon className="size-4 text-highlight-sky shrink-0" />
+					)}
 				</h3>
 				<div>
 					<p className="text-sm font-normal text-content-secondary">
@@ -76,7 +80,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 						target="_blank"
 						className="text-sm font-normal"
 					>
-						View Details
+						View details
 					</Link>
 				</div>
 			</div>

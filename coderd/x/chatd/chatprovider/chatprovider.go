@@ -2,9 +2,10 @@ package chatprovider
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	neturl "net/url"
-	"sort"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -45,15 +46,60 @@ var providerDisplayNameByName = map[string]string{
 	fantasyopenaicompat.Name: "OpenAI Compatible",
 	fantasyopenrouter.Name:   "OpenRouter",
 	fantasyvercel.Name:       "Vercel AI Gateway",
+	// Copilot is unsupported but still needs a display name for the
+	// unsupported list and AI Settings.
+	string(codersdk.AIProviderTypeCopilot): "GitHub Copilot",
 }
 
 // ProviderDisplayName returns a default display name for a provider.
 func ProviderDisplayName(provider string) string {
 	normalized := NormalizeProvider(provider)
+	if normalized == "" {
+		// Fall back for providers the harness cannot normalize, like copilot.
+		normalized = strings.ToLower(strings.TrimSpace(provider))
+	}
 	if displayName, ok := providerDisplayNameByName[normalized]; ok {
 		return displayName
 	}
 	return normalized
+}
+
+// AgentsSupportsProvider reports whether the Agents harness can use the
+// provider type.
+func AgentsSupportsProvider(provider string) bool {
+	providerType := codersdk.AIProviderType(strings.ToLower(strings.TrimSpace(provider)))
+	if codersdk.IsAgentsUnsupportedProviderType(providerType) {
+		return false
+	}
+	return NormalizeProvider(provider) != ""
+}
+
+// UnsupportedProviders returns the configured providers the Agents harness
+// cannot use, deduplicated by provider type.
+func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupportedProvider {
+	seen := make(map[string]struct{}, len(configured))
+	unsupported := make([]codersdk.ChatUnsupportedProvider, 0)
+	for _, provider := range configured {
+		if AgentsSupportsProvider(provider.Provider) {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(provider.Provider))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		unsupported = append(unsupported, codersdk.ChatUnsupportedProvider{
+			Provider:    key,
+			DisplayName: ProviderDisplayName(provider.Provider),
+		})
+	}
+	slices.SortFunc(unsupported, func(a, b codersdk.ChatUnsupportedProvider) int {
+		return strings.Compare(a.Provider, b.Provider)
+	})
+	return unsupported
 }
 
 // ProviderAllowsAmbientCredentials reports whether provider can use
@@ -73,6 +119,50 @@ func InlineImageCapBytes(provider string) (int, bool) {
 		return codersdk.AnthropicInlineImageCapBytes, true
 	default:
 		return 0, false
+	}
+}
+
+// AcceptsFilePartMediaType reports whether provider accepts mediaType
+// as a file content part rather than silently dropping it. modelID
+// distinguishes API paths within a provider (e.g. OpenAI Responses vs
+// Chat Completions). Unknown providers return false so callers convert
+// text-family content to text and guarantee the model still sees it.
+func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
+	baseType := mediaType
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		baseType = parsed
+	}
+	isImage := strings.HasPrefix(baseType, "image/")
+	isText := strings.HasPrefix(baseType, "text/")
+	// Audio types are included for matrix completeness but are not
+	// currently reachable: no audio type is in the storable attachment
+	// allowlist (codersdk.AllChatAttachmentMediaTypes).
+	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
+	isPDF := baseType == "application/pdf"
+
+	switch NormalizeProvider(provider) {
+	case fantasygoogle.Name:
+		// Google passes any file part through unfiltered.
+		return true
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		// Bedrock wraps the anthropic client, so it shares the same
+		// file-part acceptance, including text/* as native documents.
+		return isImage || isText || isPDF
+	case fantasyopenai.Name, fantasyazure.Name:
+		// chatd configures both with WithUseResponsesAPI, but only
+		// Responses-capable models actually use it. Non-Responses models
+		// fall through to the Chat Completions path, which accepts
+		// text/* and audio as native file parts (same as openaicompat).
+		if fantasyopenai.IsResponsesModel(modelID) {
+			return isImage || isPDF
+		}
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenaicompat.Name:
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		return isImage || isAudio || isPDF
+	default:
+		return false
 	}
 }
 
@@ -570,8 +660,8 @@ func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 }
 
 func sortChatModels(models []codersdk.ChatModel) {
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].Model < models[j].Model
+	slices.SortFunc(models, func(a, b codersdk.ChatModel) int {
+		return strings.Compare(a.Model, b.Model)
 	})
 }
 
@@ -689,13 +779,13 @@ func parseCanonicalModelRef(modelRef string) (provider string, model string, ok 
 	}
 
 	for _, separator := range []string{":", "/"} {
-		parts := strings.SplitN(modelRef, separator, 2)
-		if len(parts) != 2 {
+		before, after, found := strings.Cut(modelRef, separator)
+		if !found {
 			continue
 		}
 
-		provider := NormalizeProvider(parts[0])
-		modelID := strings.TrimSpace(parts[1])
+		provider := NormalizeProvider(before)
+		modelID := strings.TrimSpace(after)
 		if provider != "" && modelID != "" {
 			return provider, modelID, true
 		}

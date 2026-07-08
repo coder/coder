@@ -5,8 +5,6 @@ interface SectionHeaderProps {
 	description?: string;
 	badge?: ReactNode;
 	action?: ReactNode;
-	/** Controls heading size. "page" (default) renders a larger h2,
-	 *  "section" renders a smaller h3 for sub-sections. */
 	level?: "page" | "section";
 }
 

@@ -3,7 +3,10 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatContextClean,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider } from "#/testHelpers/storybook";
@@ -332,6 +335,23 @@ export const NoModelOptions: Story = {
 	},
 };
 
+export const AIGatewayDisabledShowsSetupNotice: Story = {
+	args: {
+		// canConfigureAgentSetup: false and providerCount/modelCount left
+		// undefined simulates the model-catalog query still loading, which
+		// used to make an admin briefly see the wrong copy before this was
+		// fixed to short-circuit on aiGatewayDisabled directly.
+		canConfigureAgentSetup: false,
+		aiGatewayDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Enable it in your deployment config/),
+		).toBeInTheDocument();
+	},
+};
+
 export const LoadingSpinner: Story = {
 	args: {
 		isDisabled: true,
@@ -610,9 +630,7 @@ export const LargePasteCreatesAttachmentPreview: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -645,9 +663,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 		onRemoveAttachment: fn(),
 	},
 	parameters: {
-		chromatic: {
-			disableSnapshot: true,
-		},
+		pixel: { exclude: true },
 	},
 	play: async ({ canvasElement, args }) => {
 		const target = getPasteTarget(canvasElement);
@@ -1188,32 +1204,12 @@ export const WithContextUsage: Story = {
 	},
 };
 
-/** Tooltip includes loaded AGENTS.md files and discovered skills. */
+/** Tooltip lists the chat's pinned context resources. */
 export const WithContextFiles: Story = {
 	args: {
 		contextUsage: {
 			...baseContextUsage,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/.claude/docs/WORKFLOWS.md",
-					context_file_truncated: true,
-				},
-				{
-					type: "skill" as const,
-					skill_name: "pull-requests",
-					skill_description: "Guide for creating and updating pull requests",
-				},
-				{
-					type: "skill" as const,
-					skill_name: "deep-review",
-					skill_description: "Multi-reviewer code review",
-				},
-			] as TypesGen.ChatMessagePart[],
+			context: MockChatContextClean,
 		},
 	},
 };
@@ -1228,12 +1224,6 @@ export const ContextNearLimit: Story = {
 			outputTokens: 20_000,
 			cacheReadTokens: 4_000,
 			compressionThreshold: 90,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-			] as TypesGen.ChatMessagePart[],
 		},
 	},
 };

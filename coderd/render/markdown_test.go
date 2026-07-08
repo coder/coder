@@ -87,3 +87,59 @@ func TestHTML(t *testing.T) {
 		})
 	}
 }
+
+func TestInnerTextFromMarkdown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"LinkTextKeptUrlDropped", "Use [Coder](https://coder.com/docs) now.", "Use Coder now."},
+		{"ImageDropped", "# T\n\n![alt](a.svg)\n\nBody.", "T\nBody."},
+		{"BadgeDropped", "[![discord](shield.png)](https://discord.gg/x)\n\nReal.", "Real."},
+		{"CodeBlockLinesKept", "Intro.\n\n```sh\nnpm install\nnpm run dev\n```\n\nOutro.", "Intro.\nnpm install\nnpm run dev\nOutro."},
+		{"TableCellsKept", "Before.\n\n| env | required |\n|---|---|\n| FOO | yes |\n\nAfter.", "Before.\nenv\nrequired\nFOO\nyes\nAfter."},
+		{"HtmlInnerTextKept", "<p>Important: needs GPU.</p>", "Important: needs GPU."},
+		{
+			// Markdown nested inside a block-level HTML wrapper must still be
+			// parsed (CommonMark terminates the HTML block at the blank line):
+			// nav links collapse to text, badges drop. Regresses the gomarkdown
+			// behavior that leaked raw badge markdown with URLs.
+			"MarkdownInsideHtmlBlock",
+			"<div align=\"center\">\n  <img src=\"logo.png\" alt=\"Logo\">\n</div>\n\n" +
+				"[Docs](https://x.com/docs) | [Why](https://x.com/why)\n\n" +
+				"[![badge](https://img.shields.io/x.svg)](https://x.com)\n\nReal prose.",
+			"Docs | Why\nReal prose.",
+		},
+		{"ScriptDropped", "Before.\n\n<script>alert('x')</script>\n\nAfter.", "Before.\nAfter."},
+		// An empty-body <script src=...> must not leave the skip armed and eat the
+		// next text run (guards the skipNextText reset on non-text tokens).
+		{"ScriptSrcEmptyBody", "Before.\n\n<script src=\"x.js\"></script>\n\nAfter.", "Before.\nAfter."},
+		{"StyleDropped", "Before.\n\n<style>.x{color:red}</style>\n\nAfter.", "Before.\nAfter."},
+		// A bare </script> in prose must not underflow the skip and swallow what
+		// follows.
+		{"BareScriptCloseNoUnderflow", "Before.\n\n</script>\n\nAfter.", "Before.\nAfter."},
+		// An unterminated raw-text element is, per the HTML spec, a single run to
+		// EOF, so the remainder is unavoidably consumed; it must not error.
+		{"UnterminatedScriptEatsRest", "Intro.\n\n<script>\nvar x = 1;\n\nMore prose.", "Intro."},
+		{"EmphasisAndCodeSpanFlattened", "Run `make` for **speed**.", "Run make for speed."},
+		{"HeadingParagraphOrder", "# Title\n\nLead.\n\n## Prereq\n\nDetail.", "Title\nLead.\nPrereq\nDetail."},
+		// Straight ASCII punctuation must stay ASCII (goldmark applies no
+		// Typographer), and existing smart punctuation passes through unchanged.
+		// The smart characters are \u-escaped so the docs linter does not rewrite
+		// them back to ASCII in source.
+		{"PunctuationNotRewritten", "Range 10\u201420, \"q\", ... and smart \u201cq\u201d \u2014 \u2026", "Range 10\u201420, \"q\", ... and smart \u201cq\u201d \u2014 \u2026"},
+		{"EmptyReturnsEmpty", "", ""},
+		{"WhitespaceReturnsEmpty", "   \n\t\n", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := render.InnerTextFromMarkdown(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}

@@ -294,7 +294,29 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 //
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
-	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+	// The string values must be escaped in case there are special characters, quotes, etc.
+	// 'NameOrganizationPair' is a composite value, which has no driver handler
+	// in the `pq` package.
+	//
+	// pq.StringArray formats the single name as `{"<escaped>"}`. Strip
+	// the outer braces to get the quoted+escaped form that composite
+	// literal syntax accepts unchanged.
+	//
+	// Ideally `appendArrayQuotedBytes` would be exported, and we could call
+	// it directly.
+	v, err := (&pq.StringArray{a.Name}).Value()
+	if err != nil {
+		return nil, err
+	}
+
+	s, ok := v.(string)
+	if !ok {
+		return nil, xerrors.Errorf("unexpected type %T", v)
+	}
+
+	stripCurlyBraces := s[1 : len(s)-1]
+
+	return fmt.Sprintf("(%s,%s)", stripCurlyBraces, a.OrganizationID.String()), nil
 }
 
 // AgentIDNamePair is used as a result tuple for workspace and agent rows.

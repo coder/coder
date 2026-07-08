@@ -40,8 +40,7 @@ To configure Coder Agents:
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
-1. Navigate to the **Agents** page, open **Settings** > **Manage Agents**, and
-   select **Models**.
+1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Click **Add** and configure at least one model with its identifier, display
    name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -125,15 +124,24 @@ immediately with no provisioning delay.
 
 ## Optimize your templates
 
-The agent selects templates based on their **name and description** — it does
-not read Terraform. Clear, specific descriptions are the most important factor
-in whether the agent picks the right template.
+The agent selects templates based on their **name, description, and README**.
+It does not read Terraform. Clear, specific descriptions are the most important
+factor in whether the agent picks the right template.
 
 Update your template descriptions to include:
 
 - The language, framework, or stack the template targets.
 - Which repository or service it is for, if applicable.
 - What type of work it supports (backend, frontend, data pipeline, etc.).
+
+When 128 characters is not enough, put the most important routing context near
+the top of the template's
+[`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
+The chat agent's template listing includes a bounded README excerpt (roughly the
+first 1,000 characters), and template detail includes the README (up to roughly
+8,000 characters). Both are reduced to plain text: frontmatter is stripped,
+link text is kept while link URLs are dropped, images and badges are dropped
+entirely, and code blocks and tables are preserved as text.
 
 **Good examples:**
 
@@ -187,8 +195,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **Agents** > **Settings** >
-**Manage Agents** > **Instructions**
+Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -217,8 +224,8 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing under **Agents** > **Settings** >
-  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
+- Setting per-model token pricing under **Admin settings** > **AI** >
+  **Models** (Input Price, Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
