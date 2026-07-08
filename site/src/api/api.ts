@@ -213,7 +213,7 @@ export type GroupMemberAICostControl = Readonly<{
 	current_spend_micros: number;
 	spend_limit_micros: number | null;
 	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
+	limit_source: "group" | "user_override" | null;
 }>;
 export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
 	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
@@ -228,7 +228,7 @@ export type UserAISpend = Readonly<{
 	user_id: string;
 	spend_limit_micros: number | null;
 	effective_group_id: string | null;
-	limit_source: "group" | "override" | null;
+	limit_source: "group" | "user_override" | null;
 	current_spend_micros: number;
 	// period_start inclusive, period_end exclusive.
 	period_start: string;
