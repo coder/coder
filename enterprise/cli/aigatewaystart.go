@@ -84,6 +84,12 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
 	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
 	"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
+	// The standalone gateway performs WIF token exchanges itself, so
+	// the operator of this process must bless the identity token
+	// files it may read. Provider env config is coderd-only, so the
+	// env-pair trust path never applies here and the explicit
+	// allowlist is the only way to enable WIF providers.
+	"CODER_AI_GATEWAY_WIF_ALLOWED_IDENTITY_TOKEN_FILES": {},
 
 	// Prometheus
 	"CODER_PROMETHEUS_ADDRESS": {},
