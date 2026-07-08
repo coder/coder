@@ -161,13 +161,13 @@ func sectionFor(root *node, g *serpent.Group) *node {
 		return root.child(generalSection)
 	}
 	cur := root
-	for _, anc := range g.Ancestry() {
-		if anc.Name == "" {
+	for _, ancestor := range g.Ancestry() {
+		if ancestor.Name == "" {
 			return root.child(generalSection)
 		}
-		cur = cur.child(anc.Name)
+		cur = cur.child(ancestor.Name)
 		if cur.intro == "" {
-			cur.intro = collapse(anc.Description)
+			cur.intro = collapse(ancestor.Description)
 		}
 	}
 	return cur
@@ -342,12 +342,12 @@ func shortTitle(opt serpent.Option) string {
 // last ": " once the leading segment belongs to the top-level group. Names
 // that do not repeat the group are returned unchanged.
 func stripGroupPrefix(name string, g *serpent.Group) string {
-	anc := g.Ancestry()
-	if len(anc) == 0 {
+	ancestry := g.Ancestry()
+	if len(ancestry) == 0 {
 		return name
 	}
-	names := make([]string, len(anc))
-	for i, a := range anc {
+	names := make([]string, len(ancestry))
+	for i, a := range ancestry {
 		names[i] = a.Name
 	}
 
