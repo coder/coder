@@ -56,6 +56,14 @@ func regoPartialInputValue(subject Subject, action policy.Action, objectType str
 			[2]*ast.Term{
 				ast.StringTerm("type"),
 				ast.StringTerm(objectType),
+			},
+			// acl_use_gated is derived from the object type, so it is known
+			// even in partial evaluations. Including it here lets the ACL
+			// use_shared precondition resolve at prepare time instead of
+			// leaking into the residual queries.
+			[2]*ast.Term{
+				ast.StringTerm("acl_use_gated"),
+				ast.BooleanTerm(ACLUseGated(objectType)),
 			}),
 		),
 	}
@@ -131,6 +139,12 @@ func (z Object) regoValue() ast.Value {
 		[2]*ast.Term{
 			ast.StringTerm("type"),
 			ast.StringTerm(z.Type),
+		},
+		// acl_use_gated is derived from the object type via the policy
+		// action sets, not stored on the object. See ACLUseGated.
+		[2]*ast.Term{
+			ast.StringTerm("acl_use_gated"),
+			ast.BooleanTerm(ACLUseGated(z.Type)),
 		},
 		[2]*ast.Term{
 			ast.StringTerm("acl_user_list"),

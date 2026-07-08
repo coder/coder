@@ -239,7 +239,9 @@ func OrgWorkspaceAccessMemberPerms() []Permission {
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 
 		// Dormant workspaces share the workspace action set minus the
-		// build, ssh, and exec actions.
+		// build, ssh, and exec actions. use_shared is included so ACL
+		// recipients keep access to shared workspaces that go dormant;
+		// workspace_dormant declares use_shared, making it ACL-gated.
 		ResourceWorkspaceDormant.Type: {
 			policy.ActionRead,
 			policy.ActionDelete,
@@ -249,6 +251,7 @@ func OrgWorkspaceAccessMemberPerms() []Permission {
 			policy.ActionCreateAgent,
 			policy.ActionDeleteAgent,
 			policy.ActionUpdateAgent,
+			policy.ActionUseShared,
 		},
 
 		// Upload and read template files used during workspace build
@@ -614,7 +617,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// with site-wide auditors and owners.
 							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration, ResourceAibridgeInterception),
 							Permissions(map[string][]policy.Action{
-								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH, policy.ActionUseShared),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 								// PrebuiltWorkspaces are a subset of Workspaces.
 								// Explicitly setting PrebuiltWorkspace permissions for clarity.

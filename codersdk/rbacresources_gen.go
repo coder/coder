@@ -75,6 +75,7 @@ const (
 	ActionUpdateAgent        RBACAction = "update_agent"
 	ActionUpdatePersonal     RBACAction = "update_personal"
 	ActionUse                RBACAction = "use"
+	ActionUseShared          RBACAction = "use_shared"
 	ActionViewInsights       RBACAction = "view_insights"
 	ActionWorkspaceStart     RBACAction = "start"
 	ActionWorkspaceStop      RBACAction = "stop"
@@ -128,10 +129,10 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceUserSecret:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceUserSkill:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWebpushSubscription:           {ActionCreate, ActionDelete, ActionRead},
-	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
+	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent, ActionUseShared},
 	ResourceWorkspaceAgentDevcontainers:   {ActionCreate},
 	ResourceWorkspaceAgentResourceMonitor: {ActionCreate, ActionRead, ActionUpdate},
 	ResourceWorkspaceBuildOrchestration:   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
+	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent, ActionUseShared},
 	ResourceWorkspaceProxy:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 }

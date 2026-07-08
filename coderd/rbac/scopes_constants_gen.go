@@ -160,6 +160,7 @@ const (
 	ScopeWorkspaceStop                       ScopeName = "workspace:stop"
 	ScopeWorkspaceUpdate                     ScopeName = "workspace:update"
 	ScopeWorkspaceUpdateAgent                ScopeName = "workspace:update_agent"
+	ScopeWorkspaceUseShared                  ScopeName = "workspace:use_shared"
 	ScopeWorkspaceAgentDevcontainersCreate   ScopeName = "workspace_agent_devcontainers:create"
 	ScopeWorkspaceAgentResourceMonitorCreate ScopeName = "workspace_agent_resource_monitor:create"
 	ScopeWorkspaceAgentResourceMonitorRead   ScopeName = "workspace_agent_resource_monitor:read"
@@ -180,6 +181,7 @@ const (
 	ScopeWorkspaceDormantStop                ScopeName = "workspace_dormant:stop"
 	ScopeWorkspaceDormantUpdate              ScopeName = "workspace_dormant:update"
 	ScopeWorkspaceDormantUpdateAgent         ScopeName = "workspace_dormant:update_agent"
+	ScopeWorkspaceDormantUseShared           ScopeName = "workspace_dormant:use_shared"
 	ScopeWorkspaceProxyCreate                ScopeName = "workspace_proxy:create"
 	ScopeWorkspaceProxyDelete                ScopeName = "workspace_proxy:delete"
 	ScopeWorkspaceProxyRead                  ScopeName = "workspace_proxy:read"
@@ -348,6 +350,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceStop,
 		ScopeWorkspaceUpdate,
 		ScopeWorkspaceUpdateAgent,
+		ScopeWorkspaceUseShared,
 		ScopeWorkspaceAgentDevcontainersCreate,
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
@@ -368,6 +371,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
 		ScopeWorkspaceDormantUpdateAgent,
+		ScopeWorkspaceDormantUseShared,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
@@ -537,6 +541,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceStop,
 		ScopeWorkspaceUpdate,
 		ScopeWorkspaceUpdateAgent,
+		ScopeWorkspaceUseShared,
 		ScopeWorkspaceAgentDevcontainersCreate,
 		ScopeWorkspaceAgentResourceMonitorCreate,
 		ScopeWorkspaceAgentResourceMonitorRead,
@@ -557,6 +562,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
 		ScopeWorkspaceDormantUpdateAgent,
+		ScopeWorkspaceDormantUseShared,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,

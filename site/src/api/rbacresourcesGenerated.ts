@@ -250,6 +250,7 @@ export const RBACResourceActions: Partial<
 		stop: "allows stopping a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 		update_agent: "update an existing workspace agent",
+		use_shared: "use a workspace shared with you via ACL",
 	},
 	workspace_agent_devcontainers: {
 		create: "create workspace agent devcontainers",
@@ -278,6 +279,7 @@ export const RBACResourceActions: Partial<
 		stop: "allows stopping a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 		update_agent: "update an existing workspace agent",
+		use_shared: "use a workspace shared with you via ACL",
 	},
 	workspace_proxy: {
 		create: "create a workspace proxy",

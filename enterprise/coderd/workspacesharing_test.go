@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -511,4 +512,75 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		require.Len(t, acl.Users, 1)
 		require.Equal(t, sharedUser.ID, acl.Users[0].ID)
 	})
+}
+
+// TestWorkspaceSharingUseSharedPrecondition verifies that workspace ACL
+// grants require the recipient to hold the workspace.use_shared capability
+// (carried by organization-workspace-access): ineligible recipients are
+// rejected at share time, and revoking the capability later revokes the
+// shared access even though the ACL entry remains.
+func TestWorkspaceSharingUseSharedPrecondition(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentMinimumImplicitMember)}
+	client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureMultipleOrganizations: 1,
+			},
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// Strip workspace access from the implicit member roles so that plain
+	// members are gateway-style accounts without workspace.use_shared.
+	//nolint:gocritic // Only owners can update organization settings.
+	_, err := client.UpdateOrganization(ctx, owner.OrganizationID.String(), codersdk.UpdateOrganizationRequest{
+		DefaultOrgMemberRoles: ptr.Ref([]string{}),
+	})
+	require.NoError(t, err)
+
+	// The workspace owner keeps workspace access via an explicit role.
+	wsOwnerClient, wsOwner := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgWorkspaceAccess(owner.OrganizationID))
+	ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OwnerID:        wsOwner.ID,
+		OrganizationID: owner.OrganizationID,
+	}).Do().Workspace
+
+	_, gatewayUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	fullClient, fullUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgWorkspaceAccess(owner.OrganizationID))
+
+	// Sharing with a member lacking workspace access is rejected at share
+	// time.
+	err = wsOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{
+			gatewayUser.ID.String(): codersdk.WorkspaceRoleUse,
+		},
+	})
+	var apiErr *codersdk.Error
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	require.Contains(t, apiErr.Message, "Invalid request to update workspace ACL")
+
+	// Sharing with a workspace-capable member succeeds and grants access.
+	err = wsOwnerClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+		UserRoles: map[string]codersdk.WorkspaceRole{
+			fullUser.ID.String(): codersdk.WorkspaceRoleUse,
+		},
+	})
+	require.NoError(t, err)
+	_, err = fullClient.Workspace(ctx, ws.ID)
+	require.NoError(t, err)
+
+	// Revoking the recipient's workspace access role revokes the shared
+	// access at authorization time; the ACL entry remains but is inert.
+	//nolint:gocritic // Only owners can update member roles.
+	_, err = client.UpdateOrganizationMemberRoles(ctx, owner.OrganizationID, fullUser.ID.String(), codersdk.UpdateRoles{Roles: []string{}})
+	require.NoError(t, err)
+
+	_, err = fullClient.Workspace(ctx, ws.ID)
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 }

@@ -328,11 +328,46 @@ object_is_included_in_scope_allow_list if {
 # ACL rules                                                                    #
 #==============================================================================#
 
+# shared_use_orgs is the set of organizations in which the subject holds
+# the object type's use_shared action at the member level. ACL grants on
+# gated resource types (input.object.acl_use_gated) only take effect in
+# these orgs, so revoking the roles that carry the capability also revokes
+# access granted through sharing. Each org's inclusion follows the same
+# vote semantics as the other levels: a matching negated permission
+# removes the org even when a positive grant exists. The set derives from
+# subject roles and the object type, both known at prepare time, keeping
+# unknown object attributes out of the comprehensions for partial
+# evaluation.
+shared_use_orgs := {org_id |
+	org_id := org_memberships[_]
+	allow := {is_allowed |
+		perm := input.subject.roles[_].by_org_id[org_id].member[_]
+		perm.resource_type in [input.object.type, "*"]
+		perm.action in ["use_shared", "*"]
+		is_allowed := bool_flip(perm.negate)
+	}
+	to_vote(allow) == 1
+}
+
+# acl_use_precondition gates ACL grants on resource types that declare the
+# use_shared action in their policy action set. The flag is derived from
+# the object type in Go (rbac.ACLUseGated) and passed as a known input
+# field. Types that do not declare use_shared rely on ACL-only grants by
+# design and are unaffected.
+acl_use_precondition if {
+	not input.object.acl_use_gated
+}
+
+acl_use_precondition if {
+	input.object.org_owner in shared_use_orgs
+}
+
 # ACL for users
 acl_allow if {
 	# The subject must be a member of the object's organization for a
 	# user ACL grant to apply.
 	is_org_member
+	acl_use_precondition
 	perms := input.object.acl_user_list[input.subject.id]
 
 	# Check if either the action or * is allowed
@@ -345,6 +380,7 @@ acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
 	# org-scoped group.
 	is_org_member
+	acl_use_precondition
 	some group in input.subject.groups
 	perms := input.object.acl_group_list[group]
 
@@ -358,6 +394,7 @@ acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
 	# org-scoped group.
 	is_org_member
+	acl_use_precondition
 	perms := input.object.acl_group_list[input.object.org_owner]
 
 	# Check if either the action or * is allowed

@@ -762,6 +762,7 @@ export type APIKeyScope =
 	| "workspace_dormant:stop"
 	| "workspace_dormant:update"
 	| "workspace_dormant:update_agent"
+	| "workspace_dormant:use_shared"
 	| "workspace_proxy:*"
 	| "workspace_proxy:create"
 	| "workspace_proxy:delete"
@@ -773,7 +774,8 @@ export type APIKeyScope =
 	| "workspace:start"
 	| "workspace:stop"
 	| "workspace:update"
-	| "workspace:update_agent";
+	| "workspace:update_agent"
+	| "workspace:use_shared";
 
 export const APIKeyScopes: APIKeyScope[] = [
 	"ai_gateway_key:*",
@@ -1002,6 +1004,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:stop",
 	"workspace_dormant:update",
 	"workspace_dormant:update_agent",
+	"workspace_dormant:use_shared",
 	"workspace_proxy:*",
 	"workspace_proxy:create",
 	"workspace_proxy:delete",
@@ -1014,6 +1017,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace:stop",
 	"workspace:update",
 	"workspace:update_agent",
+	"workspace:use_shared",
 ];
 
 // From codersdk/apikey.go
@@ -7224,6 +7228,7 @@ export type RBACAction =
 	| "update_agent"
 	| "update_personal"
 	| "use"
+	| "use_shared"
 	| "view_insights"
 	| "start"
 	| "stop";
@@ -7244,6 +7249,7 @@ export const RBACActions: RBACAction[] = [
 	"update_agent",
 	"update_personal",
 	"use",
+	"use_shared",
 	"view_insights",
 	"start",
 	"stop",

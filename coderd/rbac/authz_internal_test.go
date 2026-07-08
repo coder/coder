@@ -471,7 +471,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		},
 	}
 
-	workspaceExceptConnect := slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
+	workspaceExceptConnect := slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH, policy.ActionUseShared)
 	workspaceConnect := []policy.Action{policy.ActionApplicationConnect, policy.ActionSSH}
 	testAuthorize(t, "OrgAdmin", user, []authTestCase{
 		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: true},
@@ -918,8 +918,8 @@ func TestAuthorizeLevels(t *testing.T) {
 
 	testAuthorize(t, "OrgAllowAll", user,
 		cases(func(c authTestCase) authTestCase {
-			// SSH and app connect are not implied here.
-			c.actions = slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH)
+			// SSH, app connect, and shared use are not implied here.
+			c.actions = slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH, policy.ActionUseShared)
 			return c
 		}, []authTestCase{
 			// Org + me
