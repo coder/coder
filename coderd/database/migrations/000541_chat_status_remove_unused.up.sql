@@ -3,10 +3,19 @@
 -- backend anymore; the valid set is exactly what the state machine
 -- recognizes: waiting, running, error, requires_action, interrupting.
 
--- Remap any historical rows to 'waiting', the idle resting state and the
--- column default. The column type is still the original chat_status here.
+-- Remap any historical rows to the closest valid status. The column type
+-- is still the original chat_status here.
+--
+-- 'pending' meant queued work that no runner had picked up yet, so remap
+-- it to 'running': the worker acquisition query picks up 'running' chats
+-- without a worker and services them.
+UPDATE chats SET status = 'running'
+WHERE status = 'pending';
+
+-- 'paused' and 'completed' were settled states; 'waiting' is the idle
+-- resting state and the column default.
 UPDATE chats SET status = 'waiting'
-WHERE status IN ('pending', 'paused', 'completed');
+WHERE status IN ('paused', 'completed');
 
 -- The partial index's WHERE clause references 'pending', which is being
 -- removed. The index is obsolete now that the legacy AcquireChats query

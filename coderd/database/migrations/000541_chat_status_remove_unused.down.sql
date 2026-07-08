@@ -1,4 +1,5 @@
 -- No-op: the removed enum values are not restored, matching prior art such
 -- as 000377 and 000384. Restoring them would require another
 -- rename-create-cast-drop cycle, and the data cannot be restored anyway:
--- rows remapped to 'waiting' by the up migration would stay 'waiting'.
+-- rows remapped to 'running' or 'waiting' by the up migration keep their
+-- new status.
