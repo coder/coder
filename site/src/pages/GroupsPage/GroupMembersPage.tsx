@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { addMembers, groupAIBudget, removeMember } from "#/api/queries/groups";
-import { meAISpend } from "#/api/queries/users";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -41,15 +40,17 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
-import { GroupMemberBudgetCells } from "./GroupMemberBudgetCells";
+import {
+	GroupMemberBudgetCells,
+	isBudgetFromOtherGroup,
+} from "./GroupMemberBudgetCells";
 import type { GroupPageOutletContext } from "./GroupPage";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
+import { useAIBudgetVisible } from "./useAIBudgetVisible";
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -69,18 +70,8 @@ const GroupMembersPage: FC = () => {
 	const [budgetUser, setBudgetUser] =
 		useState<GroupMemberWithAICostControl | null>(null);
 
-	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
-	// the cost-control feature is stable.
-	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
-		experiments.includes("ai-gateway-cost-control");
-
 	// Spend resets at period_end, rendered in the viewer's local time.
-	const { data: aiSpend } = useQuery({
-		...meAISpend(),
-		enabled: aibridgeVisible,
-	});
+	const { visible: aibridgeVisible, aiSpend } = useAIBudgetVisible();
 	const { data: groupBudget } = useQuery({
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
@@ -310,10 +301,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onRemove,
 }) => {
 	const costControl = member.ai_cost_control;
-	// A budget from another group is managed there, not here.
-	const budgetFromOtherGroup =
-		costControl?.effective_group_id != null &&
-		costControl.effective_group_id !== group.id;
+	const budgetFromOtherGroup = isBudgetFromOtherGroup(costControl, group);
 
 	return (
 		<TableRow key={member.id}>

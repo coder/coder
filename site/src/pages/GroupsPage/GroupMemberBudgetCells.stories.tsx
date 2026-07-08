@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
-import type { GroupMemberAICostControl } from "#/api/api";
+import { expect, spyOn, userEvent, within } from "storybook/test";
+import { API, type GroupMemberAICostControl } from "#/api/api";
 import { getGroupByIdQueryKey } from "#/api/queries/groups";
 import {
 	Table,
@@ -10,12 +10,10 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { MockGroup2, MockGroupWithoutMembers } from "#/testHelpers/entities";
-import { GroupMemberBudgetCells } from "./GroupMemberBudgetCells";
+import { emDash, GroupMemberBudgetCells } from "./GroupMemberBudgetCells";
 
 const group = MockGroupWithoutMembers;
 const testId = "member-ai-budget-member-1";
-// Escaped so the emdash lint doesn't flag a literal.
-const emDash = "\u2014";
 
 // Cost control governed by the viewed group; each story overrides per state.
 const costControl = (
@@ -190,6 +188,29 @@ export const NotAttributed: Story = {
 		).toHaveTextContent(
 			"None of this user's spend counts against the Front-End group. It is managed by the developer group.",
 		);
+	},
+};
+
+// While the governing group's name is still loading, show a spinner instead
+// of flashing the "unresolvable" fallback.
+export const ResolvingGroupName: Story = {
+	args: {
+		costControl: costControl({
+			current_spend_micros: 456_000_000,
+			effective_group_id: MockGroup2.id,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroupById").mockImplementation(
+			() => new Promise(() => 1000 * 60 * 60),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cell = await canvas.findByTestId(testId);
+		await expect(
+			within(cell).getByTitle("Loading spinner"),
+		).toBeInTheDocument();
 	},
 };
 

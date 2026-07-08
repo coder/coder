@@ -4,13 +4,27 @@ import type { GroupMemberAICostControl } from "#/api/api";
 import { groupById } from "#/api/queries/groups";
 import type { Group } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell } from "#/components/Table/Table";
 import { getSeverity, severityAmountClassName } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 import { InfoIconTooltip } from "./InfoIconTooltip";
 
 // Escaped so the emdash lint doesn't flag a literal.
-const emDash = "\u2014";
+export const emDash = "\u2014";
+
+/** True when a named group other than Everyone governs this member's budget. */
+export function isBudgetFromOtherGroup(
+	costControl: GroupMemberAICostControl | undefined,
+	group: Pick<Group, "id" | "organization_id">,
+): boolean {
+	const effectiveGroupID = costControl?.effective_group_id ?? null;
+	return (
+		effectiveGroupID !== null &&
+		effectiveGroupID !== group.id &&
+		effectiveGroupID !== group.organization_id
+	);
+}
 
 /**
  * The AI budget and Budget group cells for a group member. The page only
@@ -27,14 +41,14 @@ export const GroupMemberBudgetCells: FC<{
 	const effectiveIsThisGroup = effectiveGroupID === group.id;
 	// The everyone group shares its id with the organization.
 	const effectiveIsEveryone = effectiveGroupID === group.organization_id;
-	// Another group governs the budget, so spend here isn't counted against it.
+	// Unlike isBudgetFromOtherGroup, this also covers a null effective group
+	// (nothing resolves), which the cell must still render as unattributed.
 	const notAttributed = !effectiveIsThisGroup && !effectiveIsEveryone;
 
 	// Resolve the governing group's name only when it's another named group.
-	const needsName = Boolean(effectiveGroupID) && notAttributed;
-	const { data: effectiveGroup } = useQuery({
+	const { data: effectiveGroup, isLoading: isResolvingGroupName } = useQuery({
 		...groupById(effectiveGroupID ?? "", { exclude_members: true }),
-		enabled: needsName,
+		enabled: Boolean(effectiveGroupID) && notAttributed,
 	});
 	const effectiveGroupName =
 		effectiveGroup?.display_name || effectiveGroup?.name;
@@ -71,6 +85,7 @@ export const GroupMemberBudgetCells: FC<{
 						groupName={groupName}
 						notAttributed={notAttributed}
 						effectiveGroupName={effectiveGroupName}
+						isResolvingGroupName={isResolvingGroupName}
 					/>
 				) : (
 					emDash
@@ -87,12 +102,22 @@ const BudgetAmount: FC<{
 	groupName: string;
 	notAttributed: boolean;
 	effectiveGroupName: string | undefined;
-}> = ({ costControl, groupName, notAttributed, effectiveGroupName }) => {
+	isResolvingGroupName: boolean;
+}> = ({
+	costControl,
+	groupName,
+	notAttributed,
+	effectiveGroupName,
+	isResolvingGroupName,
+}) => {
 	const spend = costControl.current_spend_micros;
 
 	// Governed by another group. If it can't be resolved (e.g. another org),
 	// the spend isn't shown either.
 	if (notAttributed) {
+		if (isResolvingGroupName) {
+			return <Spinner loading size="sm" />;
+		}
 		if (!effectiveGroupName) {
 			return (
 				<LabelWithInfo
@@ -152,7 +177,6 @@ const BudgetAmount: FC<{
 		);
 	}
 
-	const sub = `${costControl.limit_source === "user_override" ? "Custom" : "Group"} limit ${formatBudgetUSD(limit)}`;
 	return (
 		<div className="flex flex-col gap-0.5">
 			<span>
@@ -161,7 +185,9 @@ const BudgetAmount: FC<{
 				</span>{" "}
 				<span className="text-content-disabled">USD</span>
 			</span>
-			<span className="text-xs text-content-secondary">{sub}</span>
+			<span className="text-xs text-content-secondary">
+				{`${costControl.limit_source === "user_override" ? "Custom" : "Group"} limit ${formatBudgetUSD(limit)}`}
+			</span>
 		</div>
 	);
 };

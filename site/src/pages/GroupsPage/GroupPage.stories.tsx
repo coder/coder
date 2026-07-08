@@ -664,5 +664,15 @@ export const AIBudgetShowcase: Story = {
 		await expect(
 			await body.findByText(/no AI spending allowance/),
 		).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+
+		// Governed by Everyone (unset): the override action is available here.
+		await userEvent.click(
+			canvas.getAllByRole("button", { name: "Open menu" })[0],
+		);
+		const manageItem = await body.findByRole("menuitem", {
+			name: "Manage AI budget",
+		});
+		await expect(manageItem).not.toHaveAttribute("aria-disabled", "true");
 	},
 };
