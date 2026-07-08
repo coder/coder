@@ -788,8 +788,9 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 			ChatMode: database.ChatModeExplore,
 			Valid:    true,
 		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
-		ClientType:   database.ChatClientTypeApi,
+		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
+		ClientType:    database.ChatClientTypeApi,
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -1996,6 +1997,36 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 	})
 }
 
+// TestCreateChatWithoutInitialUserContent verifies that chats created
+// without initial user content start idle in `waiting` with system
+// messages only, so no worker picks them up before the first message.
+// APIKeyID is not required because no user message is inserted.
+func TestCreateChatWithoutInitialUserContent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "empty-create",
+		ModelConfigID:  model.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chat.Status)
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages, "system messages are still inserted")
+	for _, msg := range messages {
+		require.Equal(t, database.ChatMessageRoleSystem, msg.Role, "no user message on an empty create")
+	}
+}
+
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
@@ -2561,6 +2592,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		Title:             "stale-requires-action",
 		DynamicTools:      nullRawMessage(dynamicToolsJSON),
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -2652,6 +2684,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		LastModelConfigID: model.ID,
 		Title:             "orphaned-chat",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -6877,6 +6910,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			Title:             "provider-runner-replay-active",
 			MCPServerIDs:      []uuid.UUID{},
 			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				userMessageForTest(t, "use provider runner", model.ID, user.ID, apiKey.ID),
 				assistantMessageForTest(t, []codersdk.ChatMessagePart{computerCall}, model.ID),

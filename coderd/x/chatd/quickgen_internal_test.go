@@ -1258,6 +1258,31 @@ func TestIsTemperatureRejectedError(t *testing.T) {
 	}
 }
 
+// Test_titleInput_DefaultTitleReplaceable verifies that the
+// DefaultChatTitle placeholder is always replaceable. Chats created
+// without an initial message keep the placeholder until their first
+// message, whose text does not match the placeholder's fallback
+// truncation.
+func Test_titleInput_DefaultTitleReplaceable(t *testing.T) {
+	t.Parallel()
+
+	message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("investigate flaky tests"),
+	)
+	messages := []database.ChatMessage{message}
+
+	text, ok := titleInput(database.Chat{Title: chatprompt.DefaultChatTitle}, messages, nil)
+	require.True(t, ok, "default placeholder title must be replaceable")
+	require.Equal(t, "investigate flaky tests", text)
+
+	_, ok = titleInput(database.Chat{Title: "custom title"}, messages, nil)
+	require.False(t, ok, "user-set titles must not be replaced")
+
+	text, ok = titleInput(database.Chat{Title: chatprompt.FallbackTitle("investigate flaky tests")}, messages, nil)
+	require.True(t, ok, "fallback truncation title remains replaceable")
+	require.Equal(t, "investigate flaky tests", text)
+}
+
 func mustChatMessage(
 	t *testing.T,
 	role database.ChatMessageRole,

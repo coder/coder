@@ -2755,6 +2755,27 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Chats created without an initial message carry the placeholder
+	// title until their first message lands here. Decide eligibility
+	// before the send: SendMessage publishes the ownership hint, so a
+	// fast worker reply could land before an async history read and
+	// wrongly disqualify the first-user-turn check inside title
+	// generation, leaving the placeholder title forever. The probe is a
+	// single-row read so chats that keep the placeholder title do not
+	// pay for a full history load on every send.
+	titleEligible := false
+	if chat.Title == chatprompt.DefaultChatTitle {
+		visible, titleErr := api.Database.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+			ChatID:   chatID,
+			LimitVal: 1,
+		})
+		titleEligible = titleErr == nil && len(visible) == 0
+		if titleErr != nil {
+			api.Logger.Debug(ctx, "failed to probe messages for automatic title generation",
+				slog.F("chat_id", chatID), slog.Error(titleErr))
+		}
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -2822,6 +2843,17 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Detail:  chaterror.FormatDiagnosticDetail(sendErr),
 		})
 		return
+	}
+
+	// The pre-send probe found no user-visible history, so the message
+	// just inserted is the chat's first user turn; system messages are
+	// invisible to title generation and need not be loaded.
+	if !sendResult.Queued && titleEligible {
+		api.chatDaemon.GenerateChatTitleForMessagesAsync(
+			ctx,
+			sendResult.Chat,
+			[]database.ChatMessage{sendResult.Message},
+		)
 	}
 
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
@@ -6904,6 +6936,14 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	string,
 	*codersdk.Response,
 ) {
+	// Empty content creates an idle chat with no initial user
+	// message. Generation starts with the first message POSTed to
+	// /chats/{chat}/messages. This lets clients sequence work that
+	// needs the chat ID before the first turn, such as workspace
+	// file uploads.
+	if len(req.Content) == 0 {
+		return nil, "", nil
+	}
 	// Chat creation has no chat ID yet, so workspace-file-reference
 	// parts are rejected (they require an existing chat's uploads).
 	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content")
