@@ -665,6 +665,8 @@ func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	// Only template admins should be able to use this flow and submit
+	// session telemetry, matching the compose endpoint's authorization.
 	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
 		httpapi.ResourceNotFound(rw)
 		return
