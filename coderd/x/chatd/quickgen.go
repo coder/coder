@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -54,8 +55,56 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 // quickgenTemperature keeps title and status-label output stable
 // across repeated runs over the same input. Fantasy providers drop
 // this with a call warning for models that reject it (OpenAI
-// reasoning models, Anthropic thinking models).
+// reasoning models, Anthropic thinking models), but only for model
+// names they recognize. generateQuickgenObject handles models that
+// reject the parameter at the API instead.
 const quickgenTemperature = 0.0
+
+// generateQuickgenObject generates a structured object with provider
+// retries and the pinned quickgen temperature. Model aliases served
+// through gateways such as AI Bridge are not recognized by fantasy's
+// per-model parameter stripping and can reject temperature with a
+// bad-request error, so the call is retried without temperature when
+// the model rejects it.
+func generateQuickgenObject[T any](
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResult[T], error) {
+	call.Temperature = ptr.Ref(quickgenTemperature)
+	var result *fantasy.ObjectResult[T]
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		result, genErr = object.Generate[T](retryCtx, model, call)
+		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
+			// The model rejects the temperature parameter. Drop it
+			// for this and any later retry attempts.
+			call.Temperature = nil
+			result, genErr = object.Generate[T](retryCtx, model, call)
+		}
+		return genErr
+	}, nil)
+	return result, err
+}
+
+// isTemperatureRejectedError reports whether a provider rejected the
+// request because the model does not accept the temperature parameter,
+// for example Anthropic's "`temperature` is deprecated for this model."
+// or OpenAI's "Unsupported parameter: 'temperature' is not supported
+// with this model.". Quickgen only sends a valid temperature value, so
+// any bad-request response mentioning temperature means the model
+// rejects the parameter itself.
+func isTemperatureRejectedError(err error) bool {
+	var providerErr *fantasy.ProviderError
+	if !errors.As(err, &providerErr) {
+		return false
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return strings.Contains(text, "temperature")
+}
 
 const (
 	// maxConversationContextRunes caps the conversation sample in manual
@@ -555,19 +604,13 @@ func generateStructuredTitleWithUsage(
 	}
 
 	var maxOutputTokens int64 = 256
-	var result *fantasy.ObjectResult[generatedTitle]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-		var genErr error
-		result, genErr = object.Generate[generatedTitle](retryCtx, model, fantasy.ObjectCall{
-			Prompt:            prompt,
-			SchemaName:        "propose_title",
-			SchemaDescription: "Propose a short chat title.",
-			MaxOutputTokens:   &maxOutputTokens,
-			Temperature:       ptr.Ref(quickgenTemperature),
-			ProviderOptions:   providerOptions,
-		})
-		return genErr
-	}, nil)
+	result, err := generateQuickgenObject[generatedTitle](ctx, model, fantasy.ObjectCall{
+		Prompt:            prompt,
+		SchemaName:        "propose_title",
+		SchemaDescription: "Propose a short chat title.",
+		MaxOutputTokens:   &maxOutputTokens,
+		ProviderOptions:   providerOptions,
+	})
 	if err != nil {
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
@@ -1023,18 +1066,12 @@ func generateStructuredTurnStatusLabel(
 	}
 
 	var maxOutputTokens int64 = 64
-	var result *fantasy.ObjectResult[generatedTurnStatusLabel]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-		var genErr error
-		result, genErr = object.Generate[generatedTurnStatusLabel](retryCtx, model, fantasy.ObjectCall{
-			Prompt:            prompt,
-			SchemaName:        "propose_turn_status_label",
-			SchemaDescription: "Propose a compact chat status label.",
-			MaxOutputTokens:   &maxOutputTokens,
-			Temperature:       ptr.Ref(quickgenTemperature),
-		})
-		return genErr
-	}, nil)
+	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, fantasy.ObjectCall{
+		Prompt:            prompt,
+		SchemaName:        "propose_turn_status_label",
+		SchemaDescription: "Propose a compact chat status label.",
+		MaxOutputTokens:   &maxOutputTokens,
+	})
 	if err != nil {
 		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}
