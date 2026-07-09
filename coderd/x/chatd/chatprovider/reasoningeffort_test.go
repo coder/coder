@@ -21,26 +21,31 @@ func TestResolveReasoningEffort(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		config *codersdk.ChatModelReasoningEffortConfig
-		want   *string
+		name      string
+		requested *string
+		config    *codersdk.ChatModelReasoningEffortConfig
+		want      *string
 	}{
-		{name: "NilConfig"},
-		{name: "DefaultUsed", config: effortConfig("medium", "high"), want: ptr.Ref("medium")},
-		{name: "DefaultClampedToMax", config: effortConfig("xhigh", "medium"), want: ptr.Ref("medium")},
-		{name: "InvalidDefaultReturnsNil", config: effortConfig(" HIGH ", "high")},
-		{name: "InvalidMaxReturnsNil", config: effortConfig("high", " HIGH ")},
+		{name: "NilConfigIgnoresRequested", requested: new(codersdk.ChatModelReasoningEffortHigh)},
+		{name: "DefaultUsedWhenNoRequested", config: effortConfig("medium", "high"), want: new(codersdk.ChatModelReasoningEffortMedium)},
+		{name: "RequestedWinsOverDefault", requested: new(codersdk.ChatModelReasoningEffortHigh), config: effortConfig("medium", "high"), want: new(codersdk.ChatModelReasoningEffortHigh)},
+		{name: "RequestedWinsWithoutMax", requested: new(codersdk.ChatModelReasoningEffortHigh), config: effortConfig("medium", ""), want: new(codersdk.ChatModelReasoningEffortHigh)},
+		{name: "RequestedClampedToMax", requested: new(codersdk.ChatModelReasoningEffortXHigh), config: effortConfig("low", "medium"), want: new(codersdk.ChatModelReasoningEffortMedium)},
+		{name: "DefaultClampedToMax", config: effortConfig("xhigh", "medium"), want: new(codersdk.ChatModelReasoningEffortMedium)},
+		{name: "InvalidRequestedFallsBackToDefault", requested: ptr.Ref(" HIGH "), config: effortConfig("low", "high"), want: new(codersdk.ChatModelReasoningEffortLow)},
+		{name: "InvalidMaxReturnsNil", requested: new(codersdk.ChatModelReasoningEffortMedium), config: effortConfig("low", " HIGH ")},
 		{name: "EmptyConfigReturnsNil", config: &codersdk.ChatModelReasoningEffortConfig{}},
-		{name: "MaxSupported", config: effortConfig("max", "max"), want: ptr.Ref("max")},
-		{name: "NoneSupported", config: effortConfig("none", "xhigh"), want: ptr.Ref("none")},
-		{name: "MaxOnlyConfigReturnsNil", config: effortConfig("", "medium")},
+		{name: "MaxSupported", requested: new(codersdk.ChatModelReasoningEffortMax), config: effortConfig("medium", "max"), want: new(codersdk.ChatModelReasoningEffortMax)},
+		{name: "NoneSupported", requested: new(codersdk.ChatModelReasoningEffortNone), config: effortConfig("medium", "xhigh"), want: new(codersdk.ChatModelReasoningEffortNone)},
+		{name: "MaxOnlyConfigClampsRequested", requested: new(codersdk.ChatModelReasoningEffortXHigh), config: effortConfig("", "medium"), want: new(codersdk.ChatModelReasoningEffortMedium)},
+		{name: "MaxOnlyConfigWithoutRequestedReturnsNil", config: effortConfig("", "medium")},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := chatprovider.ResolveReasoningEffort(tt.config)
+			got := chatprovider.ResolveReasoningEffort(tt.requested, tt.config)
 			if tt.want == nil {
 				require.Nil(t, got)
 				return
@@ -80,7 +85,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 	t.Run("CreatesOpenAIResponsesEntry", func(t *testing.T) {
 		t.Parallel()
 
-		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, nil, ptr.Ref("high"))
+		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, nil, new(codersdk.ChatModelReasoningEffortHigh))
 		providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 		require.True(t, ok, "%T", got[fantasyopenai.Name])
 		require.NotNil(t, providerOptions.ReasoningEffort)
@@ -96,7 +101,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 				Store:        ptr.Ref(true),
 			},
 		}
-		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, options, ptr.Ref("high"))
+		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5"}, options, new(codersdk.ChatModelReasoningEffortHigh))
 		providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 		require.True(t, ok, "%T", got[fantasyopenai.Name])
 		require.Same(t, options[fantasyopenai.Name], providerOptions)
@@ -114,7 +119,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 				ParallelToolCalls: ptr.Ref(true),
 			},
 		}
-		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}, options, ptr.Ref("high"))
+		got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-4"}, options, new(codersdk.ChatModelReasoningEffortHigh))
 		providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ProviderOptions)
 		require.True(t, ok, "%T", got[fantasyopenai.Name])
 		require.Same(t, options[fantasyopenai.Name], providerOptions)
@@ -220,7 +225,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: tt.provider}, tt.options, ptr.Ref("high"))
+			got := chatprovider.ApplyReasoningEffort(&chattest.FakeModel{ProviderName: tt.provider}, tt.options, new(codersdk.ChatModelReasoningEffortHigh))
 			tt.assert(t, got)
 		})
 	}

@@ -157,6 +157,7 @@ const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
 
 type CreateChatSubmission = {
 	model?: string;
+	reasoningEffort?: string;
 };
 
 export const RootPersonalModelOverrideModelSelected: Story = {
@@ -302,6 +303,64 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+	},
+};
+
+// Model options with reasoning effort bounds configured. GPT-4o uses the
+// full global scale; Claude is capped at medium.
+const effortModelOptions = [
+	{
+		...modelOptions[0],
+		reasoningEffortDefault: "medium",
+		reasoningEfforts: [
+			"none",
+			"minimal",
+			"low",
+			"medium",
+			"high",
+			"xhigh",
+			"max",
+		],
+	},
+	{
+		...modelOptions[1],
+		reasoningEffortDefault: "low",
+		reasoningEfforts: ["low", "medium"],
+	},
+] as const;
+
+export const SubmitsReasoningEffort: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelOptions: [...effortModelOptions],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Open the model selector; the effort row shows the model default.
+		await userEvent.click(canvas.getByRole("combobox", { name: "GPT-4o" }));
+		const slider = await body.findByRole("slider");
+		// "medium" is the fourth of seven selectable efforts.
+		expect(slider).toHaveAttribute("aria-valuenow", "3");
+
+		// Bump the effort to "high" with the keyboard, then close.
+		await userEvent.tab();
+		expect(slider).toHaveFocus();
+		await userEvent.keyboard("{ArrowRight}");
+		await waitFor(() => {
+			expect(slider).toHaveAttribute("aria-valuenow", "4");
+		});
+		await userEvent.keyboard("{Escape}");
+
+		await submitMessage(canvasElement, "create with reasoning effort");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		const options = getCreateOptions(args.onCreateChat);
+		expect(options.model).toBe(modelConfigID);
+		expect(options.reasoningEffort).toBe("high");
 	},
 };
 

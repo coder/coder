@@ -35,17 +35,30 @@ func ReasoningEffortLessOrEqual(a, b string) bool {
 }
 
 // ResolveReasoningEffort computes the effective reasoning effort for a
-// generation. The config default is clamped to the config max on the
-// global scale. Returns nil when the model config has no reasoning
-// effort configured or when the default is unknown.
+// generation. The requested per-turn value wins over the config's default,
+// and the result is clamped to the config's max on the global scale. Returns
+// nil when the model config has no reasoning effort configured, no usable
+// value remains, or the max is unknown.
 func ResolveReasoningEffort(
+	requested *string,
 	config *codersdk.ChatModelReasoningEffortConfig,
 ) *string {
-	if config == nil || config.Default == nil {
+	if config == nil {
 		return nil
 	}
 
-	rank, ok := reasoningEffortRank(*config.Default)
+	effective := requested
+	var rank int
+	var ok bool
+	if effective != nil {
+		rank, ok = reasoningEffortRank(*effective)
+	}
+	if !ok {
+		effective = config.Default
+		if effective != nil {
+			rank, ok = reasoningEffortRank(*effective)
+		}
+	}
 	if !ok {
 		return nil
 	}
@@ -58,7 +71,7 @@ func ResolveReasoningEffort(
 			return config.Max
 		}
 	}
-	return config.Default
+	return effective
 }
 
 func SelectableReasoningEfforts(

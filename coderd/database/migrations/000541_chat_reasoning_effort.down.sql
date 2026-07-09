@@ -10,6 +10,7 @@ WHERE options ? 'reasoning_effort';
 ALTER TABLE chats DROP COLUMN last_reasoning_effort;
 ALTER TABLE chat_messages DROP COLUMN reasoning_effort;
 ALTER TABLE chat_queued_messages DROP COLUMN reasoning_effort;
+DROP TYPE chat_reasoning_effort;
 
 CREATE VIEW chats_expanded AS
  SELECT c.id,

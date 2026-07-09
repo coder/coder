@@ -96,6 +96,7 @@ import {
 	resolveModelSelector,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
+import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
 	type ChatDetailError,
 	formatUsageLimitMessage,
@@ -720,6 +721,8 @@ const AgentChatPage: FC = () => {
 	const { organizations, experiments } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
+	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
+	const isEditReasoningEffortDirtyRef = useRef(false);
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -1133,6 +1136,17 @@ const AgentChatPage: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
+	const effectiveModelOption = modelOptions.find(
+		(option) => option.id === effectiveSelectedModel,
+	);
+	const effectiveReasoningEffort = effectiveModelOption
+		? pickReasoningEffort(
+				selectedReasoningEffort || chatRecord?.last_reasoning_effort,
+				effectiveModelOption.reasoningEfforts ?? [],
+				effectiveModelOption.reasoningEffortDefault,
+			)
+		: undefined;
+
 	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
@@ -1257,6 +1271,12 @@ const AgentChatPage: FC = () => {
 		chatInputRef,
 		inputValueRef,
 	});
+	const handleEditUserMessage = (
+		...args: Parameters<typeof editing.handleEditUserMessage>
+	) => {
+		isEditReasoningEffortDirtyRef.current = false;
+		editing.handleEditUserMessage(...args);
+	};
 
 	const chatTitle = chatQuery.data?.title;
 
@@ -1453,9 +1473,13 @@ const AgentChatPage: FC = () => {
 				pickerModelConfigID !== originalModelConfigID
 					? pickerModelConfigID
 					: undefined;
+			// Omit so the backend preserves the original effort.
 			const request: TypesGen.EditChatMessageRequest = {
 				content,
 				model_config_id: editSelectedModelConfigID,
+				reasoning_effort: isEditReasoningEffortDirtyRef.current
+					? effectiveReasoningEffort
+					: undefined,
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1498,6 +1522,7 @@ const AgentChatPage: FC = () => {
 		const request: CreateChatMessageRequestWithClearablePlanMode = {
 			content,
 			model_config_id: selectedModelConfigID,
+			reasoning_effort: effectiveReasoningEffort,
 			mcp_server_ids:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -1643,12 +1668,19 @@ const AgentChatPage: FC = () => {
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
-			editing={editing}
+			editing={{ ...editing, handleEditUserMessage }}
 			effectiveSelectedModel={effectiveSelectedModel}
 			setSelectedModel={setSelectedModel}
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			reasoningEffort={effectiveReasoningEffort}
+			onReasoningEffortChange={(value) => {
+				setSelectedReasoningEffort(value);
+				if (editing.editingMessageId !== null) {
+					isEditReasoningEffortDirtyRef.current = true;
+				}
+			}}
 			canConfigureAgentSetup={permissions.editDeploymentConfig}
 			providerCount={providerCount}
 			modelCount={modelCount}

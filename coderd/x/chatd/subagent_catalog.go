@@ -56,7 +56,7 @@ func allSubagentDefinitions() []subagentDefinition {
 			id:          subagentTypeGeneral,
 			description: "substantial delegated research, analysis, reasoning, review, planning support, and implementation",
 			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveSubagentModelConfigID(
+				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
 					codersdk.ChatModelOverrideContextGeneral,
@@ -67,6 +67,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				options := childSubagentChatOptions{}
 				if modelConfigID != uuid.Nil {
 					options.modelConfigIDOverride = &modelConfigID
+					options.reasoningEffortOverride = reasoningEffort
 				}
 				return options, nil
 			},
@@ -75,7 +76,7 @@ func allSubagentDefinitions() []subagentDefinition {
 			id:          subagentTypeExplore,
 			description: "narrow repository-local read-only code discovery and code tracing",
 			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, err := p.resolveSubagentModelConfigID(
+				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					turnParent.OwnerID,
 					codersdk.ChatModelOverrideContextExplore,
@@ -101,9 +102,10 @@ func allSubagentDefinitions() []subagentDefinition {
 						ChatMode: database.ChatModeExplore,
 						Valid:    true,
 					},
-					modelConfigIDOverride: &modelConfigID,
-					planModeOverride:      &clearPlanMode,
-					inheritedMCPServerIDs: inheritedMCPServerIDs,
+					modelConfigIDOverride:   &modelConfigID,
+					reasoningEffortOverride: reasoningEffort,
+					planModeOverride:        &clearPlanMode,
+					inheritedMCPServerIDs:   inheritedMCPServerIDs,
 				}, nil
 			},
 		},

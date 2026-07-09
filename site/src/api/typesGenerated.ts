@@ -1578,6 +1578,7 @@ export interface Chat {
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
+	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
@@ -2635,6 +2636,7 @@ export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 export interface ChatModelOverrideResponse {
 	readonly context: ChatModelOverrideContext;
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 	readonly is_malformed: boolean;
 }
 
@@ -2784,6 +2786,7 @@ export interface ChatPersonalModelOverride {
 	readonly context: ChatPersonalModelOverrideContext;
 	readonly mode: ChatPersonalModelOverrideMode;
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 	readonly is_set: boolean;
 	readonly is_malformed: boolean;
 }
@@ -3568,6 +3571,7 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -3622,6 +3626,7 @@ export interface CreateChatRequest {
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
 	/**
@@ -4595,6 +4600,7 @@ export interface EditChatMessageRequest {
 	 * When nil the original message's model is preserved.
 	 */
 	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -9006,6 +9012,7 @@ export interface UpdateChatModelConfigRequest {
  */
 export interface UpdateChatModelOverrideRequest {
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -9375,6 +9382,7 @@ export interface UpdateUserChatDebugLoggingRequest {
 export interface UpdateUserChatPersonalModelOverrideRequest {
 	readonly mode: ChatPersonalModelOverrideMode;
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/notifications.go

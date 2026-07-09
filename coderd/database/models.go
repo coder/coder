@@ -1560,6 +1560,79 @@ func AllChatPlanModeValues() []ChatPlanMode {
 	}
 }
 
+type ChatReasoningEffort string
+
+const (
+	ChatReasoningEffortNone    ChatReasoningEffort = "none"
+	ChatReasoningEffortMinimal ChatReasoningEffort = "minimal"
+	ChatReasoningEffortLow     ChatReasoningEffort = "low"
+	ChatReasoningEffortMedium  ChatReasoningEffort = "medium"
+	ChatReasoningEffortHigh    ChatReasoningEffort = "high"
+	ChatReasoningEffortXhigh   ChatReasoningEffort = "xhigh"
+	ChatReasoningEffortMax     ChatReasoningEffort = "max"
+)
+
+func (e *ChatReasoningEffort) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatReasoningEffort(s)
+	case string:
+		*e = ChatReasoningEffort(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatReasoningEffort: %T", src)
+	}
+	return nil
+}
+
+type NullChatReasoningEffort struct {
+	ChatReasoningEffort ChatReasoningEffort `json:"chat_reasoning_effort"`
+	Valid               bool                `json:"valid"` // Valid is true if ChatReasoningEffort is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatReasoningEffort) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatReasoningEffort, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatReasoningEffort.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatReasoningEffort) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatReasoningEffort), nil
+}
+
+func (e ChatReasoningEffort) Valid() bool {
+	switch e {
+	case ChatReasoningEffortNone,
+		ChatReasoningEffortMinimal,
+		ChatReasoningEffortLow,
+		ChatReasoningEffortMedium,
+		ChatReasoningEffortHigh,
+		ChatReasoningEffortXhigh,
+		ChatReasoningEffortMax:
+		return true
+	}
+	return false
+}
+
+func AllChatReasoningEffortValues() []ChatReasoningEffort {
+	return []ChatReasoningEffort{
+		ChatReasoningEffortNone,
+		ChatReasoningEffortMinimal,
+		ChatReasoningEffortLow,
+		ChatReasoningEffortMedium,
+		ChatReasoningEffortHigh,
+		ChatReasoningEffortXhigh,
+		ChatReasoningEffortMax,
+	}
+}
+
 type ChatStatus string
 
 const (
@@ -4786,50 +4859,50 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                       uuid.UUID             `db:"id" json:"id"`
-	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title                    string                `db:"title" json:"title"`
-	Status                   ChatStatus            `db:"status" json:"status"`
-	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt                sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt              sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	LastReasoningEffort      sql.NullString        `db:"last_reasoning_effort" json:"last_reasoning_effort"`
-	Archived                 bool                  `db:"archived" json:"archived"`
-	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
-	Mode                     NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels                   StringMap             `db:"labels" json:"labels"`
-	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
-	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary          sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
-	SnapshotVersion          int64                 `db:"snapshot_version" json:"snapshot_version"`
-	HistoryVersion           int64                 `db:"history_version" json:"history_version"`
-	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
-	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
-	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
-	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
-	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
-	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
-	UserACL                  ChatACL               `db:"user_acl" json:"user_acl"`
-	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
-	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
-	OwnerName                string                `db:"owner_name" json:"owner_name"`
-	ContextAggregateHash     []byte                `db:"context_aggregate_hash" json:"context_aggregate_hash"`
-	ContextDirtySince        sql.NullTime          `db:"context_dirty_since" json:"context_dirty_since"`
-	ContextDirtyResources    pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
-	ContextError             string                `db:"context_error" json:"context_error"`
+	ID                       uuid.UUID               `db:"id" json:"id"`
+	OwnerID                  uuid.UUID               `db:"owner_id" json:"owner_id"`
+	WorkspaceID              uuid.NullUUID           `db:"workspace_id" json:"workspace_id"`
+	Title                    string                  `db:"title" json:"title"`
+	Status                   ChatStatus              `db:"status" json:"status"`
+	WorkerID                 uuid.NullUUID           `db:"worker_id" json:"worker_id"`
+	StartedAt                sql.NullTime            `db:"started_at" json:"started_at"`
+	HeartbeatAt              sql.NullTime            `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                time.Time               `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time               `db:"updated_at" json:"updated_at"`
+	ParentChatID             uuid.NullUUID           `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID           `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID               `db:"last_model_config_id" json:"last_model_config_id"`
+	LastReasoningEffort      NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	Archived                 bool                    `db:"archived" json:"archived"`
+	LastError                pqtype.NullRawMessage   `db:"last_error" json:"last_error"`
+	Mode                     NullChatMode            `db:"mode" json:"mode"`
+	MCPServerIDs             []uuid.UUID             `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   StringMap               `db:"labels" json:"labels"`
+	BuildID                  uuid.NullUUID           `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID           `db:"agent_id" json:"agent_id"`
+	PinOrder                 int32                   `db:"pin_order" json:"pin_order"`
+	LastReadMessageID        sql.NullInt64           `db:"last_read_message_id" json:"last_read_message_id"`
+	DynamicTools             pqtype.NullRawMessage   `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID           uuid.UUID               `db:"organization_id" json:"organization_id"`
+	PlanMode                 NullChatPlanMode        `db:"plan_mode" json:"plan_mode"`
+	ClientType               ChatClientType          `db:"client_type" json:"client_type"`
+	LastTurnSummary          sql.NullString          `db:"last_turn_summary" json:"last_turn_summary"`
+	SnapshotVersion          int64                   `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion           int64                   `db:"history_version" json:"history_version"`
+	QueueVersion             int64                   `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                   `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage   `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                   `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID           `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime            `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                  ChatACL                 `db:"user_acl" json:"user_acl"`
+	GroupACL                 ChatACL                 `db:"group_acl" json:"group_acl"`
+	OwnerUsername            string                  `db:"owner_username" json:"owner_username"`
+	OwnerName                string                  `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash     []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError             string                  `db:"context_error" json:"context_error"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -4966,7 +5039,7 @@ type ChatMessage struct {
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
 	// Stores the selected effort for the turn triggered by this message.
-	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatModelConfig struct {
@@ -4997,7 +5070,7 @@ type ChatQueuedMessage struct {
 	Position      int64           `db:"position" json:"position"`
 	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 	// Stores the selected effort until the queued row is promoted.
-	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatTable struct {
@@ -5050,7 +5123,7 @@ type ChatTable struct {
 	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
 	ContextError string `db:"context_error" json:"context_error"`
 	// Stores the most recent message effort once per-turn selection is wired.
-	LastReasoningEffort sql.NullString `db:"last_reasoning_effort" json:"last_reasoning_effort"`
+	LastReasoningEffort NullChatReasoningEffort `db:"last_reasoning_effort" json:"last_reasoning_effort"`
 }
 
 type ChatUsageLimitConfig struct {

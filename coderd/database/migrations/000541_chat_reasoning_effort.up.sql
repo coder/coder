@@ -2,11 +2,12 @@
 -- and recreated so the new chats column can appear in its column list.
 DROP VIEW IF EXISTS chats_expanded;
 
-ALTER TABLE chats ADD COLUMN last_reasoning_effort text;
-ALTER TABLE chat_messages ADD COLUMN reasoning_effort text;
-ALTER TABLE chat_queued_messages ADD COLUMN reasoning_effort text;
+CREATE TYPE chat_reasoning_effort AS ENUM ('none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max');
 
--- Reserved for follow-up per-turn reasoning effort support.
+ALTER TABLE chats ADD COLUMN last_reasoning_effort chat_reasoning_effort;
+ALTER TABLE chat_messages ADD COLUMN reasoning_effort chat_reasoning_effort;
+ALTER TABLE chat_queued_messages ADD COLUMN reasoning_effort chat_reasoning_effort;
+
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';

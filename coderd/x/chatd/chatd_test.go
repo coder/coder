@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -78,9 +79,9 @@ func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
 }
 
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
-	var ptr atomic.Pointer[aibridge.TransportFactory]
-	ptr.Store(&factory)
-	return &ptr
+	var factoryPtr atomic.Pointer[aibridge.TransportFactory]
+	factoryPtr.Store(&factory)
+	return &factoryPtr
 }
 
 func openAIToolName(tool chattest.OpenAITool) string {
@@ -11663,6 +11664,65 @@ func TestEditMessagePreservesModelConfigByDefault(t *testing.T) {
 		"edit without model override must not change last_model_config_id")
 }
 
+func TestEditMessageReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		requested *string
+		want      string
+	}{
+		{name: "PreservesByDefault", want: "low"},
+		{name: "Overrides", requested: ptr.Ref("high"), want: "high"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			replica := newTestServer(t, db, ps, uuid.New())
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			user, org, model := seedChatDependencies(t, db)
+
+			chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+				OwnerID:            user.ID,
+				APIKeyID:           testAPIKeyID(t, db, user.ID),
+				OrganizationID:     org.ID,
+				Title:              "edit-reasoning-effort",
+				ModelConfigID:      model.ID,
+				ReasoningEffort:    ptr.Ref("low"),
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+			})
+			require.NoError(t, err)
+
+			initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+				ChatID:  chat.ID,
+				AfterID: 0,
+			})
+			require.NoError(t, err)
+			require.Len(t, initial, 1)
+			require.True(t, initial[0].ReasoningEffort.Valid)
+			require.Equal(t, database.ChatReasoningEffortLow, initial[0].ReasoningEffort.ChatReasoningEffort)
+
+			result, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+				ChatID:          chat.ID,
+				APIKeyID:        testAPIKeyID(t, db, user.ID),
+				EditedMessageID: initial[0].ID,
+				Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+				ReasoningEffort: tc.requested,
+			})
+			require.NoError(t, err)
+			require.True(t, result.Message.ReasoningEffort.Valid)
+			require.Equal(t, database.ChatReasoningEffort(tc.want), result.Message.ReasoningEffort.ChatReasoningEffort)
+
+			storedChat, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.True(t, storedChat.LastReasoningEffort.Valid)
+			require.Equal(t, database.ChatReasoningEffort(tc.want), storedChat.LastReasoningEffort.ChatReasoningEffort)
+		})
+	}
+}
+
 // TestEditMessageRejectsUnknownModelConfig verifies the edit handler
 // returns ErrInvalidModelConfigID when the requested model does not
 // exist, mirroring SendMessage's validation.
@@ -11714,6 +11774,51 @@ func TestEditMessageRejectsUnknownModelConfig(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, modelA.ID, storedChat.LastModelConfigID)
+}
+
+func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "promote-reasoning-effort",
+		Status:            database.ChatStatusError,
+	})
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:          chat.ID,
+		Content:         content.RawMessage,
+		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
+		APIKeyID:        sql.NullString{String: testAPIKeyID(t, db, user.ID), Valid: true},
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, queued.ReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, queued.ReasoningEffort.ChatReasoningEffort)
+
+	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		QueuedMessageID: queued.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, result.PromotedMessage.ReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, result.PromotedMessage.ReasoningEffort.ChatReasoningEffort)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.True(t, storedChat.LastReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
 }
 
 // TestPromoteQueuedWhileRequiresActionMixedTools guards against
