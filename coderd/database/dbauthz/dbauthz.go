@@ -775,6 +775,33 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectSlackd = rbac.Subject{
+		Type:         rbac.SubjectTypeSlackd,
+		FriendlyName: "Slackd",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "slackd"},
+				DisplayName: "Slack Daemon",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// Chat access to find, create, and submit messages
+					// to chats bound to Slack threads. User and
+					// organization read access to resolve the configured
+					// chat owner and their organization. API key create
+					// access to mint the delegated key attached to
+					// submitted user messages.
+					rbac.ResourceChat.Type:         {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUser.Type:         {policy.ActionRead},
+					rbac.ResourceOrganization.Type: {policy.ActionRead},
+					rbac.ResourceApiKey.Type:       {policy.ActionCreate},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectAIProviderMetadataReader = rbac.Subject{
 		Type:         rbac.SubjectTypeAIProviderMetadataReader,
 		FriendlyName: "AI Provider Metadata Reader",
@@ -943,6 +970,13 @@ func AsWorkspaceBuilder(ctx context.Context) context.Context {
 // workspaces and deployment config, but nothing else.
 func AsChatd(ctx context.Context) context.Context {
 	return As(ctx, subjectChatd)
+}
+
+// AsSlackd returns a context with an actor scoped to slackd, the
+// built-in Slack integration. It can manage chats and resolve the
+// configured chat owner user and organization, but nothing else.
+func AsSlackd(ctx context.Context) context.Context {
+	return As(ctx, subjectSlackd)
 }
 
 // AsAIProviderMetadataReader returns a context with an actor that can read
@@ -1827,6 +1861,14 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 		return database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, err
 	}
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
+}
+
+func (q *querier) ChatMessageExistsWithContentMetadata(ctx context.Context, arg database.ChatMessageExistsWithContentMetadataParams) (bool, error) {
+	// Authorize read on the parent chat.
+	if _, err := q.GetChatByID(ctx, arg.ChatID); err != nil {
+		return false, err
+	}
+	return q.db.ChatMessageExistsWithContentMetadata(ctx, arg)
 }
 
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
@@ -3587,6 +3629,10 @@ func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUI
 		return nil, err
 	}
 	return q.db.GetChatsByIDsForRunnerSync(ctx, ids)
+}
+
+func (q *querier) GetChatsByOwnerAndLabels(ctx context.Context, arg database.GetChatsByOwnerAndLabelsParams) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerAndLabels)(ctx, arg)
 }
 
 func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {

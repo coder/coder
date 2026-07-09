@@ -277,6 +277,18 @@ Configure the background chat processing daemon.
           Force chat debug logging on for every chat, bypassing the runtime
           admin and user opt-in settings.
 
+      --slack-app-token string, $CODER_SLACK_APP_TOKEN
+          App-level token (xapp-...) with connections:write used for the Slack
+          Socket Mode connection.
+
+      --slack-bot-token string, $CODER_SLACK_BOT_TOKEN
+          Bot token (xoxb-...) of the Slack app that slackd connects to. When
+          set together with the app token and chat owner user ID, coderd
+          connects to Slack over Socket Mode and submits app mentions to chats.
+
+      --slack-chat-owner-user-id string, $CODER_SLACK_CHAT_OWNER_USER_ID
+          UUID of the Coder user that owns chats created from Slack messages.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

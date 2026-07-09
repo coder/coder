@@ -226,6 +226,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true
+      },
+      "slack": {
+        "app_token": "string",
+        "bot_token": "string",
+        "chat_owner_user_id": "string"
       }
     },
     "allow_workspace_renames": true,

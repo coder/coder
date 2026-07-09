@@ -57,6 +57,7 @@ type runner struct {
 	tasksByIndex  map[taskIndexKey]taskInstanceID
 	localLocks    *localLockSet
 	debugTurn     *runnerDebugTurn
+	slackStatus   *slackThreadStatus
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -83,6 +84,7 @@ func (r *runner) run() {
 		case <-r.ctx.Done():
 			r.cancelActiveTask()
 			r.waitForTasks()
+			r.waitForSlackStatus()
 			r.closeDebugTurn()
 			return
 		}
@@ -112,6 +114,15 @@ func (r *runner) bootstrap() bool {
 		r.opts.Logger.Warn(r.ctx, "chatworker runner bootstrap failed", slogError(err))
 		r.mgr.requestCleanup(r.ctx, r.rec.key)
 		return false
+	}
+	// The Slack thread status maintenance goroutine lives for the
+	// runner's lifetime: while alive it keeps the bound Slack thread's
+	// status set, and it clears the status when r.ctx is canceled.
+	// Labels are stamped at chat creation and never change for slackd
+	// chats, so capturing them once here is safe.
+	r.slackStatus = newSlackThreadStatus(r.opts.SlackAPI, chat, r.opts.Logger, r.opts.Clock)
+	if r.slackStatus != nil {
+		r.slackStatus.start(r.ctx)
 	}
 	// Apply the database snapshot directly instead of routing it through
 	// the manager. Routing fans out through stateCh, where a stale hint
@@ -287,6 +298,16 @@ func (r *runner) waitForTasks() {
 	for _, record := range r.tasks {
 		<-record.done
 	}
+}
+
+// waitForSlackStatus blocks until the Slack thread status maintenance
+// goroutine has cleared the status and exited. No-op for chats without
+// a Slack thread binding.
+func (r *runner) waitForSlackStatus() {
+	if r.slackStatus == nil {
+		return
+	}
+	r.slackStatus.wait()
 }
 
 func (r *runner) closeDebugTurn() {

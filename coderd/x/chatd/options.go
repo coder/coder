@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/quartz"
 )
@@ -74,6 +75,11 @@ type chatWorkerOptions struct {
 	Clock             quartz.Clock
 	TaskStarter       chatWorkerTaskStarter
 	MessagePartBuffer *messagepartbuffer.Buffer
+
+	// SlackAPI is the Slack Web API client used to maintain the
+	// assistant thread status of slackd-bound chats. Nil when the
+	// Slack integration is not configured.
+	SlackAPI chattool.SlackAPI
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]

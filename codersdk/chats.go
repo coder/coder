@@ -367,6 +367,12 @@ type ChatMessagePart struct {
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// Metadata holds transport-level key/value metadata attached by
+	// integrations that submit messages on a user's behalf (e.g.
+	// slackd stores the Slack event id under "slack_event_id" for
+	// cross-replica deduplication). It is persisted with the message
+	// content but never included in prompts sent to the model.
+	Metadata map[string]string `json:"metadata,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`

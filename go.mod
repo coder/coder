@@ -544,6 +544,7 @@ require (
 	github.com/openai/openai-go/v3 v3.28.0
 	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shopspring/decimal v1.4.0
+	github.com/slack-go/slack v0.27.0
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5

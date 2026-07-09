@@ -1745,6 +1745,34 @@ Hide AI tasks from the dashboard.
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
 
+### --slack-bot-token
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>string</code>                 |
+| Environment | <code>$CODER_SLACK_BOT_TOKEN</code> |
+
+Bot token (xoxb-...) of the Slack app that slackd connects to. When set together with the app token and chat owner user ID, coderd connects to Slack over Socket Mode and submits app mentions to chats.
+
+### --slack-app-token
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>string</code>                 |
+| Environment | <code>$CODER_SLACK_APP_TOKEN</code> |
+
+App-level token (xapp-...) with connections:write used for the Slack Socket Mode connection.
+
+### --slack-chat-owner-user-id
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_SLACK_CHAT_OWNER_USER_ID</code> |
+| YAML        | <code>chat.slackChatOwnerUserId</code>       |
+
+UUID of the Coder user that owns chats created from Slack messages.
+
 ### --ai-gateway-enabled
 
 |             |                                        |

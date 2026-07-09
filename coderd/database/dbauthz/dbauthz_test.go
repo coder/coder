@@ -1041,6 +1041,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetAutoArchiveInactiveChatCandidates(gomock.Any(), arg).Return([]database.GetAutoArchiveInactiveChatCandidatesRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.GetAutoArchiveInactiveChatCandidatesRow{})
 	}))
+	s.Run("ChatMessageExistsWithContentMetadata", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ChatMessageExistsWithContentMetadataParams{
+			ChatID:        chat.ID,
+			ContentFilter: json.RawMessage(`[{"metadata":{"slack_event_id":"x"}}]`),
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ChatMessageExistsWithContentMetadata(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(true)
+	}))
 	s.Run("GetChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
@@ -1125,6 +1135,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetAuthorizedChats(gomock.Any(), params, gomock.Any()).Return([]database.GetChatsRow{}, nil).AnyTimes()
 		// No asserts here because SQLFilter.
 		check.Args(params).Asserts()
+	}))
+	s.Run("GetChatsByOwnerAndLabels", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatsByOwnerAndLabelsParams{
+			OwnerID:     chat.OwnerID,
+			LabelFilter: json.RawMessage(`{"slackd":"true"}`),
+		}
+		dbm.EXPECT().GetChatsByOwnerAndLabels(gomock.Any(), arg).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
 	}))
 	s.Run("GetChatsByChatFileID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})

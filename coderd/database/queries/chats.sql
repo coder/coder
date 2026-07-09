@@ -1895,6 +1895,38 @@ SET created_at = (
 )
 WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
+-- name: ChatMessageExistsWithContentMetadata :one
+-- Reports whether any non-deleted user message or queued message on
+-- the chat carries the given content metadata (jsonb containment on
+-- the content parts array, e.g. '[{"metadata":{"slack_event_id":"x"}}]').
+-- Used by chatd to deduplicate messages submitted multiple times by
+-- external integrations, such as the same Slack event delivered to
+-- multiple coderd replicas.
+SELECT EXISTS (
+    SELECT 1 FROM chat_messages
+    WHERE chat_id = @chat_id::uuid
+        AND role = 'user'
+        AND deleted = false
+        AND content @> @content_filter::jsonb
+    UNION ALL
+    SELECT 1 FROM chat_queued_messages
+    WHERE chat_id = @chat_id::uuid
+        AND content @> @content_filter::jsonb
+)::bool AS message_exists;
+
+-- name: GetChatsByOwnerAndLabels :many
+-- Returns non-archived chats owned by the user whose labels contain
+-- label_filter (jsonb containment), oldest first. Used by integrations
+-- (e.g. slackd) to find the chat bound to an external conversation,
+-- and by chat creation dedup to detect an existing chat inside the
+-- creation transaction.
+SELECT *
+FROM chats_expanded
+WHERE owner_id = @owner_id::uuid
+    AND archived = false
+    AND labels @> @label_filter::jsonb
+ORDER BY created_at ASC, id ASC;
+
 -- name: GetLastChatMessageByRole :one
 SELECT
     *

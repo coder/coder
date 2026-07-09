@@ -265,6 +265,14 @@ func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx co
 	return r0, r1
 }
 
+func (m queryMetricsStore) ChatMessageExistsWithContentMetadata(ctx context.Context, arg database.ChatMessageExistsWithContentMetadataParams) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.ChatMessageExistsWithContentMetadata(ctx, arg)
+	m.queryLatencies.WithLabelValues("ChatMessageExistsWithContentMetadata").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ChatMessageExistsWithContentMetadata").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -1854,6 +1862,14 @@ func (m queryMetricsStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids [
 	r0, r1 := m.s.GetChatsByIDsForRunnerSync(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetChatsByIDsForRunnerSync").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDsForRunnerSync").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsByOwnerAndLabels(ctx context.Context, arg database.GetChatsByOwnerAndLabelsParams) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByOwnerAndLabels(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatsByOwnerAndLabels").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByOwnerAndLabels").Inc()
 	return r0, r1
 }
 

@@ -6255,6 +6255,38 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
+const chatMessageExistsWithContentMetadata = `-- name: ChatMessageExistsWithContentMetadata :one
+SELECT EXISTS (
+    SELECT 1 FROM chat_messages
+    WHERE chat_id = $1::uuid
+        AND role = 'user'
+        AND deleted = false
+        AND content @> $2::jsonb
+    UNION ALL
+    SELECT 1 FROM chat_queued_messages
+    WHERE chat_id = $1::uuid
+        AND content @> $2::jsonb
+)::bool AS message_exists
+`
+
+type ChatMessageExistsWithContentMetadataParams struct {
+	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
+	ContentFilter json.RawMessage `db:"content_filter" json:"content_filter"`
+}
+
+// Reports whether any non-deleted user message or queued message on
+// the chat carries the given content metadata (jsonb containment on
+// the content parts array, e.g. '[{"metadata":{"slack_event_id":"x"}}]').
+// Used by chatd to deduplicate messages submitted multiple times by
+// external integrations, such as the same Slack event delivered to
+// multiple coderd replicas.
+func (q *sqlQuerier) ChatMessageExistsWithContentMetadata(ctx context.Context, arg ChatMessageExistsWithContentMetadataParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, chatMessageExistsWithContentMetadata, arg.ChatID, arg.ContentFilter)
+	var message_exists bool
+	err := row.Scan(&message_exists)
+	return message_exists, err
+}
+
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
@@ -8999,6 +9031,92 @@ func (q *sqlQuerier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.
 			&i.RootChatID,
 			&i.LastModelConfigID,
 			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByOwnerAndLabels = `-- name: GetChatsByOwnerAndLabels :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error
+FROM chats_expanded
+WHERE owner_id = $1::uuid
+    AND archived = false
+    AND labels @> $2::jsonb
+ORDER BY created_at ASC, id ASC
+`
+
+type GetChatsByOwnerAndLabelsParams struct {
+	OwnerID     uuid.UUID       `db:"owner_id" json:"owner_id"`
+	LabelFilter json.RawMessage `db:"label_filter" json:"label_filter"`
+}
+
+// Returns non-archived chats owned by the user whose labels contain
+// label_filter (jsonb containment), oldest first. Used by integrations
+// (e.g. slackd) to find the chat bound to an external conversation,
+// and by chat creation dedup to detect an existing chat inside the
+// creation transaction.
+func (q *sqlQuerier) GetChatsByOwnerAndLabels(ctx context.Context, arg GetChatsByOwnerAndLabelsParams) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerAndLabels, arg.OwnerID, arg.LabelFilter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,

@@ -993,6 +993,11 @@
   "chat": {
     "acquire_batch_size": 0,
     "debug_logging_enabled": true
+  },
+  "slack": {
+    "app_token": "string",
+    "bot_token": "string",
+    "chat_owner_user_id": "string"
   }
 }
 ```
@@ -1004,6 +1009,7 @@
 | `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
+| `slack`          | [codersdk.SlackConfig](#codersdkslackconfig)                 | false    |              |             |
 
 ## codersdk.AIGatewayKey
 
@@ -2743,6 +2749,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "media_type": "string",
+      "metadata": {
+        "property1": "string",
+        "property2": "string"
+      },
       "name": "string",
       "parsed_commands": [
         [
@@ -2839,6 +2849,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "valid": true
   },
   "media_type": "string",
+  "metadata": {
+    "property1": "string",
+    "property2": "string"
+  },
   "name": "string",
   "parsed_commands": [
     [
@@ -2893,6 +2907,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `metadata`                     | object                                                       | false    |              | Metadata holds transport-level key/value metadata attached by integrations that submit messages on a user's behalf (e.g. slackd stores the Slack event ID under "slack_event_id" for cross-replica deduplication). It is persisted with the message content but never included in prompts sent to the model.                                                                                               |
+| » `[any property]`             | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
@@ -3010,6 +3026,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "media_type": "string",
+          "metadata": {
+            "property1": "string",
+            "property2": "string"
+          },
           "name": "string",
           "parsed_commands": [
             [
@@ -3093,6 +3113,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "media_type": "string",
+          "metadata": {
+            "property1": "string",
+            "property2": "string"
+          },
           "name": "string",
           "parsed_commands": [
             [
@@ -3323,6 +3347,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "media_type": "string",
+      "metadata": {
+        "property1": "string",
+        "property2": "string"
+      },
       "name": "string",
       "parsed_commands": [
         [
@@ -3489,6 +3517,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "media_type": "string",
+        "metadata": {
+          "property1": "string",
+          "property2": "string"
+        },
         "name": "string",
         "parsed_commands": [
           [
@@ -3570,6 +3602,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "valid": true
       },
       "media_type": "string",
+      "metadata": {
+        "property1": "string",
+        "property2": "string"
+      },
       "name": "string",
       "parsed_commands": [
         [
@@ -3639,6 +3675,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "valid": true
           },
           "media_type": "string",
+          "metadata": {
+            "property1": "string",
+            "property2": "string"
+          },
           "name": "string",
           "parsed_commands": [
             [
@@ -3757,6 +3797,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "valid": true
     },
     "media_type": "string",
+    "metadata": {
+      "property1": "string",
+      "property2": "string"
+    },
     "name": "string",
     "parsed_commands": [
       [
@@ -4458,6 +4502,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "media_type": "string",
+        "metadata": {
+          "property1": "string",
+          "property2": "string"
+        },
         "name": "string",
         "parsed_commands": [
           [
@@ -4540,6 +4588,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "valid": true
         },
         "media_type": "string",
+        "metadata": {
+          "property1": "string",
+          "property2": "string"
+        },
         "name": "string",
         "parsed_commands": [
           [
@@ -5685,6 +5737,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat": {
         "acquire_batch_size": 0,
         "debug_logging_enabled": true
+      },
+      "slack": {
+        "app_token": "string",
+        "bot_token": "string",
+        "chat_owner_user_id": "string"
       }
     },
     "allow_workspace_renames": true,
@@ -6294,6 +6351,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat": {
       "acquire_batch_size": 0,
       "debug_logging_enabled": true
+    },
+    "slack": {
+      "app_token": "string",
+      "bot_token": "string",
+      "chat_owner_user_id": "string"
     }
   },
   "allow_workspace_renames": true,
@@ -7037,6 +7099,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "valid": true
         },
         "media_type": "string",
+        "metadata": {
+          "property1": "string",
+          "property2": "string"
+        },
         "name": "string",
         "parsed_commands": [
           [
@@ -11362,6 +11428,24 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | Value(s)        |
 |-----------------|
 | `group`, `user` |
+
+## codersdk.SlackConfig
+
+```json
+{
+  "app_token": "string",
+  "bot_token": "string",
+  "chat_owner_user_id": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+|----------------------|--------|----------|--------------|-------------|
+| `app_token`          | string | false    |              |             |
+| `bot_token`          | string | false    |              |             |
+| `chat_owner_user_id` | string | false    |              |             |
 
 ## codersdk.SlimRole
 

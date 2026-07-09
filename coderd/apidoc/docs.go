@@ -15315,6 +15315,9 @@ const docTemplate = `{
                 },
                 "chat": {
                     "$ref": "#/definitions/codersdk.ChatConfig"
+                },
+                "slack": {
+                    "$ref": "#/definitions/codersdk.SlackConfig"
                 }
             }
         },
@@ -17383,6 +17386,13 @@ const docTemplate = `{
                 },
                 "media_type": {
                     "type": "string"
+                },
+                "metadata": {
+                    "description": "Metadata holds transport-level key/value metadata attached by\nintegrations that submit messages on a user's behalf (e.g.\nslackd stores the Slack event id under \"slack_event_id\" for\ncross-replica deduplication). It is persisted with the message\ncontent but never included in prompts sent to the model.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "name": {
                     "type": "string"
@@ -23465,6 +23475,20 @@ const docTemplate = `{
                 "SharedWorkspaceActorTypeGroup",
                 "SharedWorkspaceActorTypeUser"
             ]
+        },
+        "codersdk.SlackConfig": {
+            "type": "object",
+            "properties": {
+                "app_token": {
+                    "type": "string"
+                },
+                "bot_token": {
+                    "type": "string"
+                },
+                "chat_owner_user_id": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.SlimRole": {
             "type": "object",

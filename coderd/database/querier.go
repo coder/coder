@@ -83,6 +83,13 @@ type sqlcQuerier interface {
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
+	// Reports whether any non-deleted user message or queued message on
+	// the chat carries the given content metadata (jsonb containment on
+	// the content parts array, e.g. '[{"metadata":{"slack_event_id":"x"}}]').
+	// Used by chatd to deduplicate messages submitted multiple times by
+	// external integrations, such as the same Slack event delivered to
+	// multiple coderd replicas.
+	ChatMessageExistsWithContentMetadata(ctx context.Context, arg ChatMessageExistsWithContentMetadataParams) (bool, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -506,6 +513,12 @@ type sqlcQuerier interface {
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
+	// Returns non-archived chats owned by the user whose labels contain
+	// label_filter (jsonb containment), oldest first. Used by integrations
+	// (e.g. slackd) to find the chat bound to an external conversation,
+	// and by chat creation dedup to detect an existing chat inside the
+	// creation transaction.
+	GetChatsByOwnerAndLabels(ctx context.Context, arg GetChatsByOwnerAndLabelsParams) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats

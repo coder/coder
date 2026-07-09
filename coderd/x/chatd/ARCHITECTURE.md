@@ -850,6 +850,12 @@ The dynamic tools timeout goroutine is responsible for waiting for the dynamic t
 
 The abandon chat goroutine is responsible for abandoning the chat. It is spawned whenever the event processing logic determines that the chat no longer needs to be owned by the runner. It applies the `Abandon` transition on the core state machine after checking that the chat is still owned by the runner.
 
+#### Slack thread status maintenance goroutine
+
+Chats created by the slackd integration (`coderd/x/slackd`) are bound to a Slack thread via the `slackd` and `slack_thread` labels. For such chats, the runner spawns a Slack thread status maintenance goroutine during bootstrap, right after fetching the initial chat state. The goroutine is intentionally unaware of chat status: while it is alive, it keeps the bound Slack thread's assistant status set to `is thinking...` via the `assistant.threads.setStatus` Web API, re-issuing the call every minute. The periodic re-set retries transient Slack failures and restores the status after Slack auto-clears it when a message is posted to the thread.
+
+Unlike the other runner goroutines, it is not tied to a loop iteration: it lives for the entire lifetime of the runner and is canceled together with the runner's context. On cancellation it clears the thread status before exiting, and the runner waits for it during teardown so the final clear is not abandoned. All of its Slack calls are best-effort; failures are logged and never affect the chat. The goroutine is not spawned when no Slack client is configured, the chat lacks the slackd labels, or the `slack_thread` label is malformed.
+
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.

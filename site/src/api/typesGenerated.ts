@@ -270,6 +270,7 @@ export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 	readonly aibridge_proxy?: AIBridgeProxyConfig;
 	readonly chat?: ChatConfig;
+	readonly slack?: SlackConfig;
 }
 
 // From codersdk/aigatewaykeys.go
@@ -7988,6 +7989,18 @@ export const SignedAppTokenCookie = "coder_signed_app_token";
  *nolint:gosec
  */
 export const SignedAppTokenQueryParameter = "coder_signed_app_token_23db1dde";
+
+// From codersdk/deployment.go
+/**
+ * SlackConfig configures slackd, the built-in Slack Socket Mode
+ * integration that submits Slack messages to chats. slackd is enabled
+ * when both tokens and the chat owner user ID are set.
+ */
+export interface SlackConfig {
+	readonly bot_token: string;
+	readonly app_token: string;
+	readonly chat_owner_user_id: string;
+}
 
 // From codersdk/roles.go
 /**

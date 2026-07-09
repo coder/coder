@@ -337,6 +337,21 @@ func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySummary(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySummary), ctx, arg)
 }
 
+// ChatMessageExistsWithContentMetadata mocks base method.
+func (m *MockStore) ChatMessageExistsWithContentMetadata(ctx context.Context, arg database.ChatMessageExistsWithContentMetadataParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ChatMessageExistsWithContentMetadata", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ChatMessageExistsWithContentMetadata indicates an expected call of ChatMessageExistsWithContentMetadata.
+func (mr *MockStoreMockRecorder) ChatMessageExistsWithContentMetadata(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ChatMessageExistsWithContentMetadata", reflect.TypeOf((*MockStore)(nil).ChatMessageExistsWithContentMetadata), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -3431,6 +3446,21 @@ func (m *MockStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.U
 func (mr *MockStoreMockRecorder) GetChatsByIDsForRunnerSync(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByIDsForRunnerSync", reflect.TypeOf((*MockStore)(nil).GetChatsByIDsForRunnerSync), ctx, ids)
+}
+
+// GetChatsByOwnerAndLabels mocks base method.
+func (m *MockStore) GetChatsByOwnerAndLabels(ctx context.Context, arg database.GetChatsByOwnerAndLabelsParams) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsByOwnerAndLabels", ctx, arg)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsByOwnerAndLabels indicates an expected call of GetChatsByOwnerAndLabels.
+func (mr *MockStoreMockRecorder) GetChatsByOwnerAndLabels(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByOwnerAndLabels", reflect.TypeOf((*MockStore)(nil).GetChatsByOwnerAndLabels), ctx, arg)
 }
 
 // GetChatsByWorkspaceIDs mocks base method.

@@ -35,7 +35,22 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// DedupLockID, when non-zero, is acquired as a Postgres advisory
+	// transaction lock inside the creation transaction before any
+	// lookup or insert, serializing creation of chats bound to the
+	// same external conversation across coderd replicas.
+	DedupLockID int64
+	// DedupLabelFilter, when valid, is checked while the dedup lock
+	// is held: if a non-archived chat owned by OwnerID whose labels
+	// contain the filter already exists, the transaction aborts and
+	// CreateChat returns that chat with ErrChatAlreadyExists.
+	DedupLabelFilter pqtype.NullRawMessage
 }
+
+// ErrChatAlreadyExists indicates chat creation was aborted because a
+// chat matching the input's DedupLabelFilter already exists. The
+// CreateChatResult returned alongside it carries the existing chat.
+var ErrChatAlreadyExists = xerrors.New("a chat with the same dedup labels already exists")
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
 // the new chat row and the inserted initial history.
@@ -77,6 +92,24 @@ func CreateChat(
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
 	err := store.InTx(func(store database.Store) error {
+		if input.DedupLockID != 0 {
+			if err := store.AcquireLock(ctx, input.DedupLockID); err != nil {
+				return xerrors.Errorf("acquire chat creation dedup lock: %w", err)
+			}
+			if input.DedupLabelFilter.Valid {
+				existing, err := store.GetChatsByOwnerAndLabels(ctx, database.GetChatsByOwnerAndLabelsParams{
+					OwnerID:     input.OwnerID,
+					LabelFilter: input.DedupLabelFilter.RawMessage,
+				})
+				if err != nil {
+					return xerrors.Errorf("look up chats by dedup labels: %w", err)
+				}
+				if len(existing) > 0 {
+					result = CreateChatResult{Chat: existing[0]}
+					return ErrChatAlreadyExists
+				}
+			}
+		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    input.OrganizationID,
 			OwnerID:           input.OwnerID,
@@ -130,6 +163,11 @@ func CreateChat(
 		return nil
 	}, nil)
 	if err != nil {
+		if errors.Is(err, ErrChatAlreadyExists) {
+			// result carries the pre-existing chat; nothing was
+			// inserted and no events were buffered.
+			return result, err
+		}
 		return CreateChatResult{}, err
 	}
 	if err := buffer.Flush(); err != nil {

@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/slack-go/slack"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -99,8 +100,10 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/slackd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -835,6 +838,16 @@ func New(options *Options) *API {
 		// the chat daemon stays nil and chat HTTP handlers return a
 		// service-unavailable error with a clear remediation message.
 		if options.DeploymentValues.AI.BridgeConfig.Enabled.Value() {
+			// Slack config is parsed before chatd.New so the shared
+			// Slack Web API client can be handed to the chat daemon
+			// for the Slack chat tools. Partial or invalid
+			// configuration logs a warning inside parseSlackConfig
+			// and disables the integration.
+			slackCfg, slackEnabled := parseSlackConfig(api.ctx, options.Logger, options.DeploymentValues)
+			var slackAPI chattool.SlackAPI
+			if slackEnabled {
+				slackAPI = slackCfg.client
+			}
 			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
@@ -853,6 +866,7 @@ func New(options *Options) *API {
 				CreateWorkspace:                api.chatCreateWorkspace,
 				StartWorkspace:                 api.chatStartWorkspace,
 				StopWorkspace:                  api.chatStopWorkspace,
+				SlackAPI:                       slackAPI,
 				WebpushDispatcher:              options.WebPushDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
@@ -862,6 +876,13 @@ func New(options *Options) *API {
 			})
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
+			}
+			if slackEnabled {
+				if err := api.startSlackd(options, slackCfg); err != nil {
+					// New cannot return an error, so surface it loudly
+					// and run without the Slack integration.
+					options.Logger.Critical(api.ctx, "slack integration disabled", slog.Error(err))
+				}
 			}
 		}
 		gitSyncLogger := options.Logger.Named("gitsync")
@@ -2316,6 +2337,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// slackDaemon submits Slack app mentions to chats. Nil unless the
+	// Slack integration is fully configured and chatd is running.
+	slackDaemon *slackd.Server
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
@@ -2332,6 +2356,89 @@ type API struct {
 
 	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
 	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
+}
+
+// slackConfig carries the parsed Slack integration configuration and
+// the shared Slack Web API client used by both slackd and the chatd
+// Slack tools.
+type slackConfig struct {
+	botToken string
+	appToken string
+	ownerID  uuid.UUID
+	client   *slack.Client
+}
+
+// parseSlackConfig parses the Slack deployment values and builds the
+// shared Slack Web API client. It reports enabled=false when the Slack
+// integration is not configured. Partial or invalid configuration also
+// disables the integration; a warning describing the problem is logged
+// instead of failing.
+func parseSlackConfig(ctx context.Context, logger slog.Logger, values *codersdk.DeploymentValues) (cfg *slackConfig, enabled bool) {
+	slackValues := values.AI.Slack
+	botToken := slackValues.BotToken.Value()
+	appToken := slackValues.AppToken.Value()
+	ownerRaw := slackValues.ChatOwnerUserID.Value()
+	if botToken == "" && appToken == "" && ownerRaw == "" {
+		return nil, false
+	}
+	if botToken == "" || appToken == "" || ownerRaw == "" {
+		vals := []struct {
+			name  string
+			value string
+		}{
+			{"bot token", botToken},
+			{"app token", appToken},
+			{"owner user id", ownerRaw},
+		}
+		var set, missing []string
+		for _, v := range vals {
+			if v.value != "" {
+				set = append(set, v.name)
+			} else {
+				missing = append(missing, v.name)
+			}
+		}
+		logger.Warn(ctx, "the Slack integration is partially configured and will be disabled; set all of its variables to enable it",
+			slog.F("set", set),
+			slog.F("missing", missing),
+		)
+		return nil, false
+	}
+	ownerID, err := uuid.Parse(ownerRaw)
+	if err != nil {
+		logger.Warn(ctx, "the Slack integration is misconfigured and will be disabled: the chat owner user id is not a valid UUID",
+			slog.Error(err),
+		)
+		return nil, false
+	}
+	return &slackConfig{
+		botToken: botToken,
+		appToken: appToken,
+		ownerID:  ownerID,
+		client:   slack.New(botToken, slack.OptionAppLevelToken(appToken)),
+	}, true
+}
+
+// startSlackd starts the Slack Socket Mode integration. cfg must be a
+// non-nil configuration returned by parseSlackConfig.
+func (api *API) startSlackd(options *Options, cfg *slackConfig) error {
+	slackDaemon, err := slackd.New(slackd.Options{
+		Logger:          options.Logger.Named("slackd"),
+		Database:        options.Database,
+		Chat:            api.chatDaemon,
+		ChatOwnerUserID: cfg.ownerID,
+		BotToken:        cfg.botToken,
+		AppToken:        cfg.appToken,
+		UserInfoAPI:     cfg.client,
+	})
+	if err != nil {
+		return xerrors.Errorf("construct slackd: %w", err)
+	}
+	api.slackDaemon = slackDaemon
+	// nolint:gocritic // slackd needs to create and update chats and
+	// resolve the configured chat owner.
+	api.slackDaemon.Start(dbauthz.AsSlackd(api.ctx))
+	return nil
 }
 
 // chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
@@ -2389,6 +2496,9 @@ func (api *API) Close() error {
 		if err := api.chatDaemon.Close(); err != nil {
 			api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
 		}
+	}
+	if api.slackDaemon != nil {
+		api.slackDaemon.Close()
 	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {

@@ -4285,6 +4285,34 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
 		},
+		// Slack (slackd) Options
+		{
+			Name:        "Slack Bot Token",
+			Description: "Bot token (xoxb-...) of the Slack app that slackd connects to. When set together with the app token and chat owner user ID, coderd connects to Slack over Socket Mode and submits app mentions to chats.",
+			Flag:        "slack-bot-token",
+			Env:         "CODER_SLACK_BOT_TOKEN",
+			Value:       &c.AI.Slack.BotToken,
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Slack App Token",
+			Description: "App-level token (xapp-...) with connections:write used for the Slack Socket Mode connection.",
+			Flag:        "slack-app-token",
+			Env:         "CODER_SLACK_APP_TOKEN",
+			Value:       &c.AI.Slack.AppToken,
+			Group:       &deploymentGroupChat,
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		},
+		{
+			Name:        "Slack Chat Owner User ID",
+			Description: "UUID of the Coder user that owns chats created from Slack messages.",
+			Flag:        "slack-chat-owner-user-id",
+			Env:         "CODER_SLACK_CHAT_OWNER_USER_ID",
+			Value:       &c.AI.Slack.ChatOwnerUserID,
+			Group:       &deploymentGroupChat,
+			YAML:        "slackChatOwnerUserId",
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4965,6 +4993,16 @@ type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
+	Slack             SlackConfig         `json:"slack,omitempty" typescript:",notnull"`
+}
+
+// SlackConfig configures slackd, the built-in Slack Socket Mode
+// integration that submits Slack messages to chats. slackd is enabled
+// when both tokens and the chat owner user ID are set.
+type SlackConfig struct {
+	BotToken        serpent.String `json:"bot_token" typescript:",notnull"`
+	AppToken        serpent.String `json:"app_token" typescript:",notnull"`
+	ChatOwnerUserID serpent.String `json:"chat_owner_user_id" typescript:",notnull"`
 }
 
 type TemplateBuilderConfig struct {
@@ -5005,6 +5043,7 @@ func (c *DeploymentValues) Validate() error {
 			refresh, access,
 		)
 	}
+
 	return nil
 }
 

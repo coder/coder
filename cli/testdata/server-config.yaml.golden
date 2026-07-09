@@ -807,6 +807,9 @@ chat:
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
+  # UUID of the Coder user that owns chats created from Slack messages.
+  # (default: <unset>, type: string)
+  slackChatOwnerUserId: ""
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.

@@ -168,6 +168,7 @@ type Server struct {
 	createWorkspaceFn              chattool.CreateWorkspaceFn
 	startWorkspaceFn               chattool.StartWorkspaceFn
 	stopWorkspaceFn                chattool.StopWorkspaceFn
+	slackAPI                       chattool.SlackAPI
 	pubsub                         pubsub.Pubsub
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
@@ -1108,6 +1109,15 @@ var (
 	// ErrNoDefaultChatModelConfig indicates no default chat model config
 	// is configured, so chatd cannot resolve a model for the request.
 	ErrNoDefaultChatModelConfig = xerrors.New("no default chat model config is configured")
+	// ErrDuplicateMessage indicates a message carrying the same dedup
+	// metadata value already exists in the chat's history or queue, so
+	// the submission was dropped. Integrations that submit the same
+	// external event from multiple coderd replicas treat this as
+	// success.
+	ErrDuplicateMessage = xerrors.New("a message with the same dedup metadata already exists")
+	// ErrChatAlreadyExists is returned by CreateChat when DedupLabels
+	// matched an existing chat. The returned chat is the existing one.
+	ErrChatAlreadyExists = chatstate.ErrChatAlreadyExists
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -1152,6 +1162,15 @@ type CreateOptions struct {
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// DedupLabels, when non-empty, serializes chat creation across
+	// coderd replicas. Inside the creation transaction chatd acquires
+	// a Postgres advisory transaction lock derived from the owner and
+	// these labels, then checks for an existing non-archived chat
+	// owned by OwnerID whose labels contain them. If one exists,
+	// CreateChat returns that chat together with ErrChatAlreadyExists.
+	// DedupLabels must be a subset of Labels so the created chat
+	// matches its own dedup filter.
+	DedupLabels map[string]string
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1178,6 +1197,13 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// DedupMetadataKey, when non-empty, deduplicates the submission by
+	// part metadata. The key's value is taken from the first content
+	// part that carries it. Inside the chat-locked transaction, if any
+	// existing user message or queued message on the chat carries the
+	// same metadata key/value, the transition is aborted with
+	// ErrDuplicateMessage.
+	DedupMetadataKey string
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1277,6 +1303,26 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 
+	var (
+		dedupLockID int64
+		dedupFilter pqtype.NullRawMessage
+	)
+	if len(opts.DedupLabels) > 0 {
+		for key, value := range opts.DedupLabels {
+			if opts.Labels[key] != value {
+				return database.Chat{}, xerrors.Errorf("dedup label %q must be present in labels with the same value", key)
+			}
+		}
+		// json.Marshal sorts map keys, so the filter and the derived
+		// lock ID are deterministic across replicas.
+		filterJSON, err := json.Marshal(opts.DedupLabels)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal dedup labels: %w", err)
+		}
+		dedupFilter = pqtype.NullRawMessage{RawMessage: filterJSON, Valid: true}
+		dedupLockID = database.GenLockID("chatd:create-dedup:" + opts.OwnerID.String() + ":" + string(filterJSON))
+	}
+
 	userPrompt := SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
@@ -1336,10 +1382,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
-		ClientType:      opts.ClientType,
-		InitialMessages: initialMessages,
+		ClientType:       opts.ClientType,
+		InitialMessages:  initialMessages,
+		DedupLockID:      dedupLockID,
+		DedupLabelFilter: dedupFilter,
 	})
 	if err != nil {
+		if xerrors.Is(err, chatstate.ErrChatAlreadyExists) {
+			return result.Chat, err
+		}
 		return database.Chat{}, err
 	}
 	chat := result.Chat
@@ -1357,6 +1408,30 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// by that agent's next push.
 	p.hydrateChatContextOnCreate(ctx, chat)
 	return chat, nil
+}
+
+// dedupContentFilter builds the jsonb containment filter used to detect
+// duplicate submissions. It returns nil when key is empty, and errors
+// when key is set but no content part carries it, since silently
+// skipping dedup would defeat its purpose.
+func dedupContentFilter(key string, parts []codersdk.ChatMessagePart) (json.RawMessage, error) {
+	if key == "" {
+		return nil, nil
+	}
+	for _, part := range parts {
+		value, ok := part.Metadata[key]
+		if !ok {
+			continue
+		}
+		filter, err := json.Marshal([]map[string]map[string]string{
+			{"metadata": {key: value}},
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("marshal dedup content filter: %w", err)
+		}
+		return filter, nil
+	}
+	return nil, xerrors.Errorf("dedup metadata key %q not present in any content part", key)
 }
 
 // SendMessage admits a user message through the chatstate.SendMessage
@@ -1396,6 +1471,11 @@ func (p *Server) SendMessage(
 	requestedPlanMode := opts.PlanMode
 	requestedMCPServerIDs := opts.MCPServerIDs
 
+	dedupFilter, err := dedupContentFilter(opts.DedupMetadataKey, opts.Content)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -1406,6 +1486,22 @@ func (p *Server) SendMessage(
 
 		if lockedChat.Archived {
 			return ErrChatArchived
+		}
+
+		// The chat row is locked, so the dedup check and the insert
+		// below are serialized against concurrent submissions of the
+		// same external event from other replicas.
+		if dedupFilter != nil {
+			exists, err := store.ChatMessageExistsWithContentMetadata(ctx, database.ChatMessageExistsWithContentMetadataParams{
+				ChatID:        opts.ChatID,
+				ContentFilter: dedupFilter,
+			})
+			if err != nil {
+				return xerrors.Errorf("check dedup metadata: %w", err)
+			}
+			if exists {
+				return ErrDuplicateMessage
+			}
 		}
 
 		// Enforce usage limits before any state-machine work.
@@ -2847,15 +2943,19 @@ type Config struct {
 	CreateWorkspace                chattool.CreateWorkspaceFn
 	StartWorkspace                 chattool.StartWorkspaceFn
 	StopWorkspace                  chattool.StopWorkspaceFn
-	ProviderAPIKeys                chatprovider.ProviderAPIKeys
-	AllowBYOK                      bool
-	AllowBYOKSet                   bool
-	AlwaysEnableDebugLogs          bool
-	WebpushDispatcher              webpush.Dispatcher
-	UsageTracker                   *workspacestats.UsageTracker
-	Clock                          quartz.Clock
-	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
-	Experiments                    codersdk.Experiments
+	// SlackAPI is the Slack Web API client used by the Slack chat
+	// tools. Nil when the Slack integration is not configured; the
+	// Slack tools are then never offered.
+	SlackAPI                 chattool.SlackAPI
+	ProviderAPIKeys          chatprovider.ProviderAPIKeys
+	AllowBYOK                bool
+	AllowBYOKSet             bool
+	AlwaysEnableDebugLogs    bool
+	WebpushDispatcher        webpush.Dispatcher
+	UsageTracker             *workspacestats.UsageTracker
+	Clock                    quartz.Clock
+	AIBridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
+	Experiments              codersdk.Experiments
 
 	PrometheusRegistry prometheus.Registerer
 
@@ -2931,6 +3031,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		createWorkspaceFn:              cfg.CreateWorkspace,
 		startWorkspaceFn:               cfg.StartWorkspace,
 		stopWorkspaceFn:                cfg.StopWorkspace,
+		slackAPI:                       cfg.SlackAPI,
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
@@ -2988,6 +3089,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
 		MessagePartBuffer:     p.messagePartBuffer,
+		SlackAPI:              cfg.SlackAPI,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,
@@ -3753,6 +3855,7 @@ func (p *Server) appendRootChatTools(
 			StoreFile:        opts.storeFile,
 		}))
 	}
+	tools = p.appendSlackTools(ctx, tools, opts)
 
 	return append(tools, p.subagentTools(ctx, func() database.Chat {
 		return opts.chat
