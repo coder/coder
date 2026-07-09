@@ -778,7 +778,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	server := &Server{
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
-	provider := string(codersdk.ChatComputerUseProviderOpenAI)
+	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 
@@ -813,7 +813,7 @@ func TestResolveComputerUseModel_AIGatewayMissingAPIKeyID(t *testing.T) {
 	server := &Server{
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
-	provider := string(codersdk.ChatComputerUseProviderOpenAI)
+	provider := codersdk.ChatComputerUseProviderOpenAI
 	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
 	require.True(t, ok)
 

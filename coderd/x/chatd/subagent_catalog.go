@@ -134,11 +134,11 @@ func allSubagentDefinitions() []subagentDefinition {
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, provider)
+				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				if !userCanUseProviderKeys(providerKeys, provider) {
+				if !userCanUseProviderKeys(providerKeys, string(provider)) {
 					return childSubagentChatOptions{}, xerrors.Errorf(
 						`API key for computer-use provider %q is not configured`,
 						provider,

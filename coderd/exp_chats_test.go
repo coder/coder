@@ -13299,7 +13299,7 @@ func TestChatComputerUseProvider(t *testing.T) {
 
 		resp, err := adminClient.GetChatComputerUseProvider(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, "anthropic", resp.Provider)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
 	})
 
 	t.Run("AdminCanSetAnthropic", func(t *testing.T) {
@@ -13316,7 +13316,7 @@ func TestChatComputerUseProvider(t *testing.T) {
 
 		resp, err := adminClient.GetChatComputerUseProvider(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, "anthropic", resp.Provider)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
 	})
 
 	t.Run("AdminCanSetOpenAI", func(t *testing.T) {
@@ -13333,7 +13333,7 @@ func TestChatComputerUseProvider(t *testing.T) {
 
 		resp, err := adminClient.GetChatComputerUseProvider(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, "openai", resp.Provider)
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, resp.Provider)
 	})
 
 	t.Run("AdminCanSwitchProviders", func(t *testing.T) {
@@ -13355,7 +13355,7 @@ func TestChatComputerUseProvider(t *testing.T) {
 
 		resp, err := adminClient.GetChatComputerUseProvider(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, "anthropic", resp.Provider)
+		require.Equal(t, codersdk.ChatComputerUseProviderAnthropic, resp.Provider)
 	})
 
 	t.Run("InvalidProviderRejected", func(t *testing.T) {
@@ -13389,7 +13389,7 @@ func TestChatComputerUseProvider(t *testing.T) {
 
 		resp, err := memberClient.GetChatComputerUseProvider(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, "openai", resp.Provider)
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAI, resp.Provider)
 	})
 
 	t.Run("NonAdminWriteFails", func(t *testing.T) {

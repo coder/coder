@@ -930,12 +930,7 @@ var AllChatComputerUseProviders = []ChatComputerUseProvider{
 
 // Valid reports whether p is a supported computer use provider.
 func (p ChatComputerUseProvider) Valid() bool {
-	switch p {
-	case ChatComputerUseProviderAnthropic, ChatComputerUseProviderOpenAI:
-		return true
-	default:
-		return false
-	}
+	return slices.Contains(AllChatComputerUseProviders, p)
 }
 
 // ChatComputerUseProviderResponse is the response for getting the computer use

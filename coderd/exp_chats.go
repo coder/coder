@@ -5376,7 +5376,7 @@ func (api *API) getChatComputerUseProvider(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatComputerUseProviderResponse{
-		Provider: chattool.DefaultComputerUseProvider(provider),
+		Provider: chattool.DefaultComputerUseProvider(codersdk.ChatComputerUseProvider(provider)),
 	})
 }
 

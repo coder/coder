@@ -9312,7 +9312,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(string(codersdk.ChatComputerUseProviderAnthropic))
+	computerUseModelProvider, computerUseModelName, ok := chattool.DefaultComputerUseModel(codersdk.ChatComputerUseProviderAnthropic)
 	require.True(t, ok)
 	require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, computerUseModelProvider)
 
