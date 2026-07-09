@@ -45,9 +45,9 @@ export const CodeExample: FC<CodeExampleProps> = ({
 		? "Hide sensitive data"
 		: "Show sensitive data";
 	const icon = showFullValue ? (
-		<EyeOffIcon className="h-4 w-4" />
+		<EyeOffIcon className="size-4" />
 	) : (
-		<EyeIcon className="h-4 w-4" />
+		<EyeIcon className="size-4" />
 	);
 
 	return (

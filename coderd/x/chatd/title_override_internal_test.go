@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -65,6 +66,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			ctx,
 			chat,
 			messages,
+			nil,
 			"openai",
 			database.ChatModelConfig{Model: "fallback-chat-model"},
 			fallbackModel,
@@ -114,6 +116,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 		ctx,
 		chat,
 		messages,
+		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
 		fallbackModel,
@@ -162,6 +165,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 		ctx,
 		chat,
 		messages,
+		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
 		fallbackModel,
@@ -248,6 +252,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		ctx,
 		chat,
 		messages,
+		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
 		fallbackModel,
@@ -289,6 +294,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableSkips(t *testi
 		ctx,
 		chat,
 		messages,
+		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
 		fallbackModel,
@@ -342,6 +348,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		ctx,
 		chat,
 		messages,
+		nil,
 		"openai",
 		database.ChatModelConfig{Model: "fallback-chat-model"},
 		fallbackModel,
@@ -718,7 +725,7 @@ func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.C
 	chat := database.Chat{
 		ID:      uuid.New(),
 		OwnerID: uuid.New(),
-		Title:   fallbackChatTitle(userPrompt),
+		Title:   chatprompt.FallbackTitle(userPrompt),
 	}
 	message := mustChatMessage(
 		t,

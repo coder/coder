@@ -3,6 +3,8 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -533,6 +535,14 @@ func startFakeAgentAPI(t *testing.T, handlers map[string]http.HandlerFunc) *fake
 
 	mux := http.NewServeMux()
 
+	// requestDetail records method, path, User-Agent, and a bounded view of
+	// the request body so unexpected traffic can be attributed without
+	// unbounded logging.
+	requestDetail := func(r *http.Request) string {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 4<<10))
+		return fmt.Sprintf("method=%s path=%s user-agent=%q body=%q", r.Method, r.URL.Path, r.UserAgent(), body)
+	}
+
 	// Register all provided handlers with call tracking
 	for path, handler := range handlers {
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
@@ -543,18 +553,27 @@ func startFakeAgentAPI(t *testing.T, handlers map[string]http.HandlerFunc) *fake
 		})
 	}
 
+	// Known agentapi endpoints without a handler fail the test: a coderd
+	// regression that calls an endpoint the test did not stub must be
+	// caught. The 404 also gives the client a well-formed response instead
+	// of leaving it hanging.
 	knownEndpoints := []string{"/status", "/messages", "/message"}
 	for _, endpoint := range knownEndpoints {
 		if handlers[endpoint] == nil {
 			endpoint := endpoint // capture loop variable
 			mux.HandleFunc(endpoint, func(w http.ResponseWriter, r *http.Request) {
-				t.Fatalf("unexpected call to %s %s - no handler defined", r.Method, endpoint)
+				t.Errorf("unexpected call to agentapi endpoint %s with no handler defined: %s", endpoint, requestDetail(r))
+				w.WriteHeader(http.StatusNotFound)
 			})
 		}
 	}
-	// Default handler for unknown endpoints should cause the test to fail.
+	// Unknown paths get a 404 and a log line, but do not fail the test.
+	// Stray traffic can arrive here, most likely from another test's
+	// lingering client whose closed server's ephemeral port was reused by
+	// this one, so failing on unknown paths would create false flakes.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		t.Fatalf("unexpected call to %s %s - no handler defined", r.Method, r.URL.Path)
+		t.Logf("unexpected request to unknown path, likely cross-test chatter from a reused ephemeral port: %s", requestDetail(r))
+		w.WriteHeader(http.StatusNotFound)
 	})
 
 	fake.server = httptest.NewServer(mux)

@@ -2800,6 +2800,17 @@ func ConfigureTraceProvider(
 	logger slog.Logger,
 	cfg *codersdk.DeploymentValues,
 ) (trace.TracerProvider, string, func(context.Context) error) {
+	return ConfigureTraceProviderWithService(ctx, logger, cfg, "coderd")
+}
+
+// ConfigureTraceProviderWithService configures trace provider
+// with a specified service name.
+func ConfigureTraceProviderWithService(
+	ctx context.Context,
+	logger slog.Logger,
+	cfg *codersdk.DeploymentValues,
+	serviceName string,
+) (trace.TracerProvider, string, func(context.Context) error) {
 	var (
 		tracerProvider = trace.NewNoopTracerProvider()
 		closeTracing   = func(context.Context) error { return nil }
@@ -2814,7 +2825,7 @@ func ConfigureTraceProvider(
 	)
 
 	if cfg.Trace.Enable.Value() || cfg.Trace.DataDog.Value() || cfg.Trace.HoneycombAPIKey != "" {
-		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
+		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, serviceName, tracing.TracerOpts{
 			Default:   cfg.Trace.Enable.Value(),
 			DataDog:   cfg.Trace.DataDog.Value(),
 			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),

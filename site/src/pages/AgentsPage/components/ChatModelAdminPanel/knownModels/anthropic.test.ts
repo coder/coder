@@ -22,6 +22,8 @@ describe("anthropicKnownModels", () => {
 				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual([
+			"claude-fable-5",
+			"claude-mythos-5",
 			"claude-opus-4-8",
 			"claude-opus-4-7",
 			"claude-opus-4-6",
@@ -33,6 +35,8 @@ describe("anthropicKnownModels", () => {
 
 	it("declares Anthropic reasoning defaults by API support", () => {
 		for (const modelIdentifier of [
+			"claude-fable-5",
+			"claude-mythos-5",
 			"claude-opus-4-8",
 			"claude-opus-4-7",
 			"claude-opus-4-6",
@@ -59,6 +63,8 @@ describe("anthropicKnownModels", () => {
 		expect(
 			anthropicKnownModels.map((knownModel) => knownModel.modelIdentifier),
 		).toEqual([
+			"claude-fable-5",
+			"claude-mythos-5",
 			"claude-opus-4-8",
 			"claude-opus-4-7",
 			"claude-opus-4-6",

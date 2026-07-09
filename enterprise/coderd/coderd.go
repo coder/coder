@@ -641,7 +641,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
-		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
+		r.Route("/users/{user}/ai", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
 				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
@@ -650,9 +650,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-			r.Get("/", api.userAIBudgetOverride)
-			r.Put("/", api.upsertUserAIBudgetOverride)
-			r.Delete("/", api.deleteUserAIBudgetOverride)
+			r.Route("/budget", func(r chi.Router) {
+				r.Get("/", api.userAIBudgetOverride)
+				r.Put("/", api.upsertUserAIBudgetOverride)
+				r.Delete("/", api.deleteUserAIBudgetOverride)
+			})
+			r.Route("/spend", func(r chi.Router) {
+				r.Get("/", api.userAISpendStatus)
+			})
 		})
 		r.Route("/prebuilds", func(r chi.Router) {
 			r.Use(

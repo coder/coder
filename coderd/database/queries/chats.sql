@@ -870,17 +870,6 @@ SELECT
 RETURNING
     *;
 
--- name: UpdateChatMessageByID :one
-UPDATE
-    chat_messages
-SET
-    model_config_id = COALESCE(sqlc.narg('model_config_id')::uuid, model_config_id),
-    content = sqlc.narg('content')::jsonb
-WHERE
-    id = @id::bigint
-RETURNING
-    *;
-
 -- name: UpdateChatByID :one
 WITH updated_chat AS (
 UPDATE

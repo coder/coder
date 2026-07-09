@@ -1,6 +1,6 @@
 # Accessibility and inclusion
 
-The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA as a stretch goal where it does not sacrifice clarity.
+The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA as a stretch goal where it doesn't sacrifice clarity.
 The rules on this page support that target.
 They cover heading structure, inclusive language, link text, images, plain English for international readers, page descriptions, and reading level.
 
@@ -10,14 +10,14 @@ They cover heading structure, inclusive language, link text, images, plain Engli
 ## Heading structure and placement
 
 Each page has exactly one H1.
-The H1 is the page title and appears once at the top of the page.
+The H1 is the page title and appears once at the beginning of the page.
 Subsequent headings descend by one level at a time.
 A page goes H1, then H2, then H3.
-A page does not jump from H2 to H4.
+A page doesn't jump from H2 to H4.
 
 Each heading is followed by at least one paragraph (or other content block) before the next heading.
 A bare H2 followed immediately by an H3 with no prose in between reads as a broken document outline, and SEO crawlers flag the pattern as a potential site error.
-If a parent heading does not yet have introductory content, write a short paragraph that frames what the section covers before the subheadings.
+If a parent heading doesn't yet have introductory content, write a short paragraph that frames what the section covers before the subheadings.
 
 The rule is a [WCAG 2.1 Level A](https://www.w3.org/TR/WCAG21/#info-and-relationships) requirement: assistive technology relies on heading levels to convey document structure.
 Skipping a level breaks the outline.
@@ -28,12 +28,12 @@ Skipping a level breaks the outline.
 # Configure your workspace
 
 This page walks through the configuration options exposed on a Coder workspace.
-The sections below cover SSH access and environment variables.
+The following sections cover SSH access and environment variables.
 
 ## Set up SSH access
 
 SSH access uses the agent that runs inside your workspace.
-Two client setups are documented below.
+Two client setups are documented in the following sections.
 
 ### Connect through JetBrains Toolbox
 
@@ -123,8 +123,8 @@ Screen readers announce link text out of context too, which is the [WCAG 2.1 Lev
 
 Every image declares descriptive alt text.
 The alt text describes what the image shows or what purpose it serves.
-It is not a caption.
-Captions go below the image in a `<small>` tag.
+It isn't a caption.
+Captions follow the image in a `<small>` tag.
 
 Aim for one or two sentences that convey the same information a sighted reader would extract from the image.
 Lead with the subject, not "An image of" or "A screenshot showing".
@@ -132,10 +132,10 @@ Lead with the subject, not "An image of" or "A screenshot showing".
 ```markdown
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
-<small>The Template Insights dashboard. Active users in the left panel; connection latency in the right panel.</small>
+<small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
 ```
 
-For complex diagrams that cannot be summarized in alt text, provide a longer description in the body of the page and reference it from the alt text.
+For complex diagrams that can't be summarized in alt text, provide a longer description in the body of the page and reference it from the alt text.
 
 *Enforced by `markdownlint` rule `MD045` for the alt-text-required requirement.*
 
@@ -155,14 +155,57 @@ When in doubt, write descriptive alt text.
 *Documentation-only.
 No Vale rule.*
 
+## Directional language
+
+Screen-reader users navigate documents linearly and don't experience the visual layout.
+Phrases like "see below", "above the table", or "the menu on the left" lose meaning when the reader can't see where elements sit on the page.
+Sighted readers also benefit from semantic references when the page gets restructured or they jump in through an anchor link.
+
+Refer to content by section heading, by document order (`the previous section`, `the following section`), or by anchor link.
+Refer to UI elements by their label, not by their position on the screen.
+
+**Do**:
+
+> See the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
+>
+> Add a `<small>` caption after the image.
+>
+> Open the **Workspaces** sidebar to switch templates.
+
+**Don't**:
+
+> See the table below for the comma convention.
+>
+> Add a `<small>` caption underneath the image.
+>
+> Open the menu on the left to switch templates.
+
+Common replacements:
+
+| Avoid                        | Prefer                                                  |
+|------------------------------|---------------------------------------------------------|
+| see below                    | see the following section, see the `[Section](#anchor)` |
+| see above                    | see the previous section, see earlier                   |
+| top of the page              | beginning of the page                                   |
+| bottom of the page           | end of the page                                         |
+| the menu on the left         | the **Sidebar** menu                                    |
+| the right side of the screen | the **Details** panel                                   |
+| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end   |
+
+The rule covers prose.
+Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs like "set up", "back up", "log in", and "shut down" aren't directional and stay as-is.
+
+*Documentation-only.
+No Vale rule.*
+
 ## Plain English for international readers
 
-Keep prose accessible to readers whose first language is not English.
+Keep prose accessible to readers whose first language isn't English.
 Two patterns add friction for non-native speakers without adding meaning, so the guide bans them:
 
 ### Avoid idioms and figurative language
 
-Idioms (`under the weather`, `ballpark figure`, `get the ball rolling`, `at the eleventh hour`) and figurative language (`unleash`, `supercharge`, `dive in`, `out of the box`) rely on cultural context that does not translate.
+Idioms (`under the weather`, `ballpark figure`, `get the ball rolling`, `at the eleventh hour`) and figurative language (`unleash`, `supercharge`, `dive in`, `out of the box`) rely on cultural context that doesn't translate.
 They also rarely add precision.
 Replace them with the literal meaning.
 
@@ -190,13 +233,13 @@ Planned Vale rule `Coder.Idioms`.*
 The following Latin abbreviations are fine in Coder docs.
 Use them when they fit the sentence; the English equivalent is also fine.
 
-| Abbreviation | Meaning                                        | Notes                                                                          |
-|--------------|------------------------------------------------|--------------------------------------------------------------------------------|
-| `e.g.`       | for example                                    | Followed by a comma. Prefer parentheses around the clause, as described below. |
-| `i.e.`       | that is                                        | Followed by a comma. Prefer parentheses around the clause, as described below. |
-| `etc.`       | and so on                                      | Closes a list. The Oxford comma applies before it: `apples, oranges, etc.`     |
-| `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                             |
-| `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.         |
+| Abbreviation | Meaning                                        | Notes                                                                      |
+|--------------|------------------------------------------------|----------------------------------------------------------------------------|
+| `e.g.`       | for example                                    | Followed by a comma. Prefer parentheses around the clause.                 |
+| `i.e.`       | that is                                        | Followed by a comma. Prefer parentheses around the clause.                 |
+| `etc.`       | and so on                                      | Closes a list. The Oxford comma applies before it: `apples, oranges, etc.` |
+| `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                         |
+| `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.     |
 
 **Prefer parentheses around `e.g.` and `i.e.` clauses.** The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
 
@@ -241,7 +284,7 @@ The same rule applies if `e.g.` or `i.e.` ever sits at the end of a sentence, th
 >
 > The protocol is described by Smith et al. (2020).
 
-**Less common Latin abbreviations are not allowed.** Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to many readers and easy to misuse.
+**Less common Latin abbreviations aren't allowed.** Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to many readers and easy to misuse.
 Replace them with plain English.
 
 **Don't**:
@@ -274,7 +317,7 @@ A page's H1 and its sidebar title serve different jobs and may diverge.
   It fits the limited horizontal space of the sidebar and reads fast when the reader is scanning a tree of dozens of pages.
   The Coder docs site reads the sidebar title from the `title` field in [`docs/manifest.json`](../../manifest.json).
 
-The two must each stand alone, but they do not need to be identical.
+The two must each stand alone, but they don't need to be identical.
 Breadcrumb depth gives one layer of context for free.
 The sidebar title can drop redundancy that the parent breadcrumbs already imply.
 
@@ -283,7 +326,7 @@ A page reachable through **Administration** > **Authentication** > **Google** ha
 The sidebar title can be `Google` alone, and the H1 can be `Configure Google authentication with Coder`.
 Both labels stand alone in their own context.
 
-When the H1 and the sidebar title coincide (often the case for short-titled pages), that is fine.
+When the H1 and the sidebar title coincide (often the case for short-titled pages), that's fine.
 When they diverge, the divergence is intentional and serves the reader.
 The same pattern is common in mature docs sites.
 AWS, Microsoft Learn, and GitHub Docs all pair task-focused H1s with shorter noun-focused sidebar titles.
@@ -306,7 +349,7 @@ AWS, Microsoft Learn, and GitHub Docs all pair task-focused H1s with shorter nou
 
 The first **Don't** row uses the full H1 as the sidebar title.
 The sidebar title is redundant with the parent breadcrumbs and crowds the navigation tree.
-The second row has a sidebar title that does not stand alone.
+The second row has a sidebar title that doesn't stand alone.
 The third row has a sidebar title that tells the reader nothing.
 
 *Documentation-only.
@@ -329,7 +372,7 @@ The manifest maps each page to a `title` and a `description`:
 A good description:
 
 - States what the page covers in one sentence.
-- Stays under roughly 160 characters so search engines do not truncate it.
+- Stays under roughly 160 characters so search engines don't truncate it.
 - Avoids marketing language and superlatives.
 - Reads as a complete sentence.
 
@@ -350,9 +393,9 @@ A good description:
 ```
 
 The short description tells the reader nothing.
-The marketing description does not survive truncation and adds no information.
+The marketing description doesn't survive truncation and adds no information.
 
-If a page does not yet have a description in the manifest, add one in the same PR that touches the page.
+If a page doesn't yet have a description in the manifest, add one in the same PR that touches the page.
 
 *Documentation-only.
 No Vale rule.*
@@ -378,8 +421,8 @@ The criterion is satisfied either by writing at the lower-secondary reading leve
 Coder docs write at the target reading level directly.
 
 Editors that surface a grade-level score (Hemingway, Vale's `write-good.Reading`) are a useful spot check.
-The grade level is not a hard ceiling.
-A reference page that requires technical vocabulary will read higher than a tutorial, and that is correct.
+The grade level isn't a hard ceiling.
+A reference page that requires technical vocabulary will read higher than a tutorial, and that's correct.
 
 *Documentation-only.
 No Vale rule wired.*

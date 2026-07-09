@@ -18,6 +18,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -157,7 +158,14 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		)
 		return
 	}
-	if _, ok := titleInput(chat, messages); !ok {
+	pasteText, err := titlePasteText(ctx, p.db, messages)
+	if err != nil {
+		logger.Debug(ctx, "failed to load pasted-text attachments for automatic title generation",
+			slog.Error(err),
+		)
+		return
+	}
+	if _, ok := titleInput(chat, messages, pasteText); !ok {
 		return
 	}
 	// Detach from request; bind to server so Close cancels it.
@@ -177,6 +185,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			turnCtx,
 			chat,
 			messages,
+			pasteText,
 			string(route.Provider.Type),
 			modelConfig,
 			model,
@@ -207,6 +216,7 @@ func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
+	pasteText map[uuid.UUID]string,
 	fallbackProvider string,
 	fallbackConfig database.ChatModelConfig,
 	fallbackModel fantasy.LanguageModel,
@@ -216,7 +226,7 @@ func (p *Server) maybeGenerateChatTitle(
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
 ) {
-	input, ok := titleInput(chat, messages)
+	input, ok := titleInput(chat, messages, pasteText)
 	if !ok {
 		return
 	}
@@ -584,13 +594,16 @@ func validateGeneratedTitle(title string) error {
 	return nil
 }
 
-// titleInput returns the first user message text and whether title
-// generation should proceed. It returns false when the chat already
-// has assistant/tool replies, has more than one visible user message,
-// or the current title doesn't look like a candidate for replacement.
+// titleInput returns the first user message title text and whether
+// title generation should proceed. It returns false when the chat
+// already has assistant/tool replies, has more than one visible user
+// message, or the current title doesn't look like a candidate for
+// replacement. pasteText carries resolved pasted-text attachment
+// content (see titlePasteText) so paste-only messages stay eligible.
 func titleInput(
 	chat database.Chat,
 	messages []database.ChatMessage,
+	pasteText map[uuid.UUID]string,
 ) (string, bool) {
 	userCount := 0
 	firstUserText := ""
@@ -610,9 +623,7 @@ func titleInput(
 				if err != nil {
 					return "", false
 				}
-				firstUserText = strings.TrimSpace(
-					contentBlocksToText(parsed),
-				)
+				firstUserText = chatprompt.TitleText(parsed, pasteText)
 			}
 		}
 	}
@@ -626,11 +637,56 @@ func titleInput(
 		return firstUserText, true
 	}
 
-	if currentTitle != fallbackChatTitle(firstUserText) {
+	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
 		return "", false
 	}
 
 	return firstUserText, true
+}
+
+// titlePasteText resolves synthetic pasted-text attachment content
+// for visible user messages whose text and file-reference parts yield
+// no title input, fetching only bounded prefixes for
+// chatprompt.TitleText. It returns nil without touching the database
+// when every user message already has text.
+func titlePasteText(
+	ctx context.Context,
+	store database.Store,
+	messages []database.ChatMessage,
+) (map[uuid.UUID]string, error) {
+	var ids []uuid.UUID
+	for _, message := range messages {
+		if message.Visibility == database.ChatMessageVisibilityModel {
+			continue
+		}
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		parsed, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+		if chatprompt.TitleText(parsed, nil) != "" {
+			continue
+		}
+		ids = append(ids, chatprompt.SyntheticPasteFileIDs(parsed)...)
+	}
+	if len(ids) == 0 {
+		return nil, nil //nolint:nilnil // Nil map cleanly signals no paste content to resolve.
+	}
+
+	rows, err := store.GetChatFileDataPrefixesByIDs(ctx, database.GetChatFileDataPrefixesByIDsParams{
+		IDs:         ids,
+		PrefixBytes: chatprompt.TitlePasteBytePrefix,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("get pasted-text chat file prefixes: %w", err)
+	}
+	pasteText := make(map[uuid.UUID]string, len(rows))
+	for _, row := range rows {
+		pasteText[row.ID] = chatprompt.TitlePasteText(row.DataPrefix)
+	}
+	return pasteText, nil
 }
 
 func normalizeTitleOutput(title string) string {
@@ -639,29 +695,6 @@ func normalizeTitleOutput(title string) string {
 		return ""
 	}
 	return truncateRunes(title, 80)
-}
-
-func fallbackChatTitle(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		return truncateRunes(title, maxRunes-1) + "…"
-	}
-
-	return truncateRunes(title, maxRunes)
 }
 
 // contentBlocksToText concatenates the text parts of SDK chat
@@ -701,7 +734,14 @@ type manualTitleTurn struct {
 	text string
 }
 
-func extractManualTitleTurns(messages []database.ChatMessage) []manualTitleTurn {
+// extractManualTitleTurns flattens visible user and assistant
+// messages into title turns. pasteText carries resolved pasted-text
+// attachment content (see titlePasteText) so paste-only user messages
+// still produce turns.
+func extractManualTitleTurns(
+	messages []database.ChatMessage,
+	pasteText map[uuid.UUID]string,
+) []manualTitleTurn {
 	turns := make([]manualTitleTurn, 0, len(messages))
 	for _, message := range messages {
 		if message.Visibility == database.ChatMessageVisibilityModel {
@@ -723,7 +763,7 @@ func extractManualTitleTurns(messages []database.ChatMessage) []manualTitleTurn 
 			continue
 		}
 
-		text := strings.TrimSpace(contentBlocksToText(parts))
+		text := chatprompt.TitleText(parts, pasteText)
 		if text == "" {
 			continue
 		}
@@ -833,10 +873,11 @@ func renderManualTitlePrompt(
 func generateManualTitle(
 	ctx context.Context,
 	messages []database.ChatMessage,
+	pasteText map[uuid.UUID]string,
 	fallbackModel fantasy.LanguageModel,
 	providerOptions fantasy.ProviderOptions,
 ) (string, fantasy.Usage, error) {
-	turns := extractManualTitleTurns(messages)
+	turns := extractManualTitleTurns(messages, pasteText)
 	selected := selectManualTitleTurnIndexes(turns)
 
 	firstUserIndex := slices.IndexFunc(turns, func(turn manualTitleTurn) bool {

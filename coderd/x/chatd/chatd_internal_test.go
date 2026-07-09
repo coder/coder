@@ -787,7 +787,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		LastModelConfigID: modelConfigID,
 		Status:            database.ChatStatusRunning,
 		WorkerID:          uuid.NullUUID{UUID: workerID, Valid: true},
-		Title:             fallbackChatTitle(userPrompt),
+		Title:             chatprompt.FallbackTitle(userPrompt),
 	}
 	providerID := uuid.New()
 	modelConfig := database.ChatModelConfig{
@@ -954,7 +954,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 		OwnerID:           ownerID,
 		LastModelConfigID: modelConfigID,
 		Status:            database.ChatStatusWaiting,
-		Title:             fallbackChatTitle(userPrompt),
+		Title:             chatprompt.FallbackTitle(userPrompt),
 	}
 	modelConfig := database.ChatModelConfig{
 		ID:           modelConfigID,

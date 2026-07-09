@@ -1158,7 +1158,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
 FROM
 	aibridge_interceptions
 WHERE
@@ -1187,6 +1187,8 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.CredentialHint,
 		&i.AgentFirewallSessionID,
 		&i.AgentFirewallSequenceNumber,
+		&i.ErrorType,
+		&i.ErrorMessage,
 	)
 	return i, err
 }
@@ -1221,7 +1223,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
 FROM
 	aibridge_interceptions
 `
@@ -1254,6 +1256,8 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.CredentialHint,
 			&i.AgentFirewallSessionID,
 			&i.AgentFirewallSequenceNumber,
+			&i.ErrorType,
+			&i.ErrorMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -1413,7 +1417,7 @@ INSERT INTO aibridge_interceptions (
 ) VALUES (
 	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14, $15::uuid, $16
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -1474,6 +1478,8 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.CredentialHint,
 		&i.AgentFirewallSessionID,
 		&i.AgentFirewallSequenceNumber,
+		&i.ErrorType,
+		&i.ErrorMessage,
 	)
 	return i, err
 }
@@ -1904,7 +1910,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message
 FROM
 	aibridge_interceptions
 JOIN
@@ -1970,6 +1976,8 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.CredentialHint,
 			&i.AIBridgeInterception.AgentFirewallSessionID,
 			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
+			&i.AIBridgeInterception.ErrorType,
+			&i.AIBridgeInterception.ErrorMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -2394,21 +2402,33 @@ UPDATE aibridge_interceptions
 		credential_hint = CASE
 			WHEN credential_kind = 'centralized' THEN $2::text
 			ELSE credential_hint
-		END
+		END,
+		-- Terminal upstream error, only set when the interception failed.
+		-- NULL leaves the columns empty for successful interceptions.
+		error_type = $3::aibridge_interception_error_type,
+		error_message = $4::text
 WHERE
-	id = $3::uuid
+	id = $5::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, error_type, error_message
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
-	EndedAt        time.Time `db:"ended_at" json:"ended_at"`
-	CredentialHint string    `db:"credential_hint" json:"credential_hint"`
-	ID             uuid.UUID `db:"id" json:"id"`
+	EndedAt        time.Time                         `db:"ended_at" json:"ended_at"`
+	CredentialHint string                            `db:"credential_hint" json:"credential_hint"`
+	ErrorType      NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
+	ErrorMessage   sql.NullString                    `db:"error_message" json:"error_message"`
+	ID             uuid.UUID                         `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.CredentialHint, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded,
+		arg.EndedAt,
+		arg.CredentialHint,
+		arg.ErrorType,
+		arg.ErrorMessage,
+		arg.ID,
+	)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,
@@ -2429,6 +2449,8 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.CredentialHint,
 		&i.AgentFirewallSessionID,
 		&i.AgentFirewallSequenceNumber,
+		&i.ErrorType,
+		&i.ErrorMessage,
 	)
 	return i, err
 }
@@ -4987,6 +5009,55 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 		&i.Data,
 	)
 	return i, err
+}
+
+const getChatFileDataPrefixesByIDs = `-- name: GetChatFileDataPrefixesByIDs :many
+SELECT id, owner_id, organization_id, substr(data, 1, $1::int) AS data_prefix
+FROM chat_files
+WHERE id = ANY($2::uuid[])
+`
+
+type GetChatFileDataPrefixesByIDsParams struct {
+	PrefixBytes int32       `db:"prefix_bytes" json:"prefix_bytes"`
+	IDs         []uuid.UUID `db:"ids" json:"ids"`
+}
+
+type GetChatFileDataPrefixesByIDsRow struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	DataPrefix     []byte    `db:"data_prefix" json:"data_prefix"`
+}
+
+// GetChatFileDataPrefixesByIDs returns a bounded prefix of each
+// file's content, keeping full blobs out of server memory. Owner and
+// organization columns support row-level authorization.
+func (q *sqlQuerier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg GetChatFileDataPrefixesByIDsParams) ([]GetChatFileDataPrefixesByIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatFileDataPrefixesByIDs, arg.PrefixBytes, pq.Array(arg.IDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatFileDataPrefixesByIDsRow
+	for rows.Next() {
+		var i GetChatFileDataPrefixesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.DataPrefix,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
@@ -11710,56 +11781,6 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.ContextDirtySince,
 		&i.ContextDirtyResources,
 		&i.ContextError,
-	)
-	return i, err
-}
-
-const updateChatMessageByID = `-- name: UpdateChatMessageByID :one
-UPDATE
-    chat_messages
-SET
-    model_config_id = COALESCE($1::uuid, model_config_id),
-    content = $2::jsonb
-WHERE
-    id = $3::bigint
-RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, api_key_id, revision, reasoning_effort
-`
-
-type UpdateChatMessageByIDParams struct {
-	ModelConfigID uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
-	Content       pqtype.NullRawMessage `db:"content" json:"content"`
-	ID            int64                 `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error) {
-	row := q.db.QueryRowContext(ctx, updateChatMessageByID, arg.ModelConfigID, arg.Content, arg.ID)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ChatID,
-		&i.ModelConfigID,
-		&i.CreatedAt,
-		&i.Role,
-		&i.Content,
-		&i.Visibility,
-		&i.InputTokens,
-		&i.OutputTokens,
-		&i.TotalTokens,
-		&i.ReasoningTokens,
-		&i.CacheCreationTokens,
-		&i.CacheReadTokens,
-		&i.ContextLimit,
-		&i.Compressed,
-		&i.CreatedBy,
-		&i.ContentVersion,
-		&i.TotalCostMicros,
-		&i.RuntimeMs,
-		&i.Deleted,
-		&i.ProviderResponseID,
-		&i.APIKeyID,
-		&i.Revision,
-		&i.ReasoningEffort,
 	)
 	return i, err
 }
@@ -35220,6 +35241,359 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 		pq.Array(arg.Requests),
 	)
 	return err
+}
+
+const deleteOldWorkspaceBuildOrchestrations = `-- name: DeleteOldWorkspaceBuildOrchestrations :execrows
+WITH deletable AS (
+    SELECT
+        id
+    FROM
+        workspace_build_orchestrations
+    WHERE
+        status IN ('completed', 'failed', 'canceled')
+        AND updated_at < $1::timestamptz
+    ORDER BY
+        updated_at ASC
+    LIMIT $2::int
+)
+DELETE FROM workspace_build_orchestrations
+USING deletable
+WHERE workspace_build_orchestrations.id = deletable.id
+`
+
+type DeleteOldWorkspaceBuildOrchestrationsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldWorkspaceBuildOrchestrations(ctx context.Context, arg DeleteOldWorkspaceBuildOrchestrationsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteOldWorkspaceBuildOrchestrations, arg.BeforeTime, arg.LimitCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getNextPendingWorkspaceBuildOrchestrationForUpdate = `-- name: GetNextPendingWorkspaceBuildOrchestrationForUpdate :one
+SELECT
+    wbo.id, wbo.created_at, wbo.updated_at, wbo.workspace_id, wbo.parent_build_id, wbo.child_build_id, wbo.child_transition, wbo.child_template_version_id, wbo.child_template_version_preset_id, wbo.child_rich_parameter_values, wbo.child_log_level, wbo.child_reason, wbo.attempt_count, wbo.next_retry_after, wbo.status, wbo.error
+FROM
+    workspace_build_orchestrations wbo
+    JOIN workspace_builds wb ON wbo.parent_build_id = wb.id
+    JOIN provisioner_jobs pj ON wb.job_id = pj.id
+WHERE
+    wbo.status = 'pending'
+    AND (
+        wbo.next_retry_after IS NULL
+        OR wbo.next_retry_after <= NOW()
+    )
+    -- Include all terminal parent states so pending orchestration
+    -- rows are processed and resolved even when no child build should
+    -- be created.
+    AND pj.job_status IN ('succeeded', 'failed', 'canceled')
+ORDER BY
+    wbo.created_at ASC
+LIMIT 1
+FOR UPDATE OF wbo SKIP LOCKED
+`
+
+// Must be called from within a transaction. The row lock is released
+// when the transaction ends.
+func (q *sqlQuerier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, getNextPendingWorkspaceBuildOrchestrationForUpdate)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const insertWorkspaceBuildOrchestration = `-- name: InsertWorkspaceBuildOrchestration :one
+INSERT INTO workspace_build_orchestrations (
+    id,
+    created_at,
+    updated_at,
+    parent_build_id,
+    workspace_id,
+    child_transition,
+    child_template_version_id,
+    child_template_version_preset_id,
+    child_rich_parameter_values,
+    child_log_level,
+    child_reason,
+    status,
+    error
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    (SELECT workspace_id FROM workspace_builds WHERE id = $4),
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    'pending',
+    NULL
+)
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type InsertWorkspaceBuildOrchestrationParams struct {
+	ID                           uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                    time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time           `db:"updated_at" json:"updated_at"`
+	ParentBuildID                uuid.UUID           `db:"parent_build_id" json:"parent_build_id"`
+	ChildTransition              WorkspaceTransition `db:"child_transition" json:"child_transition"`
+	ChildTemplateVersionID       uuid.NullUUID       `db:"child_template_version_id" json:"child_template_version_id"`
+	ChildTemplateVersionPresetID uuid.NullUUID       `db:"child_template_version_preset_id" json:"child_template_version_preset_id"`
+	ChildRichParameterValues     json.RawMessage     `db:"child_rich_parameter_values" json:"child_rich_parameter_values"`
+	ChildLogLevel                string              `db:"child_log_level" json:"child_log_level"`
+	ChildReason                  NullBuildReason     `db:"child_reason" json:"child_reason"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceBuildOrchestration(ctx context.Context, arg InsertWorkspaceBuildOrchestrationParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceBuildOrchestration,
+		arg.ID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.ParentBuildID,
+		arg.ChildTransition,
+		arg.ChildTemplateVersionID,
+		arg.ChildTemplateVersionPresetID,
+		arg.ChildRichParameterValues,
+		arg.ChildLogLevel,
+		arg.ChildReason,
+	)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationCanceledByID = `-- name: UpdateWorkspaceBuildOrchestrationCanceledByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    status = 'canceled',
+    next_retry_after = NULL,
+    error = NULL,
+    updated_at = $1
+WHERE
+    id = $2
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationCanceledByIDParams struct {
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationCanceledByID, arg.UpdatedAt, arg.ID)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationCompletedByID = `-- name: UpdateWorkspaceBuildOrchestrationCompletedByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    child_build_id = $1,
+    status = 'completed',
+    next_retry_after = NULL,
+    error = NULL,
+    updated_at = $2
+WHERE
+    id = $3
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationCompletedByIDParams struct {
+	ChildBuildID uuid.NullUUID `db:"child_build_id" json:"child_build_id"`
+	UpdatedAt    time.Time     `db:"updated_at" json:"updated_at"`
+	ID           uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationCompletedByID, arg.ChildBuildID, arg.UpdatedAt, arg.ID)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationFailedByID = `-- name: UpdateWorkspaceBuildOrchestrationFailedByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    status = 'failed',
+    next_retry_after = NULL,
+    error = $1,
+    updated_at = $2
+WHERE
+    id = $3
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationFailedByIDParams struct {
+	Error     sql.NullString `db:"error" json:"error"`
+	UpdatedAt time.Time      `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationFailedByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationFailedByID, arg.Error, arg.UpdatedAt, arg.ID)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceBuildOrchestrationRetryByID = `-- name: UpdateWorkspaceBuildOrchestrationRetryByID :one
+UPDATE
+    workspace_build_orchestrations
+SET
+    attempt_count = attempt_count + 1,
+    next_retry_after = CASE
+        WHEN attempt_count + 1 >= $1::int THEN NULL
+        ELSE $2::timestamptz
+    END,
+    status = CASE
+        WHEN attempt_count + 1 >= $1::int THEN 'failed'
+        ELSE status
+    END,
+    error = $3,
+    updated_at = $4
+WHERE
+    id = $5
+    AND status = 'pending'
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+`
+
+type UpdateWorkspaceBuildOrchestrationRetryByIDParams struct {
+	MaxAttemptCount int32          `db:"max_attempt_count" json:"max_attempt_count"`
+	NextRetryAfter  time.Time      `db:"next_retry_after" json:"next_retry_after"`
+	Error           sql.NullString `db:"error" json:"error"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	ID              uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg UpdateWorkspaceBuildOrchestrationRetryByIDParams) (WorkspaceBuildOrchestration, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildOrchestrationRetryByID,
+		arg.MaxAttemptCount,
+		arg.NextRetryAfter,
+		arg.Error,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i WorkspaceBuildOrchestration
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkspaceID,
+		&i.ParentBuildID,
+		&i.ChildBuildID,
+		&i.ChildTransition,
+		&i.ChildTemplateVersionID,
+		&i.ChildTemplateVersionPresetID,
+		&i.ChildRichParameterValues,
+		&i.ChildLogLevel,
+		&i.ChildReason,
+		&i.AttemptCount,
+		&i.NextRetryAfter,
+		&i.Status,
+		&i.Error,
+	)
+	return i, err
 }
 
 const getUserWorkspaceBuildParameters = `-- name: GetUserWorkspaceBuildParameters :many

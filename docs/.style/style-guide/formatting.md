@@ -10,7 +10,7 @@ The accessibility-driven rules live on that page so heading structure, language,
 ## One sentence per line
 
 Write each sentence on its own Markdown source line.
-Do not split a sentence across multiple lines, and do not wrap to a fixed column width.
+Don't split a sentence across multiple lines, and don't wrap to a fixed column width.
 
 The payoff is cleaner diffs and easier authoring.
 A sentence-level edit changes one line, not a paragraph reflow, so reviewers see exactly which sentence moved.
@@ -21,7 +21,7 @@ What counts as a single line:
 - One declarative, interrogative, or imperative sentence ending in a period, question mark, or exclamation point.
 - The full text of a single bullet item, numbered list entry, or blockquote line.
 
-What does not get its own line:
+What doesn't get its own line:
 
 - Mid-sentence clauses or phrases.
 - Source inside fenced code blocks, where the language's own conventions apply.
@@ -111,14 +111,14 @@ Use backticks (inline code font) for the following:
 > Run `coder login --token <token>` to authenticate.
 > Set `CODER_URL` in your environment first.
 >
-> The server returns `404 Not Found` when the workspace does not exist.
+> The server returns `404 Not Found` when the workspace doesn't exist.
 
 **Don't**:
 
 > Run "coder login --token \<token\>" to authenticate.
 > Set CODER_URL in your environment first.
 >
-> The server returns 404 when the workspace does not exist.
+> The server returns 404 when the workspace doesn't exist.
 
 *Documentation-only.
 No Vale rule.*
@@ -133,7 +133,7 @@ Every fenced code block declares a language.
 Use the most specific language tag available:
 
 - `sh` for a shell command or a shell script.
-  Use `sh` when the block is input the reader types or a script they save, and the block does not also show output.
+  Use `sh` when the block is input the reader types or a script they save, and the block doesn't also show output.
 - `console` for an interactive session that shows the typed command and its output together.
   Prefix each typed line with `$`.
 - `powershell` for Windows command-line blocks.
@@ -195,11 +195,11 @@ Prose should carry the message.
 
 | Callout          | Use for                                                                                                              |
 |------------------|----------------------------------------------------------------------------------------------------------------------|
-| `> [!NOTE]`      | Supplementary context the reader benefits from but does not need to act on before proceeding                         |
+| `> [!NOTE]`      | Supplementary context the reader benefits from but doesn't need to act on before proceeding                          |
 | `> [!TIP]`       | An optional optimization, shortcut, or related feature                                                               |
 | `> [!IMPORTANT]` | A required step or prerequisite the reader will miss if they skim                                                    |
 | `> [!WARNING]`   | An action with a serious side effect (data loss, downtime, security exposure) that the reader must read before doing |
-| `> [!CAUTION]`   | A severe or irreversible consequence; reserve for cases where `WARNING` is not strong enough                         |
+| `> [!CAUTION]`   | A severe or irreversible consequence; reserve for cases where `WARNING` isn't strong enough                          |
 
 A follow-up PR will demonstrate each callout rendered against an existing docs page so reviewers can calibrate when each one fits.
 
@@ -381,12 +381,12 @@ Place image assets under the matching subdirectory of `docs/images/`.
 Use lowercase filenames with hyphens between words (`template-insights-dashboard.png`).
 Reference the asset with a relative path from the Markdown source.
 
-Captions go below the image in a `<small>` tag.
+Captions follow the image in a `<small>` tag.
 
 ```markdown
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
-<small>The Template Insights dashboard. Active users in the left panel; connection latency in the right panel.</small>
+<small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
 ```
 
 For alt text and decorative-image conventions, refer to [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images) and [Decorative images](./accessibility-and-inclusion.md#decorative-images).
@@ -405,7 +405,7 @@ A worked example, a code block, or a precise written instruction is almost alway
 
 Screenshots carry an ongoing maintenance burden.
 The product UI changes, strings get renamed, themes get retuned, and a screenshot that was accurate at merge time silently rots.
-Readers who hit a stale screenshot lose confidence in the page, and a reader using a screen reader cannot use the screenshot at all.
+Readers who hit a stale screenshot lose confidence in the page, and a reader using a screen reader can't use the screenshot at all.
 The writer who adds a screenshot owns the cost of replacing it every time the captured surface changes.
 
 When a screenshot is the right answer:
@@ -426,7 +426,7 @@ When a screenshot is the right answer:
 
 > ![Workspace settings page with Autostart set to Weekdays at 9 AM](../../images/workspaces/autostart.png)
 >
-> Configure autostart as shown above.
+> Configure autostart as shown in the screenshot.
 
 The authoritative screenshot policy, including the obfuscation, PHI, and PII rules, lives in [`content-guidelines.md`](../content-guidelines.md).
 

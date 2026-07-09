@@ -1,6 +1,7 @@
 package database_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -1916,6 +1917,56 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	require.Equal(t, ownerChat.ID, rows[0].ID)
 	require.Equal(t, sharedACL, rows[0].UserACL)
 	require.Empty(t, rows[0].GroupACL)
+}
+
+func TestGetChatFileDataPrefixesByIDs(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	longData := bytes.Repeat([]byte("a"), 100)
+	longFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		Name:           "long.txt",
+		Mimetype:       "text/plain",
+		Data:           longData,
+	})
+	require.NoError(t, err)
+	shortFile, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		Name:           "short.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte("tiny"),
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetChatFileDataPrefixesByIDs(ctx, database.GetChatFileDataPrefixesByIDsParams{
+		IDs:         []uuid.UUID{longFile.ID, shortFile.ID},
+		PrefixBytes: 16,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	prefixes := make(map[uuid.UUID]database.GetChatFileDataPrefixesByIDsRow, len(rows))
+	for _, row := range rows {
+		prefixes[row.ID] = row
+	}
+	require.Equal(t, longData[:16], prefixes[longFile.ID].DataPrefix)
+	require.Equal(t, []byte("tiny"), prefixes[shortFile.ID].DataPrefix)
+	require.Equal(t, owner.ID, prefixes[longFile.ID].OwnerID)
+	require.Equal(t, org.ID, prefixes[longFile.ID].OrganizationID)
 }
 
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
@@ -8800,6 +8851,586 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	}
 }
 
+func TestUpdateWorkspaceBuildOrchestrationRetryByIDMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             buildJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+
+	// Given: a pending orchestration row.
+	now := dbtime.Now()
+	orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:                       uuid.New(),
+		CreatedAt:                now,
+		UpdatedAt:                now,
+		ParentBuildID:            parentBuild.ID,
+		ChildTransition:          database.WorkspaceTransitionStart,
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, workspace.ID, orchestration.WorkspaceID)
+
+	const maxAttemptCount = 3
+	const retryError = "some retryable child build failure"
+	recordRetry := func(t *testing.T, wantAttempt int32, wantStatus string, wantNextRetry bool) {
+		t.Helper()
+
+		now := dbtime.Now()
+		nextRetryAfter := now.Add(time.Minute)
+		got, err := db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+			Error: sql.NullString{
+				String: retryError,
+				Valid:  true,
+			},
+			NextRetryAfter:  nextRetryAfter,
+			UpdatedAt:       now,
+			ID:              orchestration.ID,
+			MaxAttemptCount: maxAttemptCount,
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantAttempt, got.AttemptCount)
+		require.Equal(t, wantStatus, got.Status)
+		require.True(t, got.Error.Valid)
+		require.Equal(t, retryError, got.Error.String)
+		require.Equal(t, wantNextRetry, got.NextRetryAfter.Valid)
+		if wantNextRetry {
+			require.False(t, got.NextRetryAfter.Time.Before(nextRetryAfter))
+		}
+	}
+
+	// When: retryable child build failures are recorded until one
+	// attempt remains.
+	recordRetry(t, 1, "pending", true)
+	recordRetry(t, 2, "pending", true)
+
+	// Then: the next attempt fails the row, clears its retry delay,
+	// and prevents further retry updates.
+	recordRetry(t, 3, "failed", false)
+	_, err = db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+		Error: sql.NullString{
+			String: retryError,
+			Valid:  true,
+		},
+		NextRetryAfter:  dbtime.Now().Add(time.Minute),
+		UpdatedAt:       dbtime.Now(),
+		ID:              orchestration.ID,
+		MaxAttemptCount: maxAttemptCount,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestUpdateWorkspaceBuildOrchestrationRetryByIDPendingGateUnderContention(t *testing.T) {
+	t.Parallel()
+
+	db, _, _ := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             buildJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+
+	// Given: a pending orchestration row.
+	now := dbtime.Now()
+	orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:                       uuid.New(),
+		CreatedAt:                now,
+		UpdatedAt:                now,
+		ParentBuildID:            parentBuild.ID,
+		ChildTransition:          database.WorkspaceTransitionStart,
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+	require.NoError(t, err)
+
+	const retryError = "some retryable child build failure"
+	type retryResult struct {
+		orchestration database.WorkspaceBuildOrchestration
+		err           error
+	}
+	firstUpdated := make(chan retryResult, 1)
+	releaseFirst := make(chan struct{})
+	firstErr := make(chan error, 1)
+	secondStarted := make(chan struct{}, 1)
+	secondErr := make(chan error, 1)
+	secondDone := make(chan struct{})
+
+	// When: one retry update terminalizes the row while another
+	// worker races to retry the same pending row.
+	go func() {
+		err := db.InTx(func(tx database.Store) error {
+			got, err := tx.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+				Error: sql.NullString{
+					String: retryError,
+					Valid:  true,
+				},
+				NextRetryAfter: dbtime.Now().Add(time.Minute),
+				UpdatedAt:      dbtime.Now(),
+				ID:             orchestration.ID,
+				// Use a single allowed retry so the winning update
+				// immediately terminalizes the row.
+				MaxAttemptCount: 1,
+			})
+			if err != nil {
+				firstUpdated <- retryResult{err: err}
+				return err
+			}
+			firstUpdated <- retryResult{orchestration: got}
+			<-releaseFirst
+			return nil
+		}, nil)
+		firstErr <- err
+	}()
+
+	firstResult := <-firstUpdated
+	require.NoError(t, firstResult.err)
+
+	go func() {
+		secondStarted <- struct{}{}
+		_, err := db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+			Error: sql.NullString{
+				String: retryError,
+				Valid:  true,
+			},
+			NextRetryAfter:  dbtime.Now().Add(time.Minute),
+			UpdatedAt:       dbtime.Now(),
+			ID:              orchestration.ID,
+			MaxAttemptCount: 1,
+		})
+		secondErr <- err
+		close(secondDone)
+	}()
+
+	<-secondStarted
+	// Then: while the first transaction is held open, the second
+	// update does not complete.
+	require.Never(t, func() bool {
+		select {
+		case <-secondDone:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, testutil.IntervalFast)
+
+	close(releaseFirst)
+	require.NoError(t, <-firstErr)
+
+	// Then: after the first transaction commits the failed status, the
+	// second update rechecks the pending gate and affects no rows.
+	require.ErrorIs(t, <-secondErr, sql.ErrNoRows)
+}
+
+func TestGetNextPendingWorkspaceBuildOrchestrationForUpdateRetryDelay(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+
+	var buildNumber int32
+	createOrchestration := func(t *testing.T, createdAt time.Time) database.WorkspaceBuildOrchestration {
+		t.Helper()
+
+		buildNumber++
+		buildJob := database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		}
+		setJobStatus(t, database.ProvisionerJobStatusSucceeded, &buildJob)
+		buildJob = dbgen.ProvisionerJob(t, db, nil, buildJob)
+		parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       user.ID,
+			JobID:             buildJob.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStop,
+		})
+
+		orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+			ID:                       uuid.New(),
+			CreatedAt:                createdAt,
+			UpdatedAt:                createdAt,
+			ParentBuildID:            parentBuild.ID,
+			ChildTransition:          database.WorkspaceTransitionStart,
+			ChildRichParameterValues: json.RawMessage("[]"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, workspace.ID, orchestration.WorkspaceID)
+		return orchestration
+	}
+
+	claimNext := func(t *testing.T) (database.WorkspaceBuildOrchestration, error) {
+		t.Helper()
+
+		var orchestration database.WorkspaceBuildOrchestration
+		err := db.InTx(func(tx database.Store) error {
+			var err error
+			orchestration, err = tx.GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx)
+			return err
+		}, nil)
+		return orchestration, err
+	}
+
+	baseTime := dbtime.Now().Add(-time.Hour)
+
+	// Given: an old pending orchestration row with a future retry delay.
+	delayed := createOrchestration(t, baseTime)
+	_, err := db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+		Error: sql.NullString{
+			String: "retry later",
+			Valid:  true,
+		},
+		NextRetryAfter:  dbtime.Now().Add(time.Hour),
+		UpdatedAt:       dbtime.Now(),
+		ID:              delayed.ID,
+		MaxAttemptCount: 3,
+	})
+	require.NoError(t, err)
+
+	// When: the orchestrator claims the next eligible row.
+	_, err = claimNext(t)
+
+	// Then: no row is claimed before the retry time.
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// When: a later row is eligible immediately.
+	eligible := createOrchestration(t, baseTime.Add(time.Minute))
+
+	// Then: the old delayed row does not block the later eligible row.
+	got, err := claimNext(t)
+	require.NoError(t, err)
+	require.Equal(t, eligible.ID, got.ID)
+
+	// When: the delayed row's retry time has passed.
+	_, err = db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+		Error: sql.NullString{
+			String: "retry now",
+			Valid:  true,
+		},
+		NextRetryAfter:  dbtime.Now().Add(-time.Minute),
+		UpdatedAt:       dbtime.Now(),
+		ID:              delayed.ID,
+		MaxAttemptCount: 3,
+	})
+	require.NoError(t, err)
+
+	// Then: the delayed row is eligible again and is claimed first
+	// because it is older than the later row.
+	got, err = claimNext(t)
+	require.NoError(t, err)
+	require.Equal(t, delayed.ID, got.ID)
+}
+
+func TestUpdateWorkspaceBuildOrchestrationCompletedByIDWorkspaceMismatch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+
+	parentWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+
+	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       parentWorkspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             parentJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+
+	// Given: a pending orchestration row.
+	orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:                       uuid.New(),
+		CreatedAt:                dbtime.Now(),
+		UpdatedAt:                dbtime.Now(),
+		ParentBuildID:            parentBuild.ID,
+		ChildTransition:          database.WorkspaceTransitionStart,
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, parentWorkspace.ID, orchestration.WorkspaceID)
+
+	// Given: a child build whose workspace does not match the parent
+	// build's workspace.
+	childJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	childBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       otherWorkspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             childJob.ID,
+		Transition:        database.WorkspaceTransitionStart,
+	})
+
+	// When: the orchestration is completed with the child build.
+	_, err = db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams{
+		ID:           orchestration.ID,
+		ChildBuildID: uuid.NullUUID{UUID: childBuild.ID, Valid: true},
+		UpdatedAt:    dbtime.Now(),
+	})
+
+	// Then: the composite foreign key rejects the mismatched child build.
+	require.Error(t, err)
+	require.True(t, database.IsForeignKeyViolation(err))
+}
+
+func TestInsertWorkspaceBuildOrchestrationPresetRequiresVersion(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+
+	// Given: a parent build, a child preset, no child template
+	// version.
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             parentJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: version.ID,
+	})
+
+	// When: the orchestration row is inserted.
+	_, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:              uuid.New(),
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+		ParentBuildID:   parentBuild.ID,
+		ChildTransition: database.WorkspaceTransitionStart,
+		ChildTemplateVersionPresetID: uuid.NullUUID{
+			UUID:  preset.ID,
+			Valid: true,
+		},
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+
+	// Then: the check constraint rejects the missing child template
+	// version.
+	require.Error(t, err)
+	require.True(t, database.IsCheckViolation(err))
+}
+
+func TestInsertWorkspaceBuildOrchestrationPresetVersionMismatch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionOneJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionOne := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionOneJob.ID,
+	})
+	versionTwoJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionTwo := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionTwoJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: versionOne.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+
+	// Given: a parent build and a child preset.
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: versionOne.ID,
+		InitiatorID:       user.ID,
+		JobID:             parentJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: versionOne.ID,
+	})
+
+	// When: the orchestration row is inserted with a different child
+	// template version.
+	_, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:              uuid.New(),
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+		ParentBuildID:   parentBuild.ID,
+		ChildTransition: database.WorkspaceTransitionStart,
+		ChildTemplateVersionID: uuid.NullUUID{
+			UUID:  versionTwo.ID,
+			Valid: true,
+		},
+		ChildTemplateVersionPresetID: uuid.NullUUID{
+			UUID:  preset.ID,
+			Valid: true,
+		},
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+
+	// Then: the composite foreign key rejects the preset/version
+	// mismatch.
+	require.Error(t, err)
+	require.True(t, database.IsForeignKeyViolation(err))
+}
+
 func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 	t.Parallel()
 
@@ -10405,6 +11036,59 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "sk-u...byok", updated.CredentialHint)
+	})
+
+	t.Run("ErrorRecorded", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+		})
+		require.NoError(t, err)
+		require.False(t, intc.ErrorType.Valid)
+		require.False(t, intc.ErrorMessage.Valid)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc.ID,
+			EndedAt: time.Now(),
+			ErrorType: database.NullAIBridgeInterceptionErrorType{
+				AIBridgeInterceptionErrorType: database.AibridgeInterceptionErrorTypeOverloaded,
+				Valid:                         true,
+			},
+			ErrorMessage: sql.NullString{String: "upstream overloaded", Valid: true},
+		})
+		require.NoError(t, err)
+		require.True(t, updated.ErrorType.Valid)
+		require.Equal(t, database.AibridgeInterceptionErrorTypeOverloaded, updated.ErrorType.AIBridgeInterceptionErrorType)
+		require.True(t, updated.ErrorMessage.Valid)
+		require.Equal(t, "upstream overloaded", updated.ErrorMessage.String)
+	})
+
+	t.Run("NoErrorLeavesColumnsNull", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		intc, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc.ID,
+			EndedAt: time.Now(),
+		})
+		require.NoError(t, err)
+		require.False(t, updated.ErrorType.Valid)
+		require.False(t, updated.ErrorMessage.Valid)
 	})
 }
 

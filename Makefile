@@ -101,6 +101,7 @@ CLIDOC_SRC_FILES := \
 
 CLIDOCGEN_INPUTS := \
 	$(wildcard scripts/clidocgen/*.go) \
+	$(filter-out %_test.go,$(wildcard scripts/docgenenv/*.go)) \
 	scripts/clidocgen/command.tpl \
 	$(CLIDOC_SRC_FILES)
 

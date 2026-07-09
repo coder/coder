@@ -438,7 +438,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									size="icon"
 									aria-label="Search chats"
 									onClick={onOpenSearchDialog}
-									className="h-7 w-7 sm:hidden"
+									className="size-7 sm:hidden"
 								>
 									<SearchIcon />
 								</Button>

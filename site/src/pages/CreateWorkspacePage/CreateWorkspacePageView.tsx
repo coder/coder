@@ -671,7 +671,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 																<ExternalImage
 																	src={preset.icon}
 																	alt={preset.label}
-																	className="w-4 h-4"
+																	className="size-4"
 																/>
 															)}
 															{preset.label}

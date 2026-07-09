@@ -7005,7 +7005,7 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t)
+	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfigA := createChatModelConfig(t, client)
 	modelConfigB := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-mini-queued-"+uuid.NewString())
@@ -7060,7 +7060,7 @@ func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := newChatClientWithDatabase(t)
+	client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfigA := createChatModelConfig(t, client)
 	modelConfigB := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-mini-later-"+uuid.NewString())
@@ -7187,7 +7187,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfigA := createChatModelConfig(t, client)
 		modelConfigB := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-mini-watch-promote-"+uuid.NewString())
@@ -7786,7 +7786,8 @@ func TestChatMessageWithFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// With no text, chatTitleFromMessage("") returns "New Chat".
+		// With no text and no pasted-text attachment, the fallback
+		// title derivation yields "New Chat".
 		require.Equal(t, "New Chat", chat.Title)
 		require.Len(t, chat.Files, 1)
 		f := chat.Files[0]
@@ -7796,6 +7797,41 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, "image/png", f.MimeType)
 		require.Equal(t, "test.png", f.Name)
 		require.NotZero(t, f.CreatedAt)
+	})
+
+	t.Run("PasteOnlyOnCreate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a synthetic pasted-text attachment as created by the
+		// chat UI when a large paste is collapsed into a file.
+		uploadResp, err := client.UploadChatFile(
+			ctx,
+			firstUser.OrganizationID,
+			"text/plain",
+			"pasted-text-2026-01-02-03-04-05.txt",
+			strings.NewReader("Fix the flaky test in coderd please"),
+		)
+		require.NoError(t, err)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// The fallback title derives from the pasted attachment
+		// content instead of "New Chat".
+		require.Equal(t, "Fix the flaky test in coderd…", chat.Title)
 	})
 
 	t.Run("InvalidFileID", func(t *testing.T) {
@@ -8794,7 +8830,7 @@ func TestInterruptChat(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -9023,6 +9059,30 @@ func TestRegenerateChatTitle(t *testing.T) {
 		require.Equal(t, "Test Chat", persisted.Title)
 		require.Equal(t, database.ChatStatusPending, persisted.Status)
 		require.False(t, persisted.WorkerID.Valid)
+	})
+
+	t.Run("PasteOnlyChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createTitleGenerationModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "New Chat",
+			Status:            database.ChatStatusCompleted,
+		})
+		// The chat's only user message is a synthetic pasted-text
+		// attachment with no text parts.
+		seedPasteOnlyTitleSourceMessage(ctx, t, db, chat, modelConfig.ID, "pasted stack trace for title")
+
+		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", updated.Title)
 	})
 
 	t.Run("NoDefaultModelConfig", func(t *testing.T) {
@@ -9398,6 +9458,68 @@ func TestPostChats_AutomaticTitleGeneration(t *testing.T) {
 
 	// The create endpoint kicks off detached title generation; the provider
 	// should receive the title request without any further client action.
+	select {
+	case <-titleRequested:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for automatic title generation to be triggered")
+	}
+
+	// Drain background work so the detached goroutine finishes before the test
+	// (and its fake provider) tears down.
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+}
+
+func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const pasteContent = "panic: runtime error: invalid memory address or nil pointer dereference"
+
+	// titleRequested is signaled when the provider receives a structured
+	// title-generation request whose input carries the pasted attachment
+	// content. Without paste-aware title input the request is never
+	// issued because the message has no text parts.
+	titleRequested := make(chan struct{}, 1)
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		if bytes.Contains(req.RawBody, []byte("propose_title")) &&
+			bytes.Contains(req.RawBody, []byte("nil pointer dereference")) {
+			select {
+			case titleRequested <- struct{}{}:
+			default:
+			}
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
+	})
+
+	client, api := newChatClientWithAPI(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+
+	uploadResp, err := client.UploadChatFile(
+		ctx,
+		firstUser.OrganizationID,
+		"text/plain",
+		"pasted-text-2026-01-02-03-04-05.txt",
+		strings.NewReader(pasteContent),
+	)
+	require.NoError(t, err)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type:   codersdk.ChatInputPartTypeFile,
+			FileID: uploadResp.ID,
+		}},
+	})
+	require.NoError(t, err)
+	// The create response carries the synchronous fallback title derived
+	// from the pasted attachment content.
+	require.Equal(t, "panic: runtime error: invalid memory address…", chat.Title)
+
 	select {
 	case <-titleRequested:
 	case <-ctx.Done():
@@ -9961,7 +10083,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -10087,7 +10209,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -11385,6 +11507,43 @@ func seedManualTitleSourceMessage(
 
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("manual title source"),
+	})
+	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: chat.OwnerID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		Content:       content,
+	})
+}
+
+// seedPasteOnlyTitleSourceMessage inserts a user message whose only
+// content is a synthetic pasted-text attachment, mirroring a chat
+// created from a large paste with no typed text.
+func seedPasteOnlyTitleSourceMessage(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	chat database.Chat,
+	modelConfigID uuid.UUID,
+	pasteContent string,
+) {
+	t.Helper()
+
+	const pasteFileName = "pasted-text-2026-01-02-03-04-05.txt"
+	file, err := db.InsertChatFile(dbauthz.AsSystemRestricted(ctx), database.InsertChatFileParams{
+		OwnerID:        chat.OwnerID,
+		OrganizationID: chat.OrganizationID,
+		Name:           pasteFileName,
+		Mimetype:       "text/plain",
+		Data:           []byte(pasteContent),
+	})
+	require.NoError(t, err)
+
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageFile(file.ID, "text/plain", pasteFileName),
 	})
 	require.NoError(t, err)
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
@@ -14677,6 +14836,11 @@ func TestSubmitToolResults(t *testing.T) {
 	// inserts an assistant message containing tool-call parts for each
 	// given toolCallID, and sets the chat status to requires_action.
 	// It returns the chat row so callers can exercise the endpoint.
+	//
+	// Callers must build their coderd with withChatWorkerDisabled: an
+	// unowned requires_action chat is a worker acquisition candidate,
+	// and a takeover would synthesize tool cancellations and change the
+	// chat status underneath the test.
 	setupRequiresAction := func(
 		ctx context.Context,
 		t *testing.T,
@@ -14741,7 +14905,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14758,10 +14922,9 @@ func TestSubmitToolResults(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Verify status is no longer requires_action. The chatd
-		// loop may have already picked the chat up and
-		// transitioned it further (pending → running → …), so we
-		// accept any non-requires_action status.
+		// Verify status is no longer requires_action. The worker is
+		// disabled, so the transition comes from SubmitToolResults
+		// itself.
 		gotChat, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.NotEqual(t, codersdk.ChatStatusRequiresAction, gotChat.Status,
@@ -14809,7 +14972,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14831,7 +14994,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14853,7 +15016,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14883,7 +15046,7 @@ func TestSubmitToolResults(t *testing.T) {
 	t.Run("DuplicateToolCallID", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14906,7 +15069,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14925,7 +15088,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14954,7 +15117,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -14982,7 +15145,7 @@ func TestSubmitToolResults(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 

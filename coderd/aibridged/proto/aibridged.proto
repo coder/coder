@@ -45,6 +45,12 @@ service ProviderConfigurator {
   // GetAIProviders returns the full provider set (enabled and disabled).
   // It synchronizes with provider seeding so the response is never raced.
   rpc GetAIProviders(GetAIProvidersRequest) returns (GetAIProvidersResponse);
+  // WatchAIProviders streams a signal whenever the provider set changes
+  // (env seed completion or a CRUD add/update/delete). The signal carries no
+  // payload; on each message the client refetches via GetAIProviders. The
+  // server emits one signal immediately on subscribe so a client that
+  // connected after the last change still converges.
+  rpc WatchAIProviders(WatchAIProvidersRequest) returns (stream WatchAIProvidersResponse);
 }
 
 message RecordInterceptionRequest {
@@ -77,6 +83,12 @@ message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
   string credential_hint = 3;
+  // error_type is the categorised terminal upstream error, absent when the
+  // interception succeeded. Matches the aibridge_interception_error_type enum.
+  optional string error_type = 4;
+  // error_message is the raw terminal upstream error message, absent when the
+  // interception succeeded.
+  optional string error_message = 5;
 }
 
 message RecordInterceptionEndedResponse {}
@@ -197,6 +209,11 @@ message GetAIProvidersRequest {}
 message GetAIProvidersResponse {
   repeated AIProvider providers = 1;
 }
+
+message WatchAIProvidersRequest {}
+
+// WatchAIProvidersResponse is an intentionally empty change signal.
+message WatchAIProvidersResponse {}
 
 message AIProvider {
   string name = 1;

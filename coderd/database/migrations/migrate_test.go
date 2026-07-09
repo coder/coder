@@ -1582,7 +1582,7 @@ func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from
 	require.NoError(t, tx.Commit())
 }
 
-func TestMigration000541ChatReasoningEffortBackfill(t *testing.T) {
+func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
 	t.Parallel()
 
 	const priorMigrationVersion = 539
@@ -1627,7 +1627,7 @@ func TestMigration000541ChatReasoningEffortBackfill(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, tx.Commit())
 
-	migrationSQL, err := os.ReadFile("000541_chat_reasoning_effort.up.sql")
+	migrationSQL, err := os.ReadFile("000542_chat_reasoning_effort.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
 	require.NoError(t, err)

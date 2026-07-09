@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -850,6 +851,149 @@ func TestRefreshToken(t *testing.T) {
 	})
 }
 
+// TestRefreshTokenWithScopes verifies the refresh path echoes Config.Scopes on
+// the token-endpoint request and preserves the prior refresh_token when the
+// authorization server omits a new one (RFC 6749 §6).
+func TestRefreshTokenWithScopes(t *testing.T) {
+	t.Parallel()
+
+	// fakeAS returns an http.Client + a pointer the test can read after
+	// RefreshToken returns. The roundTripper captures the form body of every
+	// outbound request and replies with tokenJSON to refresh requests.
+	fakeAS := func(t *testing.T, tokenJSON []byte) (*http.Client, *url.Values) {
+		t.Helper()
+		captured := &url.Values{}
+		client := &http.Client{Transport: roundTripper(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			values, err := url.ParseQuery(string(body))
+			require.NoError(t, err)
+			if values.Get("grant_type") == "refresh_token" {
+				*captured = values
+			}
+			rec := httptest.NewRecorder()
+			rec.Header().Set("Content-Type", "application/json")
+			rec.WriteHeader(http.StatusOK)
+			_, err = rec.Write(tokenJSON)
+			return rec.Result(), err
+		})}
+		return client, captured
+	}
+
+	newConfig := func(t *testing.T, scopes []string) *externalauth.Config {
+		t.Helper()
+		instrument := promoauth.NewFactory(prometheus.NewRegistry())
+		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+			ID:           "test",
+			Type:         codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String(),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			AuthURL:      "https://login.microsoftonline.com/tenant/oauth2/authorize",
+			TokenURL:     "https://login.microsoftonline.com/tenant/oauth2/token",
+			Scopes:       scopes,
+		}}, &url.URL{Scheme: "https", Host: "coder.example.com"})
+		require.NoError(t, err)
+		return configs[0]
+	}
+
+	expired := dbtime.Now().Add(-time.Hour)
+
+	// mockDBPassthrough returns a mock store that echoes the
+	// UpdateExternalAuthLink params back as a populated ExternalAuthLink,
+	// letting the test read what RefreshToken decided to persist.
+	mockDBPassthrough := func(t *testing.T) database.Store {
+		t.Helper()
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, p database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+				return database.ExternalAuthLink{
+					ProviderID:        p.ProviderID,
+					UserID:            p.UserID,
+					OAuthAccessToken:  p.OAuthAccessToken,
+					OAuthRefreshToken: p.OAuthRefreshToken,
+					OAuthExpiry:       p.OAuthExpiry,
+				}, nil
+			}).AnyTimes()
+		return mDB
+	}
+
+	t.Run("EchoesConfiguredScopesOnRefresh", func(t *testing.T) {
+		t.Parallel()
+		client, captured := fakeAS(t,
+			[]byte(`{"access_token":"new","refresh_token":"new-r","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, []string{"openid", "offline_access", "api://app/session:role-any"})
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		_, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "old-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "refresh_token", captured.Get("grant_type"))
+		require.Equal(t, "old-r", captured.Get("refresh_token"))
+		require.Equal(t, "openid offline_access api://app/session:role-any", captured.Get("scope"),
+			"refresh request must echo configured scopes joined by space")
+	})
+
+	t.Run("OmitsScopeParamWhenScopesEmpty", func(t *testing.T) {
+		t.Parallel()
+		client, captured := fakeAS(t,
+			[]byte(`{"access_token":"new","refresh_token":"new-r","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, nil)
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		_, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "old-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, "refresh_token", captured.Get("grant_type"))
+		require.Equal(t, "old-r", captured.Get("refresh_token"))
+		require.Empty(t, captured.Get("scope"),
+			"refresh request must not send a scope param when Config.Scopes is empty")
+	})
+
+	t.Run("PreservesPriorRefreshTokenWhenASOmitsNewOne", func(t *testing.T) {
+		t.Parallel()
+		// Token response intentionally omits refresh_token.
+		client, _ := fakeAS(t,
+			[]byte(`{"access_token":"new","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, nil)
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		link, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "prior-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "prior-r", link.OAuthRefreshToken,
+			"prior refresh_token must be preserved when AS omits a new one (RFC 6749 §6)")
+	})
+
+	t.Run("AcceptsRotatedRefreshTokenWhenASReturnsOne", func(t *testing.T) {
+		t.Parallel()
+		client, _ := fakeAS(t,
+			[]byte(`{"access_token":"new","refresh_token":"rotated-r","token_type":"bearer","expires_in":3600}`))
+		cfg := newConfig(t, nil)
+
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, client)
+		link, err := cfg.RefreshToken(ctx, mockDBPassthrough(t), database.ExternalAuthLink{
+			OAuthAccessToken:  "old",
+			OAuthRefreshToken: "prior-r",
+			OAuthExpiry:       expired,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "rotated-r", link.OAuthRefreshToken,
+			"rotated refresh_token from AS must be persisted")
+	})
+}
+
 func TestValidateToken(t *testing.T) {
 	t.Parallel()
 
@@ -1083,41 +1227,45 @@ func TestRevokeToken(t *testing.T) {
 
 	t.Run("RevokeTokenRFC_Timeout", func(t *testing.T) {
 		t.Parallel()
+		handlerStarted := make(chan bool, 1)
 		revokeExited := make(chan bool, 1)
-		testTimeout := make(chan bool, 1)
-		handlerDone := make(chan bool)
-
-		go func() {
-			time.Sleep(5 * time.Second)
-			testTimeout <- true
-		}()
 
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithRevokeTokenRFC(func() (int, error) {
-					defer func() {
-						handlerDone <- true
-					}()
-
-					select {
-					case <-testTimeout:
-						t.Error("test timeout reached before context timeout")
-						return http.StatusOK, nil
-					case <-revokeExited:
-						return http.StatusOK, nil
-					}
+					handlerStarted <- true
+					<-revokeExited
+					return http.StatusOK, nil
 				}),
 				oidctest.WithServing(),
 			},
 		})
 
+		// Always unblock the handler so it can return. Must be
+		// registered after setupOauth2Test so LIFO runs it first.
+		t.Cleanup(func() {
+			select {
+			case revokeExited <- true:
+			default:
+			}
+		})
+
 		ctx := oidc.ClientContext(testutil.Context(t, testutil.WaitLong), fake.HTTPClient(nil))
-		config.RevokeTimeout = time.Millisecond * 10
+		// A short timeout forces the request's deadline to fire while
+		// the handler is blocked in-flight, exercising the revoke
+		// timeout path.
+		config.RevokeTimeout = 100 * time.Millisecond
 		revoked, err := config.RevokeToken(ctx, link)
+		// Make sure request has reached the handler before asserting.
+		// NOTE: if this flakes again, increase config.RevokeTimeout.
+		select {
+		case <-handlerStarted:
+		default:
+			t.Fatal("RevokeToken returned before revoke handler started")
+		}
 		revokeExited <- true
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.False(t, revoked)
-		_ = testutil.RequireReceive(ctx, t, handlerDone)
 	})
 
 	t.Run("RevokeTokenGitHub_OK", func(t *testing.T) {

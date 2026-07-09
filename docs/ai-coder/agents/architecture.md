@@ -143,6 +143,14 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 | `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.                                                                                                                                                                                                                          |
 | `attach_file`    | Attach a workspace file to the current chat so the user can download it directly from the conversation. Use this when the user should receive an artifact such as a screenshot, log, patch, or document. Pass an absolute file path. The file must already exist in the workspace. |
 
+#### Windows workspace shell requirement
+
+Coder Agents run workspace commands through a POSIX-compatible shell (`sh`).
+Windows workspaces must provide `sh` on `PATH`, for example from
+[Git for Windows](https://gitforwindows.org/) (Git Bash), MSYS2, or WSL.
+PowerShell alone cannot run the `execute` tool. After installing a
+shell, restart the workspace to pick up the updated `PATH`.
+
 ### Platform tools
 
 These tools run entirely within the control plane. They do not require a

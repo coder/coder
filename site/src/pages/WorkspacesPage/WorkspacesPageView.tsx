@@ -145,7 +145,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem
 									disabled={
-										!checkedWorkspaces?.every(
+										!checkedWorkspaces?.some(
 											(w) =>
 												w.latest_build.status === "stopped" &&
 												!mustUpdateWorkspace(w, canChangeVersions),
@@ -157,7 +157,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									disabled={
-										!checkedWorkspaces?.every(
+										!checkedWorkspaces?.some(
 											(w) => w.latest_build.status === "running",
 										)
 									}
