@@ -3799,15 +3799,17 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
-		// All creators race to become the default on an empty deployment.
-		// The advisory lock serializes the elections so only one wins;
-		// without it the losers hit the single-default unique index and
-		// surface as 409s. 10 creators mirrors Terraform's default
+		// All creators race to become the default on an empty deployment,
+		// with one explicitly claiming it. Config writes are serialized, so
+		// only one self-promotes and the explicit claim demotes any interim
+		// winner; without that the losers hit the single-default unique
+		// index and surface as 409s. 10 creators mirrors Terraform's default
 		// parallelism, where this was hit in practice.
 		const creators = 10
 		contextLimit := int64(4096)
+		var claimed codersdk.ChatModelConfig
 		var eg errgroup.Group
-		for i := range creators {
+		for i := range creators - 1 {
 			eg.Go(func() error {
 				_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 					AIProviderID: &aiProvider.ID,
@@ -3817,18 +3819,28 @@ func TestCreateChatModelConfig(t *testing.T) {
 				return err
 			})
 		}
+		eg.Go(func() error {
+			var err error
+			claimed, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+				AIProviderID: &aiProvider.ID,
+				Model:        "gpt-4o",
+				ContextLimit: &contextLimit,
+				IsDefault:    ptr.Ref(true),
+			})
+			return err
+		})
 		require.NoError(t, eg.Wait())
 
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.Len(t, configs, creators)
-		defaults := 0
+		var defaults []uuid.UUID
 		for _, cfg := range configs {
 			if cfg.IsDefault {
-				defaults++
+				defaults = append(defaults, cfg.ID)
 			}
 		}
-		require.Equal(t, 1, defaults)
+		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {

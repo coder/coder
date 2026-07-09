@@ -7039,15 +7039,14 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 	return nil
 }
 
-// inChatModelConfigTx runs fn in a transaction holding the advisory lock that
-// serializes default elections. Electing a default reads the table before
-// promoting a row, so without the lock two concurrent writers could both
-// self-promote and trip idx_chat_model_configs_single_default. The lock makes
-// the whole election run one at a time, so the index is never contended.
-func (api *API) inChatModelConfigTx(ctx context.Context, fn func(tx database.Store) error) error {
+// inChatModelConfigWriteTx runs fn in a transaction that holds the advisory
+// lock serializing chat model config writes. All writes to the table must go
+// through this helper so concurrent writers cannot act on stale reads and
+// violate the idx_chat_model_configs_single_default unique index.
+func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx database.Store) error) error {
 	return api.Database.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, database.LockIDChatModelConfigDefault); err != nil {
-			return xerrors.Errorf("acquire chat model config lock: %w", err)
+		if err := tx.AcquireLock(ctx, database.LockIDChatModelConfigWrites); err != nil {
+			return xerrors.Errorf("acquire chat model config write lock: %w", err)
 		}
 		return fn(tx)
 	}, nil)
@@ -7155,7 +7154,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var inserted database.ChatModelConfig
-	err = api.inChatModelConfigTx(ctx, func(tx database.Store) error {
+	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		//nolint:gocritic // The route already authorized chat model config updates.
 		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
 		if err != nil {
@@ -7364,7 +7363,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	// Re-derive the provider type under lock when the model or provider changes.
 	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
-	err = api.inChatModelConfigTx(ctx, func(tx database.Store) error {
+	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		if revalidateProviderModel {
 			//nolint:gocritic // The route already authorized chat model config updates.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
@@ -7480,7 +7479,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.inChatModelConfigTx(ctx, func(tx database.Store) error {
+	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
 		}
