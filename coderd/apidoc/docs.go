@@ -24794,7 +24794,8 @@ const docTemplate = `{
         "codersdk.TemplateBuilderSessionRequest": {
             "type": "object",
             "required": [
-                "event_type"
+                "event_type",
+                "session_id"
             ],
             "properties": {
                 "base_template_id": {

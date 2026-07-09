@@ -12651,7 +12651,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `duration_seconds` | number                                                                               | false    |              |             |
 | `event_type`       | [codersdk.TemplateBuilderSessionEventType](#codersdktemplatebuildersessioneventtype) | true     |              |             |
 | `module_ids`       | array of string                                                                      | false    |              |             |
-| `session_id`       | string                                                                               | false    |              |             |
+| `session_id`       | string                                                                               | true     |              |             |
 | `success`          | boolean                                                                              | false    |              |             |
 
 #### Enumerated Values

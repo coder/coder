@@ -8820,7 +8820,7 @@ export const TemplateBuilderSessionEventTypes: TemplateBuilderSessionEventType[]
  * POST /api/v2/templatebuilder/sessions.
  */
 export interface TemplateBuilderSessionRequest {
-	readonly session_id?: string;
+	readonly session_id: string;
 	readonly event_type: TemplateBuilderSessionEventType;
 	readonly base_template_id?: string;
 	readonly module_ids?: readonly string[];

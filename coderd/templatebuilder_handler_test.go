@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -251,6 +252,7 @@ func TestTemplateBuilderSession(t *testing.T) {
 		defer cancel()
 
 		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			SessionID: uuid.New(),
 			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
 		})
 		require.NoError(t, err)
@@ -265,6 +267,7 @@ func TestTemplateBuilderSession(t *testing.T) {
 		defer cancel()
 
 		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			SessionID:       uuid.New(),
 			EventType:       codersdk.TemplateBuilderSessionEventComposeCompletion,
 			BaseTemplateID:  "docker",
 			ModuleIDs:       []string{"code-server", "git-clone"},
@@ -272,6 +275,24 @@ func TestTemplateBuilderSession(t *testing.T) {
 			Success:         true,
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("MissingSessionID", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.TemplateBuilderSession(ctx, codersdk.TemplateBuilderSessionRequest{
+			EventType: codersdk.TemplateBuilderSessionEventWizardEntry,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("InvalidEventType", func(t *testing.T) {

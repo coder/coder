@@ -162,7 +162,7 @@ const (
 // TemplateBuilderSessionRequest is the request body for
 // POST /api/v2/templatebuilder/sessions.
 type TemplateBuilderSessionRequest struct {
-	SessionID       uuid.UUID                       `json:"session_id,omitempty" format:"uuid"`
+	SessionID       uuid.UUID                       `json:"session_id" format:"uuid" validate:"required"`
 	EventType       TemplateBuilderSessionEventType `json:"event_type" validate:"required,oneof=wizard_entry compose_completion"`
 	BaseTemplateID  string                          `json:"base_template_id,omitempty"`
 	ModuleIDs       []string                        `json:"module_ids,omitempty"`
