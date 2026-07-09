@@ -577,6 +577,17 @@ type sqlcQuerier interface {
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
+	// Returns each user's AI spend attributed to the queried group, on or after
+	// period_start until NOW. Only current members of the queried group are
+	// returned. spend_limit_micros and limit_source are populated only when the
+	// queried group is the user's effective budget source. The effective_group_id
+	// is null when the user has no configured budget or when the effective group
+	// belongs to a different organization than the queried group.
+	// The period_start parameter is normalized to its UTC calendar day.
+	// Spend is aggregated for the queried group, not the user's effective group.
+	// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
+	// whose effective budget source is not the queried group.
+	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
 	// Returns the total count of members in a group. Shows the total

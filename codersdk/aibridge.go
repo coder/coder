@@ -82,6 +82,34 @@ type OrganizationGroupAISpend struct {
 	CurrentSpendMicros int64 `json:"current_spend_micros"`
 }
 
+// GroupMembersAISpend reports per-member AI spend attributed to a specific
+// group in the active budget period.
+type GroupMembersAISpend struct {
+	AISpendPeriodWindow
+	Members []GroupMemberAISpend `json:"members"`
+}
+
+// GroupMemberAISpend is a single member's AI spend attributed to the queried
+// group in the current budget period.
+type GroupMemberAISpend struct {
+	UserID uuid.UUID `json:"user_id" format:"uuid"`
+	// EffectiveGroupID is the user's effective budget group within the queried
+	// group's organization. Null when no effective budget group is visible in
+	// this organization, including when the user's budget resolves to a group
+	// in another organization.
+	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
+	// SpendLimitMicros is the spend limit when the queried group is this
+	// user's effective budget source. Null when the user's budget resolves to
+	// another group.
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
+	// LimitSource identifies the tier that produced the limit. Null when the
+	// user's budget resolves to another group.
+	LimitSource *AIBudgetLimitSource `json:"limit_source"`
+	// GroupSpendMicros is the user's spend attributed to the queried group
+	// over the current budget period.
+	GroupSpendMicros int64 `json:"group_spend_micros"`
+}
+
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
 	Initiator         MinimalUser                      `json:"initiator"`
@@ -496,5 +524,33 @@ func (c *Client) OrganizationGroupsAISpend(ctx context.Context, organization uui
 		return OrganizationGroupsAISpend{}, ReadBodyAsError(res)
 	}
 	var resp OrganizationGroupsAISpend
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GroupMembersAISpend returns AI spend attributed to the given group for the
+// specified users within the active budget period.
+func (c *Client) GroupMembersAISpend(ctx context.Context, group uuid.UUID, userIDs []uuid.UUID) (GroupMembersAISpend, error) {
+	ids := make([]string, len(userIDs))
+	for i, id := range userIDs {
+		ids[i] = id.String()
+	}
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/groups/%s/members/ai/spend", group.String()),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("user_ids", strings.Join(ids, ","))
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return GroupMembersAISpend{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GroupMembersAISpend{}, ReadBodyAsError(res)
+	}
+	var resp GroupMembersAISpend
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

@@ -4003,6 +4003,21 @@ func (mr *MockStoreMockRecorder) GetGroupMembers(ctx, includeSystem any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembers", reflect.TypeOf((*MockStore)(nil).GetGroupMembers), ctx, includeSystem)
 }
 
+// GetGroupMembersAISpend mocks base method.
+func (m *MockStore) GetGroupMembersAISpend(ctx context.Context, arg database.GetGroupMembersAISpendParams) ([]database.GetGroupMembersAISpendRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupMembersAISpend", ctx, arg)
+	ret0, _ := ret[0].([]database.GetGroupMembersAISpendRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupMembersAISpend indicates an expected call of GetGroupMembersAISpend.
+func (mr *MockStoreMockRecorder) GetGroupMembersAISpend(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersAISpend", reflect.TypeOf((*MockStore)(nil).GetGroupMembersAISpend), ctx, arg)
+}
+
 // GetGroupMembersByGroupID mocks base method.
 func (m *MockStore) GetGroupMembersByGroupID(ctx context.Context, arg database.GetGroupMembersByGroupIDParams) ([]database.GroupMember, error) {
 	m.ctrl.T.Helper()
