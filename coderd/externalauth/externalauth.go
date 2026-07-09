@@ -216,6 +216,11 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}
 
+	// NOTE: TokenSource(...).Token() will short-circuit if the token:
+	// - is not expired (returns original token)
+	// - is expired and has no refresh token (returns error)
+	// This means we will avoid making useless HTTP requests.
+	//
 	// External providers (GitHub in particular) intermittently fail token
 	// refreshes with transient errors such as 5xx responses, network timeouts,
 	// and rate-limited 429s. Retry with exponential backoff before surfacing
@@ -301,7 +306,8 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 		}
 
-		// Non-expired tokens are short-circuited above; reaching here means refresh failed.
+		// Non-expired tokens are short-circuited as noted above; reaching here
+		// means refresh failed.
 		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
@@ -1338,8 +1344,16 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 	)
 }
 
-// When authenticating via Entra ID ADO only supports v1 tokens that requires the 'resource' rather than scopes
-// When ADO gets support for V2 Entra ID tokens this struct and functions can be removed
+// The Entra wrapper accounts for two things:
+//
+//  1. When authenticating via Entra ID ADO only supports v1 tokens which
+//     require 'resource'.
+//
+//  2. When refreshing, Entra ID requires the original scopes or it will switch
+//     to using the default scopes.
+//
+//     This struct and its functions might be removable once ADO gets support for
+//     Entra ID V2.
 type entraV1Oauth struct {
 	*oauth2.Config
 }
