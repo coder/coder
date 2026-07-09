@@ -677,10 +677,15 @@ func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	sessionID := req.SessionID
+	if sessionID == uuid.Nil {
+		sessionID = uuid.New()
+	}
+
 	api.Telemetry.Report(&telemetry.Snapshot{
 		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
 			{
-				ID:              uuid.New(),
+				ID:              sessionID,
 				EventType:       string(req.EventType),
 				UserID:          apiKey.UserID,
 				BaseTemplateID:  req.BaseTemplateID,

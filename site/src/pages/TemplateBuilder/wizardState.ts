@@ -81,6 +81,8 @@ export type TemplateBuilderWizardState = {
 	selectedModules: SelectedModuleMeta[];
 	/** Epoch millis when the wizard was entered, used for telemetry duration. */
 	enteredAt: number;
+	/** Stable ID shared across wizard_entry and compose_completion events. */
+	sessionId: string;
 };
 
 export const initialWizardState: TemplateBuilderWizardState = {
@@ -94,24 +96,31 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	icon: "",
 	selectedBase: null,
 	selectedModules: [],
-	enteredAt: Date.now(),
+	enteredAt: 0,
+	sessionId: "",
 };
 
 /**
- * Builds the initial wizard state, optionally preselecting a base
- * template.
+ * Builds the initial wizard state with a fresh telemetry session,
+ * optionally preselecting a base template.
  */
-export function initWizardState(
-	preselectedBase?: SelectedBaseMeta,
-): TemplateBuilderWizardState {
-	if (!preselectedBase) {
-		return initialWizardState;
+export function initWizardState(init: {
+	sessionId: string;
+	preselectedBase?: SelectedBaseMeta;
+}): TemplateBuilderWizardState {
+	const state: TemplateBuilderWizardState = {
+		...initialWizardState,
+		enteredAt: Date.now(),
+		sessionId: init.sessionId,
+	};
+	if (!init.preselectedBase) {
+		return state;
 	}
 	return {
-		...initialWizardState,
-		baseTemplateId: preselectedBase.id,
-		selectedBase: preselectedBase,
-		...baseCustomizationDefaults(preselectedBase),
+		...state,
+		baseTemplateId: init.preselectedBase.id,
+		selectedBase: init.preselectedBase,
+		...baseCustomizationDefaults(init.preselectedBase),
 	};
 }
 

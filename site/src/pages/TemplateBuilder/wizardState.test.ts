@@ -613,17 +613,26 @@ describe("baseCustomizationDefaults", () => {
 
 describe("initWizardState", () => {
 	it("returns the initial state without a preselected base", () => {
-		expect(initWizardState()).toEqual(initialWizardState);
+		const state = initWizardState({ sessionId: "test-session-id" });
+		expect(state).toEqual({
+			...initialWizardState,
+			enteredAt: state.enteredAt,
+			sessionId: "test-session-id",
+		});
+		expect(state.enteredAt).toBeGreaterThan(0);
 	});
 
 	it("seeds base and customization defaults from a preselected base", () => {
 		const state = initWizardState({
-			id: "docker",
-			name: "Docker Containers",
-			description: "Docker",
-			iconUrl: "/icon/docker.png",
-			hasParameters: false,
-			hasPrerequisites: false,
+			sessionId: "test-session-id",
+			preselectedBase: {
+				id: "docker",
+				name: "Docker Containers",
+				description: "Docker",
+				iconUrl: "/icon/docker.png",
+				hasParameters: false,
+				hasPrerequisites: false,
+			},
 		});
 		expect(state.baseTemplateId).toBe("docker");
 		expect(state.selectedBase?.id).toBe("docker");
@@ -631,5 +640,6 @@ describe("initWizardState", () => {
 		expect(state.displayName).toBe("Docker Containers");
 		expect(state.description).toBe("Docker");
 		expect(state.icon).toBe("/icon/docker.png");
+		expect(state.sessionId).toBe("test-session-id");
 	});
 });
