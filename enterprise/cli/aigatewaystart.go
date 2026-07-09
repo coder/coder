@@ -44,6 +44,39 @@ const (
 	keyFlagsMissingErr   = "an AI Gateway key is required, set --key (CODER_AI_GATEWAY_KEY) or --key-file (CODER_AI_GATEWAY_KEY_FILE)"
 )
 
+// aiGatewayInheritedEnvs are the coderd deployment options, keyed by env var,
+// that the standalone Gateway inherits.
+var aiGatewayInheritedEnvs = map[string]struct{}{
+	// Logging
+	"CODER_LOGGING_HUMAN":       {},
+	"CODER_LOGGING_JSON":        {},
+	"CODER_LOGGING_STACKDRIVER": {},
+	"CODER_LOG_FILTER":          {},
+	"CODER_VERBOSE":             {},
+
+	// Tracing
+	"CODER_TRACE_DATADOG":           {},
+	"CODER_TRACE_ENABLE":            {},
+	"CODER_TRACE_HONEYCOMB_API_KEY": {},
+	"CODER_TRACE_LOGS":              {},
+
+	// AI Gateway
+	"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED":           {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD": {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
+	"CODER_AI_GATEWAY_DUMP_DIR":                          {},
+	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
+	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
+	"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
+
+	// Prometheus
+	"CODER_PROMETHEUS_ADDRESS": {},
+	"CODER_PROMETHEUS_ENABLE":  {},
+}
+
 // aiGatewayStart runs the AI Gateway as a standalone process.
 func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	var (
@@ -94,6 +127,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.Errorf("make logger: %w", err)
 			}
 			defer closeLogger()
+			logger = logger.Named("ai-gateway")
 
 			logger.Debug(signalCtx, "started debug logging")
 			logger.Sync()
@@ -111,7 +145,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
 				logger.Debug(signalCtx, "tracing closed", slog.Error(traceCloseErr))
 			}()
-			tracer := tracerProvider.Tracer("aibridged")
+			tracer := tracerProvider.Tracer("ai-gateway")
 
 			if vals.Prometheus.Enable.Value() {
 				logger.Info(signalCtx, "starting Prometheus endpoint", slog.F("address", vals.Prometheus.Address.String()))
@@ -121,9 +155,11 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				defer closeFunc()
 			}
 
+			gatewayLogger := logger.Named("ai-gateway")
+
 			// Standalone Gateway starts with an empty pool. Providers are
 			// fetched later via GetAIProviders DRPC and pool is updated.
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), metrics, tracer)
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, gatewayLogger.Named("pool"), metrics, tracer)
 			if err != nil {
 				return xerrors.Errorf("create request pool: %w", err)
 			}
@@ -132,7 +168,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			dialer := aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey)
 			aibridgedCtx, aibridgedCancel := context.WithCancel(context.Background())
 			defer aibridgedCancel()
-			srv, err := aibridged.New(aibridgedCtx, pool, dialer, logger.Named("aibridged"), tracer)
+			srv, err := aibridged.New(aibridgedCtx, pool, dialer, gatewayLogger, tracer)
 			if err != nil {
 				return xerrors.Errorf("start AI Gateway daemon: %w", err)
 			}
@@ -143,7 +179,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			// started below. The reloader's client acquisition honors the
 			// context of each Reload call, so loadProviders is bounded by
 			// signalCtx and the watch loop by watchCtx.
-			providerLogger := logger.Named("aibridge.providers")
+			providerLogger := gatewayLogger.Named("providers")
 			reloader := agpl.NewPoolRPCReloader(pool, srv.ClientContext, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
 			if err := loadProviders(signalCtx, reloader, providerLogger, srv.Done()); err != nil {
 				if signalCtx.Err() != nil {
@@ -258,51 +294,10 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 		},
 	}
 
-	// The standalone Gateway inherits a subset of coderd's deployment options.
-	// Logging and tracing options are inherited by group. The remaining groups mix
-	// in coderd-only settings, so those options are inherited individually by env var:
-	//   - "AI Gateway" holds coderd-only controls (budget, provider seeding),
-	//     only the LLM-traffic options are inherited.
-	//   - "Prometheus" holds agent/database collectors that a standalone
-	//     Gateway has no source for.
-	inheritedGroups := map[string]struct{}{
-		"Logging": {},
-		"Tracing": {},
-	}
-	inheritedEnvs := map[string]struct{}{
-		"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
-		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
-		"CODER_AI_GATEWAY_DUMP_DIR":                          {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED":           {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD": {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
-		"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
-		"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
-		"CODER_PROMETHEUS_ENABLE":                            {},
-		"CODER_PROMETHEUS_ADDRESS":                           {},
-	}
-	// excludedEnvs are options that live in an inherited group but do not apply
-	// to a standalone Gateway. CODER_ENABLE_TERRAFORM_DEBUG_MODE is grouped under
-	// Logging but controls provisioner behavior that coderd owns.
-	excludedEnvs := map[string]struct{}{
-		"CODER_ENABLE_TERRAFORM_DEBUG_MODE": {},
-	}
-
 	for _, opt := range vals.Options() {
-		if _, excluded := excludedEnvs[opt.Env]; excluded {
-			continue
+		if _, ok := aiGatewayInheritedEnvs[opt.Env]; ok {
+			cmd.Options = append(cmd.Options, opt)
 		}
-		_, byEnv := inheritedEnvs[opt.Env]
-		byGroup := false
-		if opt.Group != nil {
-			_, byGroup = inheritedGroups[opt.Group.Name]
-		}
-		if !byEnv && !byGroup {
-			continue
-		}
-		cmd.Options = append(cmd.Options, opt)
 	}
 
 	return cmd

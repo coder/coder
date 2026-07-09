@@ -191,104 +191,6 @@ func TestResolveAIGatewayKey(t *testing.T) {
 	}
 }
 
-func TestAIGatewayStart_DeploymentOptions(t *testing.T) {
-	t.Parallel()
-
-	cmd := (&RootCmd{}).aiGatewayStart()
-
-	// Standalone Gateway only consumes deployment options used in LLM traffic.
-	// Coderd-only settings such as provider seeds, retention,
-	// structured logging, and Coder MCP injection must stay server-only.
-	var got []string
-	for _, opt := range cmd.Options {
-		if opt.Group != nil && opt.Group.Name == "AI Gateway" {
-			got = append(got, opt.Env)
-		}
-	}
-
-	want := []string{
-		"CODER_AI_GATEWAY_ALLOW_BYOK",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT",
-		"CODER_AI_GATEWAY_DUMP_DIR",
-		"CODER_AI_GATEWAY_MAX_CONCURRENCY",
-		"CODER_AI_GATEWAY_RATE_LIMIT",
-		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
-	}
-	require.ElementsMatch(t, want, got)
-}
-
-func TestAIGatewayStart_ObservabilityOptions(t *testing.T) {
-	t.Parallel()
-
-	cmd := (&RootCmd{}).aiGatewayStart()
-
-	type flagEnv struct {
-		flag string
-		env  string
-	}
-	for _, group := range []struct {
-		name    string
-		present []flagEnv
-		absent  []string
-	}{
-		{
-			name: "Logging",
-			present: []flagEnv{
-				{flag: "log-human", env: "CODER_LOGGING_HUMAN"},
-				{flag: "log-json", env: "CODER_LOGGING_JSON"},
-				{flag: "log-stackdriver", env: "CODER_LOGGING_STACKDRIVER"},
-				{flag: "log-filter", env: "CODER_LOG_FILTER"},
-				{flag: "verbose", env: "CODER_VERBOSE"},
-			},
-			// enable-terraform-debug-mode is grouped under Logging but is a
-			// coderd/provisioner-only control and must not be inherited.
-			absent: []string{"enable-terraform-debug-mode"},
-		},
-		{
-			name: "Metrics",
-			present: []flagEnv{
-				{flag: "prometheus-enable", env: "CODER_PROMETHEUS_ENABLE"},
-				{flag: "prometheus-address", env: "CODER_PROMETHEUS_ADDRESS"},
-			},
-			absent: []string{
-				"prometheus-collect-agent-stats",
-				"prometheus-collect-db-metrics",
-				"prometheus-aggregate-agent-stats-by",
-			},
-		},
-		{
-			name: "Tracing",
-			present: []flagEnv{
-				{flag: "trace", env: "CODER_TRACE_ENABLE"},
-				{flag: "trace-honeycomb-api-key", env: "CODER_TRACE_HONEYCOMB_API_KEY"},
-				{flag: "trace-logs", env: "CODER_TRACE_LOGS"},
-				{flag: "trace-datadog", env: "CODER_TRACE_DATADOG"},
-			},
-			absent: []string{
-				"telemetry-enable",
-				"telemetry-url",
-			},
-		},
-	} {
-		t.Run(group.name, func(t *testing.T) {
-			t.Parallel()
-
-			for _, tc := range group.present {
-				opt := cmd.Options.ByFlag(tc.flag)
-				require.NotNil(t, opt, "missing --%s", tc.flag)
-				require.Equal(t, tc.env, opt.Env)
-			}
-			for _, flag := range group.absent {
-				require.Nil(t, cmd.Options.ByFlag(flag), "unexpected --%s", flag)
-			}
-		})
-	}
-}
-
 // TestAIGatewayStart_TracingMiddleware verifies the gateway mux built by
 // newGatewayMux traces the LLM routes while leaving the health probes untraced.
 func TestAIGatewayStart_TracingMiddleware(t *testing.T) {
@@ -361,4 +263,72 @@ func TestAIGatewayStart_TracingOutermost(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.NotEmpty(t, rec.Header().Get("X-Trace-ID"), "rejected requests must still be traced")
 	require.Equal(t, int32(0), handlerCalls.Load(), "rejected request must not reach the handler")
+}
+
+// TestAIGatewayStart_InheritedOptions verifies that options inherited
+// from coderd's deployment values are consciously used or dropped.
+// A newly added option in these groups fails this test until it
+// is consciously placed in one bucket, preventing silent drift
+// in what the gateway exposes.
+func TestAIGatewayStart_InheritedOptions(t *testing.T) {
+	t.Parallel()
+
+	// Groups the gateway sources options from.
+	sourceGroups := map[string]struct{}{
+		"Logging":    {},
+		"Tracing":    {},
+		"AI Gateway": {},
+		"Prometheus": {},
+	}
+
+	// Options in the source groups that the gateway intentionally does not
+	// inherit because they only apply to coderd.
+	dropped := map[string]struct{}{
+		// Logging
+		"CODER_ENABLE_TERRAFORM_DEBUG_MODE": {},
+
+		// AI Gateway (coderd-only: provider seeding, budgets, retention, etc.)
+		"CODER_AI_BUDGET_PERIOD":                     {},
+		"CODER_AI_BUDGET_POLICY":                     {},
+		"CODER_AI_GATEWAY_ANTHROPIC_BASE_URL":        {},
+		"CODER_AI_GATEWAY_ANTHROPIC_KEY":             {},
+		"CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY":        {},
+		"CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET": {},
+		"CODER_AI_GATEWAY_BEDROCK_BASE_URL":          {},
+		"CODER_AI_GATEWAY_BEDROCK_MODEL":             {},
+		"CODER_AI_GATEWAY_BEDROCK_REGION":            {},
+		"CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL":  {},
+		"CODER_AI_GATEWAY_ENABLED":                   {},
+		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS":    {},
+		"CODER_AI_GATEWAY_OPENAI_BASE_URL":           {},
+		"CODER_AI_GATEWAY_OPENAI_KEY":                {},
+		"CODER_AI_GATEWAY_RETENTION":                 {},
+		"CODER_AI_GATEWAY_STRUCTURED_LOGGING":        {},
+
+		// Prometheus (coderd-only: agent/database collectors)
+		"CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY": {},
+		"CODER_PROMETHEUS_COLLECT_AGENT_STATS":      {},
+		"CODER_PROMETHEUS_COLLECT_DB_METRICS":       {},
+	}
+
+	dv := codersdk.DeploymentValues{}
+	var unclassified []string
+	for _, opt := range dv.Options() {
+		if opt.Group == nil || opt.Env == "" {
+			continue
+		}
+		if _, ok := sourceGroups[opt.Group.Name]; !ok {
+			continue
+		}
+		_, inherited := aiGatewayInheritedEnvs[opt.Env]
+		_, drop := dropped[opt.Env]
+		require.Falsef(t, inherited && drop, "%s option is both inherited and dropped", opt.Env)
+		if !inherited && !drop {
+			unclassified = append(unclassified, opt.Env)
+		}
+	}
+	require.Emptyf(t, unclassified,
+		"options from source groups are neither inherited nor dropped.\n"+
+			"Check if option is applicable for standalone AI Gateway.\n"+
+			"If so, add it to aiGatewayInheritedEnvs, otherwise add it to the dropped set: %v", unclassified)
 }
