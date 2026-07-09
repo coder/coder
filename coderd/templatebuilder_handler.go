@@ -654,7 +654,7 @@ func (api *API) waitForProvisionerJob(
 }
 
 // @Summary Report a template builder session event
-// @ID report-template-builder-session-event
+// @ID report-a-template-builder-session-event
 // @Security CoderSessionToken
 // @Accept json
 // @Tags TemplateBuilder

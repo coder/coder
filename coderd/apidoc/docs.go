@@ -7819,7 +7819,7 @@ const docTemplate = `{
                     "TemplateBuilder"
                 ],
                 "summary": "Report a template builder session event",
-                "operationId": "report-template-builder-session-event",
+                "operationId": "report-a-template-builder-session-event",
                 "parameters": [
                     {
                         "description": "Session event",
