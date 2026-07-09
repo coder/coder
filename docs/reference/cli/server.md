@@ -1987,6 +1987,16 @@ Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider req
 
 The address the AI Gateway Proxy will listen on.
 
+### --aigateway-proxy-target
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_AIGATEWAY_PROXY_TARGET</code> |
+| YAML        | <code>ai_gateway_proxy.target</code>       |
+
+Base URL of the AI Gateway to forward intercepted requests to. Defaults to the Coder access URL plus /api/v2/ai-gateway for embedded mode.
+
 ### --ai-gateway-proxy-tls-cert-file
 
 |             |                                                    |

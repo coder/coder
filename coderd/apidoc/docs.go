@@ -15041,6 +15041,9 @@ const docTemplate = `{
                 "listen_addr": {
                     "type": "string"
                 },
+                "target": {
+                    "type": "string"
+                },
                 "tls_cert_file": {
                     "type": "string"
                 },
