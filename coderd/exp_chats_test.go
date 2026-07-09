@@ -3897,8 +3897,11 @@ func TestCreateChatModelConfig(t *testing.T) {
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model config.", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, `reasoning_effort.default " HIGH "`)
-		require.Contains(t, sdkErr.Detail, "must be one of none, minimal, low, medium, high, xhigh, max")
+		require.Equal(
+			t,
+			`reasoning_effort.default " HIGH " must be one of none, minimal, low, medium, high, xhigh, max`,
+			sdkErr.Detail,
+		)
 	})
 
 	t.Run("ReasoningEffortRejectsDefaultAboveMax", func(t *testing.T) {
@@ -7029,8 +7032,9 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "queue this with model b",
 		}},
-		ModelConfigID: ptr.Ref(modelConfigB.ID),
-		BusyBehavior:  codersdk.ChatBusyBehaviorQueue,
+		ModelConfigID:   ptr.Ref(modelConfigB.ID),
+		ReasoningEffort: ptr.Ref("high"),
+		BusyBehavior:    codersdk.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Queued)
@@ -7043,10 +7047,13 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 	require.Len(t, queuedMessages, 1)
 	require.True(t, queuedMessages[0].ModelConfigID.Valid)
 	require.Equal(t, modelConfigB.ID, queuedMessages[0].ModelConfigID.UUID)
+	require.True(t, queuedMessages[0].ReasoningEffort.Valid)
+	require.Equal(t, database.ChatReasoningEffortHigh, queuedMessages[0].ReasoningEffort.ChatReasoningEffort)
 
 	storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, modelConfigA.ID, storedChat.LastModelConfigID)
+	require.False(t, storedChat.LastReasoningEffort.Valid)
 }
 
 func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {

@@ -119,6 +119,8 @@ interface AgentChatInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	hasModelOptions: boolean;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -354,6 +356,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	hasModelOptions,
+	reasoningEffort,
+	onReasoningEffortChange,
 	planModeEnabled = false,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -1428,6 +1432,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
+								reasoningEffort={reasoningEffort}
+								onReasoningEffortChange={onReasoningEffortChange}
 							/>
 						)}
 						{planModeEnabled && !shouldOverflowPlanningBadge && (
