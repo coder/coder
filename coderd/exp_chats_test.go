@@ -23,6 +23,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -3787,6 +3788,46 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("ConcurrentCreatesElectSingleDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+
+		// All creators race to become the default on an empty deployment.
+		// Without the election retry the losers hit the single-default
+		// unique index and surface as 409s. 10 creators mirrors Terraform's
+		// default parallelism, where this was hit in practice.
+		const creators = 10
+		contextLimit := int64(4096)
+		var eg errgroup.Group
+		for i := range creators {
+			eg.Go(func() error {
+				_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+					AIProviderID: &aiProvider.ID,
+					Model:        fmt.Sprintf("gpt-4o-mini-%d", i),
+					ContextLimit: &contextLimit,
+				})
+				return err
+			})
+		}
+		require.NoError(t, eg.Wait())
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, creators)
+		defaults := 0
+		for _, cfg := range configs {
+			if cfg.IsDefault {
+				defaults++
+			}
+		}
+		require.Equal(t, 1, defaults)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
