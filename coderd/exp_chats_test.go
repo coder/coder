@@ -3799,12 +3799,9 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
-		// All creators race to become the default on an empty deployment,
-		// with one explicitly claiming it. Config writes are serialized, so
-		// only one self-promotes and the explicit claim demotes any interim
-		// winner; without that the losers hit the single-default unique
-		// index and surface as 409s. 10 creators mirrors Terraform's default
-		// parallelism, where this was hit in practice.
+		// Concurrent creators race to self-elect a default while one claims
+		// it via a follow-up update, mirroring a terraform apply. Unserialized,
+		// the losers 409 on the single-default unique index.
 		const creators = 10
 		contextLimit := int64(4096)
 		var claimed codersdk.ChatModelConfig
@@ -3820,14 +3817,21 @@ func TestCreateChatModelConfig(t *testing.T) {
 			})
 		}
 		eg.Go(func() error {
-			var err error
-			claimed, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 				AIProviderID: &aiProvider.ID,
 				Model:        "gpt-4o",
 				ContextLimit: &contextLimit,
-				IsDefault:    ptr.Ref(true),
 			})
-			return err
+			if err != nil {
+				return xerrors.Errorf("create claimed config: %w", err)
+			}
+			claimed, err = client.UpdateChatModelConfig(ctx, created.ID, codersdk.UpdateChatModelConfigRequest{
+				IsDefault: ptr.Ref(true),
+			})
+			if err != nil {
+				return xerrors.Errorf("promote claimed config: %w", err)
+			}
+			return nil
 		})
 		require.NoError(t, eg.Wait())
 
