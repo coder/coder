@@ -7,16 +7,12 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/coderd/aibridge/budget"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 var _ http.Handler = &Server{}
@@ -149,15 +145,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	logger = logger.With(slog.F("user_id", id))
 
-	periodWindow, err := budget.CurrentPeriod(dbtime.Now(), codersdk.AIBudgetPeriodMonth)
-	if err != nil {
-		logger.Warn(ctx, "compute AI budget period", slog.Error(err))
-		http.Error(rw, ErrBudgetCheck.Error(), http.StatusInternalServerError)
-		return
-	}
 	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
-		UserId:      id.String(),
-		PeriodStart: timestamppb.New(periodWindow.Start),
+		UserId: id.String(),
 	})
 	if err != nil {
 		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))

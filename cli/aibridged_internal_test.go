@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -53,7 +54,7 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 // (providers, outcomes) the embedded reloader would observe.
 func buildFromDB(ctx context.Context, t *testing.T, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	t.Helper()
-	srv, err := aibridgedserver.NewServer(ctx, db, nil, logger, "/", cfg, nil, nil, agplaiseats.Noop{})
+	srv, err := aibridgedserver.NewServer(ctx, db, nil, logger, "/", cfg, nil, nil, agplaiseats.Noop{}, quartz.NewReal())
 	if err != nil {
 		return nil, nil, err
 	}
