@@ -780,15 +780,17 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 // ChatModelOverrideResponse is the response body for the chat model override
 // configuration endpoint.
 type ChatModelOverrideResponse struct {
-	Context       ChatModelOverrideContext `json:"context"`
-	ModelConfigID string                   `json:"model_config_id"`
-	IsMalformed   bool                     `json:"is_malformed"`
+	Context         ChatModelOverrideContext `json:"context"`
+	ModelConfigID   string                   `json:"model_config_id"`
+	ReasoningEffort *string                  `json:"reasoning_effort,omitempty"`
+	IsMalformed     bool                     `json:"is_malformed"`
 }
 
 // UpdateChatModelOverrideRequest is the request body for updating the chat
 // model override configuration endpoint.
 type UpdateChatModelOverrideRequest struct {
-	ModelConfigID string `json:"model_config_id"`
+	ModelConfigID   string  `json:"model_config_id"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // ChatPersonalModelOverrideContext identifies which chat context the user
@@ -813,11 +815,12 @@ const (
 
 // ChatPersonalModelOverride is a resolved user personal model override.
 type ChatPersonalModelOverride struct {
-	Context       ChatPersonalModelOverrideContext `json:"context"`
-	Mode          ChatPersonalModelOverrideMode    `json:"mode"`
-	ModelConfigID string                           `json:"model_config_id"`
-	IsSet         bool                             `json:"is_set"`
-	IsMalformed   bool                             `json:"is_malformed"`
+	Context         ChatPersonalModelOverrideContext `json:"context"`
+	Mode            ChatPersonalModelOverrideMode    `json:"mode"`
+	ModelConfigID   string                           `json:"model_config_id"`
+	ReasoningEffort *string                          `json:"reasoning_effort,omitempty"`
+	IsSet           bool                             `json:"is_set"`
+	IsMalformed     bool                             `json:"is_malformed"`
 }
 
 // ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
@@ -840,8 +843,9 @@ type UserChatPersonalModelOverridesResponse struct {
 // UpdateUserChatPersonalModelOverrideRequest is the request body for updating
 // a user personal model override.
 type UpdateUserChatPersonalModelOverrideRequest struct {
-	Mode          ChatPersonalModelOverrideMode `json:"mode"`
-	ModelConfigID string                        `json:"model_config_id"`
+	Mode            ChatPersonalModelOverrideMode `json:"mode"`
+	ModelConfigID   string                        `json:"model_config_id"`
+	ReasoningEffort *string                       `json:"reasoning_effort,omitempty"`
 }
 
 // ChatPersonalModelOverridesAdminSettings describes whether users may manage
