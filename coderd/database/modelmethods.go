@@ -458,6 +458,10 @@ func (g GetGroupsRow) RBACObject() rbac.Object {
 	return g.Group.RBACObject()
 }
 
+func (g GetOrganizationGroupsAISpendRow) RBACObject() rbac.Object {
+	return Group{ID: g.GroupID, OrganizationID: g.OrganizationID}.RBACObject()
+}
+
 func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }

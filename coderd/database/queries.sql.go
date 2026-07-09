@@ -2568,6 +2568,68 @@ func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID u
 	return i, err
 }
 
+const getOrganizationGroupsAISpend = `-- name: GetOrganizationGroupsAISpend :many
+SELECT
+	groups.id AS group_id,
+	groups.organization_id AS organization_id,
+	budget.spend_limit_micros AS spend_limit_micros,
+	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+FROM groups
+LEFT JOIN group_ai_budgets budget ON budget.group_id = groups.id
+LEFT JOIN ai_user_daily_spend spend
+	ON spend.effective_group_id = groups.id
+	AND spend.day >= (($1::timestamptz) AT TIME ZONE 'UTC')::date
+WHERE groups.organization_id = $2
+	AND groups.id = ANY($3::uuid[])
+GROUP BY groups.id, budget.spend_limit_micros
+`
+
+type GetOrganizationGroupsAISpendParams struct {
+	PeriodStart    time.Time   `db:"period_start" json:"period_start"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
+}
+
+type GetOrganizationGroupsAISpendRow struct {
+	GroupID            uuid.UUID     `db:"group_id" json:"group_id"`
+	OrganizationID     uuid.UUID     `db:"organization_id" json:"organization_id"`
+	SpendLimitMicros   sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CurrentSpendMicros int64         `db:"current_spend_micros" json:"current_spend_micros"`
+}
+
+// Returns AI spend limits and aggregate spend for groups in @group_ids that
+// belong to @organization_id, on or after period_start until NOW. The spend
+// limit is null when the group has no configured budget.
+// The period_start parameter is normalized to its UTC calendar day.
+// Only return groups from @group_ids that belong to @organization_id.
+func (q *sqlQuerier) GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationGroupsAISpend, arg.PeriodStart, arg.OrganizationID, pq.Array(arg.GroupIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationGroupsAISpendRow
+	for rows.Next() {
+		var i GetOrganizationGroupsAISpendRow
+		if err := rows.Scan(
+			&i.GroupID,
+			&i.OrganizationID,
+			&i.SpendLimitMicros,
+			&i.CurrentSpendMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides

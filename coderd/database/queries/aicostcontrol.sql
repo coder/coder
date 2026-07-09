@@ -101,3 +101,23 @@ FROM ai_user_daily_spend
 WHERE user_id = @user_id
 	AND effective_group_id = @effective_group_id
 	AND day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date;
+
+-- name: GetOrganizationGroupsAISpend :many
+-- Returns AI spend limits and aggregate spend for groups in @group_ids that
+-- belong to @organization_id, on or after period_start until NOW. The spend
+-- limit is null when the group has no configured budget.
+-- The period_start parameter is normalized to its UTC calendar day.
+SELECT
+	groups.id AS group_id,
+	groups.organization_id AS organization_id,
+	budget.spend_limit_micros AS spend_limit_micros,
+	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS current_spend_micros
+FROM groups
+LEFT JOIN group_ai_budgets budget ON budget.group_id = groups.id
+LEFT JOIN ai_user_daily_spend spend
+	ON spend.effective_group_id = groups.id
+	AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+-- Only return groups from @group_ids that belong to @organization_id.
+WHERE groups.organization_id = @organization_id
+	AND groups.id = ANY(@group_ids::uuid[])
+GROUP BY groups.id, budget.spend_limit_micros;

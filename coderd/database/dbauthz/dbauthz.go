@@ -4217,6 +4217,10 @@ func (q *querier) GetOrganizationByName(ctx context.Context, name database.GetOr
 	return fetch(q.log, q.auth, q.db.GetOrganizationByName)(ctx, name)
 }
 
+func (q *querier) GetOrganizationGroupsAISpend(ctx context.Context, arg database.GetOrganizationGroupsAISpendParams) ([]database.GetOrganizationGroupsAISpendRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationGroupsAISpend)(ctx, arg)
+}
+
 func (q *querier) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	// TODO: This should be rewritten to return a list of database.OrganizationMember for consistent RBAC objects.
 	// Currently this row returns a list of org ids per user, which is challenging to check against the RBAC system.

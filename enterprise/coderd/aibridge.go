@@ -36,7 +36,8 @@ const (
 	defaultListClientsLimit  = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
-	aiBridgeRateLimitWindow = time.Second
+	aiBridgeRateLimitWindow              = time.Second
+	maxOrganizationGroupsAISpendGroupIDs = 100
 )
 
 // errInvalidCursor is returned when a pagination cursor does not
@@ -914,8 +915,10 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 		UserAIBudgetSummary: codersdk.UserAIBudgetSummary{
 			UserID: user.ID,
 		},
-		PeriodStart: periodWindow.Start,
-		PeriodEnd:   periodWindow.End,
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
 	}
 
 	if ok {
@@ -935,6 +938,85 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.CurrentSpendMicros = spend.SpendMicros
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Get organization groups AI spend
+// @ID get-organization-groups-ai-spend
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param group_ids query string true "Comma-separated list of group IDs"
+// @Success 200 {object} codersdk.OrganizationGroupsAISpend
+// @Router /api/v2/organizations/{organization}/groups/ai/spend [get]
+func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	logger := api.Logger.With(slog.F("organization_id", org.ID))
+
+	parser := httpapi.NewQueryParamParser()
+	parser.RequiredNotEmpty("group_ids")
+	groupIDs := parser.UUIDs(r.URL.Query(), nil, "group_ids")
+	parser.ErrorExcessParams(r.URL.Query())
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if len(groupIDs) > maxOrganizationGroupsAISpendGroupIDs {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf(
+				"group_ids has %d entries, maximum is %d.",
+				len(groupIDs), maxOrganizationGroupsAISpendGroupIDs,
+			),
+		})
+		return
+	}
+
+	period := codersdk.NewAIBudgetPeriodFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPeriod)
+	periodWindow, err := budget.CurrentPeriod(api.Clock.Now(), period)
+	if err != nil {
+		logger.Error(ctx, "failed to compute AI budget period", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	logger = logger.With(
+		slog.F("period_start", periodWindow.Start),
+		slog.F("period_end", periodWindow.End),
+	)
+
+	rows, err := api.Database.GetOrganizationGroupsAISpend(ctx, database.GetOrganizationGroupsAISpendParams{
+		OrganizationID: org.ID,
+		GroupIds:       groupIDs,
+		PeriodStart:    periodWindow.Start,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to get organization groups AI spend", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	resp := codersdk.OrganizationGroupsAISpend{
+		AISpendPeriodWindow: codersdk.AISpendPeriodWindow{
+			PeriodStart: periodWindow.Start,
+			PeriodEnd:   periodWindow.End,
+		},
+		Groups: make([]codersdk.OrganizationGroupAISpend, 0, len(rows)),
+	}
+	for _, row := range rows {
+		entry := codersdk.OrganizationGroupAISpend{
+			GroupID:            row.GroupID,
+			CurrentSpendMicros: row.CurrentSpendMicros,
+		}
+		if row.SpendLimitMicros.Valid {
+			entry.SpendLimitMicros = &row.SpendLimitMicros.Int64
+		}
+		resp.Groups = append(resp.Groups, entry)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

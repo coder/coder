@@ -1839,6 +1839,52 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organization groups AI spend
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/ai/spend?group_ids=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/groups/ai/spend`
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                       |
+|----------------|-------|--------------|----------|-----------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                   |
+| `group_ids`    | query | string       | true     | Comma-separated list of group IDs |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "groups": [
+    {
+      "current_spend_micros": 0,
+      "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+      "spend_limit_micros": 0
+    }
+  ],
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationGroupsAISpend](schemas.md#codersdkorganizationgroupsaispend) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group by organization and group name
 
 ### Code samples

@@ -504,6 +504,24 @@ export const AIProviderTypes: AIProviderType[] = [
 	"vercel",
 ];
 
+// From codersdk/aibridge.go
+/**
+ * AISpendPeriodWindow is the [Start, End) window over which AI spend is
+ * aggregated.
+ */
+export interface AISpendPeriodWindow {
+	/**
+	 * PeriodStart is the inclusive lower bound of the current budget
+	 * period.
+	 */
+	readonly period_start: string;
+	/**
+	 * PeriodEnd is the exclusive upper bound of the current budget
+	 * period.
+	 */
+	readonly period_end: string;
+}
+
 // From codersdk/allowlist.go
 /**
  * APIAllowListTarget represents a single allow-list entry using the canonical
@@ -6536,6 +6554,34 @@ export interface Organization extends MinimalOrganization {
 	readonly default_org_member_roles: readonly string[];
 }
 
+// From codersdk/aibridge.go
+/**
+ * OrganizationGroupAISpend is the current AI spend snapshot for a group
+ * within the active budget period.
+ */
+export interface OrganizationGroupAISpend {
+	readonly group_id: string;
+	/**
+	 * SpendLimitMicros is the group's configured AI spend limit. Null when
+	 * the group has no configured budget.
+	 */
+	readonly spend_limit_micros: number | null;
+	/**
+	 * CurrentSpendMicros is the group's spend over the current budget
+	 * period.
+	 */
+	readonly current_spend_micros: number;
+}
+
+// From codersdk/aibridge.go
+/**
+ * OrganizationGroupsAISpend reports AI spend for a set of groups in the
+ * active budget period.
+ */
+export interface OrganizationGroupsAISpend extends AISpendPeriodWindow {
+	readonly groups: readonly OrganizationGroupAISpend[];
+}
+
 // From codersdk/organizations.go
 export interface OrganizationMember {
 	readonly user_id: string;
@@ -9825,22 +9871,14 @@ export interface UserAIProviderKeyConfig {
  * UserAISpendStatus is the current AI spend snapshot for a user within
  * the active budget period.
  */
-export interface UserAISpendStatus extends UserAIBudgetSummary {
+export interface UserAISpendStatus
+	extends UserAIBudgetSummary,
+		AISpendPeriodWindow {
 	/**
 	 * CurrentSpendMicros is the user's spend on their effective group over
 	 * the current budget period.
 	 */
 	readonly current_spend_micros: number;
-	/**
-	 * PeriodStart is the inclusive lower bound of the current budget
-	 * period.
-	 */
-	readonly period_start: string;
-	/**
-	 * PeriodEnd is the exclusive upper bound of the current budget
-	 * period.
-	 */
-	readonly period_end: string;
 }
 
 // From codersdk/insights.go

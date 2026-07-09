@@ -2537,6 +2537,14 @@ func (m queryMetricsStore) GetOrganizationByName(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrganizationGroupsAISpend(ctx context.Context, arg database.GetOrganizationGroupsAISpendParams) ([]database.GetOrganizationGroupsAISpendRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationGroupsAISpend(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationGroupsAISpend").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrganizationGroupsAISpend").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationIDsByMemberIDs(ctx, ids)

@@ -503,6 +503,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groupsByOrganization)
+			r.Route("/ai/spend", func(r chi.Router) {
+				// AI cost controls are a paid feature (AI Governance add-on).
+				r.Use(
+					// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+					httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+					api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				)
+				r.Get("/", api.organizationGroupsAISpend)
+			})
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
