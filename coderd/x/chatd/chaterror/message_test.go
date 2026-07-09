@@ -119,3 +119,45 @@ func TestTerminalMessage(t *testing.T) {
 		})
 	}
 }
+
+func TestContentFilterMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		provider string
+		category string
+		want     string
+	}{
+		{
+			name:     "CategoryVerbatim",
+			provider: "anthropic",
+			category: "harmful_content",
+			want:     "Anthropic blocked this response under its content policy (harmful_content).",
+		},
+		{
+			name:     "NoCategory",
+			provider: "anthropic",
+			category: "",
+			want:     "Anthropic blocked this response under its content policy.",
+		},
+		{
+			name:     "WhitespaceCategory",
+			provider: "anthropic",
+			category: "   ",
+			want:     "Anthropic blocked this response under its content policy.",
+		},
+		{
+			name:     "UnknownProvider",
+			provider: "",
+			category: "cyber",
+			want:     "The AI provider blocked this response under its content policy (cyber).",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chaterror.ContentFilterMessage(tt.provider, tt.category))
+		})
+	}
+}

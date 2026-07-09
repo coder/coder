@@ -2198,6 +2198,7 @@ export interface ChatError {
 export type ChatErrorKind =
 	| "auth"
 	| "config"
+	| "content_filter"
 	| "generic"
 	| "missing_key"
 	| "overloaded"
@@ -2210,6 +2211,7 @@ export type ChatErrorKind =
 export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
+	"content_filter",
 	"generic",
 	"missing_key",
 	"overloaded",
