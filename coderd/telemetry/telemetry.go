@@ -1673,10 +1673,9 @@ type Deployment struct {
 	// enterprise/coderd/scim. Nullable for the same backward compatibility
 	// reason as SCIMEnabled.
 	SCIMUseLegacy *bool `json:"scim_use_legacy"`
-	// AgentExperiments reports the state of the Coder Agents experiments
-	// (virtual desktop with computer use, advisor). Opaque per-experiment
-	// JSON so rotating the reported set is a code-only change. Omitted by
-	// older Coder versions, so it decodes as nil there.
+	// AgentExperiments reports the state of the Coder Agents experiments as
+	// opaque per-experiment JSON, so rotating the reported set is a code-only
+	// change. Omitted by older Coder versions, so it decodes as nil there.
 	AgentExperiments json.RawMessage `json:"agent_experiments,omitempty"`
 }
 
@@ -2350,8 +2349,8 @@ type agentExperiment struct {
 }
 
 var agentExperiments = []agentExperiment{
-	{name: "virtual_desktop", collect: collectAgentVirtualDesktop},
-	{name: "advisor", collect: collectAgentAdvisor},
+	{name: "virtual_desktop", collect: CollectAgentVirtualDesktop},
+	{name: "advisor", collect: CollectAgentAdvisor},
 }
 
 const (
@@ -2363,21 +2362,21 @@ const (
 	agentExperimentUnknown = "unknown"
 )
 
-// agentVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// AgentVirtualDesktopTelemetry is the value shape for the virtual_desktop
 // entry in Deployment.AgentExperiments.
-type agentVirtualDesktopTelemetry struct {
+type AgentVirtualDesktopTelemetry struct {
 	Enabled     bool                      `json:"enabled"`
-	ComputerUse agentComputerUseTelemetry `json:"computer_use"`
+	ComputerUse AgentComputerUseTelemetry `json:"computer_use"`
 }
 
-type agentComputerUseTelemetry struct {
+type AgentComputerUseTelemetry struct {
 	Provider       string `json:"provider"`
 	ProviderSource string `json:"provider_source"`
 }
 
-// agentAdvisorTelemetry is the value shape for the advisor entry in
+// AgentAdvisorTelemetry is the value shape for the advisor entry in
 // Deployment.AgentExperiments.
-type agentAdvisorTelemetry struct {
+type AgentAdvisorTelemetry struct {
 	Enabled         bool   `json:"enabled"`
 	MaxUsesPerRun   int    `json:"max_uses_per_run"`
 	MaxOutputTokens int64  `json:"max_output_tokens"`
@@ -2385,8 +2384,10 @@ type agentAdvisorTelemetry struct {
 	Model           string `json:"model"`
 }
 
-// chat-virtual-desktop gates both the desktop and computer use.
-func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
+// CollectAgentVirtualDesktop collects the virtual_desktop entry in
+// Deployment.AgentExperiments. The chat-virtual-desktop experiment gates both
+// the desktop and computer use.
+func CollectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
 	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
 	providerSource := "configured"
 	switch {
@@ -2398,9 +2399,9 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessa
 		provider = string(codersdk.ChatComputerUseProviderAnthropic)
 		providerSource = "default"
 	}
-	val, err := json.Marshal(agentVirtualDesktopTelemetry{
+	val, err := json.Marshal(AgentVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
-		ComputerUse: agentComputerUseTelemetry{
+		ComputerUse: AgentComputerUseTelemetry{
 			Provider:       provider,
 			ProviderSource: providerSource,
 		},
@@ -2412,8 +2413,10 @@ func collectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessa
 	return val
 }
 
-func collectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
-	payload := agentAdvisorTelemetry{
+// CollectAgentAdvisor collects the advisor entry in
+// Deployment.AgentExperiments.
+func CollectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := AgentAdvisorTelemetry{
 		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
 		Provider: agentExperimentUnknown,
 		Model:    agentExperimentUnknown,
