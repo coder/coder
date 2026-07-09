@@ -104,8 +104,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 14) coder/fantasy bedrock: mirror the request region when prefixing
 //     cross-region inference profiles so the model-ID prefix matches the
 //     region the request is actually signed for.
-// See: https://github.com/coder/fantasy/commits/2e3ddbca75dd
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260617050554-2e3ddbca75dd
+// 15) coder/fantasy#41, surface Anthropic refusal stop_reason as
+//     content-filter.
+// 16) coder/fantasy#46, route the gpt-5.6 family (sol, terra, luna)
+//     through the OpenAI Responses API.
+// See: https://github.com/coder/fantasy/commits/6da0c3b10237
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260709180403-6da0c3b10237
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
