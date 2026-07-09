@@ -79,6 +79,8 @@ export type TemplateBuilderWizardState = {
 	icon: string;
 	selectedBase: SelectedBaseMeta | null;
 	selectedModules: SelectedModuleMeta[];
+	/** Epoch millis when the wizard was entered, used for telemetry duration. */
+	enteredAt: number;
 };
 
 export const initialWizardState: TemplateBuilderWizardState = {
@@ -92,6 +94,7 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	icon: "",
 	selectedBase: null,
 	selectedModules: [],
+	enteredAt: Date.now(),
 };
 
 /**

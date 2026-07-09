@@ -4,6 +4,7 @@ import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
 import {
 	createTemplateFromBuilder,
+	recordTemplateBuilderSession,
 	templateBuilderBases,
 } from "#/api/queries/templateBuilder";
 import { Loader } from "#/components/Loader/Loader";
@@ -24,12 +25,24 @@ const TemplateBuilderPage: FC = () => {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { data, error, isLoading } = useQuery(deploymentConfig());
 	const createMutation = useMutation(createTemplateFromBuilder());
+	const sessionMutation = useMutation(recordTemplateBuilderSession());
 
 	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
+	const wizardReady =
+		!builderDisabled && !isLoading && permissions.createTemplates;
+
+	// Report wizard_entry once the builder is ready and accessible.
+	const reportSession = sessionMutation.mutate;
+	useEffect(() => {
+		if (!wizardReady) {
+			return;
+		}
+		reportSession({ event_type: "wizard_entry" });
+	}, [wizardReady, reportSession]);
 
 	const basesQuery = useQuery({
 		...templateBuilderBases(),
-		enabled: !builderDisabled && !isLoading && permissions.createTemplates,
+		enabled: wizardReady,
 	});
 
 	// ?base= is the only search param accepted on entry. It is consumed
@@ -66,13 +79,31 @@ const TemplateBuilderPage: FC = () => {
 
 	const handleCreate = (state: TemplateBuilderWizardState) => {
 		const req = toCreateTemplateRequest(state);
+		const durationSeconds = (Date.now() - state.enteredAt) / 1000;
+
 		createMutation.mutate(req, {
 			onSuccess: (resp) => {
+				sessionMutation.mutate({
+					event_type: "compose_completion",
+					base_template_id: state.baseTemplateId ?? undefined,
+					module_ids: state.modules.map((m) => m.id),
+					duration_seconds: durationSeconds,
+					success: true,
+				});
 				const t = resp.template;
 				navigate(
 					`${getLink(linkToTemplate(t.organization_name, t.name))}/files`,
 					{ state: { justCreated: true } },
 				);
+			},
+			onError: () => {
+				sessionMutation.mutate({
+					event_type: "compose_completion",
+					base_template_id: state.baseTemplateId ?? undefined,
+					module_ids: state.modules.map((m) => m.id),
+					duration_seconds: durationSeconds,
+					success: false,
+				});
 			},
 		});
 	};
