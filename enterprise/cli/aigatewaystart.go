@@ -35,7 +35,8 @@ import (
 )
 
 const (
-	shutdownTimeout = 5 * time.Minute
+	shutdownTimeout      = 5 * time.Minute
+	traceShutdownTimeout = 5 * time.Second
 
 	healthzPath = "/healthz"
 	readyzPath  = "/readyz"
@@ -127,7 +128,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.Errorf("make logger: %w", err)
 			}
 			defer closeLogger()
-			logger = logger.Named("ai-gateway")
 
 			logger.Debug(signalCtx, "started debug logging")
 			logger.Sync()
@@ -142,7 +142,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			tracerProvider, _, closeTracing := agpl.ConfigureTraceProviderWithService(signalCtx, logger, vals, "coder-ai-gateway")
 			defer func() {
 				logger.Debug(signalCtx, "closing tracing")
-				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
+				traceCloseErr := shutdownWithTimeout(closeTracing, traceShutdownTimeout)
 				logger.Debug(signalCtx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 			tracer := tracerProvider.Tracer("ai-gateway")
@@ -156,7 +156,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			gatewayLogger := logger.Named("ai-gateway")
-
 			// Standalone Gateway starts with an empty pool. Providers are
 			// fetched later via GetAIProviders DRPC and pool is updated.
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, gatewayLogger.Named("pool"), metrics, tracer)
@@ -303,31 +302,29 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 	return cmd
 }
 
-// gatewayMiddleware composes the standalone gateway's per-request middleware.
-// Tracing is outermost so request is traced even when the other guards short-circuit.
 func gatewayMiddleware(cfg codersdk.AIBridgeConfig, tracer trace.Tracer) func(http.Handler) http.Handler {
 	mw := coderd.AIGatewayDataPlaneMiddleware(cfg)
+	// Tracing wraps outermost so rejected requests are still traced.
 	traced := tracingMiddleware(tracer)
 	return func(next http.Handler) http.Handler {
 		return traced(mw(next))
 	}
 }
 
-// newGatewayMux builds the standalone gateway's HTTP routes.
-// The middleware is applied only to the LLM data-plane routes.
 func newGatewayMux(aibridgedHandler http.Handler, aibridgedReady func() bool, middleware func(http.Handler) http.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/api/v2/aibridge/", middleware(http.StripPrefix("/api/v2/aibridge", aibridgedHandler)))
 	mux.Handle("/api/v2/ai-gateway/", middleware(http.StripPrefix("/api/v2/ai-gateway", aibridgedHandler)))
 	mux.Handle("/", middleware(aibridgedHandler))
 
-	// healthz: returns 200 once the HTTP server is listening.
+	// Health probes are registered without middleware.
 	mux.HandleFunc(healthzPath, func(w http.ResponseWriter, _ *http.Request) {
+		// healthz: returns 200 once the HTTP server is listening.
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// readyz: returns 200 only when the DRPC connection to coderd is established.
 	mux.HandleFunc(readyzPath, func(w http.ResponseWriter, _ *http.Request) {
+		// readyz: returns 200 only when the DRPC connection to coderd is established.
 		if aibridgedReady() {
 			w.WriteHeader(http.StatusOK)
 			return

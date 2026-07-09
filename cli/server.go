@@ -2824,6 +2824,12 @@ func (s *HTTPServers) Close() {
 	}
 }
 
+// ConfigureTraceProvider configures tracing for coderd. When tracing is
+// disabled, it returns a noop provider, the default postgres driver name, and
+// a noop close function. The SQL driver name switches to the tracing driver when
+// postgres tracing is available. The close function flushes and shuts down the
+// exporter, and this function installs the global OpenTelemetry text map
+// propagator as a side effect.
 func ConfigureTraceProvider(
 	ctx context.Context,
 	logger slog.Logger,
@@ -2832,8 +2838,8 @@ func ConfigureTraceProvider(
 	return ConfigureTraceProviderWithService(ctx, logger, cfg, "coderd")
 }
 
-// ConfigureTraceProviderWithService configures trace provider
-// with a specified service name.
+// ConfigureTraceProviderWithService configures tracing with a specified service
+// name.
 func ConfigureTraceProviderWithService(
 	ctx context.Context,
 	logger slog.Logger,

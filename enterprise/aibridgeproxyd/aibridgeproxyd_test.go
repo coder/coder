@@ -363,7 +363,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 }
 
 // getProxyCertPool returns a cert pool containing the shared MITM certificate.
-// This is used for tests where requests are MITM by the proxy, so the client
+// This is used for tests where requests are intercepted by the proxy, so the client
 // needs to trust the MITM certificate to verify the generated certificates.
 func getProxyCertPool(t *testing.T) *x509.CertPool {
 	t.Helper()
@@ -606,6 +606,22 @@ func TestNew(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid AI Gateway URL")
+	})
+
+	t.Run("GatewayURLWithQuery", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:   "127.0.0.1:0",
+			GatewayURL:   "http://localhost:3000?token=secret",
+			MITMCertFile: mitmCertFile,
+			MITMKeyFile:  mitmKeyFile,
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "AI Gateway URL must not include query parameters")
 	})
 
 	t.Run("GatewayURLDefaultHTTPPort", func(t *testing.T) {
@@ -1311,6 +1327,7 @@ func TestProxy_MITM(t *testing.T) {
 		buildTargetURL func(tunneledURL *url.URL) (string, error)
 		tunneled       bool
 		customGateway  bool
+		gatewayPath    string
 		expectedPath   string
 		expectedBody   string
 		provider       string
@@ -1364,6 +1381,19 @@ func TestProxy_MITM(t *testing.T) {
 			},
 			customGateway: true,
 			expectedPath:  "/anthropic/v1/messages",
+			expectedBody:  "hello from custom gateway",
+			provider:      "anthropic",
+		},
+		{
+			name:          "MitmdCustomGatewayTargetWithPath",
+			providerHosts: []string{aibridgeproxyd.HostAnthropic},
+			allowedPorts:  []string{"443"},
+			buildTargetURL: func(_ *url.URL) (string, error) {
+				return "https://api.anthropic.com/v1/messages", nil
+			},
+			customGateway: true,
+			gatewayPath:   agplaibridge.AIGatewayRootPath,
+			expectedPath:  "/api/v2/ai-gateway/anthropic/v1/messages",
 			expectedBody:  "hello from custom gateway",
 			provider:      "anthropic",
 		},
@@ -1431,6 +1461,11 @@ func TestProxy_MITM(t *testing.T) {
 				}))
 				t.Cleanup(customGateway.Close)
 				gatewayURL = customGateway.URL
+				if tt.gatewayPath != "" {
+					var err error
+					gatewayURL, err = url.JoinPath(gatewayURL, tt.gatewayPath)
+					require.NoError(t, err)
+				}
 			}
 
 			// Start the proxy server pointing to our mock gateway.
@@ -1845,7 +1880,7 @@ func TestUpstreamProxy(t *testing.T) {
 	tests := []struct {
 		name string
 		// tunneled determines whether the request should be tunneled through
-		// the upstream proxy (true) or MITM by aiproxy (false).
+		// the upstream proxy (true) or intercepted by aiproxy (false).
 		// When true, the target domain has no configured provider.
 		// When false, the target domain has a configured provider.
 		tunneled bool
@@ -2152,7 +2187,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 // TestProxy_MITM_CustomProvider verifies that a non-builtin provider
 // (e.g. OpenRouter) whose domain is registered as a provider host is correctly
-// MITM and routed through the proxy to the bridge endpoint.
+// intercepted and routed through the proxy to the bridge endpoint.
 func TestProxy_MITM_CustomProvider(t *testing.T) {
 	t.Parallel()
 

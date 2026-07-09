@@ -232,7 +232,7 @@ func (h *reloadTestHarness) expectRoutedTo(t *testing.T, targetURL, expectedPath
 		"aibridged must observe the rewritten path for %s", targetURL)
 }
 
-// expectNotRouted asserts the proxy did not MITM the request for the
+// expectNotRouted asserts the proxy did not intercept the request for the
 // given host. The CONNECT either falls through to the tunneled path
 // (where the .invalid hostname fails to dial) or to a 502 from the
 // proxy. Either way, aibridged never sees the request.
@@ -542,7 +542,7 @@ func TestProxy_HotReloadRoutingInvalidProviders(t *testing.T) {
 
 		h := newReloadTestHarness(t)
 		// When every provider is invalid, the router contains no
-		// entries and the proxy fails closed: no host is MITM.
+		// entries and the proxy fails closed: no host is intercepted.
 		h.store.set([]rawProvider{
 			{name: "no-url"},
 			{name: "malformed", baseURL: "://not-a-url"},

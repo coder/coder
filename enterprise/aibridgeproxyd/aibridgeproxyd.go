@@ -258,6 +258,9 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid AI Gateway URL %q: %w", opts.GatewayURL, err)
 	}
+	if gatewayURL.RawQuery != "" {
+		return nil, xerrors.New("AI Gateway URL must not include query parameters")
+	}
 	// Resolve the default port when not explicitly specified in the URL.
 	gatewayPort := gatewayURL.Port()
 	if gatewayPort == "" {
@@ -341,7 +344,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	srv.providerRouter.Store(emptyProviderRouter)
 
 	// Configure upstream proxy for tunneled (non-provider-host) CONNECT requests.
-	// Provider-host domains are MITM and forwarded to aibridge directly,
+	// Provider-host domains are intercepted and forwarded to aibridge directly,
 	// bypassing the upstream proxy.
 	if opts.UpstreamProxy != "" {
 		upstreamURL, err := url.Parse(opts.UpstreamProxy)
@@ -420,7 +423,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Apply MITM with authentication only to provider hosts. The host
 	// list is loaded from the atomic router on every CONNECT so a
 	// Reload while inflight requests are in progress takes effect on
-	// the next CONNECT without touching the already-MITM ones.
+	// the next CONNECT without touching the already intercepted ones.
 	proxy.OnRequest(srv.mitmHostsCondition()).HandleConnectFunc(
 		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
@@ -784,7 +787,7 @@ func newProxyAuthRequiredResponse(req *http.Request) *http.Response {
 }
 
 // tunneledMiddleware is a CONNECT middleware that handles tunneled (non-provider-host)
-// connections. These connections are not MITM and are tunneled directly to their
+// connections. These connections are not intercepted and are tunneled directly to their
 // destination. This middleware records metrics for tunneled CONNECT sessions.
 func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
 	// Record tunneled CONNECT session establishment.
@@ -967,7 +970,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 
 	// Rewrite the request to point to the configured AI Gateway target.
 	if s.gatewayURL == nil || s.gatewayURL.String() == "" {
-		logger.Error(s.ctx, "gatewayURL is not configured")
+		logger.Error(s.ctx, "ai gateway target URL is not configured")
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
