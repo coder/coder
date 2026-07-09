@@ -3800,9 +3800,10 @@ func TestCreateChatModelConfig(t *testing.T) {
 		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
 
 		// All creators race to become the default on an empty deployment.
-		// Without the election retry the losers hit the single-default
-		// unique index and surface as 409s. 10 creators mirrors Terraform's
-		// default parallelism, where this was hit in practice.
+		// The advisory lock serializes the elections so only one wins;
+		// without it the losers hit the single-default unique index and
+		// surface as 409s. 10 creators mirrors Terraform's default
+		// parallelism, where this was hit in practice.
 		const creators = 10
 		contextLimit := int64(4096)
 		var eg errgroup.Group
