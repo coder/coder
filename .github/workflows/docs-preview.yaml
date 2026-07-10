@@ -1,18 +1,31 @@
-# This workflow posts a docs preview link as a PR comment whenever a
-# pull request that touches docs/ is opened or updated.  The preview
-# is served by coder.com's branch-preview feature at /docs/@<branch>.
+# This workflow posts a docs preview comment listing every navigable
+# page a pull request touches. The preview is served by coder.com's
+# branch-preview feature at /docs/@<branch>.
 #
-# The link deep-links to the first added/modified/renamed Markdown file
-# under docs/ so reviewers land on the page that actually changed.
+# Each page in the list gets its own preview link plus a Markdown
+# task-list checkbox, so a reviewer can tick off pages as they review
+# them. State is round-tripped across pushes: a checkbox a reviewer
+# already ticked stays ticked as long as that page hasn't changed
+# since, but flips back to unchecked the moment new content lands on
+# that page, since a checked box should mean "I've reviewed the
+# current revision," not "I reviewed some earlier revision of this
+# page." See DOCS-541.
+#
+# Only pages that resolve to a route in docs/manifest.json get a
+# link. Anything else (docs/.style/** contributor tooling, or a page
+# that hasn't been wired into navigation yet) is dropped from the list
+# entirely, since those pages 404 on the docs site and would confuse
+# reviewers.
+#
 # Branch names are URL-encoded so that names containing slashes or
 # other special characters produce working links.
 #
 # On subsequent pushes (synchronize) the existing comment is updated
-# rather than creating a duplicate.  If a previous push had a Markdown
-# file but the current push has none, the stale comment is deleted so
-# readers don't follow a dead deep-link.  If the PR only deletes
-# Markdown files (or only changes non-Markdown files such as images or
-# manifest.json), no comment is posted.
+# rather than creating a duplicate. If a previous push had eligible
+# Markdown files but the current push has none, the stale comment is
+# deleted so readers don't follow a dead deep-link. If the PR only
+# deletes Markdown files (or only changes non-Markdown files such as
+# images or manifest.json), no comment is posted.
 
 name: docs-preview
 
@@ -26,9 +39,8 @@ on:
       - "docs/**"
       # docs/.style/** is contributor tooling and never deploys to coder.com.
       # Skipping the workflow on .style-only PRs avoids posting a preview
-      # link that 404s, since manifest-driven coder.com routing rejects
-      # paths under .style. Mixed PRs still trigger; the selection logic
-      # below filters .style files out of the preview-target pick.
+      # comment with an empty page list. Mixed PRs still trigger; the
+      # selection logic below filters .style files out of the preview list.
       - "!docs/.style/**"
 
 concurrency:
@@ -42,72 +54,60 @@ jobs:
   docs-preview:
     runs-on: ubuntu-latest
     permissions:
+      # Job-level permissions replace (not merge with) the workflow-level
+      # defaults above, so contents: read has to be repeated here for the
+      # docs/manifest.json contents-API read below.
+      contents: read
       pull-requests: write # needed for commenting on PRs
     steps:
       - name: Post docs preview comment
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+
           # Marker embedded in the comment body so we can find this
-          # workflow's own comments later. Keep this in one place so
-          # later refactors don't drift between the body construction
-          # and the jq selectors used to find existing comments.
+          # workflow's own comments later, and a second marker that
+          # carries the last-seen `path -> blob sha` map so later runs
+          # know whether a page changed since it was last listed. Keep
+          # these in one place so later refactors don't drift between
+          # the body construction and the parsing below.
+          #
+          # Keep this whole script in sync with
+          # test-docs-preview-mapper.sh, which replicates map_doc_path,
+          # the manifest-allowlist filter, and the checked-state
+          # carryover logic so they can be unit tested without running
+          # the full workflow.
           DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
+          STATE_PREFIX='docs-preview-state:'
 
           # Returns IDs of github-actions[bot] comments on the PR whose
           # body contains DOCS_PREVIEW_MARKER. Used by both the stale-
-          # comment-cleanup branch (when this push has no Markdown
-          # changes) and the upsert branch below.
+          # comment-cleanup branch (when this push has no eligible
+          # pages) and the upsert branch below.
           list_docs_preview_comments() {
             gh api --paginate \
               "repos/${REPO}/issues/${PR_NUMBER}/comments" \
               --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${DOCS_PREVIEW_MARKER}\")) | .id"
           }
 
-          # Fetch the list of non-deleted files from the PR.  This is
-          # intentionally not piped into grep so that a gh-api failure
-          # (network, auth, rate-limit) propagates immediately instead
-          # of being swallowed by `|| true`.
-          all_files=$(gh api --paginate \
-            "repos/${REPO}/pulls/${PR_NUMBER}/files" \
-            --jq '.[] | select(.status != "removed") | .filename')
-
-          # Pick the first Markdown file under docs/, excluding the
-          # contributor-tooling subtree at docs/.style/**. Mixed PRs that
-          # touch both .style and a public docs page should land the
-          # preview link on the public page; .style-only PRs already get
-          # short-circuited by the trigger filter above and never reach
-          # this code path.
+          # Deletes the existing docs-preview comment (if any) and exits
+          # 0. Called when this push has nothing eligible to preview, so
+          # a stale comment doesn't point readers at a dead or no-longer-
+          # relevant deep-link.
           #
-          # `|| true` keeps the pipeline from failing when grep finds no
-          # matches or head triggers SIGPIPE under `set -o pipefail`.
-          first_doc=$(printf '%s\n' "$all_files" \
-            | grep -E '^docs/.*\.md$' \
-            | grep -v '^docs/\.style/' \
-            | head -n 1) || true
-
-          if [ -z "$first_doc" ]; then
-            echo "No added/modified Markdown files under docs/ on this push."
-
-            # Now that the workflow fires on synchronize, this branch
-            # is reachable on pushes that drop all Markdown while still
-            # touching docs/ (e.g. a push that removes the file an
-            # earlier push had previewed but adds a new image). The
-            # previous preview comment now points at a deleted page;
-            # delete it so readers don't follow a dead deep-link.
-            #
-            # Intentionally decoupled from head so that a gh-api failure
-            # propagates here instead of being swallowed by `|| true`. In
-            # this branch the workflow has no preview link to post anyway
-            # (no Markdown in the push), so a transient list failure is a
-            # cosmetic miss; log and exit cleanly rather than red-checking
-            # every docs-touching PR during a comments-endpoint hiccup.
-            # The next push will retry the cleanup. The upsert path below
-            # uses strict propagation by contrast, because silent failure
-            # there would create duplicate comments.
+          # Intentionally decoupled from `set -e` propagation: a failed
+          # list/delete here is a cosmetic miss (no preview link needed
+          # anyway), so log and exit cleanly rather than red-checking
+          # every docs-touching PR during a comments-endpoint hiccup.
+          # The next push will retry the cleanup. The upsert path below
+          # uses strict propagation by contrast, because silent failure
+          # there would create duplicate comments.
+          cleanup_stale_and_exit() {
             stale_comment_ids=$(list_docs_preview_comments) || {
               echo "Could not list preview comments; skipping cleanup."
               exit 0
@@ -123,68 +123,187 @@ jobs:
               fi
             fi
             exit 0
-          fi
+          }
 
-          # Map the repo path to the docs site URL path.
+          # Maps a repo path to the docs site URL path.
           #   docs/README.md           -> ""           (docs root)
           #   docs/<dir>/index.md      -> "<dir>"      (directory index)
           #   docs/<dir>/README.md     -> "<dir>"      (directory index)
           #   docs/<dir>/<file>.md     -> "<dir>/<file>"
-          rel="${first_doc#docs/}"
-          case "$rel" in
+          map_doc_path() {
+            local doc_path="$1"
+            local rel="${doc_path#docs/}"
+            local page_path
+
+            case "$rel" in
             README.md)
               page_path=""
               ;;
             *)
+              local base dir stripped
               base="$(basename "$rel")"
               dir="$(dirname "$rel")"
               if [ "$dir" = "." ]; then
                 dir=""
               fi
               case "$base" in
-                index.md|README.md)
-                  page_path="$dir"
-                  ;;
-                *)
-                  stripped="${base%.md}"
-                  if [ -z "$dir" ]; then
-                    page_path="$stripped"
-                  else
-                    page_path="${dir}/${stripped}"
-                  fi
-                  ;;
+              index.md | README.md)
+                page_path="$dir"
+                ;;
+              *)
+                stripped="${base%.md}"
+                if [ -z "$dir" ]; then
+                  page_path="$stripped"
+                else
+                  page_path="${dir}/${stripped}"
+                fi
+                ;;
               esac
               ;;
-          esac
+            esac
+
+            printf '%s' "$page_path"
+          }
+
+          # Fetch the existing docs-preview comment (if any) up front so
+          # both the cleanup path and the upsert path can reuse it
+          # without listing twice.
+          existing_id=$(list_docs_preview_comments | head -n 1) || true
+          existing_body=""
+          if [ -n "$existing_id" ]; then
+            existing_body=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body')
+          fi
+
+          # Fetch the non-removed Markdown files under docs/ (excluding
+          # docs/.style/**) this PR currently touches, one <filename>\t<sha>
+          # pair per line. `.sha` is the blob sha of the file's content at
+          # this push, which is what lets later runs detect "this page
+          # changed since it was last listed" without a full checkout.
+          #
+          # This is intentionally not piped into grep so that a gh-api
+          # failure (network, auth, rate-limit) propagates immediately
+          # instead of being swallowed by `|| true`.
+          changed_tsv=$(gh api --paginate \
+            "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv')
+
+          if [ -z "$changed_tsv" ]; then
+            echo "No added/modified Markdown files under docs/ (outside docs/.style/) on this push."
+            cleanup_stale_and_exit
+          fi
+
+          # Fetch docs/manifest.json at the PR head sha (not the local
+          # ref, since this job never checks the repo out) and collect
+          # every "path" value anywhere in the tree. Manifest paths are
+          # written as "./foo/bar.md" or "foo/bar.md" relative to docs/;
+          # normalize both to "docs/foo/bar.md" so they compare directly
+          # against the PR-files filenames above.
+          manifest_content=$(gh api "repos/${REPO}/contents/docs/manifest.json?ref=${HEAD_SHA}" --jq '.content' | base64 -d)
+          allowed_paths=$(printf '%s' "$manifest_content" \
+            | jq -r '[.. | objects | select(has("path")) | .path] | .[]' \
+            | sed -E 's#^\./##; s#^#docs/#')
+
+          # Intersect the changed-files set with the manifest allowlist.
+          # A file with no manifest route 404s on the docs site, so drop
+          # it from the list rather than link to a broken preview.
+          eligible_tsv=$(printf '%s\n' "$changed_tsv" | while IFS=$'\t' read -r filename sha; do
+            if printf '%s\n' "$allowed_paths" | grep -qxF "$filename"; then
+              printf '%s\t%s\n' "$filename" "$sha"
+            fi
+          done)
+
+          if [ -z "$eligible_tsv" ]; then
+            echo "No changed Markdown files resolve to a docs/manifest.json route."
+            cleanup_stale_and_exit
+          fi
+
+          eligible_json=$(printf '%s\n' "$eligible_tsv" \
+            | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {filename: .[0], sha: .[1]}]')
+
+          # Recover state from the existing comment, if any:
+          #   - old_state: the path -> sha map this workflow wrote the
+          #     last time it updated the comment (hidden marker).
+          #   - old_checked: the path -> checked map read from the
+          #     *live* checkbox glyphs in the comment body, which is
+          #     where a reviewer's manual clicks land (GitHub persists a
+          #     checkbox toggle as an edit to the comment body).
+          old_state_json="{}"
+          old_checked_json="{}"
+          if [ -n "$existing_body" ]; then
+            old_state_b64=$(printf '%s\n' "$existing_body" | grep -oE "${STATE_PREFIX}[A-Za-z0-9+/=]+" | sed "s/^${STATE_PREFIX}//") || true
+            if [ -n "$old_state_b64" ]; then
+              old_state_json=$(printf '%s' "$old_state_b64" | base64 -d)
+            fi
+
+            # shellcheck disable=SC2016 # backticks below are literal Markdown code-span delimiters, not command substitution.
+            old_checked_json=$(printf '%s\n' "$existing_body" \
+              | grep -oE '^- \[[ xX]\] \[`[^`]+`\]' \
+              | sed -E 's/^- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' \
+              | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {(.[1]): (.[0] | test("x"; "i"))}] | add // {}') || true
+          fi
+
+          # Decide each page's checked state: carry the live checkbox
+          # value forward only if the page's blob sha hasn't changed
+          # since the last time this workflow wrote the state marker.
+          # New pages, and pages whose sha moved, start unchecked.
+          final_rows=$(jq -n \
+            --argjson eligible "$eligible_json" \
+            --argjson old_state "$old_state_json" \
+            --argjson old_checked "$old_checked_json" \
+            '[
+              $eligible[] | . as $f |
+              ($old_state[$f.filename] // null) as $prev_sha |
+              (if $prev_sha != null and $prev_sha == $f.sha
+                then ($old_checked[$f.filename] // false)
+                else false
+              end) as $checked |
+              {filename: $f.filename, sha: $f.sha, checked: $checked}
+            ] | sort_by(.filename)')
+
+          new_state_json=$(printf '%s' "$final_rows" | jq -c 'map({(.filename): .sha}) | add // {}')
+          new_state_b64=$(printf '%s' "$new_state_json" | base64 -w0)
 
           # URL-encode the branch name so slashes and special
-          # characters don't break the preview URL.  The page path is
+          # characters don't break the preview URL. The page path is
           # left as-is because its components are simple ASCII path
           # segments and the slashes between them must be preserved.
           encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
-          url="https://coder.com/docs/@${encoded_branch}"
-          if [ -n "$page_path" ]; then
-            url="${url}/${page_path}"
-          fi
 
-          # The literal backticks around ${first_doc} are escaped so
-          # they survive the double-quoted string as Markdown inline
-          # code; ${url} and ${first_doc} expand normally.
+          checklist=""
+          while IFS= read -r row; do
+            [ -z "$row" ] && continue
+            filename=$(printf '%s' "$row" | jq -r '.filename')
+            checked=$(printf '%s' "$row" | jq -r '.checked')
+            page_path=$(map_doc_path "$filename")
+
+            url="https://coder.com/docs/@${encoded_branch}"
+            if [ -n "$page_path" ]; then
+              url="${url}/${page_path}"
+            fi
+
+            box=" "
+            if [ "$checked" = "true" ]; then
+              box="x"
+            fi
+
+            # The literal backticks around ${filename} are Markdown
+            # inline-code syntax, not shell command substitution; they
+            # survive the double-quoted string as-is.
+            checklist="${checklist}- [${box}] [\`${filename}\`](${url})
+          "
+          done < <(printf '%s' "$final_rows" | jq -c '.[]')
+
           comment_body="## Docs preview
-          [:book: View docs preview](${url}) for \`${first_doc}\`
 
-          ${DOCS_PREVIEW_MARKER}"
+          Check off a page once you've reviewed it. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look.
+
+          ${checklist}
+          ${DOCS_PREVIEW_MARKER}
+          <!-- ${STATE_PREFIX}${new_state_b64} -->"
 
           # Upsert: update the existing docs-preview comment if one
-          # exists, otherwise create a new one.  This prevents duplicate
+          # exists, otherwise create a new one. This prevents duplicate
           # preview comments on every push to the PR.
-          #
-          # Intentionally not piped into head so that a gh-api failure
-          # (network, auth, rate-limit) propagates immediately instead
-          # of being swallowed by `|| true`.
-          all_comment_ids=$(list_docs_preview_comments)
-          existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
-
           if [ -n "$existing_id" ]; then
             if ! gh api --method PATCH \
               "repos/${REPO}/issues/comments/${existing_id}" \
