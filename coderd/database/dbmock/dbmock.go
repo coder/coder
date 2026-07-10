@@ -3028,6 +3028,21 @@ func (mr *MockStoreMockRecorder) GetChatMessageByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByID", reflect.TypeOf((*MockStore)(nil).GetChatMessageByID), ctx, id)
 }
 
+// GetChatMessageByIDRaw mocks base method.
+func (m *MockStore) GetChatMessageByIDRaw(ctx context.Context, id int64) (database.GetChatMessageByIDRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessageByIDRaw", ctx, id)
+	ret0, _ := ret[0].(database.GetChatMessageByIDRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessageByIDRaw indicates an expected call of GetChatMessageByIDRaw.
+func (mr *MockStoreMockRecorder) GetChatMessageByIDRaw(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessageByIDRaw", reflect.TypeOf((*MockStore)(nil).GetChatMessageByIDRaw), ctx, id)
+}
+
 // GetChatMessageSummariesPerChat mocks base method.
 func (m *MockStore) GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]database.GetChatMessageSummariesPerChatRow, error) {
 	m.ctrl.T.Helper()
@@ -3073,6 +3088,21 @@ func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDAscPaginated(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDAscPaginated", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDAscPaginated), ctx, arg)
 }
 
+// GetChatMessagesByChatIDAscPaginatedRaw mocks base method.
+func (m *MockStore) GetChatMessagesByChatIDAscPaginatedRaw(ctx context.Context, arg database.GetChatMessagesByChatIDAscPaginatedRawParams) ([]database.GetChatMessagesByChatIDAscPaginatedRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesByChatIDAscPaginatedRaw", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatMessagesByChatIDAscPaginatedRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesByChatIDAscPaginatedRaw indicates an expected call of GetChatMessagesByChatIDAscPaginatedRaw.
+func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDAscPaginatedRaw(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDAscPaginatedRaw", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDAscPaginatedRaw), ctx, arg)
+}
+
 // GetChatMessagesByChatIDDescPaginated mocks base method.
 func (m *MockStore) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -3086,6 +3116,36 @@ func (m *MockStore) GetChatMessagesByChatIDDescPaginated(ctx context.Context, ar
 func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDDescPaginated(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDDescPaginated", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDDescPaginated), ctx, arg)
+}
+
+// GetChatMessagesByChatIDDescPaginatedRaw mocks base method.
+func (m *MockStore) GetChatMessagesByChatIDDescPaginatedRaw(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedRawParams) ([]database.GetChatMessagesByChatIDDescPaginatedRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesByChatIDDescPaginatedRaw", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatMessagesByChatIDDescPaginatedRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesByChatIDDescPaginatedRaw indicates an expected call of GetChatMessagesByChatIDDescPaginatedRaw.
+func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDDescPaginatedRaw(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDDescPaginatedRaw", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDDescPaginatedRaw), ctx, arg)
+}
+
+// GetChatMessagesByChatIDRaw mocks base method.
+func (m *MockStore) GetChatMessagesByChatIDRaw(ctx context.Context, arg database.GetChatMessagesByChatIDRawParams) ([]database.GetChatMessagesByChatIDRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesByChatIDRaw", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatMessagesByChatIDRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesByChatIDRaw indicates an expected call of GetChatMessagesByChatIDRaw.
+func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDRaw(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDRaw", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDRaw), ctx, arg)
 }
 
 // GetChatMessagesByRevisionForStream mocks base method.
@@ -3103,6 +3163,21 @@ func (mr *MockStoreMockRecorder) GetChatMessagesByRevisionForStream(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByRevisionForStream", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByRevisionForStream), ctx, arg)
 }
 
+// GetChatMessagesByRevisionForStreamRaw mocks base method.
+func (m *MockStore) GetChatMessagesByRevisionForStreamRaw(ctx context.Context, arg database.GetChatMessagesByRevisionForStreamRawParams) ([]database.GetChatMessagesByRevisionForStreamRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesByRevisionForStreamRaw", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatMessagesByRevisionForStreamRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesByRevisionForStreamRaw indicates an expected call of GetChatMessagesByRevisionForStreamRaw.
+func (mr *MockStoreMockRecorder) GetChatMessagesByRevisionForStreamRaw(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByRevisionForStreamRaw", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByRevisionForStreamRaw), ctx, arg)
+}
+
 // GetChatMessagesForPromptByChatID mocks base method.
 func (m *MockStore) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -3116,6 +3191,21 @@ func (m *MockStore) GetChatMessagesForPromptByChatID(ctx context.Context, chatID
 func (mr *MockStoreMockRecorder) GetChatMessagesForPromptByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForPromptByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForPromptByChatID), ctx, chatID)
+}
+
+// GetChatMessagesForPromptByChatIDRaw mocks base method.
+func (m *MockStore) GetChatMessagesForPromptByChatIDRaw(ctx context.Context, chatID uuid.UUID) ([]database.GetChatMessagesForPromptByChatIDRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatMessagesForPromptByChatIDRaw", ctx, chatID)
+	ret0, _ := ret[0].([]database.GetChatMessagesForPromptByChatIDRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatMessagesForPromptByChatIDRaw indicates an expected call of GetChatMessagesForPromptByChatIDRaw.
+func (mr *MockStoreMockRecorder) GetChatMessagesForPromptByChatIDRaw(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesForPromptByChatIDRaw", reflect.TypeOf((*MockStore)(nil).GetChatMessagesForPromptByChatIDRaw), ctx, chatID)
 }
 
 // GetChatModelConfigByID mocks base method.
@@ -3194,10 +3284,10 @@ func (mr *MockStoreMockRecorder) GetChatPlanModeInstructions(ctx any) *gomock.Ca
 }
 
 // GetChatQueuedMessageByID mocks base method.
-func (m *MockStore) GetChatQueuedMessageByID(ctx context.Context, arg database.GetChatQueuedMessageByIDParams) (database.ChatQueuedMessage, error) {
+func (m *MockStore) GetChatQueuedMessageByID(ctx context.Context, arg database.GetChatQueuedMessageByIDParams) (database.GetChatQueuedMessageByIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatQueuedMessageByID", ctx, arg)
-	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret0, _ := ret[0].(database.GetChatQueuedMessageByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3209,10 +3299,10 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessageByID(ctx, arg any) *gomock.
 }
 
 // GetChatQueuedMessageHead mocks base method.
-func (m *MockStore) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
+func (m *MockStore) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (database.GetChatQueuedMessageHeadRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatQueuedMessageHead", ctx, chatID)
-	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret0, _ := ret[0].(database.GetChatQueuedMessageHeadRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3224,10 +3314,10 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessageHead(ctx, chatID any) *gomo
 }
 
 // GetChatQueuedMessages mocks base method.
-func (m *MockStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
+func (m *MockStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.GetChatQueuedMessagesRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatQueuedMessages", ctx, chatID)
-	ret0, _ := ret[0].([]database.ChatQueuedMessage)
+	ret0, _ := ret[0].([]database.GetChatQueuedMessagesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3239,10 +3329,10 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.
 }
 
 // GetChatQueuedMessagesByPosition mocks base method.
-func (m *MockStore) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
+func (m *MockStore) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.GetChatQueuedMessagesByPositionRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatQueuedMessagesByPosition", ctx, chatID)
-	ret0, _ := ret[0].([]database.ChatQueuedMessage)
+	ret0, _ := ret[0].([]database.GetChatQueuedMessagesByPositionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -4151,6 +4241,21 @@ func (m *MockStore) GetLastChatMessageByRole(ctx context.Context, arg database.G
 func (mr *MockStoreMockRecorder) GetLastChatMessageByRole(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastChatMessageByRole", reflect.TypeOf((*MockStore)(nil).GetLastChatMessageByRole), ctx, arg)
+}
+
+// GetLastChatMessageByRoleRaw mocks base method.
+func (m *MockStore) GetLastChatMessageByRoleRaw(ctx context.Context, arg database.GetLastChatMessageByRoleRawParams) (database.GetLastChatMessageByRoleRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastChatMessageByRoleRaw", ctx, arg)
+	ret0, _ := ret[0].(database.GetLastChatMessageByRoleRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastChatMessageByRoleRaw indicates an expected call of GetLastChatMessageByRoleRaw.
+func (mr *MockStoreMockRecorder) GetLastChatMessageByRoleRaw(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastChatMessageByRoleRaw", reflect.TypeOf((*MockStore)(nil).GetLastChatMessageByRoleRaw), ctx, arg)
 }
 
 // GetLastUpdateCheck mocks base method.
@@ -7705,6 +7810,21 @@ func (mr *MockStoreMockRecorder) InsertChatMessages(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatMessages", reflect.TypeOf((*MockStore)(nil).InsertChatMessages), ctx, arg)
 }
 
+// InsertChatMessagesRaw mocks base method.
+func (m *MockStore) InsertChatMessagesRaw(ctx context.Context, arg database.InsertChatMessagesRawParams) ([]database.InsertChatMessagesRawRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatMessagesRaw", ctx, arg)
+	ret0, _ := ret[0].([]database.InsertChatMessagesRawRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatMessagesRaw indicates an expected call of InsertChatMessagesRaw.
+func (mr *MockStoreMockRecorder) InsertChatMessagesRaw(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatMessagesRaw", reflect.TypeOf((*MockStore)(nil).InsertChatMessagesRaw), ctx, arg)
+}
+
 // InsertChatModelConfig mocks base method.
 func (m *MockStore) InsertChatModelConfig(ctx context.Context, arg database.InsertChatModelConfigParams) (database.ChatModelConfig, error) {
 	m.ctrl.T.Helper()
@@ -7721,10 +7841,10 @@ func (mr *MockStoreMockRecorder) InsertChatModelConfig(ctx, arg any) *gomock.Cal
 }
 
 // InsertChatQueuedMessage mocks base method.
-func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
+func (m *MockStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.InsertChatQueuedMessageRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertChatQueuedMessage", ctx, arg)
-	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret0, _ := ret[0].(database.InsertChatQueuedMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7736,10 +7856,10 @@ func (mr *MockStoreMockRecorder) InsertChatQueuedMessage(ctx, arg any) *gomock.C
 }
 
 // InsertChatQueuedMessageWithCreator mocks base method.
-func (m *MockStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.ChatQueuedMessage, error) {
+func (m *MockStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg database.InsertChatQueuedMessageWithCreatorParams) (database.InsertChatQueuedMessageWithCreatorRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertChatQueuedMessageWithCreator", ctx, arg)
-	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret0, _ := ret[0].(database.InsertChatQueuedMessageWithCreatorRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9294,10 +9414,10 @@ func (mr *MockStoreMockRecorder) Ping(ctx any) *gomock.Call {
 }
 
 // PopNextQueuedMessage mocks base method.
-func (m *MockStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
+func (m *MockStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.PopNextQueuedMessageRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PopNextQueuedMessage", ctx, chatID)
-	ret0, _ := ret[0].(database.ChatQueuedMessage)
+	ret0, _ := ret[0].(database.PopNextQueuedMessageRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

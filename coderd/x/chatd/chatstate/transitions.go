@@ -230,14 +230,17 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 	if err := tx.requireQueueCapacity(); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
-	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	row, err := tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:          tx.chatID,
 		Content:         rawContent,
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
-		APIKeyID:        m.APIKeyID,
 	})
+	if err != nil {
+		return database.ChatQueuedMessage{}, err
+	}
+	return database.ChatQueuedMessageRow(row).ChatQueuedMessage(), nil
 }
 
 // messageFromQueuedRow synthesizes a Message from a stored queued row,
@@ -251,7 +254,6 @@ func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
 		ReasoningEffort: q.ReasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        q.APIKeyID,
 	}
 }
 
@@ -416,11 +418,12 @@ func (tx *Tx) sendMessageE1(chat database.Chat, m Message) (SendMessageResult, e
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
+	headMessage := database.ChatQueuedMessageRow(head).ChatQueuedMessage()
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	promoted := messageFromQueuedRow(head)
+	promoted := messageFromQueuedRow(headMessage)
 	inserted, err := tx.insertMessages(append(cancels, promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
@@ -491,7 +494,6 @@ type EditMessageInput struct {
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
-	APIKeyID                sql.NullString
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -571,10 +573,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	if input.ReasoningEffortOverride.Valid {
 		reasoningEffort = input.ReasoningEffortOverride
 	}
-	apiKeyID := input.APIKeyID
-	if !apiKeyID.Valid {
-		return EditMessageResult{}, xerrors.Errorf("api_key_id is required")
-	}
 	replacement := Message{
 		Role:            database.ChatMessageRoleUser,
 		Content:         input.Content,
@@ -583,7 +581,6 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		ReasoningEffort: reasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: input.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        apiKeyID,
 	}
 	insertedReplacement, err := tx.insertMessages([]Message{replacement})
 	if err != nil {
@@ -643,6 +640,7 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
+	targetMessage := database.ChatQueuedMessageRow(target).ChatQueuedMessage()
 	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
 		ID:     input.QueuedMessageID,
 		ChatID: tx.chatID,
@@ -654,7 +652,7 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
 	return DeleteQueuedMessageResult{
-		DeletedQueuedMessage: target,
+		DeletedQueuedMessage: targetMessage,
 	}, nil
 }
 
@@ -688,6 +686,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
+	targetMessage := database.ChatQueuedMessageRow(target).ChatQueuedMessage()
 	rows, err := tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
 		ID:     input.QueuedMessageID,
 		ChatID: tx.chatID,
@@ -713,7 +712,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 			return PromoteQueuedMessageResult{}, xerrors.Errorf("set interrupting: %w", err)
 		}
 		return PromoteQueuedMessageResult{
-			QueuedMessage:      target,
+			QueuedMessage:      targetMessage,
 			ReorderedQueueOnly: reorderOnly,
 		}, nil
 	}
@@ -726,7 +725,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
-	promotedMsg := messageFromQueuedRow(target)
+	promotedMsg := messageFromQueuedRow(targetMessage)
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
@@ -756,7 +755,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	cancellations := inserted[:len(inserted)-1]
 	insertedUserMsg := inserted[len(inserted)-1]
 	return PromoteQueuedMessageResult{
-		QueuedMessage:        target,
+		QueuedMessage:        targetMessage,
 		InsertedMessage:      &insertedUserMsg,
 		CancellationMessages: cancellations,
 		ReorderedQueueOnly:   reorderOnly,
@@ -1211,7 +1210,8 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
-	promotedMsg := messageFromQueuedRow(head)
+	headMessage := database.ChatQueuedMessageRow(head).ChatQueuedMessage()
+	promotedMsg := messageFromQueuedRow(headMessage)
 	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
@@ -1277,11 +1277,12 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
+	headMessage := database.ChatQueuedMessageRow(head).ChatQueuedMessage()
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
-	promotedMsg := messageFromQueuedRow(head)
+	promotedMsg := messageFromQueuedRow(headMessage)
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)

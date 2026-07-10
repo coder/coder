@@ -370,18 +370,62 @@ SET
 WHERE
     id = @id::uuid;
 
--- name: GetChatMessageByID :one
+-- name: GetChatMessageByIDRaw :one
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
     id = @id::bigint
     AND deleted = false;
 
--- name: GetChatMessagesByChatID :many
+-- name: GetChatMessagesByChatIDRaw :many
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
@@ -392,9 +436,31 @@ WHERE
 ORDER BY
     created_at ASC;
 
--- name: GetChatMessagesByRevisionForStream :many
+-- name: GetChatMessagesByRevisionForStreamRaw :many
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
@@ -404,9 +470,31 @@ WHERE
 ORDER BY
     created_at ASC, id ASC;
 
--- name: GetChatMessagesByChatIDAscPaginated :many
+-- name: GetChatMessagesByChatIDAscPaginatedRaw :many
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
@@ -419,9 +507,31 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
--- name: GetChatMessagesByChatIDDescPaginated :many
+-- name: GetChatMessagesByChatIDDescPaginatedRaw :many
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
@@ -473,7 +583,7 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 500);
 
--- name: GetChatMessagesForPromptByChatID :many
+-- name: GetChatMessagesForPromptByChatIDRaw :many
 WITH latest_compressed_summary AS (
     SELECT
         id
@@ -491,7 +601,29 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
@@ -858,7 +990,7 @@ chats_expanded AS (
 SELECT *
 FROM chats_expanded;
 
--- name: InsertChatMessages :many
+-- name: InsertChatMessagesRaw :many
 WITH batch AS (
     SELECT
         (
@@ -895,7 +1027,6 @@ updated_chat AS (
 INSERT INTO chat_messages (
     chat_id,
     created_by,
-    api_key_id,
     model_config_id,
     reasoning_effort,
     role,
@@ -916,7 +1047,6 @@ INSERT INTO chat_messages (
 SELECT
     @chat_id::uuid,
     NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(UNNEST(@api_key_id::text[]), ''),
     NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(UNNEST(@reasoning_effort::text[]), '')::chat_reasoning_effort,
     UNNEST(@role::chat_message_role[]),
@@ -934,7 +1064,29 @@ SELECT
     NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
     NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
 RETURNING
-    *;
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort;
 
 -- name: UpdateChatByID :one
 WITH updated_chat AS (
@@ -1833,20 +1985,20 @@ RETURNING
 -- Legacy queue insertion path. When no caller-supplied creator exists,
 -- preserve the created_by invariant by attributing the queued row to the
 -- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
 SELECT
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    sqlc.narg('api_key_id')::text,
     chats.owner_id
 FROM chats
 WHERE chats.id = @chat_id::uuid
-RETURNING *;
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort;
 
 -- name: GetChatQueuedMessages :many
-SELECT * FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+FROM chat_queued_messages
 WHERE chat_id = @chat_id
 ORDER BY created_at ASC, id ASC;
 
@@ -1864,7 +2016,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING *;
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort;
 
 -- name: ReorderChatQueuedMessageToFront :execrows
 -- Mutates only created_at on the target row; ids are unchanged so
@@ -1877,9 +2029,31 @@ SET created_at = (
 )
 WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
--- name: GetLastChatMessageByRole :one
+-- name: GetLastChatMessageByRoleRaw :one
 SELECT
-    *
+    id,
+    chat_id,
+    model_config_id,
+    created_at,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    created_by,
+    content_version,
+    total_cost_micros,
+    runtime_ms,
+    deleted,
+    provider_response_id,
+    revision,
+    reasoning_effort
 FROM
     chat_messages
 WHERE
@@ -2839,20 +3013,20 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    sqlc.narg('api_key_id')::text,
     @created_by::uuid
 )
-RETURNING *;
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort;
 
 -- name: GetChatQueuedMessagesByPosition :many
 -- Returns queued messages in state-machine order (position ASC, id ASC).
-SELECT * FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC;
 
@@ -2865,13 +3039,15 @@ WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
 -- Returns the queue head (lowest position, then lowest id).
-SELECT * FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
 ORDER BY position ASC, id ASC
 LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one
-SELECT * FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort
+FROM chat_queued_messages
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 
 -- name: DeleteChatQueuedMessageReturningCount :execrows
