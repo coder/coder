@@ -1115,60 +1115,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
-	s.Run("GetChatMessageByIDRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msg := testutil.Fake(s.T(), faker, database.GetChatMessageByIDRawRow{ChatID: chat.ID})
-		dbm.EXPECT().GetChatMessageByIDRaw(gomock.Any(), msg.ID).Return(msg, nil).AnyTimes()
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		check.Args(msg.ID).Asserts(chat, policy.ActionRead).Returns(msg)
-	}))
-	s.Run("GetChatMessagesByChatIDRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msgs := []database.GetChatMessagesByChatIDRawRow{testutil.Fake(s.T(), faker, database.GetChatMessagesByChatIDRawRow{ChatID: chat.ID})}
-		arg := database.GetChatMessagesByChatIDRawParams{ChatID: chat.ID, AfterID: 0}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatMessagesByChatIDRaw(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
-	}))
-	s.Run("GetChatMessagesByChatIDAscPaginatedRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msgs := []database.GetChatMessagesByChatIDAscPaginatedRawRow{testutil.Fake(s.T(), faker, database.GetChatMessagesByChatIDAscPaginatedRawRow{ChatID: chat.ID})}
-		arg := database.GetChatMessagesByChatIDAscPaginatedRawParams{ChatID: chat.ID, AfterID: 0, LimitVal: 50}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatMessagesByChatIDAscPaginatedRaw(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
-	}))
-	s.Run("GetChatMessagesByChatIDDescPaginatedRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msgs := []database.GetChatMessagesByChatIDDescPaginatedRawRow{testutil.Fake(s.T(), faker, database.GetChatMessagesByChatIDDescPaginatedRawRow{ChatID: chat.ID})}
-		arg := database.GetChatMessagesByChatIDDescPaginatedRawParams{ChatID: chat.ID, BeforeID: 0, LimitVal: 50}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatMessagesByChatIDDescPaginatedRaw(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
-	}))
-	s.Run("GetChatMessagesByRevisionForStreamRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msgs := []database.GetChatMessagesByRevisionForStreamRawRow{testutil.Fake(s.T(), faker, database.GetChatMessagesByRevisionForStreamRawRow{ChatID: chat.ID})}
-		arg := database.GetChatMessagesByRevisionForStreamRawParams{ChatID: chat.ID, AfterRevision: 1}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatMessagesByRevisionForStreamRaw(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
-	}))
-	s.Run("GetLastChatMessageByRoleRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msg := testutil.Fake(s.T(), faker, database.GetLastChatMessageByRoleRawRow{ChatID: chat.ID})
-		arg := database.GetLastChatMessageByRoleRawParams{ChatID: chat.ID, Role: database.ChatMessageRoleAssistant}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetLastChatMessageByRoleRaw(gomock.Any(), arg).Return(msg, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msg)
-	}))
-	s.Run("GetChatMessagesForPromptByChatIDRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msgs := []database.GetChatMessagesForPromptByChatIDRawRow{testutil.Fake(s.T(), faker, database.GetChatMessagesForPromptByChatIDRawRow{ChatID: chat.ID})}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetChatMessagesForPromptByChatIDRaw(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(msgs)
-	}))
 	s.Run("GetChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
@@ -1235,7 +1181,7 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetChatQueuedMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		qms := []database.GetChatQueuedMessagesRow{testutil.Fake(s.T(), faker, database.GetChatQueuedMessagesRow{})}
+		qms := []database.ChatQueuedMessage{testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatQueuedMessages(gomock.Any(), chat.ID).Return(qms, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(qms)
@@ -1332,18 +1278,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertChatMessages(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msgs)
 	}))
-	s.Run("InsertChatMessagesRaw", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := testutil.Fake(s.T(), faker, database.InsertChatMessagesRawParams{ChatID: chat.ID})
-		msgs := []database.InsertChatMessagesRawRow{testutil.Fake(s.T(), faker, database.InsertChatMessagesRawRow{ChatID: chat.ID})}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().InsertChatMessagesRaw(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msgs)
-	}))
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := testutil.Fake(s.T(), faker, database.InsertChatQueuedMessageParams{ChatID: chat.ID})
-		qm := testutil.Fake(s.T(), faker, database.InsertChatQueuedMessageRow{})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().InsertChatQueuedMessage(gomock.Any(), arg).Return(qm, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(qm)
@@ -1361,7 +1299,7 @@ func (s *MethodTestSuite) TestChats() {
 
 	s.Run("PopNextQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		qm := testutil.Fake(s.T(), faker, database.PopNextQueuedMessageRow{})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().PopNextQueuedMessage(gomock.Any(), chat.ID).Return(qm, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(qm)
@@ -1420,14 +1358,14 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("InsertChatQueuedMessageWithCreator", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := testutil.Fake(s.T(), faker, database.InsertChatQueuedMessageWithCreatorParams{ChatID: chat.ID})
-		qm := testutil.Fake(s.T(), faker, database.InsertChatQueuedMessageWithCreatorRow{})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().InsertChatQueuedMessageWithCreator(gomock.Any(), arg).Return(qm, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(qm)
 	}))
 	s.Run("GetChatQueuedMessagesByPosition", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		qms := []database.GetChatQueuedMessagesByPositionRow{}
+		qms := []database.ChatQueuedMessage{}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatQueuedMessagesByPosition(gomock.Any(), chat.ID).Return(qms, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(qms)
@@ -1440,14 +1378,14 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetChatQueuedMessageHead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		qm := testutil.Fake(s.T(), faker, database.GetChatQueuedMessageHeadRow{ChatID: chat.ID})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{ChatID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatQueuedMessageHead(gomock.Any(), chat.ID).Return(qm, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(qm)
 	}))
 	s.Run("GetChatQueuedMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		qm := testutil.Fake(s.T(), faker, database.GetChatQueuedMessageByIDRow{ChatID: chat.ID})
+		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{ChatID: chat.ID})
 		arg := database.GetChatQueuedMessageByIDParams{ID: qm.ID, ChatID: chat.ID}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatQueuedMessageByID(gomock.Any(), arg).Return(qm, nil).AnyTimes()

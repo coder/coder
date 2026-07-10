@@ -700,7 +700,7 @@ func requireQueuedMessageByID(ctx context.Context, t *testing.T, f *testFixture,
 		ChatID: chatID,
 	})
 	require.NoError(t, err)
-	return database.ChatQueuedMessageRow(msg).ChatQueuedMessage()
+	return msg
 }
 
 func requireQueuedMessageDeleted(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, id int64) {

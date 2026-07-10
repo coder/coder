@@ -441,16 +441,16 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
-	GetChatMessageByIDRaw(ctx context.Context, id int64) (GetChatMessageByIDRawRow, error)
+	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
 	// ongoing activity in long-running chats is captured each window.
 	GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error)
-	GetChatMessagesByChatIDAscPaginatedRaw(ctx context.Context, arg GetChatMessagesByChatIDAscPaginatedRawParams) ([]GetChatMessagesByChatIDAscPaginatedRawRow, error)
-	GetChatMessagesByChatIDDescPaginatedRaw(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedRawParams) ([]GetChatMessagesByChatIDDescPaginatedRawRow, error)
-	GetChatMessagesByChatIDRaw(ctx context.Context, arg GetChatMessagesByChatIDRawParams) ([]GetChatMessagesByChatIDRawRow, error)
-	GetChatMessagesByRevisionForStreamRaw(ctx context.Context, arg GetChatMessagesByRevisionForStreamRawParams) ([]GetChatMessagesByRevisionForStreamRawRow, error)
-	GetChatMessagesForPromptByChatIDRaw(ctx context.Context, chatID uuid.UUID) ([]GetChatMessagesForPromptByChatIDRawRow, error)
+	GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error)
+	GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg GetChatMessagesByChatIDAscPaginatedParams) ([]ChatMessage, error)
+	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
+	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
+	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	// Returns all model configurations for telemetry snapshot collection.
@@ -460,12 +460,12 @@ type sqlcQuerier interface {
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
-	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (GetChatQueuedMessageByIDRow, error)
+	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head (lowest position, then lowest id).
-	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (GetChatQueuedMessageHeadRow, error)
-	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]GetChatQueuedMessagesRow, error)
+	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns queued messages in state-machine order (position ASC, id ASC).
-	GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]GetChatQueuedMessagesByPositionRow, error)
+	GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns the chat retention period in days. Chats archived longer
 	// than this and orphaned chat files older than this are purged by
 	// dbpurge. Returns 30 (days) when no value has been configured.
@@ -605,7 +605,7 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
-	GetLastChatMessageByRoleRaw(ctx context.Context, arg GetLastChatMessageByRoleRawParams) (GetLastChatMessageByRoleRawRow, error)
+	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
@@ -1055,16 +1055,16 @@ type sqlcQuerier interface {
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
-	InsertChatMessagesRaw(ctx context.Context, arg InsertChatMessagesRawParams) ([]InsertChatMessagesRawRow, error)
+	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	// Legacy queue insertion path. When no caller-supplied creator exists,
 	// preserve the created_by invariant by attributing the queued row to the
 	// chat owner.
-	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (InsertChatQueuedMessageRow, error)
+	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
-	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (InsertChatQueuedMessageWithCreatorRow, error)
+	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1238,7 +1238,7 @@ type sqlcQuerier interface {
 	// pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
-	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (PopNextQueuedMessageRow, error)
+	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)

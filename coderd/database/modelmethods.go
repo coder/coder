@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -19,88 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
-
-// ChatMessageRow is the persisted message projection used by chat queries.
-type ChatMessageRow struct {
-	ID                  int64                   `db:"id" json:"id"`
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	CreatedAt           time.Time               `db:"created_at" json:"created_at"`
-	Role                ChatMessageRole         `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage   `db:"content" json:"content"`
-	Visibility          ChatMessageVisibility   `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64           `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64           `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64           `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64           `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64           `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64           `db:"context_limit" json:"context_limit"`
-	Compressed          bool                    `db:"compressed" json:"compressed"`
-	CreatedBy           uuid.NullUUID           `db:"created_by" json:"created_by"`
-	ContentVersion      int16                   `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64           `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           sql.NullInt64           `db:"runtime_ms" json:"runtime_ms"`
-	Deleted             bool                    `db:"deleted" json:"deleted"`
-	ProviderResponseID  sql.NullString          `db:"provider_response_id" json:"provider_response_id"`
-	Revision            int64                   `db:"revision" json:"revision"`
-	ReasoningEffort     NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-}
-
-// ChatMessage converts the query projection to the schema model.
-func (r ChatMessageRow) ChatMessage() ChatMessage {
-	return ChatMessage{
-		ID:                  r.ID,
-		ChatID:              r.ChatID,
-		ModelConfigID:       r.ModelConfigID,
-		CreatedAt:           r.CreatedAt,
-		Role:                r.Role,
-		Content:             r.Content,
-		Visibility:          r.Visibility,
-		InputTokens:         r.InputTokens,
-		OutputTokens:        r.OutputTokens,
-		TotalTokens:         r.TotalTokens,
-		ReasoningTokens:     r.ReasoningTokens,
-		CacheCreationTokens: r.CacheCreationTokens,
-		CacheReadTokens:     r.CacheReadTokens,
-		ContextLimit:        r.ContextLimit,
-		Compressed:          r.Compressed,
-		CreatedBy:           r.CreatedBy,
-		ContentVersion:      r.ContentVersion,
-		TotalCostMicros:     r.TotalCostMicros,
-		RuntimeMs:           r.RuntimeMs,
-		Deleted:             r.Deleted,
-		ProviderResponseID:  r.ProviderResponseID,
-		Revision:            r.Revision,
-		ReasoningEffort:     r.ReasoningEffort,
-	}
-}
-
-// ChatQueuedMessageRow is the persisted queue projection used by chat queries.
-type ChatQueuedMessageRow struct {
-	ID              int64                   `db:"id" json:"id"`
-	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
-	Content         json.RawMessage         `db:"content" json:"content"`
-	CreatedAt       time.Time               `db:"created_at" json:"created_at"`
-	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	Position        int64                   `db:"position" json:"position"`
-	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
-	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-}
-
-// ChatQueuedMessage converts the query projection to the schema model.
-func (r ChatQueuedMessageRow) ChatQueuedMessage() ChatQueuedMessage {
-	return ChatQueuedMessage{
-		ID:              r.ID,
-		ChatID:          r.ChatID,
-		Content:         r.Content,
-		CreatedAt:       r.CreatedAt,
-		ModelConfigID:   r.ModelConfigID,
-		Position:        r.Position,
-		CreatedBy:       r.CreatedBy,
-		ReasoningEffort: r.ReasoningEffort,
-	}
-}
 
 type WorkspaceStatus string
 

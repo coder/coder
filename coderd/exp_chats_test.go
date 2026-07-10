@@ -172,7 +172,7 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 		},
 	)
 	require.NoError(t, err)
-	return database.ChatQueuedMessageRow(queued).ChatQueuedMessage()
+	return queued
 }
 
 // findUserMessage returns the first user-role message from a slice of chat

@@ -180,10 +180,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 			if err != nil {
 				return xerrors.Errorf("get chat queue: %w", err)
 			}
-			snapshot.queue = make([]database.ChatQueuedMessage, len(queued))
-			for i, row := range queued {
-				snapshot.queue[i] = database.ChatQueuedMessageRow(row).ChatQueuedMessage()
-			}
+			snapshot.queue = queued
 		}
 
 		if chat.Status == database.ChatStatusRequiresAction {

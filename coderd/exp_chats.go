@@ -2370,7 +2370,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// Queued messages are only meaningful for the initial top-of-history
 	// load. Suppress them whenever any cursor is set so polling callers do
 	// not receive the snapshot on every page fetch.
-	var queuedMessages []database.GetChatQueuedMessagesRow
+	var queuedMessages []database.ChatQueuedMessage
 	if beforeID == 0 && afterID == 0 {
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
@@ -6811,10 +6811,10 @@ func convertChatQueuedMessagePtr(m database.ChatQueuedMessage) *codersdk.ChatQue
 	return &qm
 }
 
-func convertChatQueuedMessages(msgs []database.GetChatQueuedMessagesRow) []codersdk.ChatQueuedMessage {
+func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
 	result := make([]codersdk.ChatQueuedMessage, 0, len(msgs))
 	for _, m := range msgs {
-		result = append(result, db2sdk.ChatQueuedMessage(database.ChatQueuedMessageRow(m).ChatQueuedMessage()))
+		result = append(result, db2sdk.ChatQueuedMessage(m))
 	}
 	return result
 }
