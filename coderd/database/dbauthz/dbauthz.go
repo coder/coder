@@ -473,6 +473,27 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	subjectChatdKeyMinter = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeChatdKeyMinter,
+			FriendlyName: "Chatd Key Minter",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "chatdkeyminter"},
+					DisplayName: "Chatd Key Minter",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceApiKey.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+						rbac.ResourceUser.Type:   {policy.ActionReadPersonal},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -872,6 +893,12 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // keys owned by the specified user, and nothing else.
 func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectAPIKeyRevoker(userID))
+}
+
+// AsChatdKeyMinter returns a context with an actor that manages the synthetic
+// gateway API key owned by the specified user.
+func AsChatdKeyMinter(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectChatdKeyMinter(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -3494,6 +3521,13 @@ func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([
 	return q.db.GetChatStreamSyncRows(ctx, ids)
 }
 
+func (q *querier) GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (database.ChatSyntheticApiKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceApiKey.WithOwner(userID.String())); err != nil {
+		return database.ChatSyntheticApiKey{}, err
+	}
+	return q.db.GetChatSyntheticAPIKeyByUserID(ctx, userID)
+}
+
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check
@@ -5072,6 +5106,10 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 	return q.db.GetUserCount(ctx, includeSystem)
 }
 
+func (q *querier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetUserForChatSyntheticAPIKeyByID)(ctx, id)
+}
+
 func (q *querier) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.UserID.String())); err != nil {
 		return 0, err
@@ -6009,6 +6047,13 @@ func (q *querier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg da
 	}
 	_ = chat
 	return q.db.InsertChatQueuedMessageWithCreator(ctx, arg)
+}
+
+func (q *querier) InsertChatSyntheticAPIKey(ctx context.Context, arg database.InsertChatSyntheticAPIKeyParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(arg.UserID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.InsertChatSyntheticAPIKey(ctx, arg)
 }
 
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
@@ -7400,6 +7445,13 @@ func (q *querier) UpdateChatStatus(ctx context.Context, arg database.UpdateChatS
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatus(ctx, arg)
+}
+
+func (q *querier) UpdateChatSyntheticAPIKey(ctx context.Context, arg database.UpdateChatSyntheticAPIKeyParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceApiKey.WithOwner(arg.UserID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatSyntheticAPIKey(ctx, arg)
 }
 
 func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {

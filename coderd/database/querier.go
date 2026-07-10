@@ -471,6 +471,7 @@ type sqlcQuerier interface {
 	// A value of 0 disables chat purging entirely.
 	GetChatRetentionDays(ctx context.Context) (int32, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
+	GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (ChatSyntheticApiKey, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
@@ -857,6 +858,7 @@ type sqlcQuerier interface {
 	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
+	GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Returns the minimum (most restrictive) group limit for a user.
 	// Returns -1 if no group limits match the specified scope.
 	// When organization_id is NULL, groups across all organizations are
@@ -1063,6 +1065,7 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
+	InsertChatSyntheticAPIKey(ctx context.Context, arg InsertChatSyntheticAPIKeyParams) (int64, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1399,6 +1402,7 @@ type sqlcQuerier interface {
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
+	UpdateChatSyntheticAPIKey(ctx context.Context, arg UpdateChatSyntheticAPIKeyParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)

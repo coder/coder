@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -1024,23 +1023,6 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
-func (*Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
-	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-	if !ok || apiKeyID == "" {
-		return "", xerrors.New("active turn API key ID is required for subagent messages")
-	}
-	return apiKeyID, nil
-}
-
-func (p *Server) createChildSubagentChat(
-	ctx context.Context,
-	parent database.Chat,
-	prompt string,
-	title string,
-) (database.Chat, error) {
-	return p.createChildSubagentChatWithOptions(ctx, parent, prompt, title, childSubagentChatOptions{})
-}
-
 func (p *Server) createChildSubagentChatWithOptions(
 	ctx context.Context,
 	parent database.Chat,
@@ -1074,9 +1056,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
 	}
-	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	childAPIKeyID, err := p.ensureSyntheticAPIKeyID(ctx, parent.OwnerID)
 	if err != nil {
-		return database.Chat{}, err
+		return database.Chat{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 
 	childPlanMode := parent.PlanMode
@@ -1218,16 +1200,10 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
-	if err != nil {
-		return database.Chat{}, err
-	}
-
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {

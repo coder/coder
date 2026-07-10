@@ -1174,7 +1174,6 @@ type CreateOptions struct {
 	ClientType         database.ChatClientType
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
-	APIKeyID           string
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
@@ -1200,7 +1199,6 @@ type SendMessageOptions struct {
 	Content         []codersdk.ChatMessagePart
 	ModelConfigID   uuid.UUID
 	ReasoningEffort *string
-	APIKeyID        string
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
@@ -1220,7 +1218,6 @@ type EditMessageOptions struct {
 	CreatedBy       uuid.UUID
 	EditedMessageID int64
 	Content         []codersdk.ChatMessagePart
-	APIKeyID        string
 	// ModelConfigID, when non-zero, overrides the model used for
 	// the replacement user message. When set to uuid.Nil the
 	// original message's model is preserved.
@@ -1249,13 +1246,6 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
-func validateChatUserMessageAPIKeyID(apiKeyID string) error {
-	if apiKeyID == "" {
-		return xerrors.New("api_key_id is required for user chat messages")
-	}
-	return nil
-}
-
 // CreateChat creates a chat with its initial history through
 // chatstate.CreateChat. The new chat starts in `running` status per
 // the chat execution state model. Ownership hints wake chat workers.
@@ -1271,9 +1261,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
-	}
-	if err := validateChatUserMessageAPIKeyID(opts.APIKeyID); err != nil {
-		return database.Chat{}, err
 	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
@@ -1296,6 +1283,11 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// Usage limits gate the create before we touch the state machine.
 	if limitErr := p.checkUsageLimit(ctx, p.db, opts.OwnerID, uuid.NullUUID{UUID: opts.OrganizationID, Valid: true}); limitErr != nil {
 		return database.Chat{}, limitErr
+	}
+
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, opts.OwnerID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 
 	labelsJSON, err := json.Marshal(opts.Labels)
@@ -1339,7 +1331,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, opts.APIKeyID, opts.ReasoningEffort))
+	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, opts.ModelConfigID, opts.OwnerID, apiKeyID, opts.ReasoningEffort))
 
 	result, err := chatstate.CreateChat(ctx, p.db, p.pubsub, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1400,9 +1392,6 @@ func (p *Server) SendMessage(
 	if len(opts.Content) == 0 {
 		return SendMessageResult{}, xerrors.New("content is required")
 	}
-	if err := validateChatUserMessageAPIKeyID(opts.APIKeyID); err != nil {
-		return SendMessageResult{}, err
-	}
 
 	busyBehavior := opts.BusyBehavior
 	if busyBehavior == "" {
@@ -1421,6 +1410,15 @@ func (p *Server) SendMessage(
 
 	requestedPlanMode := opts.PlanMode
 	requestedMCPServerIDs := opts.MCPServerIDs
+
+	chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("load chat: %w", err)
+	}
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("ensure synthetic API key: %w", err)
+	}
 
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
@@ -1486,7 +1484,7 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, opts.APIKeyID, opts.ReasoningEffort),
+			Message:      userMessageWithAPIKeyID(content, modelConfigID, messageCreatedBy, apiKeyID, opts.ReasoningEffort),
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 		})
 		if err != nil {
@@ -1627,13 +1625,18 @@ func (p *Server) EditMessage(
 	if len(opts.Content) == 0 {
 		return EditMessageResult{}, xerrors.New("content is required")
 	}
-	if err := validateChatUserMessageAPIKeyID(opts.APIKeyID); err != nil {
-		return EditMessageResult{}, err
-	}
 
 	content, err := chatprompt.MarshalParts(opts.Content)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
+	}
+	chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+	if err != nil {
+		return EditMessageResult{}, xerrors.Errorf("load chat: %w", err)
+	}
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		return EditMessageResult{}, xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
 
 	var (
@@ -1705,7 +1708,7 @@ func (p *Server) EditMessage(
 			Content:                 content,
 			ModelConfigIDOverride:   modelOverride,
 			ReasoningEffortOverride: reasoningEffortOverride,
-			APIKeyID:                sql.NullString{String: opts.APIKeyID, Valid: opts.APIKeyID != ""},
+			APIKeyID:                sql.NullString{String: apiKeyID, Valid: true},
 		})
 		if err != nil {
 			if errors.Is(err, chatstate.ErrEditedMessageNotUser) {
@@ -2248,7 +2251,6 @@ func (p *Server) ProposeChatTitle(
 // generateManualTitleCandidate generates a title candidate from the chat's
 // visible messages. It returns "" when the chat has no messages to summarize.
 // Endpoint-specific commit paths decide whether to persist the title.
-// The context may carry the caller's delegated API key for manual title routes.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
@@ -2288,14 +2290,11 @@ func (p *Server) generateManualTitleCandidate(
 	if err != nil {
 		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
-	modelOpts := modelBuildOptionsFromMessages(messages)
-	// Manual title routes can run over messages that lack API key attribution.
-	// Fall back to the authenticated caller's delegated key for AI Gateway routing.
-	if modelOpts.ActiveAPIKeyID == "" {
-		if apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
-			modelOpts.ActiveAPIKeyID = apiKeyID
-		}
+	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
+	if err != nil {
+		return "", xerrors.Errorf("ensure synthetic API key: %w", err)
 	}
+	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
 	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
 	if err != nil {
@@ -3284,29 +3283,6 @@ type runChatResult struct {
 	ModelBuildOptions   modelBuildOptions
 	TriggerMessageID    int64
 	HistoryTipMessageID int64
-}
-
-func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bool) {
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Role != database.ChatMessageRoleUser {
-			continue
-		}
-		if !isUserVisibleChatMessage(message) &&
-			!(message.Visibility == database.ChatMessageVisibilityModel && message.Compressed) {
-			continue
-		}
-		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
-			return "", false
-		}
-		return message.APIKeyID.String, true
-	}
-	return "", false
-}
-
-func isUserVisibleChatMessage(message database.ChatMessage) bool {
-	return message.Visibility == database.ChatMessageVisibilityBoth ||
-		message.Visibility == database.ChatMessageVisibilityUser
 }
 
 func allToolNames(allTools []fantasy.AgentTool) []string {

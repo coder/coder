@@ -1769,6 +1769,14 @@ func (m queryMetricsStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (database.ChatSyntheticApiKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSyntheticAPIKeyByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetChatSyntheticAPIKeyByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSyntheticAPIKeyByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatSystemPrompt(ctx)
@@ -3273,6 +3281,14 @@ func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserForChatSyntheticAPIKeyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetUserForChatSyntheticAPIKeyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserForChatSyntheticAPIKeyByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserGroupSpendLimit(ctx context.Context, userID database.GetUserGroupSpendLimitParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserGroupSpendLimit(ctx, userID)
@@ -4118,6 +4134,14 @@ func (m queryMetricsStore) InsertChatQueuedMessageWithCreator(ctx context.Contex
 	r0, r1 := m.s.InsertChatQueuedMessageWithCreator(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatQueuedMessageWithCreator").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessageWithCreator").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatSyntheticAPIKey(ctx context.Context, arg database.InsertChatSyntheticAPIKeyParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatSyntheticAPIKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatSyntheticAPIKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatSyntheticAPIKey").Inc()
 	return r0, r1
 }
 
@@ -5262,6 +5286,14 @@ func (m queryMetricsStore) UpdateChatStatus(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateChatStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatStatus").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatSyntheticAPIKey(ctx context.Context, arg database.UpdateChatSyntheticAPIKeyParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatSyntheticAPIKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatSyntheticAPIKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatSyntheticAPIKey").Inc()
 	return r0, r1
 }
 

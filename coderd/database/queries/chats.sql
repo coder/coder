@@ -3008,3 +3008,20 @@ LEFT JOIN to_archive t ON t.id = a.id
 -- created_at ASC flows through to dbpurge's digest truncation; see
 -- buildDigestData in dbpurge.go for the tradeoff rationale.
 ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;
+
+-- name: GetChatSyntheticAPIKeyByUserID :one
+SELECT *
+FROM chat_synthetic_api_keys
+WHERE user_id = @user_id::uuid;
+
+-- name: InsertChatSyntheticAPIKey :execrows
+INSERT INTO chat_synthetic_api_keys (user_id, api_key_id)
+VALUES (@user_id::uuid, @api_key_id::text)
+ON CONFLICT (user_id) DO NOTHING;
+
+-- name: UpdateChatSyntheticAPIKey :execrows
+UPDATE chat_synthetic_api_keys
+SET api_key_id = @new_api_key_id::text,
+    updated_at = NOW()
+WHERE user_id = @user_id::uuid
+  AND api_key_id = @old_api_key_id::text;

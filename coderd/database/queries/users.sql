@@ -689,3 +689,8 @@ SET
 WHERE
     id = $1
 ;
+
+-- name: GetUserForChatSyntheticAPIKeyByID :one
+SELECT *
+FROM users
+WHERE id = @id::uuid;

@@ -3268,6 +3268,21 @@ func (mr *MockStoreMockRecorder) GetChatStreamSyncRows(ctx, ids any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatStreamSyncRows", reflect.TypeOf((*MockStore)(nil).GetChatStreamSyncRows), ctx, ids)
 }
 
+// GetChatSyntheticAPIKeyByUserID mocks base method.
+func (m *MockStore) GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (database.ChatSyntheticApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatSyntheticAPIKeyByUserID", ctx, userID)
+	ret0, _ := ret[0].(database.ChatSyntheticApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatSyntheticAPIKeyByUserID indicates an expected call of GetChatSyntheticAPIKeyByUserID.
+func (mr *MockStoreMockRecorder) GetChatSyntheticAPIKeyByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSyntheticAPIKeyByUserID", reflect.TypeOf((*MockStore)(nil).GetChatSyntheticAPIKeyByUserID), ctx, userID)
+}
+
 // GetChatSystemPrompt mocks base method.
 func (m *MockStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -6118,6 +6133,21 @@ func (mr *MockStoreMockRecorder) GetUserCount(ctx, includeSystem any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCount", reflect.TypeOf((*MockStore)(nil).GetUserCount), ctx, includeSystem)
 }
 
+// GetUserForChatSyntheticAPIKeyByID mocks base method.
+func (m *MockStore) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserForChatSyntheticAPIKeyByID", ctx, id)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserForChatSyntheticAPIKeyByID indicates an expected call of GetUserForChatSyntheticAPIKeyByID.
+func (mr *MockStoreMockRecorder) GetUserForChatSyntheticAPIKeyByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserForChatSyntheticAPIKeyByID", reflect.TypeOf((*MockStore)(nil).GetUserForChatSyntheticAPIKeyByID), ctx, id)
+}
+
 // GetUserGroupSpendLimit mocks base method.
 func (m *MockStore) GetUserGroupSpendLimit(ctx context.Context, arg database.GetUserGroupSpendLimitParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -7718,6 +7748,21 @@ func (m *MockStore) InsertChatQueuedMessageWithCreator(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) InsertChatQueuedMessageWithCreator(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessageWithCreator", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessageWithCreator), ctx, arg)
+}
+
+// InsertChatSyntheticAPIKey mocks base method.
+func (m *MockStore) InsertChatSyntheticAPIKey(ctx context.Context, arg database.InsertChatSyntheticAPIKeyParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatSyntheticAPIKey", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatSyntheticAPIKey indicates an expected call of InsertChatSyntheticAPIKey.
+func (mr *MockStoreMockRecorder) InsertChatSyntheticAPIKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatSyntheticAPIKey", reflect.TypeOf((*MockStore)(nil).InsertChatSyntheticAPIKey), ctx, arg)
 }
 
 // InsertCryptoKey mocks base method.
@@ -9918,6 +9963,21 @@ func (m *MockStore) UpdateChatStatus(ctx context.Context, arg database.UpdateCha
 func (mr *MockStoreMockRecorder) UpdateChatStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatStatus), ctx, arg)
+}
+
+// UpdateChatSyntheticAPIKey mocks base method.
+func (m *MockStore) UpdateChatSyntheticAPIKey(ctx context.Context, arg database.UpdateChatSyntheticAPIKeyParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatSyntheticAPIKey", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatSyntheticAPIKey indicates an expected call of UpdateChatSyntheticAPIKey.
+func (mr *MockStoreMockRecorder) UpdateChatSyntheticAPIKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatSyntheticAPIKey", reflect.TypeOf((*MockStore)(nil).UpdateChatSyntheticAPIKey), ctx, arg)
 }
 
 // UpdateChatTitleByID mocks base method.

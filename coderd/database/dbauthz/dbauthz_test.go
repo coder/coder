@@ -339,6 +339,32 @@ func defaultIPAddress() pqtype.Inet {
 	}
 }
 
+func (s *MethodTestSuite) TestChatSyntheticAPIKey() {
+	s.Run("GetUserForChatSyntheticAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserForChatSyntheticAPIKeyByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		check.Args(user.ID).Asserts(user, policy.ActionReadPersonal).Returns(user)
+	}))
+	s.Run("GetChatSyntheticAPIKeyByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		mapping := testutil.Fake(s.T(), faker, database.ChatSyntheticApiKey{UserID: user.ID})
+		dbm.EXPECT().GetChatSyntheticAPIKeyByUserID(gomock.Any(), user.ID).Return(mapping, nil).AnyTimes()
+		check.Args(user.ID).Asserts(rbac.ResourceApiKey.WithOwner(user.ID.String()), policy.ActionRead).Returns(mapping)
+	}))
+	s.Run("InsertChatSyntheticAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertChatSyntheticAPIKeyParams{UserID: user.ID, APIKeyID: uuid.NewString()}
+		dbm.EXPECT().InsertChatSyntheticAPIKey(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(user.ID.String()), policy.ActionCreate).Returns(int64(1))
+	}))
+	s.Run("UpdateChatSyntheticAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateChatSyntheticAPIKeyParams{UserID: user.ID, OldApiKeyID: uuid.NewString(), NewApiKeyID: uuid.NewString()}
+		dbm.EXPECT().UpdateChatSyntheticAPIKey(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(user.ID.String()), policy.ActionUpdate).Returns(int64(1))
+	}))
+}
+
 func (s *MethodTestSuite) TestAPIKey() {
 	s.Run("DeleteAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
@@ -7479,6 +7505,24 @@ func TestAsAPIKeyRevoker(t *testing.T) {
 		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceApiKey.WithOwner(otherUserID.String()))
 		require.Error(t, err, "other users' api keys should not be deletable")
 	})
+}
+
+func TestAsChatdKeyMinter(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	ctx := dbauthz.AsChatdKeyMinter(context.Background(), userID)
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, rbac.SubjectTypeChatdKeyMinter, actor.Type)
+	require.Equal(t, userID.String(), actor.ID)
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete} {
+		require.NoError(t, auth.Authorize(ctx, actor, action, rbac.ResourceApiKey.WithOwner(userID.String())))
+		require.Error(t, auth.Authorize(ctx, actor, action, rbac.ResourceApiKey.WithOwner(uuid.NewString())))
+	}
+	require.NoError(t, auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUserObject(userID)))
 }
 
 func TestAsChatd(t *testing.T) {

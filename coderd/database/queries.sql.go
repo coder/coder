@@ -8202,6 +8202,24 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 	return items, nil
 }
 
+const getChatSyntheticAPIKeyByUserID = `-- name: GetChatSyntheticAPIKeyByUserID :one
+SELECT user_id, api_key_id, created_at, updated_at
+FROM chat_synthetic_api_keys
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (ChatSyntheticApiKey, error) {
+	row := q.db.QueryRowContext(ctx, getChatSyntheticAPIKeyByUserID, userID)
+	var i ChatSyntheticApiKey
+	err := row.Scan(
+		&i.UserID,
+		&i.APIKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getChatUsageLimitConfig = `-- name: GetChatUsageLimitConfig :one
 SELECT id, singleton, enabled, default_limit_micros, period, created_at, updated_at FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1
 `
@@ -9983,6 +10001,25 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.ReasoningEffort,
 	)
 	return i, err
+}
+
+const insertChatSyntheticAPIKey = `-- name: InsertChatSyntheticAPIKey :execrows
+INSERT INTO chat_synthetic_api_keys (user_id, api_key_id)
+VALUES ($1::uuid, $2::text)
+ON CONFLICT (user_id) DO NOTHING
+`
+
+type InsertChatSyntheticAPIKeyParams struct {
+	UserID   uuid.UUID `db:"user_id" json:"user_id"`
+	APIKeyID string    `db:"api_key_id" json:"api_key_id"`
+}
+
+func (q *sqlQuerier) InsertChatSyntheticAPIKey(ctx context.Context, arg InsertChatSyntheticAPIKeyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertChatSyntheticAPIKey, arg.UserID, arg.APIKeyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const isChatHeartbeatStale = `-- name: IsChatHeartbeatStale :one
@@ -12168,6 +12205,28 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.ContextError,
 	)
 	return i, err
+}
+
+const updateChatSyntheticAPIKey = `-- name: UpdateChatSyntheticAPIKey :execrows
+UPDATE chat_synthetic_api_keys
+SET api_key_id = $1::text,
+    updated_at = NOW()
+WHERE user_id = $2::uuid
+  AND api_key_id = $3::text
+`
+
+type UpdateChatSyntheticAPIKeyParams struct {
+	NewApiKeyID string    `db:"new_api_key_id" json:"new_api_key_id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	OldApiKeyID string    `db:"old_api_key_id" json:"old_api_key_id"`
+}
+
+func (q *sqlQuerier) UpdateChatSyntheticAPIKey(ctx context.Context, arg UpdateChatSyntheticAPIKeyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatSyntheticAPIKey, arg.NewApiKeyID, arg.UserID, arg.OldApiKeyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatTitleByID = `-- name: UpdateChatTitleByID :one
@@ -29855,6 +29914,40 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getUserForChatSyntheticAPIKeyByID = `-- name: GetUserForChatSyntheticAPIKeyByID :one
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+FROM users
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserForChatSyntheticAPIKeyByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+		&i.Name,
+		&i.GithubComUserID,
+		&i.HashedOneTimePasscode,
+		&i.OneTimePasscodeExpiresAt,
+		&i.IsSystem,
+		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
+	)
+	return i, err
 }
 
 const getUserShellToolDisplayMode = `-- name: GetUserShellToolDisplayMode :one

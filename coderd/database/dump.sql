@@ -2033,6 +2033,13 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_synthetic_api_keys (
+    user_id uuid NOT NULL,
+    api_key_id text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -4301,6 +4308,12 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_synthetic_api_keys
+    ADD CONSTRAINT chat_synthetic_api_keys_api_key_id_key UNIQUE (api_key_id);
+
+ALTER TABLE ONLY chat_synthetic_api_keys
+    ADD CONSTRAINT chat_synthetic_api_keys_pkey PRIMARY KEY (user_id);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -5140,9 +5153,6 @@ ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
@@ -5158,10 +5168,13 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_queued_messages
-    ADD CONSTRAINT chat_queued_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_synthetic_api_keys
+    ADD CONSTRAINT chat_synthetic_api_keys_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_synthetic_api_keys
+    ADD CONSTRAINT chat_synthetic_api_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
