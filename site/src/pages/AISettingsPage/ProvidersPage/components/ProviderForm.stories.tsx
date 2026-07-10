@@ -136,6 +136,51 @@ export const AddBedrock: Story = {
 	},
 };
 
+// Mantle is a passthrough protocol selected via the Protocol dropdown. It
+// does not configure model fields (the client sends the model), and the
+// endpoint hint points at the mantle host.
+export const AddBedrockMantle: Story = {
+	args: {
+		initialValues: { type: "bedrock", protocol: "mantle" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByLabelText(/^small-fast model\s*\*?$/i),
+		).not.toBeInTheDocument();
+		await expect(canvas.findByText(/bedrock-mantle/i)).resolves.toBeVisible();
+	},
+};
+
+// Switching the Protocol selector from InvokeModel to Mantle hides the model
+// fields and swaps the endpoint hint to the mantle host.
+export const AddBedrockSwitchToMantle: Story = {
+	args: {
+		initialValues: { type: "bedrock" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Model fields are present for the default InvokeModel protocol.
+		await canvas.findByLabelText(/^model\s*\*?$/i);
+
+		const trigger = canvas.getByRole("combobox", { name: /protocol/i });
+		await userEvent.click(trigger);
+		const mantleOption = await screen.findByRole("option", {
+			name: /mantle/i,
+		});
+		await userEvent.click(mantleOption);
+
+		await waitFor(() =>
+			expect(canvas.queryByLabelText(/^model\s*\*?$/i)).not.toBeInTheDocument(),
+		);
+		expect(
+			canvas.queryByLabelText(/^small-fast model\s*\*?$/i),
+		).not.toBeInTheDocument();
+		await expect(canvas.findByText(/bedrock-mantle/i)).resolves.toBeVisible();
+	},
+};
+
 // Regression coverage for CODAGT-626. The create form must accept Bedrock
 // configurations whose credentials come from the AWS environment (IAM
 // role, instance profile, AWS_PROFILE) instead of static access keys.
