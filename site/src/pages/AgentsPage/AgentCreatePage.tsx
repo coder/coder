@@ -20,6 +20,7 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { isAbortError } from "./utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
@@ -101,9 +102,11 @@ const AgentCreatePage: FC = () => {
 				// The empty chat never started generating, so archiving it
 				// right away is the cleanup path; retry creates a fresh one.
 				archiveUnusedChat(createdChat.id);
-				toast.error(
-					getErrorMessage(error, "Failed to upload files to the workspace."),
-				);
+				if (!isAbortError(error)) {
+					toast.error(
+						getErrorMessage(error, "Failed to upload files to the workspace."),
+					);
+				}
 				throw error;
 			}
 			const failedCount = uploaded.filter(

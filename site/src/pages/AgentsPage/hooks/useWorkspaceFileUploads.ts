@@ -54,6 +54,12 @@ const createUploadId = (): string => {
 	return `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
+const createUploadCancellationError = (): Error => {
+	const error = new Error("Workspace file upload canceled.");
+	error.name = "AbortError";
+	return error;
+};
+
 /**
  * Manages uploads of files into the chat's workspace filesystem via
  * POST /api/v2/chats/{chat}/workspace-files.
@@ -76,19 +82,26 @@ export function useWorkspaceFileUploads(
 	workspaceId: string | undefined,
 ): UseWorkspaceFileUploadsReturn {
 	const [uploads, setUploads] = useState<readonly WorkspaceFileUpload[]>([]);
+	const uploadsRef = useRef<readonly WorkspaceFileUpload[]>([]);
+	const generationRef = useRef(0);
+	// Deferred callbacks capture this render's generation. A reset
+	// updates the state after incrementing the ref, so callbacks from
+	// an older render reject instead of operating on the new queue.
+	const [queueGeneration, setQueueGeneration] = useState(0);
 	const abortControllersRef = useRef(new Map<string, AbortController>());
 	const pendingQueueRef = useRef<{ id: string; file: File }[]>([]);
 	const activeCountRef = useRef(0);
-	// Per-entry settle callbacks for uploadQueued. Entries resolve with
-	// the final upload record, or null when removed/aborted mid-flight.
+	// Per-entry settle callbacks for uploadQueued. Explicit removal
+	// resolves with null; reset and scope cancellation reject the batch.
 	const settleCallbacksRef = useRef(
-		new Map<string, (result: WorkspaceFileUpload | null) => void>(),
+		new Map<
+			string,
+			{
+				resolve: (result: WorkspaceFileUpload | null) => void;
+				reject: (error: Error) => void;
+			}
+		>(),
 	);
-	// Incremented whenever pending uploads are aborted (reset or scope
-	// switch). Workers spawned under an older generation must not
-	// consume entries queued after the abort: they carry a stale chat
-	// ID and their slot accounting was already zeroed.
-	const generationRef = useRef(0);
 	// Ids removed since the last reset. A chip removed after its file
 	// already settled cannot un-resolve that settle promise, so
 	// uploadQueued drops these ids from its final results instead.
@@ -109,11 +122,21 @@ export function useWorkspaceFileUploads(
 	});
 	const { mutateAsync: uploadFile } = uploadMutation;
 
+	const updateUploads = (
+		update: (
+			current: readonly WorkspaceFileUpload[],
+		) => readonly WorkspaceFileUpload[],
+	) => {
+		const next = update(uploadsRef.current);
+		uploadsRef.current = next;
+		setUploads(next);
+	};
+
 	const settleUpload = (id: string, result: WorkspaceFileUpload | null) => {
 		const settle = settleCallbacksRef.current.get(id);
 		if (settle) {
 			settleCallbacksRef.current.delete(id);
-			settle(result);
+			settle.resolve(result);
 		}
 	};
 
@@ -125,10 +148,9 @@ export function useWorkspaceFileUploads(
 		abortControllersRef.current.clear();
 		pendingQueueRef.current = [];
 		activeCountRef.current = 0;
-		// Settle any outstanding uploadQueued waiters so callers never
-		// hang across a reset or scope switch.
+		const cancellationError = createUploadCancellationError();
 		for (const settle of settleCallbacksRef.current.values()) {
-			settle(null);
+			settle.reject(cancellationError);
 		}
 		settleCallbacksRef.current.clear();
 		removedIdsRef.current.clear();
@@ -136,11 +158,21 @@ export function useWorkspaceFileUploads(
 
 	const reset = () => {
 		abortAllUploads();
-		setUploads([]);
+		setQueueGeneration(generationRef.current);
+		updateUploads(() => []);
 	};
 
-	// Abort any in-flight uploads when the composer unmounts.
-	useEffect(() => abortAllUploads, [abortAllUploads]);
+	// Abort any in-flight uploads when the composer unmounts. StrictMode
+	// replays this cleanup on a simulated unmount and keeps the
+	// component, so the generation state must follow the ref or every
+	// later deferred callback would reject as stale.
+	useEffect(
+		() => () => {
+			abortAllUploads();
+			setQueueGeneration(generationRef.current);
+		},
+		[abortAllUploads],
+	);
 
 	// Uploads target a specific chat's directory in a specific
 	// workspace, so navigating to a different chat or rebinding the
@@ -157,8 +189,8 @@ export function useWorkspaceFileUploads(
 		id: string,
 		result: Partial<WorkspaceFileUpload>,
 	) => {
-		setUploads((prev) =>
-			prev.map((upload) =>
+		updateUploads((current) =>
+			current.map((upload) =>
 				upload.id === id ? { ...upload, ...result } : upload,
 			),
 		);
@@ -239,14 +271,14 @@ export function useWorkspaceFileUploads(
 		if (!chatId) {
 			// Deferred mode: no chat exists yet, so entries queue
 			// locally until uploadQueued runs them.
-			setUploads((prev) => [
-				...prev,
+			updateUploads((current) => [
+				...current,
 				...entries.map((entry) => ({ ...entry, status: "deferred" as const })),
 			]);
 			return;
 		}
-		setUploads((prev) => [
-			...prev,
+		updateUploads((current) => [
+			...current,
 			...entries.map((entry) => ({
 				...entry,
 				status: "queued" as const,
@@ -262,20 +294,21 @@ export function useWorkspaceFileUploads(
 	const uploadQueued = async (
 		uploadChatId: string,
 	): Promise<readonly WorkspaceFileUpload[]> => {
-		// Entry ids and files are immutable, so the render-time
-		// snapshot is safe here even though statuses may be stale.
-		const entries = uploads;
+		if (generationRef.current !== queueGeneration) {
+			throw createUploadCancellationError();
+		}
+		const entries = uploadsRef.current;
 		if (entries.length === 0) {
 			return [];
 		}
 		const settled = entries.map(
 			(entry) =>
-				new Promise<WorkspaceFileUpload | null>((resolve) => {
-					settleCallbacksRef.current.set(entry.id, resolve);
+				new Promise<WorkspaceFileUpload | null>((resolve, reject) => {
+					settleCallbacksRef.current.set(entry.id, { resolve, reject });
 				}),
 		);
-		setUploads((prev) =>
-			prev.map((upload) => ({
+		updateUploads((current) =>
+			current.map((upload) => ({
 				id: upload.id,
 				file: upload.file,
 				status: "queued" as const,
@@ -287,6 +320,9 @@ export function useWorkspaceFileUploads(
 		}
 		pumpQueue(uploadChatId);
 		const results = await Promise.all(settled);
+		if (generationRef.current !== queueGeneration) {
+			throw createUploadCancellationError();
+		}
 		return results.filter(
 			(result): result is WorkspaceFileUpload =>
 				result !== null && !removedIdsRef.current.has(result.id),
@@ -301,7 +337,7 @@ export function useWorkspaceFileUploads(
 			(entry) => entry.id !== id,
 		);
 		settleUpload(id, null);
-		setUploads((prev) => prev.filter((upload) => upload.id !== id));
+		updateUploads((current) => current.filter((upload) => upload.id !== id));
 	};
 
 	return { uploads, attach, remove, reset, uploadQueued };

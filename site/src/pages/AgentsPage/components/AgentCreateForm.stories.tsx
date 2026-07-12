@@ -2334,6 +2334,51 @@ export const QueuedWorkspaceFileSubmitsWithUploadCallback: Story = {
 	},
 };
 
+export const WorkspaceFileSubmissionLocksScopeControls: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	args: {
+		onCreateChat: fn(),
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		(args.onCreateChat as ReturnType<typeof fn>).mockImplementation(
+			() => new Promise<void>(() => {}),
+		);
+		await attachZipFile(canvasElement);
+		await submitMessage(canvasElement, "inspect this archive");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+
+		await waitFor(() => {
+			expect(canvas.getByTestId("compact-org-selector")).toBeDisabled();
+			expect(
+				canvas.getByRole("button", { name: "More options" }),
+			).toBeDisabled();
+			expect(canvas.getByRole("textbox")).toHaveAttribute(
+				"aria-disabled",
+				"true",
+			);
+		});
+	},
+};
+
 export const TextOnlySubmitSkipsUploadCallback: Story = {
 	args: {
 		onCreateChat: fn().mockResolvedValue(undefined),
