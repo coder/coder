@@ -586,6 +586,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// Locks the composer across the whole create/upload/send sequence,
 	// which spans more than the create mutation's pending window.
 	const [isUploadSubmitPending, setIsUploadSubmitPending] = useState(false);
+	const isSubmitPending = isCreating || isUploadSubmitPending;
 
 	// Workspace files can only upload into a workspace whose agent is
 	// connected. An explicit scope change that loses that (deselecting,
@@ -725,6 +726,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							<CompactOrgSelector
 								value={effectiveOrg}
 								options={permittedOrgs}
+								disabled={isSubmitPending}
 								onChange={(newOrg) => {
 									const orgChanged = newOrg.id !== effectiveOrg?.id;
 									// Queued workspace files are dropped alongside DB
@@ -751,8 +753,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
-							isCreating ||
-							isUploadSubmitPending ||
+							isSubmitPending ||
 							isForbidden ||
 							!orgSelectionSettled ||
 							// Sending before adoption would omit persisted files not yet restored.
@@ -764,7 +765,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							Boolean(aiGatewayDisabled)
 						}
 						isReadOnly={isForbidden}
-						isLoading={isCreating || isUploadSubmitPending}
+						isLoading={isSubmitPending}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
 						onContentChange={handleContentChange}
@@ -807,7 +808,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
 						onWorkspaceChange={
-							orgSelectionSettled && !noPermittedOrgs
+							orgSelectionSettled && !noPermittedOrgs && !isSubmitPending
 								? handleWorkspaceChange
 								: undefined
 						}

@@ -1,4 +1,9 @@
-import { renderHook as renderHookBase, waitFor } from "@testing-library/react";
+import {
+	configure,
+	getConfig,
+	renderHook as renderHookBase,
+	waitFor,
+} from "@testing-library/react";
 import { act, createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -114,6 +119,120 @@ describe("useWorkspaceFileUploads", () => {
 			expect.any(File),
 			expect.any(AbortSignal),
 		);
+	});
+
+	it("uploadQueued proceeds after a StrictMode simulated unmount", async () => {
+		// StrictMode only replays mount effects for the root or a newly
+		// placed subtree inside it, so a StrictMode wrapper component
+		// around the hook would not exercise the remount.
+		const previousStrictMode = getConfig().reactStrictMode;
+		configure({ reactStrictMode: true });
+		try {
+			uploadMock.mockResolvedValue(okResponse);
+			const { result } = renderHook(() =>
+				useWorkspaceFileUploads(undefined, undefined),
+			);
+
+			act(() => {
+				result.current.attach([makeFile("a.tar")]);
+			});
+
+			let settled: readonly { status: string }[] = [];
+			await act(async () => {
+				settled = await result.current.uploadQueued("chat-9");
+			});
+
+			expect(settled).toHaveLength(1);
+			expect(settled[0].status).toBe("uploaded");
+		} finally {
+			configure({ reactStrictMode: previousStrictMode });
+		}
+	});
+
+	it("does not upload an entry removed before a deferred callback runs", async () => {
+		uploadMock.mockResolvedValue(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		const uploadQueued = result.current.uploadQueued;
+		const [entry] = result.current.uploads;
+
+		act(() => {
+			result.current.remove(entry.id);
+		});
+
+		let settled: readonly { status: string }[] = [];
+		await act(async () => {
+			settled = await uploadQueued("chat-9");
+		});
+
+		expect(settled).toHaveLength(0);
+		expect(uploadMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects a deferred callback invalidated before it runs", async () => {
+		uploadMock.mockResolvedValue(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		const uploadQueued = result.current.uploadQueued;
+
+		act(() => {
+			result.current.reset();
+		});
+
+		await expect(uploadQueued("chat-9")).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		expect(uploadMock).not.toHaveBeenCalled();
+	});
+
+	it("rejects uploadQueued when reset cancels an in-flight submission", async () => {
+		let capturedSignal: AbortSignal | undefined;
+		uploadMock.mockImplementationOnce(
+			(_chatId: string, _file: File, signal?: AbortSignal) => {
+				capturedSignal = signal;
+				return new Promise((_resolve, reject) => {
+					signal?.addEventListener(
+						"abort",
+						() => reject(new DOMException("aborted", "AbortError")),
+						{ once: true },
+					);
+				});
+			},
+		);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads(undefined, undefined),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		const settledPromise = result.current.uploadQueued("chat-9");
+		await waitFor(() => {
+			expect(uploadMock).toHaveBeenCalledOnce();
+		});
+
+		let settledError: unknown;
+		await act(async () => {
+			result.current.reset();
+			try {
+				await settledPromise;
+			} catch (error) {
+				settledError = error;
+			}
+		});
+
+		expect(settledError).toMatchObject({ name: "AbortError" });
+		expect(capturedSignal?.aborted).toBe(true);
 	});
 
 	it("uploadQueued reports per-file failures and keeps chips in error state", async () => {
