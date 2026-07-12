@@ -1469,7 +1469,7 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
@@ -2450,10 +2450,9 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, pending, running, paused,
-    -- requires_action.
-    -- Excludes completed and error (terminal states).
-    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
+    -- Active statuses only: waiting, running, requires_action.
+    -- Excludes error (terminal state) and interrupting.
+    AND status IN ('waiting', 'running', 'requires_action')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec
@@ -2546,8 +2545,6 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'pending'::chat_status,
-        'paused'::chat_status,
         'requires_action'::chat_status
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
@@ -2915,7 +2912,7 @@ WITH to_archive AS (
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
+      AND c.status NOT IN ('running', 'requires_action')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
