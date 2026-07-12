@@ -1817,7 +1817,7 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusPending,
+		Status:            database.ChatStatusRunning,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelConfig.ID,
 		Title:             "reject invalid queued model config",
@@ -2934,17 +2934,17 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	require.Equal(t, wantPayload, requireChatLastErrorPayload(t, fromDB.LastError))
 
 	// Verify the error is cleared when the chat transitions to a
-	// non-error status (e.g. pending after a retry).
+	// non-error status (e.g. running after a retry).
 	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
-		Status:      database.ChatStatusPending,
+		Status:      database.ChatStatusRunning,
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
 		LastError:   pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chat.Status)
+	require.Equal(t, database.ChatStatusRunning, chat.Status)
 	require.False(t, chat.LastError.Valid)
 
 	fromDB, err = db.GetChatByID(ctx, chat.ID)
@@ -8399,7 +8399,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 
 			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
-				Status:            database.ChatStatusCompleted,
+				Status:            database.ChatStatusWaiting,
 				ClientType:        database.ChatClientTypeUi,
 				OwnerID:           user.ID,
 				Title:             "original title",
