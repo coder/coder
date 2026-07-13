@@ -39,6 +39,8 @@ type MobileMenuPermissions = {
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
+	canViewAIBridge: boolean;
+	canViewAISettings: boolean;
 	canViewHealth: boolean;
 };
 
@@ -210,6 +212,8 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewDeployment,
 	canViewAuditLog,
 	canViewConnectionLog,
+	canViewAIBridge,
+	canViewAISettings,
 	canViewHealth,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -245,6 +249,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 				>
 					<Link to="/organizations">Organizations</Link>
 				</DropdownMenuItem>
+				{canViewAISettings && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/ai/settings">AI</Link>
+					</DropdownMenuItem>
+				)}
 				{canViewAuditLog && (
 					<DropdownMenuItem
 						asChild
@@ -259,6 +271,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
 						<Link to="/connectionlog">Connection logs</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewAIBridge && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/ai-gateway/sessions">AI sessions</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewHealth && (
