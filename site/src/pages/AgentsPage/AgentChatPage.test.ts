@@ -192,7 +192,7 @@ describe("restoreOptimisticRequestSnapshot", () => {
 
 		store.batch(() => {
 			store.setQueuedMessages([]);
-			store.setChatStatus("pending");
+			store.setChatStatus("waiting");
 			store.clearStreamState();
 			store.clearStreamError();
 		});
@@ -247,7 +247,7 @@ describe("runPromoteQueuedMessage", () => {
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-		expect(snapshot.chatStatus).toBe("pending");
+		expect(snapshot.chatStatus).toBe("running");
 	});
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {

@@ -99,7 +99,7 @@ function getSubagentLabel(
  * Resolves a sub-agent status string and tool-level status into a
  * display icon. The sub-agent status in the tool result is a
  * snapshot from when the tool returned and may be stale (e.g. a
- * background sub-agent records "pending" forever). The icon is
+ * background sub-agent records "running" forever). The icon is
  * therefore driven primarily by the tool-call status itself.
  */
 const SubagentStatusIcon: React.FC<{

@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -729,6 +730,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
+			// Resolve this replica's cluster host: the explicit Cluster.Host,
+			// else the DERP relay host for older HA deployments that predate the
+			// setting. Used as the NATS cluster route host and, when an IP, the
+			// cluster mTLS leaf IP SAN.
+			clusterHost := vals.Cluster.Host.String()
+			if clusterHost == "" {
+				clusterHost = vals.DERP.Server.RelayURL.Value().Hostname()
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -736,6 +746,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Logger:                      logger.Named("coderd"),
 				Database:                    nil,
 				BaseDERPMap:                 derpMap,
+				ClusterHost:                 clusterHost,
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
@@ -846,6 +857,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
 				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
+					// ClusterHost is this replica's routable cluster address
+					// (Cluster.Host, or the DERP relay host fallback resolved
+					// above). It is the NATS route listener host and, when it is
+					// an IP, the leaf certificate's IP SAN for cluster mTLS.
+					ClusterHost: options.ClusterHost,
+					// Install the cluster TLS callbacks with a noop CA cache so a
+					// single node (or pre-license deployment) boots without a CA
+					// dependency and forms no routes. Enterprise HA swaps in the
+					// real nats_ca cache via Pubsub.SetCACache once clustering is
+					// licensed.
+					//
+					// TODO: the real CA cache cannot be built here because
+					// options.Database is not yet fully instantiated (it is
+					// wrapped with metrics/dbauthz downstream). This split boot
+					// (noop here, real cache swapped in by enterprise) wants a
+					// refactor so the CA cache can be constructed once alongside
+					// the database.
+					ClusterCA: cryptokeys.NoopSigningKeycache{},
 				})
 				if err != nil {
 					return xerrors.Errorf("create nats pubsub: %w", err)

@@ -373,17 +373,14 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				disable: false,
 			}));
 
-			const optionMap = new Map(
-				parameter.options.map((opt) => [opt.value.value, opt.name]),
+			const selectedOptions: Option[] = parsedValues.values.map(
+				(val) =>
+					options.find((o) => o.value === val) ?? {
+						value: val,
+						label: val,
+						disable: false,
+					},
 			);
-
-			const selectedOptions: Option[] = parsedValues.values.map((val) => {
-				return {
-					value: val,
-					label: optionMap.get(val) || val,
-					disable: false,
-				};
-			});
 
 			return (
 				<MultiSelectCombobox

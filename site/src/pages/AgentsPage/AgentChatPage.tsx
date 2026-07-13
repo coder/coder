@@ -200,7 +200,7 @@ export const runPromoteQueuedMessage = async (params: {
 		);
 		store.clearStreamState();
 		store.clearStreamError();
-		store.setChatStatus("pending");
+		store.setChatStatus("running");
 	});
 	if (agentId) {
 		clearChatErrorReason(agentId);
