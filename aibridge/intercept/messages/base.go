@@ -387,7 +387,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 
 		creds, err := i.bedrock.Creds.Retrieve(req.Context())
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("mantle SigV4: resolve AWS credentials: %w", err)
 		}
 
 		// SigV4 requires a payload hash, so read the body to hash it and then
@@ -397,7 +397,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 			var err error
 			body, err = io.ReadAll(req.Body)
 			if err != nil {
-				return nil, err
+				return nil, xerrors.Errorf("mantle SigV4: read request body: %w", err)
 			}
 			_ = req.Body.Close()
 			req.Body = io.NopCloser(bytes.NewReader(body))
@@ -406,7 +406,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 
 		hash := sha256.Sum256(body)
 		if err := signer.SignHTTP(req.Context(), creds, req, hex.EncodeToString(hash[:]), bedrockMantleSigningService, cfg.Region, time.Now()); err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("mantle SigV4: sign request: %w", err)
 		}
 		return next(req)
 	}))
