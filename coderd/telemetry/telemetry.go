@@ -345,41 +345,41 @@ func (r *remoteReporter) deployment() error {
 	scimEnabled := r.options.SCIMEnabled
 	scimUseLegacy := r.options.SCIMUseLegacy
 
-	agentExperimentValues := make(map[string]json.RawMessage, len(agentExperiments))
-	for _, exp := range agentExperiments {
-		agentExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
+	agentsExperimentValues := make(map[string]json.RawMessage, len(agentsExperiments))
+	for _, exp := range agentsExperiments {
+		agentsExperimentValues[exp.name] = exp.collect(r.ctx, r.options)
 	}
-	agentExperimentsJSON, err := json.Marshal(agentExperimentValues)
+	agentsExperimentsJSON, err := json.Marshal(agentsExperimentValues)
 	if err != nil {
 		// Best-effort: the field is omitempty, so the deployment report
 		// proceeds without it.
 		r.options.Logger.Warn(r.ctx, "marshal agent experiments telemetry", slog.Error(err))
-		agentExperimentsJSON = nil
+		agentsExperimentsJSON = nil
 	}
 
 	data, err := json.Marshal(&Deployment{
-		ID:               r.options.DeploymentID,
-		Architecture:     sysInfo.Architecture,
-		BuiltinPostgres:  r.options.BuiltinPostgres,
-		Containerized:    containerized,
-		Config:           r.options.DeploymentConfig,
-		Kubernetes:       os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:    installSource,
-		Tunnel:           r.options.Tunnel,
-		OSType:           sysInfo.OS.Type,
-		OSFamily:         sysInfo.OS.Family,
-		OSPlatform:       sysInfo.OS.Platform,
-		OSName:           sysInfo.OS.Name,
-		OSVersion:        sysInfo.OS.Version,
-		CPUCores:         runtime.NumCPU(),
-		MemoryTotal:      mem.Total,
-		MachineID:        sysInfo.UniqueID,
-		StartedAt:        r.startedAt,
-		ShutdownAt:       r.shutdownAt,
-		IDPOrgSync:       &idpOrgSync,
-		SCIMEnabled:      &scimEnabled,
-		SCIMUseLegacy:    &scimUseLegacy,
-		AgentExperiments: agentExperimentsJSON,
+		ID:                r.options.DeploymentID,
+		Architecture:      sysInfo.Architecture,
+		BuiltinPostgres:   r.options.BuiltinPostgres,
+		Containerized:     containerized,
+		Config:            r.options.DeploymentConfig,
+		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:     installSource,
+		Tunnel:            r.options.Tunnel,
+		OSType:            sysInfo.OS.Type,
+		OSFamily:          sysInfo.OS.Family,
+		OSPlatform:        sysInfo.OS.Platform,
+		OSName:            sysInfo.OS.Name,
+		OSVersion:         sysInfo.OS.Version,
+		CPUCores:          runtime.NumCPU(),
+		MemoryTotal:       mem.Total,
+		MachineID:         sysInfo.UniqueID,
+		StartedAt:         r.startedAt,
+		ShutdownAt:        r.shutdownAt,
+		IDPOrgSync:        &idpOrgSync,
+		SCIMEnabled:       &scimEnabled,
+		SCIMUseLegacy:     &scimUseLegacy,
+		AgentsExperiments: agentsExperimentsJSON,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -1673,10 +1673,10 @@ type Deployment struct {
 	// enterprise/coderd/scim. Nullable for the same backward compatibility
 	// reason as SCIMEnabled.
 	SCIMUseLegacy *bool `json:"scim_use_legacy"`
-	// AgentExperiments reports the state of the Coder Agents experiments as
+	// AgentsExperiments reports the state of the Coder Agents experiments as
 	// opaque per-experiment JSON, so rotating the reported set is a code-only
 	// change. Omitted by older Coder versions, so it decodes as nil there.
-	AgentExperiments json.RawMessage `json:"agent_experiments,omitempty"`
+	AgentsExperiments json.RawMessage `json:"agents_experiments,omitempty"`
 }
 
 type APIKey struct {
@@ -2339,44 +2339,44 @@ const (
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
 )
 
-// agentExperiment is one entry in the Deployment.AgentExperiments field.
-// Edit agentExperiments to rotate the reported set without schema or
+// agentsExperiment is one entry in the Deployment.AgentsExperiments field.
+// Edit agentsExperiments to rotate the reported set without schema or
 // telemetry-server changes. Collectors are best-effort: they log and return
 // a degraded payload instead of erroring, so they can never fail a report.
-type agentExperiment struct {
+type agentsExperiment struct {
 	name    string
 	collect func(ctx context.Context, opts Options) json.RawMessage
 }
 
-var agentExperiments = []agentExperiment{
-	{name: "virtual_desktop", collect: CollectAgentVirtualDesktop},
-	{name: "advisor", collect: CollectAgentAdvisor},
+var agentsExperiments = []agentsExperiment{
+	{name: "virtual_desktop", collect: CollectAgentsVirtualDesktop},
+	{name: "advisor", collect: CollectAgentsAdvisor},
 }
 
 const (
-	// advisorModelReuseChatModel reports that the advisor has no active
+	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
 	// dedicated model override and reuses the chat model at runtime.
-	advisorModelReuseChatModel = "reuse_chat_model"
-	// agentExperimentUnknown reports a value that could not be determined,
+	AgentsExperimentAdvisorReuseChatModel = "reuse_chat_model"
+	// AgentsExperimentUnknown reports a value that could not be determined,
 	// e.g. after a transient DB error.
-	agentExperimentUnknown = "unknown"
+	AgentsExperimentUnknown = "unknown"
 )
 
-// AgentVirtualDesktopTelemetry is the value shape for the virtual_desktop
-// entry in Deployment.AgentExperiments.
-type AgentVirtualDesktopTelemetry struct {
-	Enabled     bool                      `json:"enabled"`
-	ComputerUse AgentComputerUseTelemetry `json:"computer_use"`
+// AgentsVirtualDesktopTelemetry is the value shape for the virtual_desktop
+// entry in Deployment.AgentsExperiments.
+type AgentsVirtualDesktopTelemetry struct {
+	Enabled     bool                       `json:"enabled"`
+	ComputerUse AgentsComputerUseTelemetry `json:"computer_use"`
 }
 
-type AgentComputerUseTelemetry struct {
+type AgentsComputerUseTelemetry struct {
 	Provider       string `json:"provider"`
 	ProviderSource string `json:"provider_source"`
 }
 
-// AgentAdvisorTelemetry is the value shape for the advisor entry in
-// Deployment.AgentExperiments.
-type AgentAdvisorTelemetry struct {
+// AgentsAdvisorTelemetry is the value shape for the advisor entry in
+// Deployment.AgentsExperiments.
+type AgentsAdvisorTelemetry struct {
 	Enabled         bool   `json:"enabled"`
 	MaxUsesPerRun   int    `json:"max_uses_per_run"`
 	MaxOutputTokens int64  `json:"max_output_tokens"`
@@ -2384,24 +2384,24 @@ type AgentAdvisorTelemetry struct {
 	Model           string `json:"model"`
 }
 
-// CollectAgentVirtualDesktop collects the virtual_desktop entry in
-// Deployment.AgentExperiments. The chat-virtual-desktop experiment gates both
+// CollectAgentsVirtualDesktop collects the virtual_desktop entry in
+// Deployment.AgentsExperiments. The chat-virtual-desktop experiment gates both
 // the desktop and computer use.
-func CollectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
+func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMessage {
 	provider, err := opts.Database.GetChatComputerUseProvider(ctx)
 	providerSource := "configured"
 	switch {
 	case err != nil:
 		opts.Logger.Warn(ctx, "get chat computer use provider for telemetry", slog.Error(err))
-		provider = agentExperimentUnknown
-		providerSource = agentExperimentUnknown
+		provider = AgentsExperimentUnknown
+		providerSource = AgentsExperimentUnknown
 	case provider == "":
 		provider = string(codersdk.ChatComputerUseProviderAnthropic)
 		providerSource = "default"
 	}
-	val, err := json.Marshal(AgentVirtualDesktopTelemetry{
+	val, err := json.Marshal(AgentsVirtualDesktopTelemetry{
 		Enabled: opts.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop),
-		ComputerUse: AgentComputerUseTelemetry{
+		ComputerUse: AgentsComputerUseTelemetry{
 			Provider:       provider,
 			ProviderSource: providerSource,
 		},
@@ -2413,13 +2413,13 @@ func CollectAgentVirtualDesktop(ctx context.Context, opts Options) json.RawMessa
 	return val
 }
 
-// CollectAgentAdvisor collects the advisor entry in
-// Deployment.AgentExperiments.
-func CollectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
-	payload := AgentAdvisorTelemetry{
+// CollectAgentsAdvisor collects the advisor entry in
+// Deployment.AgentsExperiments.
+func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
+	payload := AgentsAdvisorTelemetry{
 		Enabled:  opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
-		Provider: agentExperimentUnknown,
-		Model:    agentExperimentUnknown,
+		Provider: AgentsExperimentUnknown,
+		Model:    AgentsExperimentUnknown,
 	}
 	var cfg codersdk.AdvisorConfig
 	raw, err := opts.Database.GetChatAdvisorConfig(ctx)
@@ -2442,22 +2442,22 @@ func CollectAgentAdvisor(ctx context.Context, opts Options) json.RawMessage {
 
 func advisorModelTelemetry(ctx context.Context, db database.Store, log slog.Logger, id uuid.UUID) (provider string, model string) {
 	if id == uuid.Nil {
-		return advisorModelReuseChatModel, advisorModelReuseChatModel
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
 	}
 
 	cfg, err := db.GetEnabledChatModelConfigByID(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		// An inactive override; the runtime falls back to the chat model.
-		return advisorModelReuseChatModel, advisorModelReuseChatModel
+		return AgentsExperimentAdvisorReuseChatModel, AgentsExperimentAdvisorReuseChatModel
 	}
 	if err != nil {
 		log.Warn(ctx, "resolve chat advisor model config for telemetry", slog.Error(err))
-		return agentExperimentUnknown, agentExperimentUnknown
+		return AgentsExperimentUnknown, AgentsExperimentUnknown
 	}
 	providerRow, err := db.GetAIProviderByID(ctx, cfg.AIProviderID.UUID)
 	if err != nil {
 		log.Warn(ctx, "resolve chat advisor model provider for telemetry", slog.Error(err))
-		return agentExperimentUnknown, cfg.Model
+		return AgentsExperimentUnknown, cfg.Model
 	}
 	return string(providerRow.Type), cfg.Model
 }

@@ -299,10 +299,10 @@ func TestTelemetry(t *testing.T) {
 			opts.Clock = clock
 			return opts
 		})
-		var agentExperiments map[string]json.RawMessage
-		require.NoError(t, json.Unmarshal(deployment.AgentExperiments, &agentExperiments))
-		require.Contains(t, agentExperiments, "virtual_desktop")
-		require.Contains(t, agentExperiments, "advisor")
+		var agentsExperiments map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(deployment.AgentsExperiments, &agentsExperiments))
+		require.Contains(t, agentsExperiments, "virtual_desktop")
+		require.Contains(t, agentsExperiments, "advisor")
 		require.Len(t, snapshot.ProvisionerJobs, 2)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 2)
@@ -2296,20 +2296,13 @@ func TestUserSecretsTelemetry(t *testing.T) {
 	})
 }
 
-// The wire strings the collectors emit when a value is indeterminate or the
-// advisor reuses the chat model.
-const (
-	agentExperimentUnknown     = "unknown"
-	advisorModelReuseChatModel = "reuse_chat_model"
-)
-
-func TestCollectAgentVirtualDesktop(t *testing.T) {
+func TestCollectAgentsVirtualDesktop(t *testing.T) {
 	t.Parallel()
 
-	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentVirtualDesktopTelemetry {
+	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentsVirtualDesktopTelemetry {
 		t.Helper()
-		var payload telemetry.AgentVirtualDesktopTelemetry
-		require.NoError(t, json.Unmarshal(telemetry.CollectAgentVirtualDesktop(context.Background(), opts), &payload))
+		var payload telemetry.AgentsVirtualDesktopTelemetry
+		require.NoError(t, json.Unmarshal(telemetry.CollectAgentsVirtualDesktop(context.Background(), opts), &payload))
 		return payload
 	}
 
@@ -2348,18 +2341,18 @@ func TestCollectAgentVirtualDesktop(t *testing.T) {
 		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, agentExperimentUnknown, payload.ComputerUse.Provider)
-		require.Equal(t, agentExperimentUnknown, payload.ComputerUse.ProviderSource)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.ProviderSource)
 	})
 }
 
-func TestCollectAgentAdvisor(t *testing.T) {
+func TestCollectAgentsAdvisor(t *testing.T) {
 	t.Parallel()
 
-	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentAdvisorTelemetry {
+	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentsAdvisorTelemetry {
 		t.Helper()
-		var payload telemetry.AgentAdvisorTelemetry
-		require.NoError(t, json.Unmarshal(telemetry.CollectAgentAdvisor(context.Background(), opts), &payload))
+		var payload telemetry.AgentsAdvisorTelemetry
+		require.NoError(t, json.Unmarshal(telemetry.CollectAgentsAdvisor(context.Background(), opts), &payload))
 		return payload
 	}
 	marshalConfig := func(t *testing.T, cfg codersdk.AdvisorConfig) string {
@@ -2380,8 +2373,8 @@ func TestCollectAgentAdvisor(t *testing.T) {
 		require.False(t, payload.Enabled)
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
-		require.Equal(t, advisorModelReuseChatModel, payload.Provider)
-		require.Equal(t, advisorModelReuseChatModel, payload.Model)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
 	})
 
 	t.Run("ModelOverride", func(t *testing.T) {
@@ -2435,8 +2428,8 @@ func TestCollectAgentAdvisor(t *testing.T) {
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, agentExperimentUnknown, payload.Provider)
-		require.Equal(t, agentExperimentUnknown, payload.Model)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
 	})
 
 	t.Run("PartialParse", func(t *testing.T) {
@@ -2449,8 +2442,8 @@ func TestCollectAgentAdvisor(t *testing.T) {
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
-		require.Equal(t, agentExperimentUnknown, payload.Provider)
-		require.Equal(t, agentExperimentUnknown, payload.Model)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
 	})
 
 	t.Run("ClampsNegativeLimits", func(t *testing.T) {
@@ -2476,8 +2469,8 @@ func TestCollectAgentAdvisor(t *testing.T) {
 			Return(database.ChatModelConfig{}, sql.ErrNoRows)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, advisorModelReuseChatModel, payload.Provider)
-		require.Equal(t, advisorModelReuseChatModel, payload.Model)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
 	})
 
 	t.Run("ConfigFetchError", func(t *testing.T) {
@@ -2487,8 +2480,8 @@ func TestCollectAgentAdvisor(t *testing.T) {
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("", sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, agentExperimentUnknown, payload.Provider)
-		require.Equal(t, agentExperimentUnknown, payload.Model)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
 	})
 
 	t.Run("ModelResolveError", func(t *testing.T) {
@@ -2502,8 +2495,8 @@ func TestCollectAgentAdvisor(t *testing.T) {
 			Return(database.ChatModelConfig{}, sql.ErrConnDone)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, agentExperimentUnknown, payload.Provider)
-		require.Equal(t, agentExperimentUnknown, payload.Model)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
 	})
 
 	t.Run("ProviderResolveError", func(t *testing.T) {
@@ -2523,7 +2516,7 @@ func TestCollectAgentAdvisor(t *testing.T) {
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		// The provider is unknown, but the already-resolved model still ships.
-		require.Equal(t, agentExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
 		require.Equal(t, "gpt-6-preview", payload.Model)
 	})
 }
