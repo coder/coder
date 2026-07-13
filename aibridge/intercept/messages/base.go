@@ -362,6 +362,9 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 // request (service "bedrock-mantle") and forwards it; the response is plain
 // SSE.
 func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
+	if i.bedrock == nil {
+		return nil, xerrors.New("nil bedrock runtime")
+	}
 	cfg := i.bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
 		return nil, err
