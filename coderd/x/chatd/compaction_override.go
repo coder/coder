@@ -45,27 +45,44 @@ type compactionModelOverride struct {
 	providerOptions fantasy.ProviderOptions
 }
 
+// resolvedCompactionOverride is the outcome of resolving the compaction
+// model override at prepare time: the override config plus the
+// provider/model identity resolved without building the model client. The
+// identity lets error paths that never build the client (for example the
+// still-over-limit terminal error) attribute metrics to the same model as
+// events recorded by the compact action after the client is built.
+type resolvedCompactionOverride struct {
+	Config database.ChatModelConfig
+	// ResolvedProvider and ResolvedModel match the identity
+	// buildCompactionOverrideModel resolves for the built client:
+	// ResolveModelWithProviderHint normalizes its hint, so the normalized
+	// provider name and the route's provider-type hint yield the same
+	// result.
+	ResolvedProvider string
+	ResolvedModel    string
+}
+
 // resolveCompactionOverrideConfig resolves the stored deployment-wide
 // compaction model override to its model config. Unset, malformed, stale
 // (deleted or disabled config or provider), and credential-less overrides
-// fall back to the chat model (overrideSet is false; the shared resolver
-// logs the reason). This runs on every generation prepare because the
-// override's context limit feeds the compaction trigger; the model client
-// is built separately by buildCompactionOverrideModel only when compaction
-// actually runs.
+// fall back to the chat model (nil override; the shared resolver logs the
+// reason). This runs on every generation prepare because the override's
+// context limit feeds the compaction trigger; the model client is built
+// separately by buildCompactionOverrideModel only when compaction actually
+// runs.
 func (p *Server) resolveCompactionOverrideConfig(
 	ctx context.Context,
 	chat database.Chat,
-) (database.ChatModelConfig, bool, error) {
+) (*resolvedCompactionOverride, error) {
 	raw, err := readCompactionModelOverride(ctx, p.db)
 	if err != nil {
-		return database.ChatModelConfig{}, false, xerrors.Errorf(
+		return nil, xerrors.Errorf(
 			"read compaction model override: %w",
 			err,
 		)
 	}
 
-	modelConfig, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
+	modelConfig, providerName, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
 		compactionOverrideContext,
 		raw,
@@ -77,9 +94,25 @@ func (p *Server) resolveCompactionOverrideConfig(
 		modelOverrideFailureModeSoft,
 	)
 	if err != nil || !overrideSet {
-		return database.ChatModelConfig{}, overrideSet, err
+		return nil, err
 	}
-	return withResolvedReasoningEffort(modelConfig, overrideEffort), true, nil
+	// The shared resolver already validated this resolution, so an error
+	// here is unreachable with the same inputs.
+	resolvedProvider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(
+		modelConfig.Model,
+		providerName,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf(
+			"resolve compaction model override identity: %w",
+			err,
+		)
+	}
+	return &resolvedCompactionOverride{
+		Config:           withResolvedReasoningEffort(modelConfig, overrideEffort),
+		ResolvedProvider: resolvedProvider,
+		ResolvedModel:    resolvedModel,
+	}, nil
 }
 
 // buildCompactionOverrideModel resolves the route and constructs the model

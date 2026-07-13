@@ -7,9 +7,36 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestCompactionMetricIdentity(t *testing.T) {
+	t.Parallel()
+
+	compaction := &generationCompaction{
+		Options: chatloop.GenerateCompactionOptions{
+			Model: &chattest.FakeModel{ProviderName: "anthropic", ModelName: "claude-sonnet-4-5"},
+		},
+	}
+
+	provider, model := compactionMetricIdentity(compaction)
+	require.Equal(t, "anthropic", provider)
+	require.Equal(t, "claude-sonnet-4-5", model)
+
+	// With an override configured, metrics use the identity resolved at
+	// prepare time instead of the chat model carried by the options, even
+	// before the override client is built.
+	compaction.Override = &resolvedCompactionOverride{
+		ResolvedProvider: "openai",
+		ResolvedModel:    "gpt-4.1-mini",
+	}
+	provider, model = compactionMetricIdentity(compaction)
+	require.Equal(t, "openai", provider)
+	require.Equal(t, "gpt-4.1-mini", model)
+}
 
 func TestRecordGenerationFinishFailure(t *testing.T) {
 	t.Parallel()

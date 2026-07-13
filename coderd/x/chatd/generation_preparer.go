@@ -586,15 +586,13 @@ func (server *Server) prepareGeneration(
 	// using the chat model's limit (ContextLimitFallback below), since the
 	// follow-up assistant generation runs on the chat model.
 	compactionContextLimit := modelConfig.ContextLimit
-	compactionOverrideConfig, compactionOverrideSet, err := server.resolveCompactionOverrideConfig(ctx, chat)
+	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
 	}
-	var compactionOverride *database.ChatModelConfig
-	if compactionOverrideSet {
-		compactionOverride = &compactionOverrideConfig
-		if overrideLimit := compactionOverrideConfig.ContextLimit; overrideLimit > 0 &&
+	if compactionOverride != nil {
+		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
 			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
 			compactionContextLimit = overrideLimit
 		}
@@ -654,7 +652,7 @@ func (server *Server) prepareGeneration(
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             maxChatSteps,
 		Compaction: &generationCompaction{
-			OverrideConfig:  compactionOverride,
+			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
