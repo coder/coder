@@ -414,7 +414,7 @@ Organizations the user must be a member of to Login with GitHub.
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS</code> |
 | YAML        | <code>oauth2.github.allowedTeams</code>         |
 
-Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.
+Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.
 
 ### --oauth2-github-allow-signups
 

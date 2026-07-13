@@ -2667,7 +2667,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "OAuth2 GitHub Allowed Teams",
-			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: <organization-name>/<team-slug>.",
+			Description: "Teams inside organizations the user must be a member of to Login with GitHub. Structured as: `<organization-name>/<team-slug>`.",
 			Flag:        "oauth2-github-allowed-teams",
 			Env:         "CODER_OAUTH2_GITHUB_ALLOWED_TEAMS",
 			Value:       &c.OAuth2.Github.AllowedTeams,
@@ -4854,13 +4854,13 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	// Deprecated: Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
-	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	// Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.

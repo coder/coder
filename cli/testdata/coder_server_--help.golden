@@ -725,7 +725,7 @@ OAUTH2 / GITHUB OPTIONS:
 
       --oauth2-github-allowed-teams string-array, $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS
           Teams inside organizations the user must be a member of to Login with
-          GitHub. Structured as: <organization-name>/<team-slug>.
+          GitHub. Structured as: `<organization-name>/<team-slug>`.
 
       --oauth2-github-client-id string, $CODER_OAUTH2_GITHUB_CLIENT_ID
           Client ID for Login with GitHub.

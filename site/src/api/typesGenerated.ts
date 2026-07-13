@@ -42,19 +42,19 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed `CODER_AI_GATEWAY_PROVIDER_<N>_*` env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
-	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	 * Providers holds provider instances populated from `CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>`
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
 	readonly providers?: readonly AIProviderConfig[];
