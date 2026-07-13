@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useArgs } from "storybook/preview-api";
 import { expect, userEvent, within } from "storybook/test";
 import { DurationField } from "./DurationField";
 
@@ -10,12 +10,11 @@ const meta: Meta<typeof DurationField> = {
 		label: "Duration",
 	},
 	render: function RenderComponent(args) {
-		const [value, setValue] = useState<number>(args.valueMs);
+		const [, updateArgs] = useArgs<typeof args>();
 		return (
 			<DurationField
 				{...args}
-				valueMs={value}
-				onChange={(value) => setValue(value)}
+				onChange={(valueMs) => updateArgs({ valueMs })}
 			/>
 		);
 	},
@@ -85,6 +84,27 @@ export const ConvertSmallHoursToDays: Story = {
 
 		// After switching to days, should show 1 day (2 hours rounded up to nearest day)
 		await expect(input).toHaveValue("1");
+	},
+};
+
+export const SyncWithParentValue: Story = {
+	args: {
+		valueMs: hoursToMs(1),
+	},
+	play: async ({ args, mount }) => {
+		const onChange = () => {};
+		let canvas = await mount(<DurationField {...args} onChange={onChange} />);
+		let input = canvas.getByLabelText("Duration");
+		await userEvent.clear(input);
+		await userEvent.type(input, "3");
+		await expect(input).toHaveValue("3");
+
+		canvas = await mount(
+			<DurationField {...args} valueMs={daysToMs(2)} onChange={onChange} />,
+		);
+		input = canvas.getByLabelText("Duration");
+		await expect(input).toHaveValue("2");
+		await expect(canvas.getByLabelText("Time unit")).toHaveTextContent("Days");
 	},
 };
 

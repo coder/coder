@@ -3,7 +3,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { ChevronDownIcon } from "lucide-react";
-import { type FC, useEffect, useReducer } from "react";
+import { type FC, useReducer } from "react";
 import {
 	durationInDays,
 	durationInHours,
@@ -21,6 +21,7 @@ type State = {
 	// Handling empty values as strings in the input simplifies the process,
 	// especially when a user clears the input field.
 	durationFieldValue: string;
+	lastParentValueMs: number;
 };
 
 type Action =
@@ -31,6 +32,12 @@ type Action =
 const reducer = (state: State, action: Action): State => {
 	switch (action.type) {
 		case "SYNC_WITH_PARENT": {
+			if (
+				durationInMs(state.durationFieldValue, state.unit) ===
+				action.parentValueMs
+			) {
+				return { ...state, lastParentValueMs: action.parentValueMs };
+			}
 			return initState(action.parentValueMs);
 		}
 		case "CHANGE_DURATION_FIELD_VALUE": {
@@ -46,6 +53,7 @@ const reducer = (state: State, action: Action): State => {
 			);
 
 			return {
+				...state,
 				unit: action.unit,
 				durationFieldValue:
 					action.unit === "hours"
@@ -69,11 +77,9 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 	const [state, dispatch] = useReducer(reducer, initState(parentValueMs));
 	const currentDurationMs = durationInMs(state.durationFieldValue, state.unit);
 
-	useEffect(() => {
-		if (parentValueMs !== currentDurationMs) {
-			dispatch({ type: "SYNC_WITH_PARENT", parentValueMs });
-		}
-	}, [currentDurationMs, parentValueMs]);
+	if (state.lastParentValueMs !== parentValueMs) {
+		dispatch({ type: "SYNC_WITH_PARENT", parentValueMs });
+	}
 
 	return (
 		<div>
@@ -156,6 +162,7 @@ function initState(value: number): State {
 	return {
 		unit,
 		durationFieldValue,
+		lastParentValueMs: value,
 	};
 }
 
