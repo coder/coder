@@ -612,6 +612,15 @@ var AIBudgetPeriods = []string{
 	string(AIBudgetPeriodMonth),
 }
 
+// NewAIBudgetPeriodFromString converts s to an AIBudgetPeriod, falling back to
+// AIBudgetPeriodMonth when s is empty or not a recognized period.
+func NewAIBudgetPeriodFromString(s string) AIBudgetPeriod {
+	if slices.Contains(AIBudgetPeriods, s) {
+		return AIBudgetPeriod(s)
+	}
+	return AIBudgetPeriodMonth
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
