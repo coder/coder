@@ -637,12 +637,16 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 										isFetchingNextPage={isFetchingNextPage}
 									/>
 								)}
-								<AssistantChatsSection />
 							</ChatTreeContext>
 						)}
 					</div>
 				</ScrollArea>
 			</div>
+			{/* Docked above the footer so the Assistant drawer stays pinned
+			    and expands upward instead of scrolling with the chat list. */}
+			<ChatTreeContext value={chatTreeCtx}>
+				<AssistantChatsSection />
+			</ChatTreeContext>
 			<UserSidebarFooter />
 		</div>
 	);
