@@ -45,6 +45,12 @@ interface ModelSelectorProps {
 	onValueChange: (value: string) => void;
 	disabled?: boolean;
 	placeholder?: string;
+	/**
+	 * When set, renders an option above the model list that selects the
+	 * empty value, letting users unset the model without a separate
+	 * clear control.
+	 */
+	unsetLabel?: string;
 	emptyMessage?: string;
 	formatProviderLabel?: (provider: string) => string;
 	className?: string;
@@ -88,6 +94,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	onValueChange,
 	disabled = false,
 	placeholder = "Select model",
+	unsetLabel,
 	emptyMessage = "No models found.",
 	formatProviderLabel = defaultFormatProviderLabel,
 	className,
@@ -196,6 +203,32 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
+						{unsetLabel &&
+							(!query || unsetLabel.toLowerCase().includes(query)) && (
+								<CommandGroup className="p-1">
+									<CommandItem
+										value="__unset__"
+										onSelect={() => {
+											onValueChange("");
+											handleOpenChange(false);
+										}}
+										className={cn(
+											"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
+											!selectedModel && "bg-surface-secondary",
+										)}
+									>
+										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+											{unsetLabel}
+										</span>
+										<CheckIcon
+											className={cn(
+												"ml-auto size-4 shrink-0",
+												selectedModel && "opacity-0",
+											)}
+										/>
+									</CommandItem>
+								</CommandGroup>
+							)}
 						{optionsByProvider.map(([providerKey, providerOptions], index) => {
 							const firstOption = providerOptions[0];
 							const providerLabel = getProviderLabel(

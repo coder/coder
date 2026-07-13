@@ -303,6 +303,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 				placeholder={
 					hasUnavailableSelectedModel ? "Unavailable model" : "Use chat model"
 				}
+				unsetLabel="Use chat model"
 				emptyMessage={
 					isLoadingModelConfigs
 						? "Loading models..."
