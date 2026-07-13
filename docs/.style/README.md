@@ -56,9 +56,10 @@ directory from the surgical-reindex payload on mixed commits.
   `markdownlint-cli2 --fix $(find docs -name '*.md')`.
 - `make fmt/markdown` (markdown-table-formatter) reflows tables here for
   the same reason.
-- Vale lints the entire `docs/**/*.md` set, including `docs/.style/style-guide/`.
+- Vale (`make lint/prose`) still lints `_vale-annotation-demo.md`, whose
+  `Coder.Demo*` rules are meant to fire. The rest of `docs/.style/` is exempt
+  from the Coder rules (refer to "What does not run" below).
   Refer to the repo-root `.vale.ini` for the active configuration.
-  Run `make lint/prose` locally to reproduce.
 
 ## What does not run against this directory
 
@@ -71,6 +72,12 @@ directory from the surgical-reindex payload on mixed commits.
   so `.style`-only PRs produce no preview comment. The selection logic also
   skips `.style` files when picking the preview target on mixed PRs. See
   `.github/workflows/docs-preview.yaml`.
+- Vale's `Coder` rules on the rest of `docs/.style/` prose (guide subpages,
+  landing page, content guidelines). The style guide deliberately contains the
+  constructs the rules ban, such as Don't examples and banned terms named in
+  headings and prose, so the repo-root `.vale.ini` clears `BasedOnStyles` for
+  `docs/.style/**` and re-includes only `_vale-annotation-demo.md`.
+  Zero-baseline is therefore measured over `docs/` excluding `docs/.style/`.
 
 ## Editing the content guidelines
 
@@ -86,7 +93,8 @@ Follow-up PRs add each rule and the matching style-guide section together.
 ## Adding a Vale rule
 
 Each rule in the repo-root `.vale.ini` ships clean: zero baseline
-findings against the current `docs/` corpus.
+findings against the current `docs/` corpus, excluding `docs/.style/`,
+which is exempt because it demonstrates the violations the rules ban.
 The PR that adds a rule is the rule's complete unit:
 
 1. **Cleanup commit**: fix every existing-content violation of the new
