@@ -716,6 +716,28 @@ export const infiniteChats = (filters?: InfiniteChatsFilters) => {
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
+/**
+ * Label key that marks a chat as belonging to the Coder Assistant.
+ * Assistant chats are excluded from the default browsing list and
+ * shown in a dedicated collapsible sidebar section instead.
+ */
+export const CODER_AGENT_LABEL_KEY = "coder-agent";
+
+export const isCoderAgentChat = (chat: TypesGen.Chat): boolean =>
+	chat.labels?.[CODER_AGENT_LABEL_KEY] === "true";
+
+const ASSISTANT_CHATS_LIMIT = 25;
+
+export const assistantChats = () =>
+	queryOptions({
+		queryKey: [...chatsKey, "assistant"],
+		queryFn: () =>
+			API.experimental.getChats({
+				limit: ASSISTANT_CHATS_LIMIT,
+				labels: [`${CODER_AGENT_LABEL_KEY}:true`],
+			}),
+	});
+
 export const chatSearch = (q: string) =>
 	queryOptions({
 		queryKey: [...chatsKey, "search", { q }],

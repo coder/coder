@@ -9,7 +9,8 @@ export const getSectionToggleTestId = (sectionKey: string) =>
 
 interface ChatSectionHeaderProps {
 	readonly label: string;
-	readonly count: number;
+	/** Omit to render the header without a count badge. */
+	readonly count?: number;
 	readonly expanded: boolean;
 	readonly onToggle: () => void;
 	readonly testId: string;
@@ -34,7 +35,7 @@ export const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
 				onClick={onToggle}
 			>
 				<span className="min-w-0 flex-1 truncate">
-					{label} ({count})
+					{count === undefined ? label : `${label} (${count})`}
 				</span>
 				<span className="flex h-6 w-7 shrink-0 items-center justify-end">
 					<ChevronDownIcon

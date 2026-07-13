@@ -3372,10 +3372,23 @@ class ExperimentalApiMethods {
 		limit?: number;
 		offset?: number;
 		q?: string;
+		/**
+		 * Labels filters chats by label as "key:value" strings. Each
+		 * entry is sent as a repeated `label` query parameter and the
+		 * server combines them with AND semantics.
+		 */
+		labels?: readonly string[];
 	}): Promise<TypesGen.Chat[]> => {
-		const response = await this.axios.get<TypesGen.Chat[]>(
-			getURLWithSearchParams("/api/experimental/chats", req),
-		);
+		const { labels, ...rest } = req ?? {};
+		let url = getURLWithSearchParams("/api/experimental/chats", rest);
+		if (labels && labels.length > 0) {
+			const labelParams = new URLSearchParams();
+			for (const label of labels) {
+				labelParams.append("label", label);
+			}
+			url += `${url.includes("?") ? "&" : "?"}${labelParams.toString()}`;
+		}
+		const response = await this.axios.get<TypesGen.Chat[]>(url);
 		return response.data;
 	};
 	getChat = async (chatId: string): Promise<TypesGen.Chat> => {

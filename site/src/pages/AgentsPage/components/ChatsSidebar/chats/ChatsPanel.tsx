@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
+import { isCoderAgentChat } from "#/api/queries/chats";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -53,6 +54,7 @@ import {
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { AssistantChatsSection } from "./AssistantChatsSection";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
@@ -102,7 +104,7 @@ interface ChatsPanelProps {
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
-	chats,
+	chats: allChats,
 	chatErrorReasons,
 	modelOptions,
 	modelConfigs,
@@ -138,6 +140,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
 	>({});
+
+	// Coder Assistant chats are excluded from the default browsing
+	// list; they live in the collapsible Assistant drawer below.
+	const chats = allChats.filter((chat) => !isCoderAgentChat(chat));
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -180,13 +186,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 
 	// Clear the local override when fresh data arrives from
 	// the server (the mutation's onSettled invalidates queries).
-	const chatsRef = useRef(chats);
+	const chatsRef = useRef(allChats);
 	useEffect(() => {
-		if (chats !== chatsRef.current) {
-			chatsRef.current = chats;
+		if (allChats !== chatsRef.current) {
+			chatsRef.current = allChats;
 			setLocalPinOrder(null);
 		}
-	}, [chats]);
+	}, [allChats]);
 
 	const sortedPinnedChats = localPinOrder
 		? localPinOrder
@@ -631,6 +637,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 										isFetchingNextPage={isFetchingNextPage}
 									/>
 								)}
+								<AssistantChatsSection />
 							</ChatTreeContext>
 						)}
 					</div>
