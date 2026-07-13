@@ -16,7 +16,7 @@ The doctrine for adding Vale rules lives in [`README.md`](../README.md).
 - **Reviewers**: cite the section in a review comment.
   Reviews are easier when the guidance lives in one place.
 - **AI agents**: read every section before editing anything under `docs/`.
-  The Coder Agents and Claude Code guides ([`AGENTS.md`](../../../AGENTS.md), [`.claude/docs/DOCS_STYLE_GUIDE.md`](../../../.claude/docs/DOCS_STYLE_GUIDE.md)) link here.
+  The Coder Agents guides ([`AGENTS.md`](../../../AGENTS.md), [`.claude/skills/write-docs/SKILL.md`](../../../.claude/skills/write-docs/SKILL.md)) link here.
 
 ## Sections
 

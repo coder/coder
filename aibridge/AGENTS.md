@@ -77,8 +77,8 @@ This package heavily uses SSE streaming. When modifying interceptors:
 ## Commit and PR Scope
 
 Follow the commit and PR style in the root `AGENTS.md` and
-`.claude/docs/PR_STYLE_GUIDE.md`. Format: `type(scope): message`. The
-scope must be a real filesystem path containing every changed file.
+`.agents/skills/pull-requests/SKILL.md`. Format: `type(scope): message`.
+The scope must be a real filesystem path containing every changed file.
 
 For changes inside `aibridge/`, the scope is the path from the repo
 root, for example:

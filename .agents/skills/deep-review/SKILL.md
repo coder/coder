@@ -338,7 +338,7 @@ Where `review.json`:
 }
 ```
 
-**Tone guidance.** Frame design concerns as questions: "Could we use X instead?" — be direct only for correctness issues. Hedge design, not bugs. Build concrete scenarios to make concerns tangible. When uncertain, say so. See `.claude/docs/PR_STYLE_GUIDE.md` for PR conventions.
+**Tone guidance.** Frame design concerns as questions: "Could we use X instead?"; be direct only for correctness issues. Hedge design, not bugs. Build concrete scenarios to make concerns tangible. When uncertain, say so. See `.agents/skills/pull-requests/SKILL.md` for PR conventions.
 
 ## Follow-up
 

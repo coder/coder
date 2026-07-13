@@ -5,80 +5,83 @@ description: "Guide for creating, updating, and following up on pull requests in
 
 # Pull Request Skill
 
-## When to Use This Skill
+Create and maintain accurate Coder pull requests. Read the full diff against the base branch before writing or updating PR prose.
 
-Use this skill when asked to:
+## Title
 
-- Create a pull request for the current branch.
-- Update an existing PR branch or description.
-- Rewrite a PR body.
-- Follow up on CI or check failures for an existing PR.
+Use `type(scope): message`. Follow the commit-message rules in [`CONTRIBUTING.md`](../../../docs/about/contributing/CONTRIBUTING.md#commit-messages).
 
-## References
+- Use one of: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+- Use an imperative, present-tense message.
+- Keep the title concise, about 70 characters when practical.
+- Use a scope only when it is a real filesystem path that contains every changed file.
+- Use a broader path or omit the scope for cross-cutting changes.
 
-Use the canonical docs for shared conventions and validation guidance:
+Examples:
 
-- PR title and description conventions:
-  `.claude/docs/PR_STYLE_GUIDE.md`
-- Local validation commands and git hooks: `AGENTS.md` (Essential Commands and
-  Git Hooks sections)
+- `feat: add tracing to aibridge`
+- `perf(coderd/database): add workspace app status index`
+- `refactor(site): remove redundant app status sorting`
 
-## Body Formatting
+## Description
 
-GitHub renders the PR description as Markdown and soft-wraps paragraphs to the
-viewport. Do not hard-wrap prose at 72 or 80 columns. Insert manual line
-breaks only where Markdown needs them: between paragraphs, around headings,
-lists, tables, code blocks, and blockquotes.
+Default to one or two short paragraphs:
 
-The commit message body is not the PR body. Commit messages are typically
-hard-wrapped; PR bodies are not. When deriving the PR body from a commit
-message, unwrap each paragraph into a single line before passing it to
-`gh pr create --body` or `--body-file`.
+1. State what changed.
+2. Explain the problem, reason, or user-visible impact when it is not obvious.
 
-## Lifecycle Rules
+For changes that need more context, use only the sections that help:
 
-1. **Check for an existing PR** before creating a new one:
+```markdown
+## Summary
+[What changed]
 
-   ```bash
+## Problem
+[What was wrong or missing]
+
+## Fix
+[How this change addresses it]
+```
+
+Include when relevant:
+
+- Related work with `Closes`, `Fixes`, `Depends on`, or `Refs`.
+- Measured performance context.
+- Migration or operational warnings.
+- Visual evidence for UI changes.
+- Upstream links for dependency or generated updates.
+
+Omit test plans, benefits sections, marketing language, and low-level implementation detail unless it is necessary to review the change. Do not fabricate impact or evidence.
+
+Let GitHub soft-wrap body prose. Add manual line breaks only for Markdown structure. Unwrap commit-message paragraphs before reusing them in a PR body.
+
+## Lifecycle
+
+1. Confirm the current branch is not `main` or `master`.
+2. Check for an existing PR:
+
+   ```sh
    gh pr list --head "$(git branch --show-current)" --author @me --json number --jq '.[0].number // empty'
    ```
 
-   If that returns a number, update that PR. If it returns empty output,
-   create a new one.
-2. **Check you are not on main.** If the current branch is `main` or `master`,
-   create a feature branch before doing PR work.
-3. **Default to draft.** Use `gh pr create --draft` unless the user explicitly
-   asks for ready-for-review.
-4. **Keep description aligned with the full diff.** Re-read the diff against
-   the base branch before writing or updating the title and body. Describe the
-   entire PR diff, not just the last commit.
-5. **Never auto-merge.** Do not merge or mark ready for review unless the user
-   explicitly asks.
-6. **Never push to main or master.**
+3. If a PR exists, verify `gh pr view` resolves to that PR and update it. Otherwise, create a draft with `gh pr create --draft` unless the user explicitly asks for ready-for-review.
+4. Keep the title and description aligned with the complete PR diff after every substantive push.
+5. Do not mark ready, merge, auto-merge, or push to `origin/main` or `origin/master` without explicit instruction.
+6. Run the validation and hooks required by [`AGENTS.md`](../../../AGENTS.md). Never bypass hooks.
 
-## CI / Checks Follow-up
+## CI follow-up
 
-**Always watch CI checks after pushing.** Do not push and walk away.
+Always watch checks after pushing. Do not push and walk away.
 
-After pushing:
+```sh
+gh pr checks <PR_NUMBER> --watch
+```
 
-- Monitor CI with `gh pr checks <PR_NUMBER> --watch`.
-- Use `gh pr view <PR_NUMBER> --json statusCheckRollup` for programmatic check
-  status.
+For failures:
 
-If checks fail:
+1. Identify the failed run from `gh pr checks`.
+2. Read logs with `gh run view <RUN_ID> --log-failed`.
+3. Fix the issue locally and run the relevant validation.
+4. Push the fix, refresh the PR description if the diff changed materially, and watch checks again.
 
-1. Find the failed run ID from the `gh pr checks` output.
-2. Read the logs with `gh run view <run-id> --log-failed`.
-3. Fix the problem locally.
-4. Run `make pre-commit`.
-5. Push the fix.
-
-## What Not to Do
-
-- Do not reference or call helper scripts that do not exist in this
-  repository.
-- Do not auto-merge or mark ready for review without explicit user request.
-- Do not push to `origin/main` or `origin/master`.
-- Do not skip local validation before pushing.
-- Do not fabricate or embellish PR descriptions.
+Use `gh pr view <PR_NUMBER> --json statusCheckRollup` only when a programmatic status summary is needed.
