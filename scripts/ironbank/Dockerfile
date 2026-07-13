@@ -4,6 +4,20 @@ ARG BASE_TAG=9.6
 
 FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}
 
+# VAT justification for curl-minimal and libcurl-minimal CVEs:
+#
+# The following CVEs are inherited from the UBI9-minimal base image and affect
+# the curl-minimal/libcurl-minimal packages shipped by Red Hat. Coder is a
+# statically linked Go binary that does not shell out to curl or link against
+# libcurl at runtime. These packages are base image dependencies outside of
+# Coder's control; patches will arrive when Red Hat publishes updated RPMs to
+# the UBI9 base image.
+#
+#   CVE-2026-11586 (High)   - curl-minimal, libcurl-minimal
+#   CVE-2026-11352 (High)   - curl-minimal, libcurl-minimal
+#   CVE-2026-8924  (Medium) - curl-minimal, libcurl-minimal
+#   CVE-2026-11856 (Medium) - curl-minimal, libcurl-minimal
+
 SHELL ["/bin/bash", "-c"]
 
 ENV LANG=en_US.UTF-8
