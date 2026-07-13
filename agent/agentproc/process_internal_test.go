@@ -1,6 +1,7 @@
 package agentproc
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -29,14 +31,14 @@ func TestReapFreesClientTokenIndex(t *testing.T) {
 		Command:     "echo hello",
 		ClientToken: "tok-1",
 	}
-	proc, attached, err := m.start(req, "chat-1")
+	proc, attached, err := m.start(context.Background(), req, "chat-1")
 	require.NoError(t, err)
 	require.False(t, attached)
 	<-proc.done
 
 	// The token keeps attaching to the exited process until the
 	// reap age passes, so a retried start still sees the result.
-	again, attached, err := m.start(req, "chat-1")
+	again, attached, err := m.start(context.Background(), req, "chat-1")
 	require.NoError(t, err)
 	require.True(t, attached)
 	require.Equal(t, proc.id, again.id)
@@ -45,7 +47,7 @@ func TestReapFreesClientTokenIndex(t *testing.T) {
 
 	// The sweep on start reaps the exited process, frees its
 	// token index entry, and the same token starts fresh.
-	fresh, attached, err := m.start(req, "chat-1")
+	fresh, attached, err := m.start(context.Background(), req, "chat-1")
 	require.NoError(t, err)
 	require.False(t, attached)
 	require.NotEqual(t, proc.id, fresh.id)
@@ -85,7 +87,7 @@ func TestConcurrentSameTokenStartsOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			proc, attached, err := m.start(req, "chat-1")
+			proc, attached, err := m.start(context.Background(), req, "chat-1")
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
@@ -110,4 +112,69 @@ func TestConcurrentSameTokenStartsOnce(t *testing.T) {
 	procCount := len(m.procs)
 	m.mu.Unlock()
 	require.Equal(t, 1, procCount)
+}
+
+func TestSameTokenWaiterHonorsCancellation(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseOnce)
+	// Block the owning start after it reserves the token so a
+	// concurrent waiter is stuck behind it.
+	updateEnv := func(current []string) ([]string, error) {
+		<-release
+		return current, nil
+	}
+	m := newManager(logger, agentexec.DefaultExecer, nil, nil, updateEnv, nil)
+	t.Cleanup(func() {
+		_ = m.Close()
+	})
+
+	req := workspacesdk.StartProcessRequest{
+		Command:     "echo hello",
+		ClientToken: "tok-cancel",
+	}
+
+	ownerErr := make(chan error, 1)
+	go func() {
+		_, _, err := m.start(context.Background(), req, "chat-1")
+		ownerErr <- err
+	}()
+	require.Eventually(t, func() bool {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return len(m.tokens) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// A canceled waiter must return promptly instead of blocking
+	// until the owner finishes.
+	waiterCtx, cancelWaiter := context.WithCancel(context.Background())
+	waiterErr := make(chan error, 1)
+	go func() {
+		_, _, err := m.start(waiterCtx, req, "chat-1")
+		waiterErr <- err
+	}()
+	cancelWaiter()
+	select {
+	case err := <-waiterErr:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("waiter did not return after cancellation")
+	}
+
+	// The owner is unaffected by the waiter's cancellation.
+	releaseOnce()
+	select {
+	case err := <-ownerErr:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("owner start did not finish")
+	}
+
+	proc, attached, err := m.start(context.Background(), req, "chat-1")
+	require.NoError(t, err)
+	require.True(t, attached)
+	<-proc.done
 }

@@ -145,7 +145,10 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 // with attached true instead of spawning a duplicate. A repeated
 // token with different parameters fails with
 // errClientTokenMismatch.
-func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
+//
+// ctx bounds only the wait for a concurrent start that owns the
+// same token; the spawned process itself is never tied to it.
+func (m *manager) start(ctx context.Context, req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
 	workDir := m.resolveWorkingDirectory(req.WorkDir)
 
 	// The chat ID is a UUID string and cannot contain NUL, so
@@ -185,7 +188,11 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 
 		// Another start owns this token. Wait for it to finish
 		// and attach to its process.
-		<-entry.done
+		select {
+		case <-entry.done:
+		case <-ctx.Done():
+			return nil, false, xerrors.Errorf("wait for concurrent start with the same token: %w", ctx.Err())
+		}
 		m.mu.Lock()
 		if entry.err != nil {
 			// The owning start failed and released the token.

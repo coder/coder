@@ -87,7 +87,7 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		chatID = chatContext.ID.String()
 	}
 
-	proc, attached, err := api.manager.start(req, chatID)
+	proc, attached, err := api.manager.start(ctx, req, chatID)
 	if err != nil {
 		if errors.Is(err, errClientTokenMismatch) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
