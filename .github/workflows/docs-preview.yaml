@@ -70,56 +70,35 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Marker embedded in the comment body so we can find this
-          # workflow's own comments later, and a second marker that
-          # carries the last-seen `path -> blob sha` map so later runs
-          # know whether a page changed since it was last listed. Keep
-          # these in one place so later refactors don't drift between
-          # the body construction and the parsing below.
-          #
-          # Keep this whole script in sync with
-          # test-docs-preview-mapper.sh, which replicates map_doc_path,
-          # the manifest-allowlist filter, and the checked-state
-          # carryover logic so they can be unit tested without running
-          # the full workflow.
+          # DOCS_PREVIEW_MARKER locates this workflow's own comments.
+          # STATE_PREFIX carries the last-seen `path -> blob sha` map for
+          # change detection. Keep this script's map_doc_path, manifest
+          # filter, and carryover logic in sync with
+          # test-docs-preview-mapper.sh.
           DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
           STATE_PREFIX='docs-preview-state:'
 
           # Returns IDs of github-actions[bot] comments on the PR whose
-          # body contains DOCS_PREVIEW_MARKER. Used by both the stale-
-          # comment-cleanup branch (when this push has no eligible
-          # pages) and the upsert branch below.
+          # body contains DOCS_PREVIEW_MARKER.
           list_docs_preview_comments() {
             gh api --paginate \
               "repos/${REPO}/issues/${PR_NUMBER}/comments" \
               --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${DOCS_PREVIEW_MARKER}\")) | .id"
           }
 
-          # Deletes the existing docs-preview comment (if any) and exits
-          # 0. Called when this push has nothing eligible to preview, so
-          # a stale comment doesn't point readers at a dead or no-longer-
-          # relevant deep-link.
-          #
-          # Intentionally decoupled from `set -e` propagation: a failed
-          # list/delete here is a cosmetic miss (no preview link needed
-          # anyway), so log and exit cleanly rather than red-checking
-          # every docs-touching PR during a comments-endpoint hiccup.
-          # The next push will retry the cleanup. The upsert path below
-          # uses strict propagation by contrast, because silent failure
-          # there would create duplicate comments.
+          # Deletes the existing docs-preview comment (found earlier as
+          # existing_id) and exits 0, so a stale comment doesn't point
+          # readers at a dead deep-link. A failed delete is only cosmetic,
+          # so it logs and exits clean; the next push retries. The upsert
+          # path uses strict propagation instead, since silent failure
+          # there would duplicate comments.
           cleanup_stale_and_exit() {
-            stale_comment_ids=$(list_docs_preview_comments) || {
-              echo "Could not list preview comments; skipping cleanup."
-              exit 0
-            }
-            stale_id=$(printf '%s\n' "$stale_comment_ids" | head -n 1) || true
-
-            if [ -n "$stale_id" ]; then
+            if [ -n "$existing_id" ]; then
               if gh api --method DELETE \
-                "repos/${REPO}/issues/comments/${stale_id}"; then
-                echo "Deleted stale docs preview comment (id=${stale_id})."
+                "repos/${REPO}/issues/comments/${existing_id}"; then
+                echo "Deleted stale docs preview comment (id=${existing_id})."
               else
-                echo "Failed to delete stale docs preview comment (id=${stale_id}); leaving in place."
+                echo "Failed to delete stale docs preview comment (id=${existing_id}); leaving in place."
               fi
             fi
             exit 0
@@ -165,14 +144,11 @@ jobs:
             printf '%s' "$page_path"
           }
 
-          # Fetch the existing docs-preview comment (if any) up front so
-          # both the cleanup path and the upsert path can reuse it
-          # without listing twice.
+          # Look up the existing docs-preview comment id up front so both
+          # the cleanup path and the upsert path can reuse it without
+          # listing twice. The body is fetched later, just before state
+          # recovery, to keep the read-modify-write window small.
           existing_id=$(list_docs_preview_comments | head -n 1) || true
-          existing_body=""
-          if [ -n "$existing_id" ]; then
-            existing_body=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body')
-          fi
 
           # Fetch the non-removed Markdown files under docs/ (excluding
           # docs/.style/**) this PR currently touches, one <filename>\t<sha>
@@ -192,12 +168,12 @@ jobs:
             cleanup_stale_and_exit
           fi
 
-          # Fetch docs/manifest.json at the PR head sha (not the local
-          # ref, since this job never checks the repo out) and collect
-          # every "path" value anywhere in the tree. Manifest paths are
-          # written as "./foo/bar.md" or "foo/bar.md" relative to docs/;
-          # normalize both to "docs/foo/bar.md" so they compare directly
-          # against the PR-files filenames above.
+          # Fetch docs/manifest.json at the PR head sha (this job never
+          # checks the repo out) and collect every object with a "path"
+          # key, which in the manifest is always a navigable page entry.
+          # Manifest paths are written "./foo/bar.md" or "foo/bar.md"
+          # relative to docs/; normalize both to "docs/foo/bar.md" so
+          # they compare directly against the PR-files filenames above.
           manifest_content=$(gh api "repos/${REPO}/contents/docs/manifest.json?ref=${HEAD_SHA}" --jq '.content' | base64 -d)
           allowed_paths=$(printf '%s' "$manifest_content" \
             | jq -r '[.. | objects | select(has("path")) | .path] | .[]' \
@@ -219,6 +195,16 @@ jobs:
 
           eligible_json=$(printf '%s\n' "$eligible_tsv" \
             | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {filename: .[0], sha: .[1]}]')
+
+          # Fetch the existing comment body now, right before reading its
+          # checkbox state, so a reviewer's toggle isn't overwritten by a
+          # stale read taken several API calls earlier. `|| true` keeps a
+          # transient API error from failing the run; state recovery then
+          # just treats every page as new.
+          existing_body=""
+          if [ -n "$existing_id" ]; then
+            existing_body=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' || true)
+          fi
 
           # Recover state from the existing comment, if any:
           #   - old_state: the path -> sha map this workflow wrote the
@@ -269,11 +255,11 @@ jobs:
           # segments and the slashes between them must be preserved.
           encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
 
+          # Emit one <filename>\t<checked> row per page with a single jq
+          # pass, rather than two jq spawns per row inside the loop.
           checklist=""
-          while IFS= read -r row; do
-            [ -z "$row" ] && continue
-            filename=$(printf '%s' "$row" | jq -r '.filename')
-            checked=$(printf '%s' "$row" | jq -r '.checked')
+          while IFS=$'\t' read -r filename checked; do
+            [ -z "$filename" ] && continue
             page_path=$(map_doc_path "$filename")
 
             url="https://coder.com/docs/@${encoded_branch}"
@@ -291,7 +277,7 @@ jobs:
             # survive the double-quoted string as-is.
             checklist="${checklist}- [${box}] [\`${filename}\`](${url})
           "
-          done < <(printf '%s' "$final_rows" | jq -c '.[]')
+          done < <(printf '%s' "$final_rows" | jq -r '.[] | [.filename, (.checked | tostring)] | @tsv')
 
           comment_body="## Docs preview
 

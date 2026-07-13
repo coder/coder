@@ -15,8 +15,8 @@ set -euo pipefail
 # map_doc_path replicates the case block from docs-preview.yaml so
 # we can exercise it without running the full workflow.
 map_doc_path() {
-	local first_doc="$1"
-	local rel="${first_doc#docs/}"
+	local doc_path="$1"
+	local rel="${doc_path#docs/}"
 	local page_path
 
 	case "$rel" in
@@ -197,6 +197,93 @@ assert_decides_checked "sha1" "sha2" "true" "false"
 
 # Branch D: no previous sha (brand-new page in the list) -> unchecked.
 assert_decides_checked "" "sha1" "true" "false"
+
+# round_trip_state exercises the *actual* jq/grep/sed/base64 expressions
+# from docs-preview.yaml end to end, which the scalar decide_checked test
+# above cannot reach: it never touches the jq null-coalescing (// false,
+# // null) or the base64 state marker. A path->sha map is encoded into
+# the hidden marker, read back, the live checkbox glyphs are parsed, and
+# the carryover jq decides each page's final checked state.
+STATE_PREFIX='docs-preview-state:'
+
+# Recovers the {path: sha} state map from the hidden marker, replicating
+# the grep|sed|base64 pipeline in docs-preview.yaml.
+recover_old_state() {
+	local body="$1" b64
+	b64=$(printf '%s\n' "$body" | grep -oE "${STATE_PREFIX}[A-Za-z0-9+/=]+" | sed "s/^${STATE_PREFIX}//") || true
+	if [ -n "$b64" ]; then
+		printf '%s' "$b64" | base64 -d
+	else
+		printf '{}'
+	fi
+}
+
+# Recovers the {path: checked} map from the rendered checklist,
+# replicating the grep|sed|jq pipeline in docs-preview.yaml.
+recover_old_checked() {
+	# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters, not command substitution.
+	printf '%s\n' "$1" |
+		grep -oE '^- \[[ xX]\] \[`[^`]+`\]' |
+		sed -E 's/^- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' |
+		jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {(.[1]): (.[0] | test("x"; "i"))}] | add // {}'
+}
+
+# Runs the carryover jq from docs-preview.yaml over the recovered maps.
+decide_rows() {
+	jq -n \
+		--argjson eligible "$1" \
+		--argjson old_state "$2" \
+		--argjson old_checked "$3" \
+		'[
+			$eligible[] | . as $f |
+			($old_state[$f.filename] // null) as $prev_sha |
+			(if $prev_sha != null and $prev_sha == $f.sha
+				then ($old_checked[$f.filename] // false)
+				else false
+			end) as $checked |
+			{filename: $f.filename, sha: $f.sha, checked: $checked}
+		] | sort_by(.filename)' | jq -c .
+}
+
+assert_round_trip_state() {
+	local old_state_json='{"docs/a.md":"sha1","docs/b.md":"sha1","docs/d.md":"sha1"}'
+	local state_b64
+	state_b64=$(printf '%s' "$old_state_json" | base64 -w0)
+
+	# A rendered comment body: a.md checked, b.md unchecked, no line for
+	# d.md (present in the state marker but absent from the checklist),
+	# plus the hidden state marker.
+	local body
+	# shellcheck disable=SC2016 # backtick-quoted paths are literal Markdown.
+	body=$(printf '%s\n' \
+		'## Docs preview' \
+		'' \
+		'- [x] [`docs/a.md`](https://coder.com/docs/@b/a)' \
+		'- [ ] [`docs/b.md`](https://coder.com/docs/@b/b)' \
+		'<!-- docs-preview -->' \
+		"<!-- ${STATE_PREFIX}${state_b64} -->")
+
+	# a.md: sha unchanged, was checked -> stays checked.
+	# b.md: sha changed -> resets to unchecked (else branch).
+	# c.md: brand-new, absent from old_state -> // null -> unchecked.
+	# d.md: sha unchanged but absent from old_checked -> // false.
+	local eligible_json='[{"filename":"docs/a.md","sha":"sha1"},{"filename":"docs/b.md","sha":"sha2"},{"filename":"docs/c.md","sha":"sha3"},{"filename":"docs/d.md","sha":"sha1"}]'
+
+	local rec_state rec_checked actual expected
+	rec_state=$(recover_old_state "$body")
+	rec_checked=$(recover_old_checked "$body")
+	actual=$(decide_rows "$eligible_json" "$rec_state" "$rec_checked")
+	expected='[{"filename":"docs/a.md","sha":"sha1","checked":true},{"filename":"docs/b.md","sha":"sha2","checked":false},{"filename":"docs/c.md","sha":"sha3","checked":false},{"filename":"docs/d.md","sha":"sha1","checked":false}]'
+
+	if [ "$actual" = "$expected" ]; then
+		echo "PASS: round_trip_state carryover"
+	else
+		echo "FAIL: round_trip_state carryover -> $actual (expected $expected)"
+		failures=$((failures + 1))
+	fi
+}
+
+assert_round_trip_state
 
 if [ "$failures" -gt 0 ]; then
 	echo ""
