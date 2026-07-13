@@ -191,33 +191,33 @@
 
         # Pin to provisioner/terraform/testdata/version.txt for deterministic
         # `make gen` across platforms.
-        terraform_1_15_5 =
+        terraform_1_15_8 =
           let
             releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
-                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
+                hash = "sha256-0lzntpAgE62QXbPS6rC+TNkFiH/oi4GmFxuNVQPDHz0=";
               };
               aarch64-linux = {
                 platform = "linux_arm64";
-                hash = "sha256-Bue0jegmFGxtkzG6NbE9oSMy2Dkr4w0d1reJukcT//A=";
+                hash = "sha256-iJHp3O3J47iVC8avnU2K8fTPreMGL1O53EA6ifbOjJw=";
               };
               aarch64-darwin = {
                 platform = "darwin_arm64";
-                hash = "sha256-ARN2YFEABbkYu6ghVIZvvqxDkxY9gnfCq+hh37WELDw=";
+                hash = "sha256-8hARDFaYuU2AOnpjzbAlG1RVwVCEFHiAjiu7ND+V7Wg=";
               };
               x86_64-darwin = {
                 platform = "darwin_amd64";
-                hash = "sha256-NofQfANLPn3u1bByzYris0g1vLE5uuw/xPX9U02r9e0=";
+                hash = "sha256-4ugS54N3EVm/dY/U5V1tybsI9j4q8sY9ISchgHoCxdw=";
               };
             };
             target = releases.${system} or null;
           in
           if target != null then
-            pkgs.runCommand "terraform-1.15.5" {
+            pkgs.runCommand "terraform-1.15.8" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_${target.platform}.zip";
+                url = "https://releases.hashicorp.com/terraform/1.15.8/terraform_1.15.8_${target.platform}.zip";
                 hash = target.hash;
               };
             } ''
@@ -319,7 +319,7 @@
             # sqlc
             sqlc-custom
             syft
-            terraform_1_15_5
+            terraform_1_15_8
             typos
             which
             # Needed for many LD system libs!
