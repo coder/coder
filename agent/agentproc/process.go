@@ -30,8 +30,7 @@ var (
 	// kept before being automatically removed from the map.
 	// It also bounds how long an idempotency token keeps
 	// deduplicating starts after the process exits, so it must
-	// comfortably exceed the window in which a retried caller
-	// may re-send a start request for the same token.
+	// exceed the callers' retry window.
 	exitedProcessReapAge = 60 * time.Minute
 )
 

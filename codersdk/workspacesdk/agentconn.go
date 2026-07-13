@@ -915,7 +915,8 @@ type StartProcessRequest struct {
 	// process was already started with the same token for the
 	// same chat, the agent returns that process instead of
 	// starting a duplicate. A repeated token with different
-	// command, workdir, or background parameters is rejected.
+	// command, workdir, env, or background parameters is
+	// rejected.
 	ClientToken string `json:"client_token,omitempty"`
 }
 
