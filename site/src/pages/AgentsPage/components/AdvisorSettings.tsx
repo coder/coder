@@ -177,6 +177,24 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			) {
 				source = { ...source, model_config_id: "", reasoning_effort: "" };
 			}
+			// A stored effort can become unselectable if the model config's
+			// efforts changed after the setting was saved. Submit the same
+			// sanitized effort the slider displays so the backend does not
+			// reject the stale value.
+			const submitOption = enabledModelOptions.find(
+				(option) => option.id === source.model_config_id,
+			);
+			if (submitOption) {
+				source = {
+					...source,
+					reasoning_effort:
+						pickReasoningEffort(
+							source.reasoning_effort,
+							submitOption.reasoningEfforts ?? [],
+							submitOption.reasoningEffortDefault,
+						) ?? "",
+				};
+			}
 			const request = toAdvisorConfigRequest(source);
 			onSaveAdvisorConfig(request, {
 				onSuccess: () => {
