@@ -277,6 +277,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 		if req.Settings.Bedrock.ExternalID != "" {
 			validations = append(validations, ValidationError{
 				Field:  "settings.external_id",
@@ -342,6 +343,7 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.Settings != nil && req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
 	}
 	return validations
 }
@@ -363,6 +365,18 @@ func validateAIProviderName(name string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+func validateAIProviderBedrockProtocol(protocol AIProviderBedrockProtocol) []ValidationError {
+	switch protocol {
+	case "", AIProviderBedrockProtocolInvokeModel, AIProviderBedrockProtocolMantle:
+		return nil
+	default:
+		return []ValidationError{{
+			Field:  "settings.protocol",
+			Detail: fmt.Sprintf("unsupported bedrock protocol %q, must be one of %q or %q", protocol, AIProviderBedrockProtocolInvokeModel, AIProviderBedrockProtocolMantle),
+		}}
+	}
 }
 
 func validateAIProviderRoleARN(roleARN string) []ValidationError {

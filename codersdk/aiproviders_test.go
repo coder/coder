@@ -213,6 +213,55 @@ func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 	}
 }
 
+func TestAIProviderRequest_ValidateBedrockProtocol(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		protocol codersdk.AIProviderBedrockProtocol
+		wantErr  bool
+	}{
+		{name: "empty is allowed", protocol: "", wantErr: false},
+		{name: "invoke-model", protocol: codersdk.AIProviderBedrockProtocolInvokeModel, wantErr: false},
+		{name: "mantle", protocol: codersdk.AIProviderBedrockProtocolMantle, wantErr: false},
+		{name: "typo", protocol: "mnatle", wantErr: true},
+		{name: "unknown", protocol: "http", wantErr: true},
+	}
+
+	hasProtocolError := func(vs []codersdk.ValidationError) bool {
+		for _, v := range vs {
+			if v.Field == "settings.protocol" {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:   "us-east-1",
+					Protocol: tc.protocol,
+				},
+			}
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+				Settings: settings,
+			}
+			require.Equal(t, tc.wantErr, hasProtocolError(create.Validate()))
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			require.Equal(t, tc.wantErr, hasProtocolError(update.Validate()))
+		})
+	}
+}
+
 func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
 	t.Parallel()
 
