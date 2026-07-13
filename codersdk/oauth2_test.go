@@ -14,36 +14,51 @@ import (
 func TestOAuth2ClientRegistrationRequest_DetermineClientType(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NoneIsPublic", func(t *testing.T) {
-		t.Parallel()
-		req := codersdk.OAuth2ClientRegistrationRequest{
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
-		}
-		require.Equal(t, "public", req.DetermineClientType())
-	})
+	tests := []struct {
+		name string
+		// authMethod is the requested token_endpoint_auth_method, applied
+		// before ApplyDefaults if applyDefaults is set.
+		authMethod codersdk.OAuth2TokenEndpointAuthMethod
+		// applyDefaults runs ApplyDefaults() before DetermineClientType(),
+		// matching the real request path where an omitted auth method is
+		// defaulted to "client_secret_basic" before this check ever runs.
+		applyDefaults bool
+		expectedType  string
+	}{
+		{
+			name:         "NoneIsPublic",
+			authMethod:   codersdk.OAuth2TokenEndpointAuthMethodNone,
+			expectedType: "public",
+		},
+		{
+			name:         "ClientSecretBasicIsConfidential",
+			authMethod:   codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
+			expectedType: "confidential",
+		},
+		{
+			name:         "ClientSecretPostIsConfidential",
+			authMethod:   codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
+			expectedType: "confidential",
+		},
+		{
+			name:          "OmittedDefaultsToConfidentialAfterApplyDefaults",
+			applyDefaults: true,
+			expectedType:  "confidential",
+		},
+	}
 
-	t.Run("ClientSecretBasicIsConfidential", func(t *testing.T) {
-		t.Parallel()
-		req := codersdk.OAuth2ClientRegistrationRequest{
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
-		}
-		require.Equal(t, "confidential", req.DetermineClientType())
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("ClientSecretPostIsConfidential", func(t *testing.T) {
-		t.Parallel()
-		req := codersdk.OAuth2ClientRegistrationRequest{
-			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost,
-		}
-		require.Equal(t, "confidential", req.DetermineClientType())
-	})
-
-	t.Run("OmittedDefaultsToConfidentialAfterApplyDefaults", func(t *testing.T) {
-		t.Parallel()
-		// ApplyDefaults must run first in the real request path, so an
-		// omitted auth method is never misread as public.
-		req := codersdk.OAuth2ClientRegistrationRequest{}.ApplyDefaults()
-		require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, req.TokenEndpointAuthMethod)
-		require.Equal(t, "confidential", req.DetermineClientType())
-	})
+			req := codersdk.OAuth2ClientRegistrationRequest{
+				TokenEndpointAuthMethod: tt.authMethod,
+			}
+			if tt.applyDefaults {
+				req = req.ApplyDefaults()
+				require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, req.TokenEndpointAuthMethod)
+			}
+			require.Equal(t, tt.expectedType, req.DetermineClientType())
+		})
+	}
 }
