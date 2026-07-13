@@ -1495,7 +1495,14 @@ func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
 	return c.unmarshal(data, func(data []byte, v any) error {
 		dec := json.NewDecoder(bytes.NewReader(data))
 		dec.DisallowUnknownFields()
-		return dec.Decode(v)
+		if err := dec.Decode(v); err != nil {
+			return err
+		}
+		// Match json.Unmarshal: reject any trailing data after the value.
+		if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+			return xerrors.New("unexpected trailing data after JSON value")
+		}
+		return nil
 	})
 }
 

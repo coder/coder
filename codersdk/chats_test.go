@@ -565,6 +565,10 @@ func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
 	err = decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
 	require.ErrorContains(t, err, `unknown field "bogus_setting"`)
 
+	// Trailing data after the first value is rejected, matching json.Unmarshal.
+	err = decoded.UnmarshalStrict([]byte(`{"temperature": 0.5} {"bogus_setting": true}`))
+	require.ErrorContains(t, err, "trailing data")
+
 	// UnmarshalJSON stays lenient.
 	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
