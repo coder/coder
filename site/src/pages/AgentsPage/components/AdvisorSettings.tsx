@@ -182,8 +182,9 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// sanitized effort the slider displays so the backend does not
 			// reject the stale value. An empty effort stays empty so the
 			// advisor keeps following the model config's default. When the
-			// saved model is unavailable (disabled), drop the effort entirely
-			// so unrelated edits still save.
+			// saved model is proven unavailable (disabled), drop the effort so
+			// unrelated edits still save; while configs are loading,
+			// refetching, or errored, preserve the stored effort.
 			const submitOption = enabledModelOptions.find(
 				(option) => option.id === source.model_config_id,
 			);
@@ -198,7 +199,11 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 								submitOption.reasoningEffortDefault,
 							) ?? "",
 					};
-				} else {
+				} else if (
+					!isLoadingModelConfigs &&
+					!isFetchingModelConfigs &&
+					!modelConfigsError
+				) {
 					source = { ...source, reasoning_effort: "" };
 				}
 			}
