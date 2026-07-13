@@ -9,7 +9,7 @@
 # since, but flips back to unchecked the moment new content lands on
 # that page, since a checked box should mean "I've reviewed the
 # current revision," not "I reviewed some earlier revision of this
-# page." See DOCS-541.
+# page."
 #
 # Only pages that resolve to a route in docs/manifest.json get a
 # link. Anything else (docs/.style/** contributor tooling, or a page
@@ -148,7 +148,14 @@ jobs:
           # the cleanup path and the upsert path can reuse it without
           # listing twice. The body is fetched later, just before state
           # recovery, to keep the read-modify-write window small.
-          existing_id=$(list_docs_preview_comments | head -n 1) || true
+          #
+          # Keep the strict list separate from the tolerant head. A real
+          # list failure (network, auth, rate-limit) must propagate under
+          # set -e; otherwise the upsert treats it as "no comment" and
+          # posts a duplicate. The `|| true` only absorbs head's SIGPIPE
+          # on the still-paginating gh api.
+          all_comment_ids=$(list_docs_preview_comments)
+          existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
           # Fetch the non-removed Markdown files under docs/ (excluding
           # docs/.style/**) this PR currently touches, one <filename>\t<sha>
@@ -174,7 +181,11 @@ jobs:
           # Manifest paths are written "./foo/bar.md" or "foo/bar.md"
           # relative to docs/; normalize both to "docs/foo/bar.md" so
           # they compare directly against the PR-files filenames above.
-          manifest_content=$(gh api "repos/${REPO}/contents/docs/manifest.json?ref=${HEAD_SHA}" --jq '.content' | base64 -d)
+          #
+          # Request the raw blob rather than the JSON envelope so the
+          # read has no 1MB inline-body ceiling, which would otherwise
+          # return an empty body and silently drop every page.
+          manifest_content=$(gh api -H "Accept: application/vnd.github.raw" "repos/${REPO}/contents/docs/manifest.json?ref=${HEAD_SHA}")
           allowed_paths=$(printf '%s' "$manifest_content" \
             | jq -r '[.. | objects | select(has("path")) | .path] | .[]' \
             | sed -E 's#^\./##; s#^#docs/#')
@@ -246,6 +257,21 @@ jobs:
               {filename: $f.filename, sha: $f.sha, checked: $checked}
             ] | sort_by(.filename)')
 
+          # Cap the rendered list so a very large docs PR can't overflow
+          # GitHub's 65536-char comment limit. Each page costs ~125 chars
+          # of checklist plus ~115 chars of base64 state (~240 total), so
+          # 200 pages stays well under the ceiling with room for the
+          # fixed body. Any surplus is summarized in a trailing line, and
+          # both the state marker and the checklist derive from the
+          # capped set.
+          max_preview_pages=200
+          total_pages=$(printf '%s' "$final_rows" | jq 'length')
+          omitted_pages=0
+          if [ "$total_pages" -gt "$max_preview_pages" ]; then
+            omitted_pages=$((total_pages - max_preview_pages))
+            final_rows=$(printf '%s' "$final_rows" | jq --argjson n "$max_preview_pages" '.[:$n]')
+          fi
+
           new_state_json=$(printf '%s' "$final_rows" | jq -c 'map({(.filename): .sha}) | add // {}')
           new_state_b64=$(printf '%s' "$new_state_json" | base64 -w0)
 
@@ -279,9 +305,15 @@ jobs:
           "
           done < <(printf '%s' "$final_rows" | jq -r '.[] | [.filename, (.checked | tostring)] | @tsv')
 
+          if [ "$omitted_pages" -gt 0 ]; then
+            checklist="${checklist}
+          _and ${omitted_pages} more changed page(s) not listed to stay under GitHub's comment size limit._
+          "
+          fi
+
           comment_body="## Docs preview
 
-          Check off a page once you've reviewed it. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look.
+          Check off a page once you've reviewed it. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here.
 
           ${checklist}
           ${DOCS_PREVIEW_MARKER}

@@ -4,11 +4,13 @@
 # used by the docs site preview. Five distinct branches exist in the
 # case block; every branch must be covered here.
 #
-# Also covers three other pieces of docs-preview.yaml logic (DOCS-541):
-# normalizing docs/manifest.json "path" values to repo-relative paths,
-# parsing checked/unchecked state back out of the rendered checklist,
-# and deciding whether a page's checkbox carries forward or resets.
-# Keep these in sync with the corresponding shell in docs-preview.yaml.
+# Also covers the other logic-dense pieces of docs-preview.yaml:
+# extracting page paths from docs/manifest.json, filtering the PR's
+# changed files, intersecting the two into the eligible set, parsing
+# checkbox state out of the rendered checklist, and the checked-state
+# carryover. Where the workflow runs jq, these tests run the same jq
+# against fixtures rather than a shell mirror. Keep them in sync with
+# docs-preview.yaml.
 
 set -euo pipefail
 
@@ -157,53 +159,17 @@ assert_checkbox_parses_to '- [X] [`docs/foo/qux.md`](https://coder.com/docs/@b/f
 # must not match at all.
 assert_checkbox_parses_to '## Docs preview' ""
 
-# decide_checked replicates the jq carryover rule in docs-preview.yaml:
-# a page's checkbox only carries its previous checked value forward
-# when the page's blob sha is unchanged from the last time the
-# workflow wrote the state marker. A brand-new page (no previous sha)
-# or a page whose sha moved always starts unchecked.
-decide_checked() {
-	local prev_sha="$1"
-	local new_sha="$2"
-	local old_checked="$3"
-	if [ -n "$prev_sha" ] && [ "$prev_sha" = "$new_sha" ]; then
-		printf '%s' "$old_checked"
-	else
-		printf 'false'
-	fi
-}
-
-assert_decides_checked() {
-	local prev_sha="$1" new_sha="$2" old_checked="$3" expected="$4"
-	local actual
-	actual="$(decide_checked "$prev_sha" "$new_sha" "$old_checked")"
-	if [ "$actual" = "$expected" ]; then
-		echo "PASS: decide_checked($prev_sha, $new_sha, $old_checked) -> \"$expected\""
-	else
-		echo "FAIL: decide_checked($prev_sha, $new_sha, $old_checked) -> \"$actual\" (expected \"$expected\")"
-		failures=$((failures + 1))
-	fi
-}
-
-# Branch A: unchanged sha, previously checked -> stays checked.
-assert_decides_checked "sha1" "sha1" "true" "true"
-
-# Branch B: unchanged sha, previously unchecked -> stays unchecked.
-assert_decides_checked "sha1" "sha1" "false" "false"
-
-# Branch C: sha changed (page edited again) -> resets to unchecked
-# even though it was previously checked.
-assert_decides_checked "sha1" "sha2" "true" "false"
-
-# Branch D: no previous sha (brand-new page in the list) -> unchecked.
-assert_decides_checked "" "sha1" "true" "false"
+# decide_checked removed: round_trip_state below covers the carryover
+# rule through the workflow's real jq, so the hand-written shell mirror
+# only added a green check that guarded nothing.
 
 # round_trip_state exercises the *actual* jq/grep/sed/base64 expressions
-# from docs-preview.yaml end to end, which the scalar decide_checked test
-# above cannot reach: it never touches the jq null-coalescing (// false,
-# // null) or the base64 state marker. A path->sha map is encoded into
-# the hidden marker, read back, the live checkbox glyphs are parsed, and
-# the carryover jq decides each page's final checked state.
+# from docs-preview.yaml end to end, which a hand-written shell mirror of
+# the carryover rule could not: it drives the jq null-coalescing
+# (// false, // null) and the base64 state marker directly. A path->sha
+# map is encoded into the hidden marker, read back, the live checkbox
+# glyphs are parsed, and the carryover jq decides each page's final
+# checked state.
 STATE_PREFIX='docs-preview-state:'
 
 # Recovers the {path: sha} state map from the hidden marker, replicating
@@ -246,13 +212,13 @@ decide_rows() {
 }
 
 assert_round_trip_state() {
-	local old_state_json='{"docs/a.md":"sha1","docs/b.md":"sha1","docs/d.md":"sha1"}'
+	local old_state_json='{"docs/a.md":"sha1","docs/b.md":"sha1","docs/c.md":"sha1","docs/e.md":"sha1"}'
 	local state_b64
 	state_b64=$(printf '%s' "$old_state_json" | base64 -w0)
 
-	# A rendered comment body: a.md checked, b.md unchecked, no line for
-	# d.md (present in the state marker but absent from the checklist),
-	# plus the hidden state marker.
+	# A rendered comment body with the hidden state marker: a.md checked,
+	# b.md and c.md unchecked, and no checklist line for e.md (it is in
+	# the state marker but absent from the list).
 	local body
 	# shellcheck disable=SC2016 # backtick-quoted paths are literal Markdown.
 	body=$(printf '%s\n' \
@@ -260,20 +226,22 @@ assert_round_trip_state() {
 		'' \
 		'- [x] [`docs/a.md`](https://coder.com/docs/@b/a)' \
 		'- [ ] [`docs/b.md`](https://coder.com/docs/@b/b)' \
+		'- [x] [`docs/c.md`](https://coder.com/docs/@b/c)' \
 		'<!-- docs-preview -->' \
 		"<!-- ${STATE_PREFIX}${state_b64} -->")
 
-	# a.md: sha unchanged, was checked -> stays checked.
-	# b.md: sha changed -> resets to unchecked (else branch).
-	# c.md: brand-new, absent from old_state -> // null -> unchecked.
-	# d.md: sha unchanged but absent from old_checked -> // false.
-	local eligible_json='[{"filename":"docs/a.md","sha":"sha1"},{"filename":"docs/b.md","sha":"sha2"},{"filename":"docs/c.md","sha":"sha3"},{"filename":"docs/d.md","sha":"sha1"}]'
+	# a.md: sha unchanged, was checked      -> stays checked.
+	# b.md: sha unchanged, was unchecked    -> stays unchecked.
+	# c.md: sha changed, was checked        -> resets to unchecked.
+	# d.md: brand-new, absent from state    -> // null -> unchecked.
+	# e.md: sha unchanged, absent from list -> // false -> unchecked.
+	local eligible_json='[{"filename":"docs/a.md","sha":"sha1"},{"filename":"docs/b.md","sha":"sha1"},{"filename":"docs/c.md","sha":"sha2"},{"filename":"docs/d.md","sha":"sha9"},{"filename":"docs/e.md","sha":"sha1"}]'
 
 	local rec_state rec_checked actual expected
 	rec_state=$(recover_old_state "$body")
 	rec_checked=$(recover_old_checked "$body")
 	actual=$(decide_rows "$eligible_json" "$rec_state" "$rec_checked")
-	expected='[{"filename":"docs/a.md","sha":"sha1","checked":true},{"filename":"docs/b.md","sha":"sha2","checked":false},{"filename":"docs/c.md","sha":"sha3","checked":false},{"filename":"docs/d.md","sha":"sha1","checked":false}]'
+	expected='[{"filename":"docs/a.md","sha":"sha1","checked":true},{"filename":"docs/b.md","sha":"sha1","checked":false},{"filename":"docs/c.md","sha":"sha2","checked":false},{"filename":"docs/d.md","sha":"sha9","checked":false},{"filename":"docs/e.md","sha":"sha1","checked":false}]'
 
 	if [ "$actual" = "$expected" ]; then
 		echo "PASS: round_trip_state carryover"
@@ -284,6 +252,85 @@ assert_round_trip_state() {
 }
 
 assert_round_trip_state
+
+# extract_manifest_paths runs the real jq + sed pipeline from
+# docs-preview.yaml against manifest JSON on stdin, emitting one
+# normalized repo-relative path per line. Guards the recursive
+# `[.. | objects | select(has("path")) | .path]` extraction that
+# normalize_manifest_path above does not reach.
+extract_manifest_paths() {
+	jq -r '[.. | objects | select(has("path")) | .path] | .[]' |
+		sed -E 's#^\./##; s#^#docs/#'
+}
+
+# Manifest fixture in the real schema: "./"-prefixed and bare paths, a
+# nested child, and an object with only icon_path (no "path" key) that
+# must not be collected.
+manifest_fixture='{"versions":["main"],"routes":[
+  {"title":"Home","path":"./README.md","icon_path":"./images/home.svg"},
+  {"title":"Install","path":"./install/index.md","children":[
+    {"title":"CLI","path":"reference/cli/whoami.md"}
+  ]},
+  {"title":"IconOnly","icon_path":"./images/x.svg"}
+]}'
+actual_paths=$(printf '%s' "$manifest_fixture" | extract_manifest_paths | sort | tr '\n' ' ')
+expected_paths="docs/README.md docs/install/index.md docs/reference/cli/whoami.md "
+if [ "$actual_paths" = "$expected_paths" ]; then
+	echo "PASS: extract_manifest_paths (icon_path-only object excluded)"
+else
+	echo "FAIL: extract_manifest_paths -> \"$actual_paths\" (expected \"$expected_paths\")"
+	failures=$((failures + 1))
+fi
+
+# filter_changed_files runs the real pulls/files filter jq from
+# docs-preview.yaml: keep non-removed docs/*.md outside docs/.style/,
+# emitting <filename>\t<sha>.
+filter_changed_files() {
+	jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv'
+}
+
+files_fixture='[
+  {"filename":"docs/admin/index.md","sha":"aaa","status":"modified"},
+  {"filename":"docs/ai-coder/tasks.md","sha":"bbb","status":"added"},
+  {"filename":"docs/old.md","sha":"ccc","status":"removed"},
+  {"filename":"docs/.style/word-list.txt","sha":"ddd","status":"modified"},
+  {"filename":"docs/images/diagram.png","sha":"eee","status":"added"},
+  {"filename":"site/README.md","sha":"fff","status":"modified"},
+  {"filename":"docs/.style/rules.md","sha":"ggg","status":"modified"}
+]'
+actual_changed=$(printf '%s' "$files_fixture" | filter_changed_files | sort | tr '\n' '|')
+expected_changed="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\n' | tr '\n' '|')"
+if [ "$actual_changed" = "$expected_changed" ]; then
+	echo "PASS: filter_changed_files (removed/.style/non-md/non-docs excluded)"
+else
+	echo "FAIL: filter_changed_files -> \"$actual_changed\" (expected \"$expected_changed\")"
+	failures=$((failures + 1))
+fi
+
+# intersect_eligible replicates the grep -qxF intersection from
+# docs-preview.yaml: keep only changed files whose path is in the
+# manifest allowlist. This is the single decision the feature exists to
+# make, so cover it directly.
+intersect_eligible() {
+	local changed="$1" allowed="$2"
+	printf '%s\n' "$changed" | while IFS=$'\t' read -r filename sha; do
+		[ -z "$filename" ] && continue
+		if printf '%s\n' "$allowed" | grep -qxF "$filename"; then
+			printf '%s\t%s\n' "$filename" "$sha"
+		fi
+	done
+}
+
+changed_tsv_fixture="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\ndocs/not-in-manifest.md\tccc')"
+allowed_fixture="$(printf 'docs/admin/index.md\ndocs/ai-coder/tasks.md\ndocs/install/index.md')"
+actual_eligible=$(intersect_eligible "$changed_tsv_fixture" "$allowed_fixture" | sort | tr '\n' '|')
+expected_eligible="$(printf 'docs/admin/index.md\taaa\ndocs/ai-coder/tasks.md\tbbb\n' | tr '\n' '|')"
+if [ "$actual_eligible" = "$expected_eligible" ]; then
+	echo "PASS: intersect_eligible (drops paths not in the manifest)"
+else
+	echo "FAIL: intersect_eligible -> \"$actual_eligible\" (expected \"$expected_eligible\")"
+	failures=$((failures + 1))
+fi
 
 if [ "$failures" -gt 0 ]; then
 	echo ""
