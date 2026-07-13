@@ -75,9 +75,8 @@ const GroupMembersPage: FC = () => {
 	const { experiments } = useDashboard();
 	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
 	const aibridgeVisible =
-		useFeatureVisibility().aibridge &&
+		Boolean(useFeatureVisibility().aibridge) &&
 		experiments.includes("ai-gateway-cost-control");
-	// Spend resets at period_end, rendered in the viewer's local time.
 	const { data: aiSpend } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
@@ -86,18 +85,17 @@ const GroupMembersPage: FC = () => {
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
 	});
-	const resetAt = aiSpend
-		? dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")
-		: undefined;
-	let aiBudgetNote = "Monthly AI spend for this user.";
-	if (resetAt) {
-		aiBudgetNote += ` Resets ${resetAt}.`;
-	}
-	if (groupBudget && groupBudget.spend_limit_micros > 0) {
-		aiBudgetNote += ` The group's default limit is ${formatBudgetUSD(
-			groupBudget.spend_limit_micros,
-		)} per member.`;
-	}
+	const aiBudgetNote = [
+		"Monthly AI spend for this user.",
+		// Spend resets at period_end, rendered in the viewer's local time.
+		aiSpend &&
+			`Resets ${dayjs(aiSpend.period_end).format("MMM D, YYYY h:mm A")}.`,
+		// A $0 default still shows: it means no spending allowance.
+		groupBudget &&
+			`The group's default limit is ${formatBudgetUSD(groupBudget.spend_limit_micros)} per member.`,
+	]
+		.filter(Boolean)
+		.join(" ");
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">

@@ -1,13 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
-import type { UserAISpend } from "#/api/api";
 import { meAISpendKey } from "#/api/queries/users";
-import type { Experiment, FeatureName } from "#/api/typesGenerated";
+import type {
+	Experiment,
+	FeatureName,
+	UserAISpendStatus,
+} from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
-function mockAISpend(overrides: Partial<UserAISpend> = {}): UserAISpend {
+function mockAISpend(
+	overrides: Partial<UserAISpendStatus> = {},
+): UserAISpendStatus {
 	return {
 		user_id: MockUserOwner.id,
 		spend_limit_micros: 1_200_000_000,
@@ -20,7 +25,7 @@ function mockAISpend(overrides: Partial<UserAISpend> = {}): UserAISpend {
 	};
 }
 
-const aiSpendQuery = (overrides?: Partial<UserAISpend>) => ({
+const aiSpendQuery = (overrides?: Partial<UserAISpendStatus>) => ({
 	key: meAISpendKey,
 	data: mockAISpend(overrides),
 });

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { getSeverity, severityAmountClassName } from "#/utils/budget";
+import { AIBudgetAmount } from "#/components/AIBudgetAmount/AIBudgetAmount";
 import { formatBudgetUSD } from "#/utils/currency";
 
 /** Spend against budget. Highlights spend once it nears or exceeds the limit; values in micros. */
@@ -18,13 +18,7 @@ export const AIBudgetUsage: FC<{
 
 	return (
 		<span className="whitespace-nowrap">
-			<span
-				className={severityAmountClassName(
-					getSeverity(currentSpend, spendLimit),
-				)}
-			>
-				{formatBudgetUSD(currentSpend)}
-			</span>{" "}
+			<AIBudgetAmount spend={currentSpend} limit={spendLimit} />{" "}
 			<span className="text-content-primary">
 				/ {formatBudgetUSD(spendLimit)}
 			</span>{" "}
