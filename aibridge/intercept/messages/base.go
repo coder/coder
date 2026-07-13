@@ -326,7 +326,7 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 	}
 	cfg := i.bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("bedrock invoke-model config: %w", err)
 	}
 
 	// Fail fast: ensure credentials can be resolved before signing. Served from
@@ -367,7 +367,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 	}
 	cfg := i.bedrock.Cfg
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("bedrock mantle config: %w", err)
 	}
 
 	// Fail fast: ensure credentials can be resolved before signing. Served from
