@@ -111,13 +111,13 @@
 
         # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
         # so `make gen` remains deterministic in Nix shells.
-        terraform_1_15_5 =
+        terraform_1_15_8 =
           if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
-            pkgs.runCommand "terraform-1.15.5" {
+            pkgs.runCommand "terraform-1.15.8" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip";
-                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
+                url = "https://releases.hashicorp.com/terraform/1.15.8/terraform_1.15.8_linux_amd64.zip";
+                hash = "sha256-0lzntpAgE62QXbPS6rC+TNkFiH/oi4GmFxuNVQPDHz0=";
               };
             } ''
               mkdir -p "$out/bin"
@@ -208,7 +208,7 @@
             # sqlc
             sqlc-custom
             syft
-            terraform_1_15_5
+            terraform_1_15_8
             typos
             which
             # Needed for many LD system libs!
