@@ -74,7 +74,7 @@ The implementation is primarily in the `coderd/workspaceapps/` directory with co
 
 ## Implementation Details
 
-The project structure separates frontend and backend concerns. React components and pages are organized in the `site/src/` directory, with Jest used for testing. The backend is primarily written in Go, with a strong emphasis on error handling patterns and test coverage.
+The project structure separates frontend and backend concerns. React components and pages are organized in the `site/src/` directory, with Vitest used for unit tests. The backend is primarily written in Go, with a strong emphasis on error handling patterns and test coverage.
 
 Database interactions are carefully managed through migrations in `coderd/database/migrations/` and queries in `coderd/database/queries/`. All new queries require proper database authorization (dbauthz) implementation to ensure that only users with appropriate permissions can access specific resources.
 
@@ -84,15 +84,10 @@ The database authorization (dbauthz) system enforces fine-grained access control
 
 ## Testing Framework
 
-The codebase has a comprehensive testing approach with several key components:
-
-1. **Parallel Testing**: All tests must use `t.Parallel()` to run concurrently, which improves test suite performance and helps identify race conditions.
-
-2. **coderdtest Package**: This package in `coderd/coderdtest/` provides utilities for creating test instances of the Coder server, setting up test users and workspaces, and mocking external components.
-
-3. **Integration Tests**: Tests often span multiple components to verify system behavior, such as template creation, workspace provisioning, and agent connectivity.
-
-4. **Enterprise Testing**: Enterprise features have dedicated test utilities in the `coderdenttest` package.
+Go tests use repository helpers such as `coderdtest` and `coderdenttest`, with
+integration tests spanning the control plane, provisioners, and agents. Frontend
+unit tests use Vitest. Follow
+[Testing Patterns and Best Practices](TESTING.md) for normative test policy.
 
 ## Open Source and Enterprise Components
 
@@ -111,16 +106,12 @@ Coder emphasizes clear error handling, with specific patterns required:
 - Wrapping errors with `%w` to maintain error chains
 - Using sentinel errors with the "err" prefix (e.g., `errNotFound`)
 
-All tests should run in parallel using `t.Parallel()` to ensure efficient testing and expose potential race conditions. The codebase is rigorously linted with golangci-lint to maintain consistent code quality.
-
-Git contributions follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+The codebase is linted with golangci-lint to maintain consistent code quality.
 
 ## Development Workflow
 
-Development can be initiated using `scripts/develop.sh` to start the application after making changes. Database schema updates should be performed through the migration system using `create_migration.sh <name>` to generate migration files, with each `.up.sql` migration paired with a corresponding `.down.sql` that properly reverts all changes.
-
-If the development database gets into a bad state, it can be completely reset by removing the PostgreSQL data directory with `rm -rf .coderv2/postgres`. This will destroy all data in the development database, requiring you to recreate any test users, templates, or workspaces after restarting the application.
-
-Code generation for the database layer uses `coderd/database/generate.sh`, and developers should refer to `sqlc.yaml` for the appropriate style and patterns to follow when creating new queries or tables.
+Follow [Development Workflows and Guidelines](WORKFLOWS.md) for development and
+contribution procedures. Follow
+[Database Development Patterns](DATABASE.md) for schema and query changes.
 
 The focus should always be on maintaining security through proper database authorization, clean error handling, and comprehensive test coverage to ensure the platform remains robust and reliable.

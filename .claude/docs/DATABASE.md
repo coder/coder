@@ -1,61 +1,64 @@
 # Database Development Patterns
 
-## Database Work Overview
+This guide owns migrations, SQL queries and generation, audit-table updates,
+transaction discipline, and database-to-SDK conversion.
 
-### Database Generation Process
+## Query and Generation Workflow
 
-1. Modify SQL files in `coderd/database/queries/`
-2. Run `make gen`
-3. If errors about audit table, update `enterprise/audit/table.go`
-4. Run `make gen` again
-5. Run `make lint` to catch any remaining issues
+Keep SQL in `coderd/database/queries/*.sql`, grouped by domain. Name lookup
+queries `ByX`; use `PerX` or `GroupedByX` for aggregation dimensions.
 
-## Migration Guidelines
+For every query, schema, or generated database model change:
 
-### Creating Migration Files
+1. Modify the relevant SQL files.
+2. Run `make gen`.
+3. Inspect all generated changes and generation errors.
+4. If generation reports missing audit actions, update
+   `enterprise/audit/table.go`.
+5. Classify every new auditable field as `ActionTrack`, `ActionIgnore`, or
+   `ActionSecret`.
+6. Run `make gen` again.
+7. Run `make lint` and the relevant database tests.
+8. Commit the SQL, audit-table update, and generated files together.
 
-**Location**: `coderd/database/migrations/`
-**Format**: `{number}_{description}.{up|down}.sql`
+Do not hand-edit generated database files. Run generation twice when a generator
+updates inputs consumed by another generator, then confirm the second run is
+clean.
 
-- Number must be unique and sequential
-- Always include both up and down migrations
+## Migrations
 
-### Helper Scripts
+Create paired reversible migrations in `coderd/database/migrations/`:
 
-| Script                                                              | Purpose                                 |
-|---------------------------------------------------------------------|-----------------------------------------|
-| `./coderd/database/migrations/create_migration.sh "migration name"` | Creates new migration files             |
-| `./coderd/database/migrations/fix_migration_numbers.sh`             | Renumbers migrations to avoid conflicts |
-| `./coderd/database/migrations/create_fixture.sh "fixture name"`     | Creates test fixtures for migrations    |
+```text
+{number}_{description}.up.sql
+{number}_{description}.down.sql
+```
 
-### Database Query Organization
+Use the helpers:
 
-- **MUST DO**: Any changes to database - adding queries, modifying queries should be done in the `coderd/database/queries/*.sql` files
-- **MUST DO**: Queries are grouped in files relating to context - e.g. `prebuilds.sql`, `users.sql`, `oauth2.sql`
-- After making changes to any `coderd/database/queries/*.sql` files you must run `make gen` to generate respective ORM changes
+```sh
+./coderd/database/migrations/create_migration.sh "migration name"
+./coderd/database/migrations/fix_migration_numbers.sh
+./coderd/database/migrations/create_fixture.sh "fixture name"
+```
 
-### Query Naming
+- Keep numbers unique and sequential.
+- Put one logical schema or data change in each pair.
+- Make the down migration reverse the up migration.
+- Add indexes and constraints required by the access pattern.
+- Test data migrations with representative existing rows.
 
-- Use `ByX` when `X` is the lookup or filter column.
-- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
-  dimension.
-- Avoid `ByX` names for grouped queries.
+### Enum Values Used in the Same Transaction
 
-### Enum Changes Run in a Single Transaction
+All migrations run inside one transaction through `pgTxnDriver`. PostgreSQL
+forbids using a value added with `ALTER TYPE ... ADD VALUE` in the transaction
+that added it. A later migration in the same batch counts as the same
+transaction. Casts, inserts, updates, and defaults can all trigger
+`unsafe use of new value`.
 
-All migrations run inside one transaction (`pgTxnDriver`). Postgres forbids
-*using* an enum value added by `ALTER TYPE ... ADD VALUE` within the same
-transaction that added it, so it fails with `unsafe use of new value`.
-
-Adding the value is fine; using it in the same batch is not. "Using it"
-includes a later migration that casts to it (`col::my_enum`), inserts or
-updates a row with it, or sets it as a column default. This only fails when a
-row actually materializes the new value, so fresh databases and CI pass while
-deployments with existing data break.
-
-**MUST DO**: If any migration uses a newly added enum value, recreate the type
-instead of using `ADD VALUE`. A freshly created enum's values are usable
-immediately in the same transaction. Precedent: `000144_user_status_dormant`.
+If any migration uses a newly added enum value, recreate the enum type instead
+of using `ADD VALUE`. The recreated type's values are immediately usable in the
+same transaction. Precedent: `000144_user_status_dormant`.
 
 ```sql
 CREATE TYPE new_my_enum AS ENUM ('existing', 'value', 'new_value');
@@ -64,21 +67,19 @@ ALTER TABLE my_table
     ALTER COLUMN col TYPE new_my_enum USING (col::text::new_my_enum);
 
 DROP TYPE my_enum;
-
 ALTER TYPE new_my_enum RENAME TO my_enum;
 ```
 
-Recreating produces an identical schema, so `make gen` yields no `dump.sql`
-diff and databases that already applied the migration see no drift.
+Recreation must leave the final schema identical. Generation should produce no
+unexpected `dump.sql` drift. `migrations.Stepper` commits each migration and
+cannot expose this failure. Seed a row that materializes the new value, then
+apply the affected migrations in one transaction. See
+`TestMigration000504AIProvidersBackfillEnumInSingleTxn`.
 
-**Testing**: `migrations.Stepper` commits each migration separately, so tests
-built on it cannot surface this. To catch it, seed a row using the new value,
-then apply the affected migrations in a single transaction (see
-`TestMigration000504AIProvidersBackfillEnumInSingleTxn`).
+## Nullable Fields
 
-## Handling Nullable Fields
-
-Use `sql.NullString`, `sql.NullBool`, etc. for optional database fields:
+Use the nullable type established by nearby generated code. Set both the value
+and validity explicitly when constructing legacy `sql.Null*` values.
 
 ```go
 CodeChallenge: sql.NullString{
@@ -87,194 +88,41 @@ CodeChallenge: sql.NullString{
 }
 ```
 
-Set `.Valid = true` when providing values.
+## Transactions with `InTx`
 
-## Database-to-SDK Conversions
+Inside `db.InTx(...)`, keep all database work on the transaction handle.
 
-- Extract explicit db-to-SDK conversion helpers instead of inlining large
-  conversion blocks inside handlers.
-- Keep nullable-field handling, type coercion, and response shaping in the
-  converter so handlers stay focused on request flow and authorization.
+- Do not call `api.Database`, `p.db`, another outer store, or a helper that hides
+  outer-store access from inside the closure.
+- Pass `tx` to helpers that perform database work.
+- Fetch read-only inputs before opening the transaction when they do not need
+  transactional consistency.
+- Review receiver helpers carefully. A helper call is unsafe when it reaches an
+  outer store internally.
 
-## Audit Table Updates
+Using the outer store while a transaction holds a connection can block on a
+second pool checkout, causing pool starvation and `idle in transaction`
+incidents.
 
-If adding fields to auditable types:
+## Database-to-SDK Converters
 
-1. Update `enterprise/audit/table.go`
-2. Add each new field with appropriate action:
-   - `ActionTrack`: Field should be tracked in audit logs
-   - `ActionIgnore`: Field should be ignored in audit logs
-   - `ActionSecret`: Field contains sensitive data
-3. Run `make gen` to verify no audit errors
+Use explicit conversion helpers for database models returned through the SDK.
+Keep nullable handling, type coercion, enum mapping, and response shaping in the
+converter. Keep handlers focused on authorization and request flow.
 
-## Database Architecture
+## Authorization
 
-### Core Components
+All database access must use the appropriate `dbauthz` context. For public
+OAuth2 endpoints that need system access, follow
+[OAuth2 Development Guide](OAUTH2.md).
 
-- **PostgreSQL 13+** recommended for production
-- **Migrations** managed with `migrate`
-- **Database authorization** through `dbauthz` package
+## Verification Commands
 
-### Authorization Patterns
-
-```go
-// Public endpoints needing system access (OAuth2 registration)
-app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
-
-// Authenticated endpoints with user context
-app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
-
-// System operations in middleware
-roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
-```
-
-## Common Database Issues
-
-### Migration Issues
-
-1. **Migration conflicts**: Use `fix_migration_numbers.sh` to renumber
-2. **Missing down migration**: Always create both up and down files
-3. **Schema inconsistencies**: Verify against existing schema
-
-### Field Handling Issues
-
-1. **Nullable field errors**: Use `sql.Null*` types consistently
-2. **Missing audit entries**: Update `enterprise/audit/table.go`
-
-### Query Issues
-
-1. **Query organization**: Group related queries in appropriate files
-2. **Generated code errors**: Run `make gen` after query changes
-3. **Performance issues**: Add appropriate indexes in migrations
-
-## Database Testing
-
-### Test Database Setup
-
-```go
-func TestDatabaseFunction(t *testing.T) {
-    db := dbtestutil.NewDB(t)
-
-    // Test with real database
-    result, err := db.GetSomething(ctx, param)
-    require.NoError(t, err)
-    require.Equal(t, expected, result)
-}
-```
-
-## Best Practices
-
-### Schema Design
-
-1. **Use appropriate data types**: VARCHAR for strings, TIMESTAMP for times
-2. **Add constraints**: NOT NULL, UNIQUE, FOREIGN KEY as appropriate
-3. **Create indexes**: For frequently queried columns
-4. **Consider performance**: Normalize appropriately but avoid over-normalization
-
-### Query Writing
-
-1. **Use parameterized queries**: Prevent SQL injection
-2. **Handle errors appropriately**: Check for specific error types
-3. **Use transactions**: For related operations that must succeed together
-4. **Optimize queries**: Use EXPLAIN to understand query performance
-
-### Transaction Safety with `InTx`
-
-- Inside `db.InTx(...)` closures, do not use the outer store
-  (`api.Database`, `p.db`, etc.) directly or indirectly. Use the `tx`
-  handle for DB work inside the closure, or fetch read-only inputs before
-  opening the transaction.
-- Watch for helper methods on a receiver that hide outer-store access. A
-  call like `p.someHelper(ctx)` is still unsafe inside `InTx` if that
-  helper uses `p.db` internally.
-- Using the outer store while a transaction is open can hold one
-  connection and then block on another pool checkout, which can cause
-  pool starvation and `idle in transaction` incidents under load.
-
-### Migration Writing
-
-1. **Make migrations reversible**: Always include down migration
-2. **Test migrations**: On copy of production data if possible
-3. **Keep migrations small**: One logical change per migration
-4. **Document complex changes**: Add comments explaining rationale
-
-## Advanced Patterns
-
-### Complex Queries
-
-```sql
--- Example: Complex join with aggregation
-SELECT
-    u.id,
-    u.username,
-    COUNT(w.id) as workspace_count
-FROM users u
-LEFT JOIN workspaces w ON u.id = w.owner_id
-WHERE u.created_at > $1
-GROUP BY u.id, u.username
-ORDER BY workspace_count DESC;
-```
-
-### Conditional Queries
-
-```sql
--- Example: Dynamic filtering
-SELECT * FROM oauth2_provider_apps
-WHERE
-    ($1::text IS NULL OR name ILIKE '%' || $1 || '%')
-    AND ($2::uuid IS NULL OR organization_id = $2)
-ORDER BY created_at DESC;
-```
-
-### Audit Patterns
-
-```go
-// Example: Auditable database operation
-func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-    // Implementation here
-
-    // Audit the change
-    if auditor := audit.FromContext(ctx); auditor != nil {
-        auditor.Record(audit.UserUpdate{
-            UserID: arg.ID,
-            Old:    oldUser,
-            New:    newUser,
-        })
-    }
-
-    return newUser, nil
-}
-```
-
-## Debugging Database Issues
-
-### Common Debug Commands
-
-```bash
-# Run tests (starts Postgres automatically if needed)
-make test
-
-# Run specific database tests
-go test ./coderd/database/... -run TestSpecificFunction
-
-# Check query generation
+```sh
 make gen
-
-# Verify audit table
 make lint
+go test ./coderd/database/... -run TestName
 ```
 
-### Debug Techniques
-
-1. **Enable query logging**: Set appropriate log levels
-2. **Use database tools**: pgAdmin, psql for direct inspection
-3. **Check constraints**: UNIQUE, FOREIGN KEY violations
-4. **Analyze performance**: Use EXPLAIN ANALYZE for slow queries
-
-### Troubleshooting Checklist
-
-- [ ] Migration files exist (both up and down)
-- [ ] `make gen` run after query changes
-- [ ] Audit table updated for new fields
-- [ ] Nullable fields use `sql.Null*` types
-- [ ] Authorization context appropriate for endpoint type
+Inspect the final diff for migration pairs, generated changes, audit
+classification, and unintended schema drift.

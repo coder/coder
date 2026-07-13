@@ -1,233 +1,82 @@
 # Testing Patterns and Best Practices
 
-## Testing Best Practices
+Use deterministic tests that remain isolated under parallel and race-detector
+execution.
 
-### Avoiding Race Conditions
+## Parallelism and Isolation
 
-1. **Unique Test Identifiers**:
-   - Never use hardcoded names in concurrent tests
-   - Use `time.Now().UnixNano()` or similar for unique identifiers
-   - Example: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())`
-
-2. **Database Constraint Awareness**:
-   - Understand unique constraints that can cause test conflicts
-   - Generate unique values for all constrained fields
-   - Test name isolation prevents cross-test interference
-
-### Testing Patterns
-
-- Use table-driven tests for comprehensive coverage
-- Mock external dependencies
-- Test both positive and negative cases
-- Use `testutil.WaitLong` for timeouts in tests
-
-### Timing Issues
-
-NEVER use `time.Sleep` to mitigate timing issues. If an issue seems like
-it should use `time.Sleep`, read through https://github.com/coder/quartz
-and specifically the README to better understand how to handle timing
-issues.
-
-### Test Package Naming
-
-- **Black-box tests**: Default to a `package foo_test` test file (e.g.,
-  `identityprovider_test`). This is what the `testpackage` linter enforces.
-- **White-box / internal tests**: When a test needs to touch unexported
-  symbols, put it in a file named `*_internal_test.go` with `package foo`.
-  The `testpackage` linter's `skip-regexp` already exempts that filename
-  suffix, so no `//nolint:testpackage` directive is needed.
-- **Do not add `//nolint:testpackage`.** If a test needs internal access,
-  rename the file to `*_internal_test.go` instead. A directive plus a
-  justification comment is strictly worse than the established naming
-  convention, and the repo standardizes on the latter.
-
-## RFC Protocol Testing
-
-### Compliance Test Coverage
-
-1. **Test all RFC-defined error codes and responses**
-2. **Validate proper HTTP status codes for different scenarios**
-3. **Test protocol-specific edge cases** (URI formats, token formats, etc.)
-
-### Security Boundary Testing
-
-1. **Test client isolation and privilege separation**
-2. **Verify information disclosure protections**
-3. **Test token security and proper invalidation**
-
-## Test Organization
-
-### Test File Structure
-
-```text
-coderd/
-├── oauth2.go                    # Implementation
-├── oauth2_test.go              # Main tests
-├── oauth2_test_helpers.go      # Test utilities
-└── oauth2_validation.go        # Validation logic
-```
-
-### Test Categories
-
-1. **Unit Tests**: Test individual functions in isolation
-2. **Integration Tests**: Test API endpoints with database
-3. **End-to-End Tests**: Full workflow testing
-4. **Race Tests**: Concurrent access testing
-
-## Test Commands
-
-### Running Tests
-
-| Command                                              | Purpose                         |
-|------------------------------------------------------|---------------------------------|
-| `make test`                                          | Run all Go tests                |
-| `make test RUN=TestFunctionName`                     | Run specific test               |
-| `go test -v ./path/to/package -run TestFunctionName` | Run test with verbose output    |
-| `make test-race`                                     | Run tests with Go race detector |
-| `make test-e2e`                                      | Run end-to-end tests            |
-
-### Frontend Testing
-
-| Command      | Purpose            |
-|--------------|--------------------|
-| `pnpm test`  | Run frontend tests |
-| `pnpm check` | Run code checks    |
-
-## Common Testing Issues
-
-### Database-Related
-
-1. **SQL type errors** - Use `sql.Null*` types for nullable fields
-2. **Race conditions in tests** - Use unique identifiers instead of hardcoded names
-
-### OAuth2 Testing
-
-1. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
-2. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
-
-### OAuth2 Test Scripts
-
-- Full suite: `./scripts/oauth2/test-mcp-oauth2.sh`
-- Manual testing: `./scripts/oauth2/test-manual-flow.sh`
-
-### General Issues
-
-1. **Missing newlines** - Ensure files end with newline character
-2. **Package naming errors** - Use `package_test` naming for test files
-3. **Log message formatting errors** - Use lowercase, descriptive messages without special characters
-
-## Systematic Testing Approach
-
-### Multi-Issue Problem Solving
-
-When facing multiple failing tests or complex integration issues:
-
-1. **Identify Root Causes**:
-   - Run failing tests individually to isolate issues
-   - Use LSP tools to trace through call chains
-   - Check both compilation and runtime errors
-
-2. **Fix in Logical Order**:
-   - Address compilation issues first (imports, syntax)
-   - Fix authorization and RBAC issues next
-   - Resolve business logic and validation issues
-   - Handle edge cases and race conditions last
-
-3. **Verification Strategy**:
-   - Test each fix individually before moving to next issue
-   - Use `make lint` and `make gen` after database changes
-   - Verify RFC compliance with actual specifications
-   - Run comprehensive test suites before considering complete
-
-## Test Data Management
-
-### Unique Test Data
+- Use `t.Parallel()` by default in new tests.
+- Serial tests are acceptable only with a stated reason, such as shared global
+  state, environment variables, or fixed ports.
+- Use unique identifiers for constrained fields and externally visible names in
+  concurrent tests. Include `t.Name()` and a generated suffix when practical.
+- Never depend on package execution order or state left by another test.
+- Register cleanup with `t.Cleanup`, or use helpers that do so.
 
 ```go
-// Good: Unique identifiers prevent conflicts
-clientName := fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())
-
-// Bad: Hardcoded names cause race conditions
-clientName := "test-client"
+name := fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())
 ```
 
-### Test Cleanup
+## Synchronization and Time
 
-```go
-func TestSomething(t *testing.T) {
-    // Setup
-    client := coderdtest.New(t, nil)
+Never use `time.Sleep` as synchronization or to hide a timing failure. Wait for
+a deterministic condition with a bounded timeout, use a channel or callback, or
+control time with [quartz](https://github.com/coder/quartz). Prefer trapped
+tickers, fake clocks, and explicit signals over wall-clock waiting.
 
-    // Test code here
+Use `testutil.WaitShort`, `testutil.WaitMedium`, or `testutil.WaitLong` for
+bounded waits that match the operation. A timeout is a failure bound, not a
+substitute for a synchronization condition.
 
-    // Cleanup happens automatically via t.Cleanup() in coderdtest
-}
-```
+## Test Package Naming
 
-## Test Utilities
+- Default black-box tests to `package foo_test`.
+- Put tests that require unexported symbols in `*_internal_test.go` with
+  `package foo`.
+- Do not add `//nolint:testpackage`; use the established internal-test filename.
 
-### Common Test Patterns
+## Test Structure
 
-```go
-// Table-driven tests
-tests := []struct {
-    name     string
-    input    InputType
-    expected OutputType
-    wantErr  bool
-}{
-    {
-        name:     "valid input",
-        input:    validInput,
-        expected: expectedOutput,
-        wantErr:  false,
-    },
-    // ... more test cases
-}
+- Prefer table-driven tests when cases share setup and assertions.
+- Cover success, validation, authorization, and error paths relevant to the
+  changed behavior.
+- Use `require` when the test cannot continue after a failed assertion. Use
+  `assert` only when later assertions remain meaningful.
+- Prefer real repository test helpers to bespoke mocks.
+- Keep fixtures minimal and name subtests by behavior.
 
-for _, tt := range tests {
-    t.Run(tt.name, func(t *testing.T) {
-        result, err := functionUnderTest(tt.input)
-        if tt.wantErr {
-            require.Error(t, err)
-            return
-        }
-        require.NoError(t, err)
-        require.Equal(t, tt.expected, result)
-    })
-}
-```
+## Repository Test Utilities
 
-### Test Assertions
+- `coderdtest.New(t, options)` starts a test server and registers cleanup.
+- `dbtestutil.NewDB(t)` provides a test database.
+- `coderdenttest` provides Enterprise test setup.
+- `testutil` provides bounded waits and common helpers.
+- Read nearby tests before introducing a new helper or fixture pattern.
 
-```go
-// Use testify/require for assertions
-require.NoError(t, err)
-require.Equal(t, expected, actual)
-require.NotNil(t, result)
-require.True(t, condition)
-```
+## Commands
 
-## Performance Testing
+| Command                                      | Purpose                                |
+|----------------------------------------------|----------------------------------------|
+| `make test`                                  | Run the Go test suite                  |
+| `make test RUN=TestName`                     | Run matching Go tests                  |
+| `go test -v ./path/to/package -run TestName` | Run one package test verbosely         |
+| `make test-race`                             | Run the repository race-detector suite |
+| `go test -race ./path/to/package`            | Race-test one package                  |
+| `make test-e2e`                              | Run end-to-end tests                   |
+| `pnpm test`                                  | Run frontend Vitest tests              |
+| `pnpm check`                                 | Run frontend checks                    |
 
-### Load Testing
+Use the race detector for concurrency changes, shared caches, background work,
+and fixes for flaky tests. Do not treat a normal test pass as evidence that
+concurrent access is safe.
 
-- Use `scaletest/` directory for load testing scenarios
-- Run `./scaletest/scaletest.sh` for performance testing
+## Failure Diagnosis
 
-### Benchmarking
+1. Reproduce the smallest failing test command.
+2. Preserve the complete error, failing subtest name, and relevant artifacts.
+3. Check package isolation, identifiers, synchronization, cleanup, and race
+   output before changing production code.
+4. Form one hypothesis, make one focused change, and rerun the reproducer.
+5. Run the relevant broader suite after the targeted test passes.
 
-```go
-func BenchmarkFunction(b *testing.B) {
-    for i := 0; i < b.N; i++ {
-        // Function call to benchmark
-        _ = functionUnderTest(input)
-    }
-}
-```
-
-Run benchmarks with:
-
-```bash
-go test -bench=. -benchmem ./package/path
-```
+For repeatable failure-report formats, see [Agent Failure Catalog](AGENT_FAILURES.md).
