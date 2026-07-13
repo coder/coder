@@ -50,9 +50,7 @@ export const AppearanceProvider: FC<AppearanceProviderProps> = ({
 export const useAppearance = (): Appearance => {
 	const appearance = useContext(AppearanceContext);
 	if (appearance === undefined) {
-		throw new Error(
-			"useAppearance must be used within an AppearanceProvider",
-		);
+		throw new Error("useAppearance must be used within an AppearanceProvider");
 	}
 	return appearance;
 };
