@@ -18,12 +18,11 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 }) => {
 	// Only render the text after the last carriage return so progress-bar style
 	// output that redraws a single line shows its final state.
-	const output = useMemo(() => {
-		const lastCarriageReturn = line.output.lastIndexOf("\r");
-		return lastCarriageReturn === -1
+	const lastCarriageReturn = line.output.lastIndexOf("\r");
+	const output =
+		lastCarriageReturn === -1
 			? line.output
 			: line.output.slice(lastCarriageReturn + 1);
-	}, [line.output]);
 	const timestamp = useMemo(() => {
 		return dayjs(line.time).format("HH:mm:ss.SSS");
 	}, [line.time]);
