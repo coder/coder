@@ -19,6 +19,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useAppearance } from "#/theme/appearance";
 import { DEPRECATED_ICONS } from "#/theme/deprecatedIcons";
 import {
 	defaultParametersForBuiltinIcons,
@@ -42,6 +43,7 @@ const fuzzyFinder = new uFuzzy({
 
 const IconsPage: FC = () => {
 	const theme = useTheme();
+	const { externalImages } = useAppearance();
 	const [searchInputText, setSearchInputText] = useState("");
 	const searchText = searchInputText.trim();
 
@@ -161,7 +163,7 @@ const IconsPage: FC = () => {
 									src={icon.url}
 									className="size-16 object-contain pointer-events-none p-3"
 									style={parseImageParameters(
-										theme.externalImages,
+										externalImages,
 										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
 									)}
 								/>
