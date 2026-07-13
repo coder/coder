@@ -630,7 +630,8 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				ExpiresAt:   expires,
 				HashPrefix:  []byte(token.Prefix),
 				RefreshHash: token.Hashed,
-				AppSecretID: secret.ID,
+				AppID:       test.app.ID,
+				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    newKey.ID,
 				UserID:      user.ID,
 			})
@@ -1815,6 +1816,190 @@ func TestOAuth2CoderClient(t *testing.T) {
 
 	_, err = usingOauth.User(ctx, codersdk.Me)
 	require.Error(t, err)
+}
+
+// TestOAuth2PublicClient covers D1-01/D1-02/D1-03: a dynamically registered
+// client that requests token_endpoint_auth_method "none" must be treated as
+// public end-to-end. It receives no client_secret, authenticates at the
+// token endpoint with PKCE alone, and can revoke its own tokens.
+func TestOAuth2PublicClient(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+	registerPublicClient := func(ctx context.Context, t *testing.T, redirectURI string) codersdk.OAuth2ClientRegistrationResponse {
+		resp, err := ownerClient.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs:            []string{redirectURI},
+			ClientName:              fmt.Sprintf("public-client-%d", time.Now().UnixNano()),
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
+		})
+		require.NoError(t, err)
+		return resp
+	}
+
+	configFor := func(resp codersdk.OAuth2ClientRegistrationResponse) *oauth2.Config {
+		return &oauth2.Config{
+			ClientID:     resp.ClientID,
+			ClientSecret: resp.ClientSecret, // Empty for a public client.
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   ownerClient.URL.JoinPath("/oauth2/authorize").String(),
+				TokenURL:  ownerClient.URL.JoinPath("/oauth2/tokens").String(),
+				AuthStyle: oauth2.AuthStyleInParams,
+			},
+			RedirectURL: resp.RedirectURIs[0],
+			Scopes:      []string{},
+		}
+	}
+
+	t.Run("RegistrationReturnsNoSecret", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp := registerPublicClient(ctx, t, "http://localhost/no-secret-callback")
+		require.Empty(t, resp.ClientSecret)
+		require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodNone, resp.TokenEndpointAuthMethod)
+	})
+
+	t.Run("TokenExchangeSucceedsWithPKCEAlone", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testClient, testUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		resp := registerPublicClient(ctx, t, "http://localhost/pkce-callback")
+		cfg := configFor(resp)
+
+		code, verifier, err := authorizationFlow(ctx, testClient, cfg)
+		require.NoError(t, err)
+
+		token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		require.NoError(t, err)
+		require.NotEmpty(t, token.AccessToken)
+
+		newClient := codersdk.New(ownerClient.URL)
+		newClient.SetSessionToken(token.AccessToken)
+		gotUser, err := newClient.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, testUser.ID, gotUser.ID)
+	})
+
+	t.Run("TokenExchangeFailsWithoutPKCEVerifier", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		resp := registerPublicClient(ctx, t, "http://localhost/missing-pkce-callback")
+		cfg := configFor(resp)
+
+		code, _, err := authorizationFlow(ctx, testClient, cfg)
+		require.NoError(t, err)
+
+		// Omit code_verifier entirely.
+		_, err = cfg.Exchange(ctx, code)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The PKCE code verifier is invalid")
+	})
+
+	t.Run("TokenExchangeFailsWithWrongPKCEVerifier", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		resp := registerPublicClient(ctx, t, "http://localhost/wrong-pkce-callback")
+		cfg := configFor(resp)
+
+		code, _, err := authorizationFlow(ctx, testClient, cfg)
+		require.NoError(t, err)
+
+		_, err = cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", "this-is-not-the-right-verifier-1234567890"))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The PKCE code verifier is invalid")
+	})
+
+	t.Run("RevokesOwnToken", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testClient, testUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		resp := registerPublicClient(ctx, t, "http://localhost/revoke-callback")
+		cfg := configFor(resp)
+
+		code, verifier, err := authorizationFlow(ctx, testClient, cfg)
+		require.NoError(t, err)
+
+		token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		require.NoError(t, err)
+
+		oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
+		usingOauth := codersdk.New(ownerClient.URL)
+		usingOauth.HTTPClient = oauthClient
+
+		me, err := usingOauth.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, testUser.ID, me.ID)
+
+		// The §2.4/§3.2 fix under test: a public client's token has no
+		// app_secret_id to resolve ownership through, so this would
+		// previously fail to find the token's owning app at all.
+		err = usingOauth.RevokeOAuth2Token(ctx, uuid.MustParse(resp.ClientID), token.RefreshToken)
+		require.NoError(t, err)
+
+		_, err = usingOauth.User(ctx, codersdk.Me)
+		require.Error(t, err)
+	})
+
+	t.Run("PUTFlipsConfidentialClientToPublic", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		testClient, testUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		redirectURI := "http://localhost/flip-callback"
+		// Register as confidential (the default when token_endpoint_auth_method is omitted).
+		resp, err := ownerClient.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs: []string{redirectURI},
+			ClientName:   fmt.Sprintf("flip-to-public-client-%d", time.Now().UnixNano()),
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, resp.ClientSecret)
+		require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, resp.TokenEndpointAuthMethod)
+
+		// Flip it to public via RFC 7592 PUT.
+		updated, err := ownerClient.PutOAuth2ClientConfiguration(ctx, resp.ClientID, resp.RegistrationAccessToken, codersdk.OAuth2ClientRegistrationRequest{
+			RedirectURIs:            []string{redirectURI},
+			ClientName:              resp.ClientName,
+			TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.OAuth2TokenEndpointAuthMethodNone, updated.TokenEndpointAuthMethod)
+
+		// The client must now be able to complete a flow with no secret at all.
+		cfg := &oauth2.Config{
+			ClientID: resp.ClientID,
+			Endpoint: oauth2.Endpoint{
+				AuthURL:   ownerClient.URL.JoinPath("/oauth2/authorize").String(),
+				TokenURL:  ownerClient.URL.JoinPath("/oauth2/tokens").String(),
+				AuthStyle: oauth2.AuthStyleInParams,
+			},
+			RedirectURL: redirectURI,
+			Scopes:      []string{},
+		}
+
+		code, verifier, err := authorizationFlow(ctx, testClient, cfg)
+		require.NoError(t, err)
+
+		token, err := cfg.Exchange(ctx, code, oauth2.SetAuthURLParam("code_verifier", verifier))
+		require.NoError(t, err)
+
+		newClient := codersdk.New(ownerClient.URL)
+		newClient.SetSessionToken(token.AccessToken)
+		gotUser, err := newClient.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, testUser.ID, gotUser.ID)
+	})
 }
 
 // NOTE: OAuth2 client registration validation tests have been migrated to

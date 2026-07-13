@@ -36,7 +36,7 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 			GrantTypesSupported:               []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeAuthorizationCode, codersdk.OAuth2ProviderGrantTypeRefreshToken},
 			CodeChallengeMethodsSupported:     []codersdk.OAuth2PKCECodeChallengeMethod{codersdk.OAuth2PKCECodeChallengeMethodS256},
 			ScopesSupported:                   rbac.ExternalScopeNames(),
-			TokenEndpointAuthMethodsSupported: []codersdk.OAuth2TokenEndpointAuthMethod{codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost},
+			TokenEndpointAuthMethodsSupported: []codersdk.OAuth2TokenEndpointAuthMethod{codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic, codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost, codersdk.OAuth2TokenEndpointAuthMethodNone},
 		}
 		if dcrEnabled {
 			metadata.RegistrationEndpoint = accessURL.JoinPath("/oauth2/register").String() // RFC 7591

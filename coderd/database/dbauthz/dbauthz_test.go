@@ -6044,7 +6044,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		})
 		for i := 0; i < 5; i++ {
 			_ = dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-				AppSecretID: secret.ID,
+				AppID:       app.ID,
+				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    key.ID,
 				UserID:      user.ID,
 				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
@@ -6252,7 +6253,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID: app.ID,
 		})
 		check.Args(database.InsertOAuth2ProviderAppTokenParams{
-			AppSecretID: secret.ID,
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionCreate)
@@ -6267,7 +6269,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID: app.ID,
 		})
 		token := dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-			AppSecretID: secret.ID,
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
 		})
@@ -6283,7 +6286,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			AppID: app.ID,
 		})
 		token := dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-			AppSecretID: secret.ID,
+			AppID:       app.ID,
+			AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 			APIKeyID:    key.ID,
 			UserID:      user.ID,
 		})
@@ -6301,7 +6305,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		})
 		for i := 0; i < 5; i++ {
 			_ = dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
-				AppSecretID: secret.ID,
+				AppID:       app.ID,
+				AppSecretID: uuid.NullUUID{UUID: secret.ID, Valid: true},
 				APIKeyID:    key.ID,
 				UserID:      user.ID,
 				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
