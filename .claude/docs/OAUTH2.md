@@ -1,157 +1,103 @@
 # OAuth2 Development Guide
 
-## RFC Compliance Development
+Implement OAuth2 and OpenID Connect behavior from the applicable RFCs, not from
+memory or assumptions. Preserve protocol error shapes and authorization
+boundaries even when nearby non-protocol handlers use different conventions.
 
-### Implementing Standard Protocols
+## RFC-Compliant Errors
 
-When implementing standard protocols (OAuth2, OpenID Connect, etc.):
+OAuth2 endpoints must return the error format required by the relevant RFC:
 
-1. **Fetch and Analyze Official RFCs**:
-   - Always read the actual RFC specifications before implementation
-   - Use WebFetch tool to get current RFC content for compliance verification
-   - Document RFC requirements in code comments
+```json
+{"error":"invalid_request","error_description":"details"}
+```
 
-2. **Default Values Matter**:
-   - Pay close attention to RFC-specified default values
-   - Example: RFC 7591 specifies `client_secret_basic` as default, not `client_secret_post`
-   - Ensure consistency between database migrations and application code
-
-3. **Security Requirements**:
-   - Follow RFC security considerations precisely
-   - Example: RFC 7592 prohibits returning registration access tokens in GET responses
-   - Implement proper error responses per protocol specifications
-
-4. **Validation Compliance**:
-   - Implement comprehensive validation per RFC requirements
-   - Support protocol-specific features (e.g., custom schemes for native OAuth2 apps)
-   - Test edge cases defined in specifications
-
-## OAuth2 Provider Implementation
-
-### OAuth2 Spec Compliance
-
-1. **Follow RFC 6749 for token responses**
-   - Use `expires_in` (seconds) not `expiry` (timestamp) in token responses
-   - Return proper OAuth2 error format: `{"error": "code", "error_description": "details"}`
-
-2. **Error Response Format**
-   - Create OAuth2-compliant error responses for token endpoint
-   - Use standard error codes: `invalid_client`, `invalid_grant`, `invalid_request`
-   - Avoid generic error responses for OAuth2 endpoints
-
-### PKCE Implementation
-
-- Support both with and without PKCE for backward compatibility
-- Use S256 method for code challenge
-- Properly validate code_verifier against stored code_challenge
-
-### UI Authorization Flow
-
-- Use POST requests for consent, not GET with links
-- Avoid dependency on referer headers for security decisions
-- Support proper state parameter validation
-
-### RFC 8707 Resource Indicators
-
-- Store resource parameters in database for server-side validation (opaque tokens)
-- Validate resource consistency between authorization and token requests
-- Support audience validation in refresh token flows
-- Resource parameter is optional but must be consistent when provided
-
-## OAuth2 Error Handling Pattern
+- Use standard codes such as `invalid_client`, `invalid_grant`, and
+  `invalid_request`.
+- Use `writeOAuth2Error(...)` for OAuth2 endpoint failures.
+- Do not replace protocol errors with generic API error responses.
+- Match the RFC's HTTP status, required fields, optional fields, and disclosure
+  rules.
 
 ```go
-// Define specific OAuth2 errors
-var (
-    errInvalidPKCE = xerrors.New("invalid code_verifier")
-)
-
-// Use OAuth2-compliant error responses
-type OAuth2Error struct {
-    Error            string `json:"error"`
-    ErrorDescription string `json:"error_description,omitempty"`
-}
-
-// Return proper OAuth2 errors
 if errors.Is(err, errInvalidPKCE) {
-    writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "The PKCE code verifier is invalid")
+    writeOAuth2Error(
+        ctx,
+        rw,
+        http.StatusBadRequest,
+        "invalid_grant",
+        "The PKCE code verifier is invalid",
+    )
     return
 }
 ```
 
-## Testing OAuth2 Features
+Verify default values against the RFC and keep database defaults consistent
+with application behavior. For example, RFC 7591 defaults
+`token_endpoint_auth_method` to `client_secret_basic`.
 
-### Test Scripts
+## Public Endpoints and Database Authorization
 
-Located in `./scripts/oauth2/`:
-
-- `test-mcp-oauth2.sh` - Full automated test suite
-- `setup-test-app.sh` - Create test OAuth2 app
-- `cleanup-test-app.sh` - Remove test app
-- `generate-pkce.sh` - Generate PKCE parameters
-- `test-manual-flow.sh` - Manual browser testing
-
-Always run the full test suite after OAuth2 changes:
-
-```bash
-./scripts/oauth2/test-mcp-oauth2.sh
-```
-
-### RFC Protocol Testing
-
-1. **Compliance Test Coverage**:
-   - Test all RFC-defined error codes and responses
-   - Validate proper HTTP status codes for different scenarios
-   - Test protocol-specific edge cases (URI formats, token formats, etc.)
-
-2. **Security Boundary Testing**:
-   - Test client isolation and privilege separation
-   - Verify information disclosure protections
-   - Test token security and proper invalidation
-
-## Common OAuth2 Issues
-
-1. **OAuth2 endpoints returning wrong error format** - Ensure OAuth2 endpoints return RFC 6749 compliant errors
-2. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
-3. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
-4. **RFC compliance failures** - Verify against actual RFC specifications, not assumptions
-5. **Authorization context errors in public endpoints** - Use `dbauthz.AsSystemRestricted(ctx)` pattern
-6. **Default value mismatches** - Ensure database migrations match application code defaults
-7. **Bearer token authentication issues** - Check token extraction precedence and format validation
-8. **URI validation failures** - Support both standard schemes and custom schemes per protocol requirements
-
-## Authorization Context Patterns
+A public endpoint has no user authorization context. When it must read or write
+system-owned OAuth2 state, use `dbauthz.AsSystemRestricted(ctx)`:
 
 ```go
-// Public endpoints needing system access (OAuth2 registration)
-app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestricted(ctx), clientID)
-
-// Authenticated endpoints with user context
-app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
-
-// System operations in middleware
-roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
+app, err := api.Database.GetOAuth2ProviderAppByClientID(
+    dbauthz.AsSystemRestricted(ctx),
+    clientID,
+)
 ```
 
-## OAuth2/Authentication Work Patterns
+Do not use an unrestricted system context. Authenticated endpoints should keep
+the caller context unless an established authorization boundary requires
+otherwise.
 
-- Types go in `codersdk/oauth2.go` or similar
-- Handlers go in `coderd/oauth2.go` or `coderd/identityprovider/`
-- Database fields need migration + audit table updates
-- Always support backward compatibility
+## Protocol Safeguards
 
-## Protocol Implementation Checklist
+- PKCE must validate the stored challenge and method against the verifier. Use
+  S256 where required and preserve compatibility for flows that legitimately do
+  not use PKCE.
+- Consent actions use POST and do not depend on the `Referer` header for
+  authorization decisions.
+- Validate `state` according to the flow.
+- RFC 8707 resource indicators are optional, but authorization, token, and
+  refresh flows must preserve and validate them consistently when present.
+- Do not disclose registration access tokens in registration GET responses.
+- Support URI schemes allowed by the applicable native-app specification.
 
-Before completing OAuth2 or authentication feature work:
+Database schema, query, generation, and audit changes follow
+[Database Development Patterns](DATABASE.md).
 
-- [ ] Verify RFC compliance by reading actual specifications
-- [ ] Implement proper error response formats per protocol
-- [ ] Add comprehensive validation for all protocol fields
-- [ ] Test security boundaries and token handling
-- [ ] Update RBAC permissions for new resources
-- [ ] Add audit logging support if applicable
-- [ ] Create database migrations with proper defaults
-- [ ] Add comprehensive test coverage including edge cases
-- [ ] Verify linting compliance
-- [ ] Test both positive and negative scenarios
-- [ ] Document protocol-specific patterns and requirements
+## Tests
+
+Cover protocol-defined errors, HTTP statuses, defaults, PKCE, resource
+indicators, client isolation, token invalidation, and information disclosure.
+
+Exact scripts in `scripts/oauth2/`:
+
+```sh
+./scripts/oauth2/test-mcp-oauth2.sh
+./scripts/oauth2/test-manual-flow.sh
+```
+
+Supporting scripts:
+
+- `setup-test-app.sh`
+- `cleanup-test-app.sh`
+- `generate-pkce.sh`
+
+Run the automated script after OAuth2 changes. Use the manual flow when browser
+redirects or consent behavior changed.
+
+## Common Failures
+
+- Wrong error envelope: route the failure through `writeOAuth2Error(...)` and
+  verify its RFC status and code.
+- Existing client reported as `invalid_client`: inspect the endpoint's database
+  authorization context.
+- PKCE failure: verify challenge and method persistence in both authorization
+  code creation and token exchange.
+- Resource mismatch: trace the value through authorization, storage, token, and
+  refresh operations.
+- Default mismatch: compare the RFC, migration default, generated model, and
+  application fallback.
