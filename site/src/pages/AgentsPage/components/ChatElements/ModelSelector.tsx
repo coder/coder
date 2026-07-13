@@ -115,7 +115,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		setOpen(nextOpen);
 	};
 	const selectedModel = options.find((option) => option.id === value);
-	const isDisabled = disabled || options.length === 0;
+	// With an unset option the selector stays usable even when no model
+	// options exist, so a saved override can still be switched back.
+	const isDisabled = disabled || (options.length === 0 && !unsetLabel);
 	const query = search.trim().toLowerCase();
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
