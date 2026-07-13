@@ -414,7 +414,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 	return out, nil
 }
 
-// augmentRequestForBedrockInvokeModel will change the model used for the request since AWS Bedrock doesn't support
+// augmentRequestForBedrockInvokeModel changes the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive (Opus 4.7+).
