@@ -906,6 +906,9 @@ type AdvisorConfig struct {
 	// resolved (e.g. the referenced model config was soft-deleted or
 	// its provider was disabled after the admin saved this config).
 	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
+	// ReasoningEffort overrides the selected advisor model's configured default.
+	// It requires a non-zero ModelConfigID.
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // UpdateAdvisorConfigRequest is the request body for updating advisor

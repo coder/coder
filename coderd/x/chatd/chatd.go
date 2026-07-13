@@ -350,6 +350,19 @@ func (p *Server) resolveAdvisorModelOverride(
 		return fallbackModel, fallbackCallConfig, nil
 	}
 
+	if advisorCfg.ReasoningEffort != nil {
+		resolvedEffort := chatprovider.ResolveReasoningEffort(
+			advisorCfg.ReasoningEffort,
+			overrideCallConfig.ReasoningEffort,
+		)
+		if resolvedEffort != nil {
+			overrideCallConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
+				Default: resolvedEffort,
+				Max:     resolvedEffort,
+			}
+		}
+	}
+
 	return overrideModel, overrideCallConfig, nil
 }
 
@@ -398,8 +411,8 @@ func (p *Server) newAdvisorRuntime(
 	}
 
 	advisorCallConfig.MaxOutputTokens = ptr.Ref(maxOutputTokens)
-	// The advisor has no per-turn effort selection; its model config's
-	// default effort applies.
+	// The override resolver pins an explicit advisor effort into the model
+	// config. Fallback models keep their configured default effort.
 	advisorReasoningEffort := chatprovider.ResolveReasoningEffort(
 		nil,
 		advisorCallConfig.ReasoningEffort,

@@ -14022,13 +14022,21 @@ func TestChatAdvisorConfig_RoundTripModelConfigID(t *testing.T) {
 	adminClient := newChatClient(t)
 	coderdtest.CreateFirstUser(t, adminClient.Client)
 
-	modelConfig := createChatModelConfig(t, adminClient)
+	modelConfig := createAdditionalChatModelConfigWithReasoningEffort(
+		t,
+		adminClient,
+		"openai",
+		"gpt-5.2",
+		codersdk.ChatModelReasoningEffortMedium,
+		codersdk.ChatModelReasoningEffortXHigh,
+	)
 
 	want := codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   3,
 		MaxOutputTokens: 2048,
 		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
 	}
 
 	err := adminClient.UpdateChatAdvisorConfig(ctx, want)
@@ -14053,6 +14061,44 @@ func TestChatAdvisorConfig_InvalidModelConfigID(t *testing.T) {
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Contains(t, sdkErr.Message, unknownID.String())
 	require.Contains(t, sdkErr.Message, "does not match any existing model config")
+}
+
+func TestChatAdvisorConfig_ReasoningEffortRequiresModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "reasoning_effort requires model_config_id.", sdkErr.Message)
+}
+
+func TestChatAdvisorConfig_ReasoningEffortMustBeSelectable(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newChatClient(t)
+	coderdtest.CreateFirstUser(t, adminClient.Client)
+	modelConfig := createAdditionalChatModelConfigWithReasoningEffort(
+		t,
+		adminClient,
+		"openai",
+		"gpt-5.2",
+		codersdk.ChatModelReasoningEffortLow,
+		codersdk.ChatModelReasoningEffortMedium,
+	)
+
+	err := adminClient.UpdateChatAdvisorConfig(ctx, codersdk.UpdateAdvisorConfigRequest{
+		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Invalid reasoning_effort value.", sdkErr.Message)
+	require.Equal(t, "Must be one of none, minimal, low, medium.", sdkErr.Detail)
 }
 
 func TestChatAdvisorConfig_RoundTripZeroValues(t *testing.T) {
@@ -14087,13 +14133,21 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	adminClient := newChatClient(t)
 	coderdtest.CreateFirstUser(t, adminClient.Client)
 
-	modelConfig := createChatModelConfig(t, adminClient)
+	modelConfig := createAdditionalChatModelConfigWithReasoningEffort(
+		t,
+		adminClient,
+		"openai",
+		"gpt-5.2",
+		codersdk.ChatModelReasoningEffortMedium,
+		codersdk.ChatModelReasoningEffortXHigh,
+	)
 
 	rich := codersdk.AdvisorConfig{
 		Enabled:         true,
 		MaxUsesPerRun:   5,
 		MaxOutputTokens: 1024,
 		ModelConfigID:   modelConfig.ID,
+		ReasoningEffort: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
 	}
 	err := adminClient.UpdateChatAdvisorConfig(ctx, rich)
 	require.NoError(t, err)
