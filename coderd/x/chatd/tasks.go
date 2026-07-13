@@ -31,9 +31,7 @@ const (
 	postCommitWatchPublishTimeout = 10 * time.Second
 	// defaultTaskTimeout is the attempt idle window: how long an
 	// attempt may run without a keepalive kick before it is canceled.
-	// Tools kick the watchdog after successful agent round-trips, so
-	// long-running executes survive while making progress. The idle
-	// window must exceed chatloop's stream-silence guard so silent
+	// It must exceed chatloop's stream-silence guard so silent
 	// provider streams fail through chat-specific retry handling
 	// before the runner retries the whole task; streaming code never
 	// kicks the watchdog.
