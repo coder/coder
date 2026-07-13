@@ -15,7 +15,11 @@ UPDATE aibridge_interceptions
 		credential_hint = CASE
 			WHEN credential_kind = 'centralized' THEN @credential_hint::text
 			ELSE credential_hint
-		END
+		END,
+		-- Terminal upstream error, only set when the interception failed.
+		-- NULL leaves the columns empty for successful interceptions.
+		error_type = sqlc.narg('error_type')::aibridge_interception_error_type,
+		error_message = sqlc.narg('error_message')::text
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL

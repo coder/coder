@@ -220,3 +220,18 @@ func (mr *MockDRPCClientMockRecorder) RecordToolUsage(ctx, in any) *gomock.Call 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordToolUsage", reflect.TypeOf((*MockDRPCClient)(nil).RecordToolUsage), ctx, in)
 }
+
+// WatchAIProviders mocks base method.
+func (m *MockDRPCClient) WatchAIProviders(ctx context.Context, in *proto.WatchAIProvidersRequest) (proto.DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchAIProviders", ctx, in)
+	ret0, _ := ret[0].(proto.DRPCProviderConfigurator_WatchAIProvidersClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WatchAIProviders indicates an expected call of WatchAIProviders.
+func (mr *MockDRPCClientMockRecorder) WatchAIProviders(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchAIProviders", reflect.TypeOf((*MockDRPCClient)(nil).WatchAIProviders), ctx, in)
+}

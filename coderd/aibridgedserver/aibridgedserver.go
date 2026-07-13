@@ -26,9 +26,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -101,6 +103,7 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx        context.Context
 	store               store
+	pubsub              pubsub.Pubsub
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
@@ -112,7 +115,7 @@ type Server struct {
 	budgetPolicy codersdk.AIBudgetPolicy
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
+func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
 	aiSeatTracker aiseats.SeatTracker,
 ) (*Server, error) {
@@ -129,6 +132,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
+		pubsub:              ps,
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
@@ -254,10 +258,20 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		)
 	}
 
+	// The error type and message form one logical unit: the terminal error.
+	// Gate the message on the type so the row never carries a message without a
+	// type (the migration treats both-NULL as a successful interception).
+	errType := interceptionErrorType(in.GetErrorType())
+	var errMsg sql.NullString
+	if errType.Valid && in.GetErrorMessage() != "" {
+		errMsg = sql.NullString{String: truncateErrorMessage(in.GetErrorMessage()), Valid: true}
+	}
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:             intcID,
 		EndedAt:        in.EndedAt.AsTime(),
 		CredentialHint: in.CredentialHint,
+		ErrorType:      errType,
+		ErrorMessage:   errMsg,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -905,6 +919,58 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 	return &proto.GetAIProvidersResponse{Providers: providers}, nil
 }
 
+// WatchAIProviders streams a payload-free change signal on each
+// AIProvidersChangedChannel event, plus one immediately on subscribe. Pubsub
+// drop errors produce a signal rather than failing the stream. Blocks until the
+// stream context or the server lifecycle is canceled.
+func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto.DRPCProviderConfigurator_WatchAIProvidersStream) error {
+	if s.pubsub == nil {
+		return xerrors.New("pubsub not configured")
+	}
+
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+	// Cancel when the server lifecycle ends, not just when the stream closes.
+	stop := context.AfterFunc(s.lifecycleCtx, cancel)
+	defer stop()
+
+	// Buffered to one so a burst of events collapses into a single pending
+	// signal.
+	signals := make(chan struct{}, 1)
+	notify := func() {
+		select {
+		case signals <- struct{}{}:
+		default:
+		}
+	}
+
+	// Every event signals, including dropped-message errors.
+	unsubscribe, err := s.pubsub.SubscribeWithErr(coderdpubsub.AIProvidersChangedChannel, func(cbCtx context.Context, _ []byte, err error) {
+		if err != nil {
+			s.logger.Warn(cbCtx, "ai providers changed event delivered with error", slog.Error(err))
+		}
+		notify()
+	})
+	if err != nil {
+		return xerrors.Errorf("subscribe to %s: %w", coderdpubsub.AIProvidersChangedChannel, err)
+	}
+	defer unsubscribe()
+
+	// Initial signal on subscribe.
+	notify()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-signals:
+			if err := stream.Send(&proto.WatchAIProvidersResponse{}); err != nil {
+				return xerrors.Errorf("send ai providers change signal: %w", err)
+			}
+		}
+	}
+}
+
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
 	// Both the MCP & OAuth2 experiments are currently required in order to use our
@@ -936,6 +1002,38 @@ func credentialKindOrDefault(kind string) database.CredentialKind {
 		return database.CredentialKindCentralized
 	}
 	return ck
+}
+
+// maxErrorMessageBytes caps the interception error message stored in the
+// database, enforced at this trust boundary regardless of caller behavior.
+const maxErrorMessageBytes = 1024
+
+// truncateErrorMessage caps msg to maxErrorMessageBytes, dropping any partial
+// trailing rune so the stored value stays valid UTF-8.
+func truncateErrorMessage(msg string) string {
+	if len(msg) <= maxErrorMessageBytes {
+		return msg
+	}
+	return strings.ToValidUTF8(msg[:maxErrorMessageBytes], "")
+}
+
+// interceptionErrorType maps the wire error type onto the nullable DB enum. An
+// empty value yields NULL (a successful interception). A non-empty but
+// unrecognized value (e.g. version skew where the client knows an enum the DB
+// migration does not yet) is stored as 'unknown' rather than NULL, so the row's
+// error columns stay consistent with a recorded error_message.
+func interceptionErrorType(errType string) database.NullAIBridgeInterceptionErrorType {
+	if errType == "" {
+		return database.NullAIBridgeInterceptionErrorType{}
+	}
+	et := database.AIBridgeInterceptionErrorType(errType)
+	if !et.Valid() {
+		et = database.AibridgeInterceptionErrorTypeUnknown
+	}
+	return database.NullAIBridgeInterceptionErrorType{
+		AIBridgeInterceptionErrorType: et,
+		Valid:                         true,
+	}
 }
 
 func metadataToMap(in map[string]*anypb.Any) map[string]any {

@@ -25,7 +25,10 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
-import { ChatActionsMenuItems } from "../../ChatActionsMenuItems";
+import {
+	ChatActionsMenuItems,
+	chatHasMenuActions,
+} from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
@@ -138,6 +141,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
+	const hasMenuActions = chatHasMenuActions({
+		isArchived: chat.archived,
+		isChildChat: isChildNode,
+	});
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
 		isPinned: chat.pin_order > 0,
@@ -161,7 +168,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
-				<ContextMenuTrigger asChild>
+				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
@@ -270,7 +277,16 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 										loading
 									/>
 								) : (
-									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+									<span
+										className={cn(
+											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
+											// The timestamp swaps out for the actions trigger on
+											// hover; without menu actions there is no trigger, so
+											// keep the timestamp visible.
+											hasMenuActions &&
+												"[@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden",
+										)}
+									>
 										{chat.has_unread && !isActiveChat ? (
 											<span
 												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
@@ -297,28 +313,30 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									aria-label="Shared chat"
 								/>
 							)}
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
+							{hasMenuActions && (
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											aria-label={`Open actions for ${chat.title}`}
+										>
+											<EllipsisVerticalIcon className="size-3.5" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent
+										align="end"
+										className="[&_[role=menuitem]]:text-[13px]"
 									>
-										<EllipsisVerticalIcon className="size-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="[&_[role=menuitem]]:text-[13px]"
-								>
-									<ChatActionsMenuItems
-										{...sharedMenuItemProps}
-										Item={DropdownMenuItem}
-										Separator={DropdownMenuSeparator}
-									/>
-								</DropdownMenuContent>
-							</DropdownMenu>
+										<ChatActionsMenuItems
+											{...sharedMenuItemProps}
+											Item={DropdownMenuItem}
+											Separator={DropdownMenuSeparator}
+										/>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							)}
 						</div>
 					</div>
 				</ContextMenuTrigger>

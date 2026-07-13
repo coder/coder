@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
@@ -1463,6 +1465,250 @@ func TestTasks(t *testing.T) {
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 		})
+	})
+}
+
+func TestCreateTaskExternalAuth(t *testing.T) {
+	t.Parallel()
+
+	// The expected 403 message returned when the task owner is missing required
+	// external auth. The Tasks create handler shares this message with
+	// createWorkspace via requireWorkspaceOwnerExternalAuth.
+	const externalAuthRequiredMessage = "External authentication is required to create a workspace with this template."
+
+	// taskExternalAuthVersion returns echo responses for a template version that
+	// is both AI-task-capable and references the given external auth providers.
+	taskExternalAuthVersion := func(providers ...*proto.ExternalAuthProviderResource) *echo.Responses {
+		authToken := uuid.NewString()
+		taskAppID := uuid.NewString()
+		return &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						HasAiTasks: true,
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "example",
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+								Apps: []*proto.App{{
+									Id:          taskAppID,
+									Slug:        "task-app",
+									DisplayName: "Task App",
+									Url:         "",
+								}},
+							}},
+						}},
+						AiTasks: []*proto.AITask{{
+							AppId: taskAppID,
+						}},
+						ExternalAuthProviders: providers,
+					},
+				},
+			}},
+		}
+	}
+
+	t.Run("RequiredAuthMissing", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			taskExternalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Provide both an explicit name and display name so the create handler
+		// skips task-name generation entirely. The handler generates a name
+		// when either field is empty, and the external auth preflight now runs
+		// after the workspace authorization gates but before name generation.
+		req := codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "build me a web app",
+			Name:              coderdtest.RandomUsername(t),
+			DisplayName:       "My Task",
+		}
+		_, err := memberClient.CreateTask(ctx, codersdk.Me, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+		require.Equal(t, "The workspace owner must authenticate with the following external auth providers: GitHub.", apiErr.Detail)
+		require.Equal(t, []codersdk.ValidationError{{
+			Field:  "external_auth",
+			Detail: "github",
+		}}, apiErr.Validations)
+
+		// The rejection must happen before any task row is inserted.
+		_, err = memberClient.TaskByOwnerAndName(ctx, codersdk.Me, req.Name)
+		apiErr = nil
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+		// Authenticating with the provider lifts the rejection.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		task, err := memberClient.CreateTask(ctx, codersdk.Me, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, task.OwnerID)
+	})
+
+	t.Run("OwnerVsInitiator", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			taskExternalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The initiating admin is authenticated with the provider, but the task
+		// owner (the member) is not. Token injection at build time uses the
+		// owner's links, so the owner's auth state is what the preflight checks,
+		// not the initiator's.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		req := codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "build me a web app",
+			Name:              coderdtest.RandomUsername(t),
+		}
+		_, err := client.CreateTask(ctx, member.Username, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+
+		// Once the owner authenticates, the same create succeeds even though the
+		// initiator's auth state is unchanged.
+		resp = coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		task, err := client.CreateTask(ctx, member.Username, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, task.OwnerID)
+	})
+
+	t.Run("OptionalProvider", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			taskExternalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github", Optional: true}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Optional providers must not block creation even when the owner has
+		// never authenticated with them.
+		task, err := memberClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "build me a web app",
+			Name:              coderdtest.RandomUsername(t),
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, task.OwnerID)
+	})
+
+	t.Run("AuthzDenialShortCircuitsExternalAuth", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			taskExternalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// The caller is a normal org member (so it can read the template
+		// version and resolve "me" as the workspace owner) but is banned from
+		// creating workspaces via a negative org-level workspace:create
+		// permission. This reaches the workspace-create authorization gate and
+		// fails it, which is exactly the ordering under test: the authz denial
+		// must short-circuit before requireWorkspaceOwnerExternalAuth runs.
+		bannedClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID,
+			rbac.ScopedRoleOrgWorkspaceCreationBan(first.OrganizationID))
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The owner ("me") has NOT authenticated with the required GitHub
+		// provider. If the external auth preflight ran first (the pre-fix
+		// ordering) this request would fail with externalAuthRequiredMessage.
+		// Provide an explicit name so we can assert no task row was inserted.
+		req := codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "build me a web app",
+			Name:              coderdtest.RandomUsername(t),
+			DisplayName:       "My Task",
+		}
+		_, err := bannedClient.CreateTask(ctx, codersdk.Me, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		// The workspace-create authorization denial wins: we get the authz
+		// message, NOT the external auth requirement. This proves the authz
+		// checks run before (and short-circuit) the external auth preflight.
+		require.Equal(t, "Unauthorized to create workspace.", apiErr.Message)
+		require.NotEqual(t, externalAuthRequiredMessage, apiErr.Message)
+
+		// The denial must short-circuit before any task row is inserted.
+		_, err = bannedClient.TaskByOwnerAndName(ctx, codersdk.Me, req.Name)
+		apiErr = nil
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 }
 

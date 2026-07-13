@@ -12,6 +12,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { Slider } from "#/components/Slider/Slider";
+import {
+	formatReasoningEffort,
+	pickReasoningEffort,
+} from "../utils/reasoningEffort";
 import type { ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
@@ -35,6 +40,7 @@ export type SavePersonalOverride = (
 interface PersonalOverrideFormValues {
 	mode: PersonalOverrideMode;
 	model_config_id: string;
+	reasoning_effort: string;
 }
 
 interface PersonalModelOverrideRowProps {
@@ -65,12 +71,20 @@ const toFormValues = (
 	context: PersonalOverrideContext,
 ): PersonalOverrideFormValues => {
 	if (!overrideData || overrideData.is_malformed) {
-		return { mode: getDefaultMode(context), model_config_id: "" };
+		return {
+			mode: getDefaultMode(context),
+			model_config_id: "",
+			reasoning_effort: "",
+		};
 	}
 	return {
 		mode: overrideData.mode,
 		model_config_id:
 			overrideData.mode === "model" ? overrideData.model_config_id : "",
+		reasoning_effort:
+			overrideData.mode === "model"
+				? (overrideData.reasoning_effort ?? "")
+				: "",
 	};
 };
 
@@ -81,6 +95,9 @@ const toUpdateRequest = (
 		return {
 			mode: "model",
 			model_config_id: values.model_config_id,
+			...(values.reasoning_effort
+				? { reasoning_effort: values.reasoning_effort }
+				: {}),
 		};
 	}
 	return { mode: values.mode, model_config_id: "" };
@@ -258,6 +275,17 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 		form.values.mode === "model"
 			? form.values.model_config_id
 			: form.values.mode;
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === form.values.model_config_id,
+	);
+	const selectedReasoningEffort =
+		form.values.mode === "model" && selectedModelOption
+			? pickReasoningEffort(
+					form.values.reasoning_effort,
+					selectedModelOption.reasoningEfforts ?? [],
+					selectedModelOption.reasoningEffortDefault,
+				)
+			: undefined;
 	const selectionLabel = getSelectionLabel({
 		context,
 		deploymentDefault,
@@ -280,10 +308,27 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					value={selectionValue}
 					onValueChange={(value) => {
 						if (isDefaultModeOption(value)) {
-							void form.setValues({ mode: value, model_config_id: "" });
+							void form.setValues({
+								mode: value,
+								model_config_id: "",
+								reasoning_effort: "",
+							});
 							return;
 						}
-						void form.setValues({ mode: "model", model_config_id: value });
+						const option = modelOptions.find((option) => option.id === value);
+						const reasoningEffortDefault = option
+							? option.reasoningEffortDefault
+							: undefined;
+						void form.setValues({
+							mode: "model",
+							model_config_id: value,
+							reasoning_effort:
+								pickReasoningEffort(
+									"",
+									option?.reasoningEfforts ?? [],
+									reasoningEffortDefault,
+								) ?? "",
+						});
 					}}
 					disabled={isFormDisabled}
 				>
@@ -339,6 +384,15 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 						</SelectGroup>
 					</SelectContent>
 				</Select>
+				{selectedReasoningEffort !== undefined && selectedModelOption && (
+					<PersonalReasoningEffortRow
+						option={selectedModelOption}
+						value={selectedReasoningEffort}
+						onChange={(value) =>
+							void form.setFieldValue("reasoning_effort", value)
+						}
+					/>
+				)}
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
@@ -372,6 +426,47 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				)}
 			</form>
 		</section>
+	);
+};
+
+interface PersonalReasoningEffortRowProps {
+	option: ModelSelectorOption;
+	value: string;
+	onChange: (value: string) => void;
+}
+
+const PersonalReasoningEffortRow: FC<PersonalReasoningEffortRowProps> = ({
+	option,
+	value,
+	onChange,
+}) => {
+	const selectableEfforts = option.reasoningEfforts ?? [];
+	if (selectableEfforts.length === 0) {
+		return null;
+	}
+	const valueIndex = selectableEfforts.indexOf(value);
+	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
+
+	return (
+		<div className="flex items-center gap-3 md:w-[18rem]">
+			<span className="shrink-0 text-content-secondary text-sm">Effort</span>
+			<Slider
+				aria-label={`${option.displayName} reasoning effort`}
+				value={[effortIndex]}
+				onValueChange={([index]) => {
+					const nextEffort = selectableEfforts[index];
+					if (nextEffort && nextEffort !== value) {
+						onChange(nextEffort);
+					}
+				}}
+				min={0}
+				max={selectableEfforts.length - 1}
+				step={1}
+			/>
+			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-content-secondary text-xs font-medium leading-[18px]">
+				{formatReasoningEffort(value)}
+			</span>
+		</div>
 	);
 };
 

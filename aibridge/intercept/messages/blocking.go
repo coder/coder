@@ -134,7 +134,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 				return xerrors.Errorf("key pool exhausted: %w", err)
 			}
 
-			if antErr := responseErrorFromAPIError(err); antErr != nil {
+			if antErr := ResponseErrorFromAPIError(err); antErr != nil {
 				i.writeUpstreamError(w, antErr)
 				return xerrors.Errorf("anthropic API error: %w", err)
 			}

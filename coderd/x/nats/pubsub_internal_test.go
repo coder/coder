@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"runtime"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -204,6 +206,66 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 			require.Fail(t, "publisher connection disconnect signaled subscriber")
 		default:
 		}
+	})
+
+	// Regression test for a deadlock: handleAsyncError used to call the
+	// blocking subGetter.get while holding p.mu, and subscribeGroup's
+	// error path acquired p.mu before closing subscribeDone. A
+	// slow-consumer error arriving while an initial subscribe was in
+	// flight, combined with that subscribe failing, wedged both
+	// goroutines permanently.
+	t.Run("SlowConsumerDuringInFlightSubscribeDoesNotDeadlock", func(t *testing.T) {
+		t.Parallel()
+
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoredErrorIs: []error{assert.AnError},
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ps := newPubsub(ctx, logger, defaultTestOptions())
+		bc := &blockingConn{started: make(chan struct{}), unblock: make(chan struct{})}
+		ps.subscribePool = []conn{bc}
+		handlers := ps.buildConnHandlers()
+
+		// Subscribe so the initial NATS subscribe is in flight, blocked
+		// in bc.Subscribe.
+		subErr := make(chan error, 1)
+		go func() {
+			_, err := ps.SubscribeWithErr("foo", func(context.Context, []byte, error) {})
+			subErr <- err
+		}()
+		testutil.TryReceive(ctx, t, bc.started)
+
+		// Deliver a slow-consumer async error, as the connection's async
+		// callback dispatcher would. It cannot match the subscription
+		// until the in-flight subscribe resolves.
+		asyncDone := make(chan struct{})
+		go func() {
+			defer close(asyncDone)
+			handlers.errH(nil, &natsgo.Subscription{}, natsgo.ErrSlowConsumer)
+		}()
+
+		// Wait until handleAsyncError is blocked waiting on the
+		// in-flight subscribe.
+		require.Eventually(t, func() bool {
+			return goroutineBlockedInChanReceive("handleAsyncError")
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		// Fail the in-flight subscribe. Its cleanup must complete and
+		// unblock handleAsyncError rather than deadlock on p.mu.
+		close(bc.unblock)
+
+		err := testutil.TryReceive(ctx, t, subErr)
+		require.ErrorIs(t, err, assert.AnError)
+		testutil.TryReceive(ctx, t, asyncDone)
+
+		// The failed group must be removed so the event can be
+		// subscribed again. Removal happens after subscribeDone closes,
+		// so poll.
+		require.Eventually(t, func() bool {
+			ps.mu.Lock()
+			defer ps.mu.Unlock()
+			return len(ps.subscriptions) == 0
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
@@ -534,6 +596,19 @@ func TestSubscribeError(t *testing.T) {
 	}
 }
 
+// goroutineBlockedInChanReceive reports whether any goroutine is blocked
+// in a channel receive with the given function name on its stack.
+func goroutineBlockedInChanReceive(funcName string) bool {
+	buf := make([]byte, 4<<20)
+	n := runtime.Stack(buf, true)
+	for _, g := range strings.Split(string(buf[:n]), "\n\n") {
+		if strings.Contains(g, "[chan receive]") && strings.Contains(g, funcName) {
+			return true
+		}
+	}
+	return false
+}
+
 func defaultTestOptions() Options {
 	return Options{disableCluster: true}
 }
@@ -650,4 +725,25 @@ func (f *fakeConn) Flush() error {
 
 func (f *fakeConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, error) {
 	return &natsgo.Subscription{}, f.subError
+}
+
+// blockingConn holds Subscribe in flight until unblock is closed, then
+// fails the subscribe.
+type blockingConn struct {
+	// started is closed when Subscribe is entered.
+	started chan struct{}
+	// unblock releases Subscribe, which then returns an error.
+	unblock chan struct{}
+}
+
+func (*blockingConn) Publish(string, []byte) error { return nil }
+
+func (*blockingConn) Close() {}
+
+func (*blockingConn) Flush() error { return nil }
+
+func (b *blockingConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, error) {
+	close(b.started)
+	<-b.unblock
+	return nil, assert.AnError
 }

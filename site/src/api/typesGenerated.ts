@@ -204,6 +204,17 @@ export interface AIBridgeThread {
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
 	/**
+	 * ErrorType is the categorized terminal upstream error from the root
+	 * interception, or nil when the interception succeeded. See the
+	 * aibridge_interception_error_type enum for possible values.
+	 */
+	readonly error_type?: string;
+	/**
+	 * ErrorMessage is the raw terminal upstream error message from the root
+	 * interception. Nil when the interception succeeded.
+	 */
+	readonly error_message?: string;
+	/**
 	 * AgentFirewallSessionID links this thread to an agent firewall
 	 * confinement session. Nil when the request did not pass through
 	 * the agent firewall.
@@ -235,6 +246,14 @@ export interface AIBridgeToolCall {
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
 }
+
+// From codersdk/aibridge.go
+export type AIBudgetLimitSource = "group" | "user_override";
+
+export const AIBudgetLimitSources: AIBudgetLimitSource[] = [
+	"group",
+	"user_override",
+];
 
 // From codersdk/deployment.go
 export type AIBudgetPeriod = "month";
@@ -1588,6 +1607,7 @@ export interface Chat {
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
+	readonly last_reasoning_effort?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly plan_mode?: ChatPlanMode;
@@ -1691,13 +1711,21 @@ export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
 
 // From codersdk/chats.go
+export type ChatComputerUseProvider = "anthropic" | "openai";
+
+// From codersdk/chats.go
 /**
  * ChatComputerUseProviderResponse is the response for getting the computer use
  * provider setting.
  */
 export interface ChatComputerUseProviderResponse {
-	readonly provider: string;
+	readonly provider: ChatComputerUseProvider;
 }
+
+export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
+	"anthropic",
+	"openai",
+];
 
 // From codersdk/deployment.go
 export interface ChatConfig {
@@ -2476,7 +2504,6 @@ export interface ChatModel {
 export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
-	readonly effort?: string;
 	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
@@ -2504,6 +2531,7 @@ export interface ChatModelCallConfig {
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
 	readonly cost?: ModelCostConfig;
+	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 
@@ -2521,6 +2549,11 @@ export interface ChatModelConfig {
 	readonly context_limit: number;
 	readonly compression_threshold: number;
 	readonly model_config?: ChatModelCallConfig;
+	/**
+	 * ReasoningEfforts lists selectable reasoning effort values through
+	 * the model's configured maximum.
+	 */
+	readonly reasoning_efforts?: readonly string[];
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -2561,7 +2594,6 @@ export interface ChatModelGoogleThinkingConfig {
  */
 export interface ChatModelOpenAICompatProviderOptions {
 	readonly user?: string;
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -2577,7 +2609,6 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly max_tool_calls?: number;
 	readonly parallel_tool_calls?: boolean;
 	readonly user?: string;
-	readonly reasoning_effort?: string;
 	readonly reasoning_summary?: string;
 	readonly max_completion_tokens?: number;
 	readonly text_verbosity?: string;
@@ -2647,6 +2678,7 @@ export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 export interface ChatModelOverrideResponse {
 	readonly context: ChatModelOverrideContext;
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 	readonly is_malformed: boolean;
 }
 
@@ -2688,6 +2720,59 @@ export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableRe
 
 // From codersdk/chats.go
 /**
+ * ChatModelReasoningEffortConfig configures per-model reasoning effort
+ * bounds. When configured, Default and Max must both be provided before
+ * storing.
+ */
+export interface ChatModelReasoningEffortConfig {
+	readonly default?: string;
+	readonly max?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortHigh = "high";
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortLow = "low";
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortMax = "max";
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortMedium = "medium";
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortMinimal = "minimal";
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortNone = "none";
+
+// From codersdk/chats.go
+/**
+ * Reasoning effort levels, ordered low to high for clamping and comparison.
+ */
+export const ChatModelReasoningEffortXHigh = "xhigh";
+
+// From codersdk/chats.go
+/**
  * ChatModelReasoningOptions configures reasoning behavior for model
  * providers that support it.
  */
@@ -2695,7 +2780,6 @@ export interface ChatModelReasoningOptions {
 	readonly enabled?: boolean;
 	readonly exclude?: boolean;
 	readonly max_tokens?: number;
-	readonly effort?: string;
 }
 
 // From codersdk/chats.go
@@ -2744,6 +2828,7 @@ export interface ChatPersonalModelOverride {
 	readonly context: ChatPersonalModelOverrideContext;
 	readonly mode: ChatPersonalModelOverrideMode;
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 	readonly is_set: boolean;
 	readonly is_malformed: boolean;
 }
@@ -3530,6 +3615,7 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -3584,6 +3670,7 @@ export interface CreateChatRequest {
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
 	readonly mcp_server_ids?: readonly string[];
 	readonly labels?: Record<string, string>;
 	/**
@@ -4598,6 +4685,7 @@ export interface EditChatMessageRequest {
 	 * When nil the original message's model is preserved.
 	 */
 	readonly model_config_id?: string;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -8968,7 +9056,7 @@ export interface UpdateChatAutoArchiveDaysRequest {
  * provider setting.
  */
 export interface UpdateChatComputerUseProviderRequest {
-	readonly provider: string;
+	readonly provider: ChatComputerUseProvider;
 }
 
 // From codersdk/chats.go
@@ -9011,6 +9099,7 @@ export interface UpdateChatModelConfigRequest {
  */
 export interface UpdateChatModelOverrideRequest {
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/chats.go
@@ -9380,6 +9469,7 @@ export interface UpdateUserChatDebugLoggingRequest {
 export interface UpdateUserChatPersonalModelOverrideRequest {
 	readonly mode: ChatPersonalModelOverrideMode;
 	readonly model_config_id: string;
+	readonly reasoning_effort?: string;
 }
 
 // From codersdk/notifications.go
@@ -9654,6 +9744,30 @@ export interface UserAIBudgetOverride {
 	readonly updated_at: string;
 }
 
+// From codersdk/aibridge.go
+/**
+ * UserAIBudgetSummary is the effective AI budget for a user. When no
+ * budget applies, all fields except UserID are null.
+ */
+export interface UserAIBudgetSummary {
+	readonly user_id: string;
+	/**
+	 * EffectiveGroupID is the group the spend is attributed to. Null when
+	 * no budget applies.
+	 */
+	readonly effective_group_id: string | null;
+	/**
+	 * SpendLimitMicros is the effective spend limit in micro-units.
+	 * Null when no budget applies to the user (unlimited).
+	 */
+	readonly spend_limit_micros: number | null;
+	/**
+	 * LimitSource identifies which tier produced the limit. Null when no
+	 * budget applies.
+	 */
+	readonly limit_source: AIBudgetLimitSource | null;
+}
+
 // From codersdk/chats.go
 /**
  * UserAIProviderKeyConfig is a provider summary from the current user's
@@ -9664,6 +9778,29 @@ export interface UserAIProviderKeyConfig {
 	readonly has_user_api_key: boolean;
 	readonly has_provider_api_key: boolean;
 	readonly byok_enabled: boolean;
+}
+
+// From codersdk/aibridge.go
+/**
+ * UserAISpendStatus is the current AI spend snapshot for a user within
+ * the active budget period.
+ */
+export interface UserAISpendStatus extends UserAIBudgetSummary {
+	/**
+	 * CurrentSpendMicros is the user's spend on their effective group over
+	 * the current budget period.
+	 */
+	readonly current_spend_micros: number;
+	/**
+	 * PeriodStart is the inclusive lower bound of the current budget
+	 * period.
+	 */
+	readonly period_start: string;
+	/**
+	 * PeriodEnd is the exclusive upper bound of the current budget
+	 * period.
+	 */
+	readonly period_end: string;
 }
 
 // From codersdk/insights.go

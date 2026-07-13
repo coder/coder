@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -16,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -607,5 +609,40 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		require.Equal(t, 3, rt.RemainingUses())
 		require.Equal(t, int64(defaultAdvisorMaxOutputTokens), rt.MaxOutputTokens(),
 			"zero max output tokens must be replaced with defaultAdvisorMaxOutputTokens")
+	})
+
+	t.Run("AppliesReasoningEffortToProviderOptions", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &advisorOverrideStubStore{}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		rt := p.newAdvisorRuntimeOrFallback(
+			ctx,
+			database.Chat{},
+			codersdk.AdvisorConfig{
+				Enabled:         true,
+				MaxUsesPerRun:   3,
+				MaxOutputTokens: 16384,
+			},
+			fallbackModel,
+			codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+					Max:     ptr.Ref(codersdk.ChatModelReasoningEffortXHigh),
+				},
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						User: ptr.Ref("advisor-user"),
+					},
+				},
+			},
+			modelBuildOptions{},
+			logger,
+		)
+		require.NotNil(t, rt)
+		providerOptions := rt.ProviderOptions()[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+		require.Equal(t, "advisor-user", *providerOptions.User)
+		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
 	})
 }

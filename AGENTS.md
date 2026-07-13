@@ -12,8 +12,9 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Docs content scope: Use [Coder Docs Content Guidelines](docs/.style/content-guidelines.md) to decide whether a piece of content belongs in `docs/` at all. The Documentation Style Guide above covers prose and formatting; the content guidelines govern scope and routing and supersede the style guide on conflicts.
 - Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
 - Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
-- Docs prose: When editing anything under `docs/`, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
+- Docs prose: For prose-only edits to existing `docs/` pages, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
   For supporting agent-specific guidance, refer to [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md), which covers structure, research, and content patterns.
+- Docs authoring: For new, moved, or restructured `docs/` pages, or when unsure, load the [`write-docs` skill](.claude/skills/write-docs/SKILL.md) first. It points at the canonical content guidelines and the prose style guide above, then walks research, routing, Diátaxis mode, structure, and validation.
 
 ## Foundational rules
 
@@ -221,6 +222,7 @@ manually before starting work:
 - `.claude/docs/TROUBLESHOOTING.md` - common failures and fixes (when stuck)
 - `.claude/docs/DOCS_STYLE_GUIDE.md` - docs prose and formatting (when writing `docs/`)
 - `docs/.style/content-guidelines.md` - canonical content scope and routing rules (when writing `docs/`; governs on conflicts with the style guide)
+- `.claude/skills/write-docs/SKILL.md` - authoring workflow and guardrails (for new, moved, or restructured `docs/` pages)
 
 **For frontend work**, also read `site/AGENTS.md` before making any changes
 in `site/`.

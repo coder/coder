@@ -30,7 +30,6 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 		TopLogProbs:         &topLogProbs,
 		ParallelToolCalls:   &parallelToolCalls,
 		User:                ptr(" user-1 "),
-		ReasoningEffort:     ptr(" HIGH "),
 		MaxCompletionTokens: &maxCompletionTokens,
 		TextVerbosity:       ptr(" High "),
 		Prediction: map[string]any{
@@ -56,7 +55,7 @@ func TestProviderOptionsFromChatConfigLegacy(t *testing.T) {
 	require.Same(t, options.TopLogProbs, providerOptions.TopLogProbs)
 	require.Same(t, options.ParallelToolCalls, providerOptions.ParallelToolCalls)
 	require.Equal(t, "user-1", requireStringPointerValue(t, providerOptions.User))
-	require.Equal(t, fantasyopenai.ReasoningEffortHigh, requireReasoningEffortPointerValue(t, providerOptions.ReasoningEffort))
+	require.Nil(t, providerOptions.ReasoningEffort)
 	require.Same(t, options.MaxCompletionTokens, providerOptions.MaxCompletionTokens)
 	require.Equal(t, "High", requireStringPointerValue(t, providerOptions.TextVerbosity))
 	require.Equal(t, options.Prediction, providerOptions.Prediction)
@@ -88,7 +87,6 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 		Metadata:          map[string]any{"scope": "unit"},
 		ParallelToolCalls: &parallelToolCalls,
 		PromptCacheKey:    ptr(" prompt-cache "),
-		ReasoningEffort:   ptr(" minimal "),
 		ReasoningSummary:  ptr(" auto "),
 		SafetyIdentifier:  ptr(" safety "),
 		ServiceTier:       ptr(" FLEX "),
@@ -114,7 +112,7 @@ func TestProviderOptionsFromChatConfigResponses(t *testing.T) {
 	require.Equal(t, options.Metadata, providerOptions.Metadata)
 	require.Same(t, options.ParallelToolCalls, providerOptions.ParallelToolCalls)
 	require.Equal(t, "prompt-cache", requireStringPointerValue(t, providerOptions.PromptCacheKey))
-	require.Equal(t, fantasyopenai.ReasoningEffortMinimal, requireReasoningEffortPointerValue(t, providerOptions.ReasoningEffort))
+	require.Nil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, "auto", requireStringPointerValue(t, providerOptions.ReasoningSummary))
 	require.Equal(t, "safety", requireStringPointerValue(t, providerOptions.SafetyIdentifier))
 	require.Equal(t, fantasyopenai.ServiceTierFlex, requireServiceTierPointerValue(t, providerOptions.ServiceTier))
@@ -281,40 +279,6 @@ func TestUsesResponsesOptions(t *testing.T) {
 	}
 }
 
-func TestReasoningEffortFromChat(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		value *string
-		want  *fantasyopenai.ReasoningEffort
-	}{
-		{name: "Nil"},
-		{name: "Empty", value: ptr("  ")},
-		{name: "Minimal", value: ptr(" minimal "), want: ptr(fantasyopenai.ReasoningEffortMinimal)},
-		{name: "LowCase", value: ptr(" LOW "), want: ptr(fantasyopenai.ReasoningEffortLow)},
-		{name: "Medium", value: ptr("medium"), want: ptr(fantasyopenai.ReasoningEffortMedium)},
-		{name: "High", value: ptr("high"), want: ptr(fantasyopenai.ReasoningEffortHigh)},
-		{name: "XHigh", value: ptr("xhigh"), want: ptr(fantasyopenai.ReasoningEffortXHigh)},
-		{name: "NoneUnsupported", value: ptr("none")},
-		{name: "Invalid", value: ptr("max")},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := chatopenai.ReasoningEffortFromChat(tt.value)
-			if tt.want == nil {
-				require.Nil(t, got)
-				return
-			}
-			require.NotNil(t, got)
-			require.Equal(t, *tt.want, *got)
-		})
-	}
-}
-
 func TestServiceTierFromChat(t *testing.T) {
 	t.Parallel()
 
@@ -433,15 +397,6 @@ func requireStringPointerValue(t *testing.T, value *string) string {
 }
 
 func requireBoolPointerValue(t *testing.T, value *bool) bool {
-	t.Helper()
-	require.NotNil(t, value)
-	return *value
-}
-
-func requireReasoningEffortPointerValue(
-	t *testing.T,
-	value *fantasyopenai.ReasoningEffort,
-) fantasyopenai.ReasoningEffort {
 	t.Helper()
 	require.NotNil(t, value)
 	return *value

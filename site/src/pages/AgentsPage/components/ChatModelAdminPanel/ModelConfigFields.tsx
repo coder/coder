@@ -50,6 +50,10 @@ const booleanFieldOptions = [
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
 
+const isReasoningEffortField = (jsonName: string): boolean =>
+	jsonName === "reasoning_effort.default" ||
+	jsonName === "reasoning_effort.max";
+
 // ── Helpers ────────────────────────────────────────────────────
 
 /** Short display labels for pricing fields to avoid overly verbose names. */
@@ -79,10 +83,10 @@ const fieldSuffix: Record<string, string> = {
  * where the valid range is more useful than an empty box.
  */
 const placeholderOverrides: Record<string, string> = {
-	temperature: "0.0–2.0",
-	top_p: "0.0–1.0",
-	presence_penalty: "-2.0–2.0",
-	frequency_penalty: "-2.0–2.0",
+	temperature: "0.0 to 2.0",
+	top_p: "0.0 to 1.0",
+	presence_penalty: "-2.0 to 2.0",
+	frequency_penalty: "-2.0 to 2.0",
 };
 
 /**
@@ -240,6 +244,7 @@ const SelectField: FC<
 		label: string;
 		description?: string;
 		options: readonly string[];
+		placeholderLabel?: string;
 	}
 > = ({
 	form,
@@ -250,6 +255,7 @@ const SelectField: FC<
 	label,
 	description,
 	options,
+	placeholderLabel = "Default",
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
@@ -273,10 +279,10 @@ const SelectField: FC<
 					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
-					<SelectValue placeholder="Default" />
+					<SelectValue placeholder={placeholderLabel} />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value={unsetSelectValue}>Default</SelectItem>
+					<SelectItem value={unsetSelectValue}>{placeholderLabel}</SelectItem>
 					{options.map((option) => (
 						<SelectItem key={option} value={option}>
 							{capitalize(option)}
@@ -655,13 +661,44 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	);
 };
 
-/**
- * General model config fields (max output tokens, temperature,
- * top P, etc.) intended to be shown under an "Advanced" section.
- *
- * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
- */
+/** Reasoning effort selects, outside Advanced. */
+export const ReasoningEffortConfigFields: FC<ModelConfigFieldsProps> = ({
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fields = getVisibleGeneralFields().filter(({ json_name }) =>
+		isReasoningEffortField(json_name),
+	);
+
+	return (
+		<>
+			{fields.map((field) => {
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
+				const fieldKey = `config.${camelName}`;
+
+				return (
+					<SelectField
+						key={fieldKey}
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={camelName}
+						label={snakeToPrettyLabel(field)}
+						description={field.description}
+						options={field.enum ?? []}
+						placeholderLabel="Not set"
+					/>
+				);
+			})}
+		</>
+	);
+};
+
+/** See ReasoningEffortConfigFields for reasoning effort fields. */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	form,
 	fieldErrors,
@@ -669,7 +706,8 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 	const fields = getVisibleGeneralFields().filter(
-		({ json_name }) => !pricingFieldNames.has(json_name),
+		({ json_name }) =>
+			!pricingFieldNames.has(json_name) && !isReasoningEffortField(json_name),
 	);
 
 	return (

@@ -204,10 +204,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			default_ttl_ms: form.values.default_ttl_ms
 				? form.values.default_ttl_ms * MS_HOUR_CONVERSION
 				: undefined,
-			// Activity bump has no effect without a default TTL, so
-			// discard any stale value when default autostop is off.
+			// Activity bump has no effect without a scheduled stop time, so
+			// discard any stale value when there is no default TTL AND users
+			// cannot customize autostop on their workspaces.
 			activity_bump_ms:
-				form.values.default_ttl_ms && form.values.activity_bump_ms
+				(form.values.default_ttl_ms || form.values.allow_user_autostop) &&
+				form.values.activity_bump_ms
 					? form.values.activity_bump_ms * MS_HOUR_CONVERSION
 					: undefined,
 			// 0 disables the reminder, so always send an explicit value.
@@ -314,10 +316,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								<ActivityBumpHelperText
 									bump={form.values.activity_bump_ms}
 									defaultTTL={form.values.default_ttl_ms}
+									allowUserAutostop={form.values.allow_user_autostop}
 								/>
 							),
 						})}
-						disabled={isSubmitting || !form.values.default_ttl_ms}
+						disabled={
+							isSubmitting ||
+							(!form.values.default_ttl_ms && !form.values.allow_user_autostop)
+						}
 						fullWidth
 						inputProps={{ min: 0, step: 1 }}
 						label="Activity bump (hours)"
@@ -333,6 +339,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									autostopRequirementDaysOfWeek={
 										form.values.autostop_requirement_days_of_week
 									}
+									allowUserAutostop={form.values.allow_user_autostop}
 								/>
 							),
 						})}

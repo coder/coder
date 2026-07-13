@@ -121,24 +121,10 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Generate task name and display name if either is not provided
-	if taskName == "" || taskDisplayName == "" {
-		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
-
-		if taskName == "" {
-			taskName = generatedTaskName.Name
-		}
-		if taskDisplayName == "" {
-			taskDisplayName = generatedTaskName.DisplayName
-		}
-	}
-
-	createReq := codersdk.CreateWorkspaceRequest{
-		Name:                    taskName,
-		TemplateVersionID:       req.TemplateVersionID,
-		TemplateVersionPresetID: req.TemplateVersionPresetID,
-	}
-
+	// Resolve the workspace owner before generating a task name so required
+	// external auth can be enforced up front. createWorkspace performs the same
+	// validation, but checking here keeps the Tasks API aligned with the gates
+	// the UI presents and avoids generating a name for a task that is rejected.
 	var owner workspaceOwner
 	if mems.User != nil {
 		// This user fetch is an optimization path for the most common case of creating a
@@ -175,6 +161,48 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 
 		// Update workspace owner information for audit in case it changed.
 		taskResourceInfo.WorkspaceOwner = owner.Username
+	}
+
+	// Authorize workspace creation before the external auth preflight below.
+	// createWorkspace re-checks these gates as the authoritative defense, but
+	// requireWorkspaceOwnerExternalAuth validates (and may refresh or clear) the
+	// owner's external auth tokens under a system-restricted context. Running it
+	// before proving the caller may create a workspace for this owner using this
+	// template would let an unauthorized caller trigger token refresh side
+	// effects and probe another user's auth state. Mirror the ordering in
+	// createWorkspace so the side-effectful preflight only runs once the caller
+	// is authorized.
+	if _, err := api.preflightWorkspaceCreate(ctx, owner.ID, codersdk.CreateWorkspaceRequest{
+		TemplateVersionID: req.TemplateVersionID,
+	}); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	// Required external auth is otherwise only enforced once createWorkspace
+	// runs. Validate it here so the Tasks API rejects an owner who is missing a
+	// required provider before any task name generation or row insertion.
+	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	// Generate task name and display name if either is not provided
+	if taskName == "" || taskDisplayName == "" {
+		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
+
+		if taskName == "" {
+			taskName = generatedTaskName.Name
+		}
+		if taskDisplayName == "" {
+			taskDisplayName = generatedTaskName.DisplayName
+		}
+	}
+
+	createReq := codersdk.CreateWorkspaceRequest{
+		Name:                    taskName,
+		TemplateVersionID:       req.TemplateVersionID,
+		TemplateVersionPresetID: req.TemplateVersionPresetID,
 	}
 
 	// Track insert from preCreateInTX.
