@@ -9613,9 +9613,12 @@ func TestManualTitleEndpointsPassOwnerSyntheticAPIKeyToAIGateway(t *testing.T) {
 			})
 
 			require.NoError(t, tt.call(ctx, client, chat.ID))
-			mapping, err := db.GetChatSyntheticAPIKeyByUserID(dbauthz.AsSystemRestricted(ctx), firstUser.UserID)
+			gatewayKey, err := db.GetChatGatewayAPIKey(dbauthz.AsSystemRestricted(ctx), database.GetChatGatewayAPIKeyParams{
+				UserID:    firstUser.UserID,
+				TokenName: chatd.GatewayTokenName(firstUser.UserID),
+			})
 			require.NoError(t, err)
-			require.Equal(t, mapping.APIKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
+			require.Equal(t, gatewayKey.ID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 		})
 	}
 }

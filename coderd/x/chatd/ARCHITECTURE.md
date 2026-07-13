@@ -9,13 +9,13 @@ Chatd has 4 main pieces:
 
 # Gateway attribution keys
 
-Chatd attributes AI Gateway requests with a synthetic API key owned by the chat owner. The mapping is stored in `chat_synthetic_api_keys`, with one active key per user. All chatd AI Gateway attribution resolves the key from `chats.owner_id`. Callers do not provide the key ID.
+Chatd attributes AI Gateway requests with a synthetic API key owned by the chat owner, one key per user. There is no mapping table: the key is found in `api_keys` by its deterministic token name, `chatd_<owner_id>_session_token`, excluding `login_type = 'token'` rows. Token names are unvalidated user input, so the login type filter ensures chatd never picks up (or extends) a real bearer token a user created with the colliding name. Synthetic keys are minted with the owner's login type, which is never `'token'`. All chatd AI Gateway attribution resolves the key from `chats.owner_id`; callers do not provide the key ID.
 
-Synthetic keys expire after 30 days and renew when less than 24 hours remain. Renewal replaces the mapping but does not delete the previous key, because an in-flight request may still use it. Concurrent mints use conditional insert/update operations, and losing keys are deleted. The generated token is discarded, so the stored key cannot be used as a bearer credential.
+Synthetic keys expire after 30 days. When less than 24 hours remain, chatd extends the expiry of the existing row in place instead of replacing it, because an in-flight generation may have already delegated the current key ID to the gateway. The key ID is therefore stable for the lifetime of the user. Mints and extensions are serialized with a per-user advisory lock, since the partial unique index on token names only covers `login_type = 'token'` rows. The generated token is discarded, so the stored key cannot be used as a bearer credential, and it carries a minimal scope as defense in depth.
 
 The legacy `api_key_id` columns on messages and queued messages are still stamped with the synthetic key for rolling deployment compatibility, but they no longer have foreign keys to `api_keys`. They are not the source of gateway routing. Stale IDs are harmless because chatd resolves attribution from `chats.owner_id`.
 
-Deleting a synthetic key removes its mapping without updating chat messages, queued messages, or their version fields. Deleting all user API keys or resetting a password therefore causes chatd to mint a replacement on the next request without mutating history. User suspension and deletion still block delegated gateway authorization.
+Deleting a synthetic key (password reset, explicit key deletion, dbpurge of long-expired keys) does not touch chat messages, queued messages, or their version fields. Chatd mints a replacement on the next request without mutating history. User suspension and deletion still block delegated gateway authorization.
 
 # Core state machine
 

@@ -339,29 +339,17 @@ func defaultIPAddress() pqtype.Inet {
 	}
 }
 
-func (s *MethodTestSuite) TestChatSyntheticAPIKey() {
+func (s *MethodTestSuite) TestChatGatewayAPIKey() {
 	s.Run("GetUserForChatSyntheticAPIKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		dbm.EXPECT().GetUserForChatSyntheticAPIKeyByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
 		check.Args(user.ID).Asserts(user, policy.ActionReadPersonal).Returns(user)
 	}))
-	s.Run("GetChatSyntheticAPIKeyByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		user := testutil.Fake(s.T(), faker, database.User{})
-		mapping := testutil.Fake(s.T(), faker, database.ChatSyntheticApiKey{UserID: user.ID})
-		dbm.EXPECT().GetChatSyntheticAPIKeyByUserID(gomock.Any(), user.ID).Return(mapping, nil).AnyTimes()
-		check.Args(user.ID).Asserts(rbac.ResourceApiKey.WithOwner(user.ID.String()), policy.ActionRead).Returns(mapping)
-	}))
-	s.Run("InsertChatSyntheticAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		user := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.InsertChatSyntheticAPIKeyParams{UserID: user.ID, APIKeyID: uuid.NewString()}
-		dbm.EXPECT().InsertChatSyntheticAPIKey(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(user.ID.String()), policy.ActionCreate).Returns(int64(1))
-	}))
-	s.Run("UpdateChatSyntheticAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		user := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.UpdateChatSyntheticAPIKeyParams{UserID: user.ID, OldApiKeyID: uuid.NewString(), NewApiKeyID: uuid.NewString()}
-		dbm.EXPECT().UpdateChatSyntheticAPIKey(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceApiKey.WithOwner(user.ID.String()), policy.ActionUpdate).Returns(int64(1))
+	s.Run("GetChatGatewayAPIKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.APIKey{})
+		arg := database.GetChatGatewayAPIKeyParams{UserID: key.UserID, TokenName: key.TokenName}
+		dbm.EXPECT().GetChatGatewayAPIKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(key, policy.ActionRead).Returns(key)
 	}))
 }
 

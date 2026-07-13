@@ -2953,6 +2953,21 @@ func (mr *MockStoreMockRecorder) GetChatFilesByIDs(ctx, ids any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFilesByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFilesByIDs), ctx, ids)
 }
 
+// GetChatGatewayAPIKey mocks base method.
+func (m *MockStore) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChatGatewayAPIKeyParams) (database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatGatewayAPIKey", ctx, arg)
+	ret0, _ := ret[0].(database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatGatewayAPIKey indicates an expected call of GetChatGatewayAPIKey.
+func (mr *MockStoreMockRecorder) GetChatGatewayAPIKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGatewayAPIKey", reflect.TypeOf((*MockStore)(nil).GetChatGatewayAPIKey), ctx, arg)
+}
+
 // GetChatGeneralModelOverride mocks base method.
 func (m *MockStore) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -3266,21 +3281,6 @@ func (m *MockStore) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) 
 func (mr *MockStoreMockRecorder) GetChatStreamSyncRows(ctx, ids any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatStreamSyncRows", reflect.TypeOf((*MockStore)(nil).GetChatStreamSyncRows), ctx, ids)
-}
-
-// GetChatSyntheticAPIKeyByUserID mocks base method.
-func (m *MockStore) GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (database.ChatSyntheticApiKey, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatSyntheticAPIKeyByUserID", ctx, userID)
-	ret0, _ := ret[0].(database.ChatSyntheticApiKey)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatSyntheticAPIKeyByUserID indicates an expected call of GetChatSyntheticAPIKeyByUserID.
-func (mr *MockStoreMockRecorder) GetChatSyntheticAPIKeyByUserID(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSyntheticAPIKeyByUserID", reflect.TypeOf((*MockStore)(nil).GetChatSyntheticAPIKeyByUserID), ctx, userID)
 }
 
 // GetChatSystemPrompt mocks base method.
@@ -7750,21 +7750,6 @@ func (mr *MockStoreMockRecorder) InsertChatQueuedMessageWithCreator(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatQueuedMessageWithCreator", reflect.TypeOf((*MockStore)(nil).InsertChatQueuedMessageWithCreator), ctx, arg)
 }
 
-// InsertChatSyntheticAPIKey mocks base method.
-func (m *MockStore) InsertChatSyntheticAPIKey(ctx context.Context, arg database.InsertChatSyntheticAPIKeyParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertChatSyntheticAPIKey", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertChatSyntheticAPIKey indicates an expected call of InsertChatSyntheticAPIKey.
-func (mr *MockStoreMockRecorder) InsertChatSyntheticAPIKey(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatSyntheticAPIKey", reflect.TypeOf((*MockStore)(nil).InsertChatSyntheticAPIKey), ctx, arg)
-}
-
 // InsertCryptoKey mocks base method.
 func (m *MockStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -9963,21 +9948,6 @@ func (m *MockStore) UpdateChatStatus(ctx context.Context, arg database.UpdateCha
 func (mr *MockStoreMockRecorder) UpdateChatStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatStatus", reflect.TypeOf((*MockStore)(nil).UpdateChatStatus), ctx, arg)
-}
-
-// UpdateChatSyntheticAPIKey mocks base method.
-func (m *MockStore) UpdateChatSyntheticAPIKey(ctx context.Context, arg database.UpdateChatSyntheticAPIKeyParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatSyntheticAPIKey", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatSyntheticAPIKey indicates an expected call of UpdateChatSyntheticAPIKey.
-func (mr *MockStoreMockRecorder) UpdateChatSyntheticAPIKey(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatSyntheticAPIKey", reflect.TypeOf((*MockStore)(nil).UpdateChatSyntheticAPIKey), ctx, arg)
 }
 
 // UpdateChatTitleByID mocks base method.

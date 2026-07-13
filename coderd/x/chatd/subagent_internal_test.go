@@ -672,7 +672,10 @@ func TestCreateChildSubagentChatPersistsOwnerSyntheticAPIKeyID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  child.ID,
@@ -684,7 +687,7 @@ func TestCreateChildSubagentChatPersistsOwnerSyntheticAPIKeyID(t *testing.T) {
 			continue
 		}
 		require.True(t, message.APIKeyID.Valid)
-		require.Equal(t, mapping.APIKeyID, message.APIKeyID.String)
+		require.Equal(t, gatewayKey.ID, message.APIKeyID.String)
 		return
 	}
 	require.Fail(t, "child user message not found")
@@ -710,7 +713,10 @@ func TestSendSubagentMessagePersistsOwnerSyntheticAPIKeyID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  child.ID,
@@ -725,7 +731,7 @@ func TestSendSubagentMessagePersistsOwnerSyntheticAPIKeyID(t *testing.T) {
 	}
 	require.NotZero(t, latestUserMessage.ID)
 	require.True(t, latestUserMessage.APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, latestUserMessage.APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, latestUserMessage.APIKeyID.String)
 }
 
 func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {

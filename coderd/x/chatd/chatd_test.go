@@ -1628,9 +1628,12 @@ func TestCreateChatPersistsSyntheticAPIKeyIDOnInitialUserMessage(t *testing.T) {
 	require.Len(t, messages, 1)
 	require.Equal(t, database.ChatMessageRoleUser, messages[0].Role)
 	require.True(t, messages[0].APIKeyID.Valid)
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
-	require.Equal(t, mapping.APIKeyID, messages[0].APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, messages[0].APIKeyID.String)
 }
 
 func TestSendMessagePersistsSyntheticAPIKeyIDOnUserMessage(t *testing.T) {
@@ -1659,14 +1662,17 @@ func TestSendMessagePersistsSyntheticAPIKeyIDOnUserMessage(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.Queued)
 	require.True(t, result.Message.APIKeyID.Valid)
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
-	require.Equal(t, mapping.APIKeyID, result.Message.APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, result.Message.APIKeyID.String)
 
 	stored, err := db.GetChatMessageByID(ctx, result.Message.ID)
 	require.NoError(t, err)
 	require.True(t, stored.APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, stored.APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, stored.APIKeyID.String)
 }
 
 func TestSendMessagePersistsSyntheticAPIKeyIDOnQueuedUserMessage(t *testing.T) {
@@ -1705,16 +1711,19 @@ func TestSendMessagePersistsSyntheticAPIKeyIDOnQueuedUserMessage(t *testing.T) {
 	require.True(t, result.Queued)
 	require.NotNil(t, result.QueuedMessage)
 
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 	require.True(t, result.QueuedMessage.APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, result.QueuedMessage.APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, result.QueuedMessage.APIKeyID.String)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
 	require.True(t, queued[0].APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, queued[0].APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, queued[0].APIKeyID.String)
 }
 
 func TestEditMessagePersistsSyntheticAPIKeyIDOnReplacement(t *testing.T) {
@@ -1749,15 +1758,18 @@ func TestEditMessagePersistsSyntheticAPIKeyIDOnReplacement(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 	require.True(t, result.Message.APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, result.Message.APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, result.Message.APIKeyID.String)
 
 	stored, err := db.GetChatMessageByID(ctx, result.Message.ID)
 	require.NoError(t, err)
 	require.True(t, stored.APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, stored.APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, stored.APIKeyID.String)
 }
 
 func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
@@ -5447,7 +5459,10 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 	contextContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
 		Type:                 codersdk.ChatMessagePartTypeContextFile,
@@ -5460,7 +5475,7 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.InsertChatMessages(ctx, chatd.BuildSingleUserChatMessageInsertParams(
 		chat.ID,
-		mapping.APIKeyID,
+		gatewayKey.ID,
 		contextContent,
 		database.ChatMessageVisibilityBoth,
 		model.ID,
@@ -5489,14 +5504,14 @@ func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
 	compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
 	require.Len(t, compressed.summaries, 1)
 	require.True(t, compressed.summaries[0].APIKeyID.Valid)
-	require.Equal(t, mapping.APIKeyID, compressed.summaries[0].APIKeyID.String)
+	require.Equal(t, gatewayKey.ID, compressed.summaries[0].APIKeyID.String)
 
 	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
-		require.Equal(t, mapping.APIKeyID, req.APIKeyID)
+		require.Equal(t, gatewayKey.ID, req.APIKeyID)
 		require.Equal(t, "sk-user-aibridge", req.Request.Header.Get("X-Api-Key"))
 		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
@@ -10140,7 +10155,10 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 
 	_, events, cancel, ok := creator.Subscribe(ctx, chat.ID, nil, 0)
@@ -10167,7 +10185,7 @@ func TestProcessChat_RoutingUsesDelegatedAPIKey(t *testing.T) {
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
-		require.Equal(t, mapping.APIKeyID, req.APIKeyID)
+		require.Equal(t, gatewayKey.ID, req.APIKeyID)
 		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
 		require.Empty(t, req.Request.Header.Get("X-Api-Key"))
 		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
@@ -10205,7 +10223,10 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	mapping, err := db.GetChatSyntheticAPIKeyByUserID(ctx, user.ID)
+	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    user.ID,
+		TokenName: chatd.GatewayTokenName(user.ID),
+	})
 	require.NoError(t, err)
 
 	const contextText = "# Project instructions\nAlways keep routing metadata."
@@ -10243,7 +10264,7 @@ func TestProcessChat_RoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
-		require.Equal(t, mapping.APIKeyID, req.APIKeyID)
+		require.Equal(t, gatewayKey.ID, req.APIKeyID)
 		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
 		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}

@@ -1,5 +1,3 @@
-DROP TABLE chat_synthetic_api_keys;
-
 UPDATE chat_messages
 SET api_key_id = NULL
 WHERE api_key_id IS NOT NULL

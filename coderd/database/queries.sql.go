@@ -3163,6 +3163,51 @@ func (q *sqlQuerier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.
 	return items, nil
 }
 
+const getChatGatewayAPIKey = `-- name: GetChatGatewayAPIKey :one
+SELECT
+	id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+FROM
+	api_keys
+WHERE
+	user_id = $1 AND
+	token_name = $2 AND
+	-- Token names are unvalidated user input, so a user could create a token
+	-- with the chat gateway name. Excluding login_type 'token' ensures chatd
+	-- never picks up (and extends) a real bearer token. Synthetic gateway
+	-- keys are minted with the owner's login type, which is never 'token'.
+	login_type != 'token'
+ORDER BY
+	created_at ASC, id ASC
+LIMIT
+	1
+`
+
+type GetChatGatewayAPIKeyParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	TokenName string    `db:"token_name" json:"token_name"`
+}
+
+func (q *sqlQuerier) GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, getChatGatewayAPIKey, arg.UserID, arg.TokenName)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
 const insertAPIKey = `-- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
@@ -8202,24 +8247,6 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 	return items, nil
 }
 
-const getChatSyntheticAPIKeyByUserID = `-- name: GetChatSyntheticAPIKeyByUserID :one
-SELECT user_id, api_key_id, created_at, updated_at
-FROM chat_synthetic_api_keys
-WHERE user_id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatSyntheticAPIKeyByUserID(ctx context.Context, userID uuid.UUID) (ChatSyntheticApiKey, error) {
-	row := q.db.QueryRowContext(ctx, getChatSyntheticAPIKeyByUserID, userID)
-	var i ChatSyntheticApiKey
-	err := row.Scan(
-		&i.UserID,
-		&i.APIKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getChatUsageLimitConfig = `-- name: GetChatUsageLimitConfig :one
 SELECT id, singleton, enabled, default_limit_micros, period, created_at, updated_at FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1
 `
@@ -10001,25 +10028,6 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.ReasoningEffort,
 	)
 	return i, err
-}
-
-const insertChatSyntheticAPIKey = `-- name: InsertChatSyntheticAPIKey :execrows
-INSERT INTO chat_synthetic_api_keys (user_id, api_key_id)
-VALUES ($1::uuid, $2::text)
-ON CONFLICT (user_id) DO NOTHING
-`
-
-type InsertChatSyntheticAPIKeyParams struct {
-	UserID   uuid.UUID `db:"user_id" json:"user_id"`
-	APIKeyID string    `db:"api_key_id" json:"api_key_id"`
-}
-
-func (q *sqlQuerier) InsertChatSyntheticAPIKey(ctx context.Context, arg InsertChatSyntheticAPIKeyParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, insertChatSyntheticAPIKey, arg.UserID, arg.APIKeyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const isChatHeartbeatStale = `-- name: IsChatHeartbeatStale :one
@@ -12205,28 +12213,6 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.ContextError,
 	)
 	return i, err
-}
-
-const updateChatSyntheticAPIKey = `-- name: UpdateChatSyntheticAPIKey :execrows
-UPDATE chat_synthetic_api_keys
-SET api_key_id = $1::text,
-    updated_at = NOW()
-WHERE user_id = $2::uuid
-  AND api_key_id = $3::text
-`
-
-type UpdateChatSyntheticAPIKeyParams struct {
-	NewApiKeyID string    `db:"new_api_key_id" json:"new_api_key_id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	OldApiKeyID string    `db:"old_api_key_id" json:"old_api_key_id"`
-}
-
-func (q *sqlQuerier) UpdateChatSyntheticAPIKey(ctx context.Context, arg UpdateChatSyntheticAPIKeyParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateChatSyntheticAPIKey, arg.NewApiKeyID, arg.UserID, arg.OldApiKeyID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const updateChatTitleByID = `-- name: UpdateChatTitleByID :one

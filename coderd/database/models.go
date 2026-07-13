@@ -5158,13 +5158,6 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
-type ChatSyntheticApiKey struct {
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	APIKeyID  string    `db:"api_key_id" json:"api_key_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
-}
-
 type ChatTable struct {
 	ID                uuid.UUID             `db:"id" json:"id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`

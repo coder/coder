@@ -17,56 +17,70 @@ import (
 const (
 	syntheticAPIKeyLifetime    = 30 * 24 * time.Hour
 	syntheticAPIKeyRenewMargin = 24 * time.Hour
-	syntheticAPIKeyMaxAttempts = 3
 )
 
-func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string, error) {
-	ctx = dbauthz.AsChatdKeyMinter(ctx, ownerID)
-	for range syntheticAPIKeyMaxAttempts {
-		mapping, err := p.db.GetChatSyntheticAPIKeyByUserID(ctx, ownerID)
-		if err == nil {
-			key, keyErr := p.db.GetAPIKeyByID(ctx, mapping.APIKeyID)
-			switch {
-			case keyErr == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
-				return key.ID, nil
-			case keyErr != nil && !xerrors.Is(keyErr, sql.ErrNoRows):
-				return "", xerrors.Errorf("get synthetic API key: %w", keyErr)
-			}
-		} else if !xerrors.Is(err, sql.ErrNoRows) {
-			return "", xerrors.Errorf("get synthetic API key mapping: %w", err)
-		}
-
-		keyID, retry, err := p.mintSyntheticAPIKey(ctx, ownerID)
-		if err != nil {
-			return "", err
-		}
-		if !retry {
-			return keyID, nil
-		}
-	}
-	return "", xerrors.New("ensure synthetic API key: concurrent update retry limit reached")
+// GatewayTokenName returns the deterministic token name of the synthetic
+// gateway key for a user. The name is the lookup key: no mapping table exists,
+// so attribution resolves the key by (user_id, token_name, login_type !=
+// 'token').
+func GatewayTokenName(ownerID uuid.UUID) string {
+	return fmt.Sprintf("chatd_%s_session_token", ownerID)
 }
 
-func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (keyID string, retry bool, err error) {
-	err = p.db.InTx(func(tx database.Store) error {
-		mapping, mappingErr := tx.GetChatSyntheticAPIKeyByUserID(ctx, ownerID)
-		hasMapping := mappingErr == nil
-		if mappingErr != nil && !xerrors.Is(mappingErr, sql.ErrNoRows) {
-			return xerrors.Errorf("get synthetic API key mapping: %w", mappingErr)
+// ensureSyntheticAPIKeyID returns the ID of the synthetic gateway key for the
+// given user, minting or extending it as needed. The key ID is stable for the
+// lifetime of the user: near-expiry keys are extended in place rather than
+// replaced, because an in-flight generation may have already delegated the
+// current key ID to the gateway.
+func (p *Server) ensureSyntheticAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string, error) {
+	ctx = dbauthz.AsChatdKeyMinter(ctx, ownerID)
+	key, err := p.db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    ownerID,
+		TokenName: GatewayTokenName(ownerID),
+	})
+	switch {
+	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)):
+		return key.ID, nil
+	case err != nil && !xerrors.Is(err, sql.ErrNoRows):
+		return "", xerrors.Errorf("get synthetic API key: %w", err)
+	}
+	return p.mintSyntheticAPIKey(ctx, ownerID)
+}
+
+// mintSyntheticAPIKey extends or mints the synthetic gateway key under a
+// per-user advisory lock. The lock serializes concurrent mints because the
+// partial unique index on token names only covers login_type 'token' rows, so
+// nothing else prevents duplicate synthetic keys.
+func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (string, error) {
+	tokenName := GatewayTokenName(ownerID)
+	var keyID string
+	err := p.db.InTx(func(tx database.Store) error {
+		err := tx.AcquireLock(ctx, database.GenLockID("chatd_gateway_key:"+ownerID.String()))
+		if err != nil {
+			return xerrors.Errorf("acquire chat gateway key lock: %w", err)
 		}
-		if hasMapping {
-			key, keyErr := tx.GetAPIKeyByID(ctx, mapping.APIKeyID)
-			if keyErr == nil && key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
-				keyID = key.ID
+		key, err := tx.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+			UserID:    ownerID,
+			TokenName: tokenName,
+		})
+		if err == nil {
+			keyID = key.ID
+			if key.ExpiresAt.After(p.clock.Now().Add(syntheticAPIKeyRenewMargin)) {
 				return nil
 			}
-			if keyErr != nil {
-				if xerrors.Is(keyErr, sql.ErrNoRows) {
-					retry = true
-					return nil
-				}
-				return xerrors.Errorf("get synthetic API key: %w", keyErr)
+			err = tx.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+				ID:        key.ID,
+				LastUsed:  key.LastUsed,
+				ExpiresAt: p.clock.Now().Add(syntheticAPIKeyLifetime),
+				IPAddress: key.IPAddress,
+			})
+			if err != nil {
+				return xerrors.Errorf("extend synthetic API key: %w", err)
 			}
+			return nil
+		}
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get synthetic API key: %w", err)
 		}
 
 		owner, err := tx.GetUserForChatSyntheticAPIKeyByID(ctx, ownerID)
@@ -78,44 +92,24 @@ func (p *Server) mintSyntheticAPIKey(ctx context.Context, ownerID uuid.UUID) (ke
 			LoginType:       owner.LoginType,
 			ExpiresAt:       p.clock.Now().Add(syntheticAPIKeyLifetime),
 			LifetimeSeconds: int64(syntheticAPIKeyLifetime.Seconds()),
-			TokenName:       fmt.Sprintf("%s_chat_gateway_key", ownerID),
+			TokenName:       tokenName,
+			// The key only attributes gateway requests; the secret is
+			// discarded, so it is never usable as a bearer credential. The
+			// minimal scope is defense in depth on top of that.
+			Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyRead},
 		})
 		if err != nil {
 			return xerrors.Errorf("generate synthetic API key: %w", err)
 		}
-		key, err := tx.InsertAPIKey(ctx, params)
+		inserted, err := tx.InsertAPIKey(ctx, params)
 		if err != nil {
 			return xerrors.Errorf("insert synthetic API key: %w", err)
 		}
-
-		var rows int64
-		if hasMapping {
-			rows, err = tx.UpdateChatSyntheticAPIKey(ctx, database.UpdateChatSyntheticAPIKeyParams{
-				UserID:      ownerID,
-				OldApiKeyID: mapping.APIKeyID,
-				NewApiKeyID: key.ID,
-			})
-		} else {
-			rows, err = tx.InsertChatSyntheticAPIKey(ctx, database.InsertChatSyntheticAPIKeyParams{
-				UserID:   ownerID,
-				APIKeyID: key.ID,
-			})
-		}
-		if err != nil {
-			return xerrors.Errorf("publish synthetic API key mapping: %w", err)
-		}
-		if rows == 1 {
-			keyID = key.ID
-			return nil
-		}
-		if err := tx.DeleteAPIKeyByID(ctx, key.ID); err != nil {
-			return xerrors.Errorf("delete losing synthetic API key: %w", err)
-		}
-		retry = true
+		keyID = inserted.ID
 		return nil
 	}, nil)
 	if err != nil {
-		return "", false, err
+		return "", err
 	}
-	return keyID, retry, nil
+	return keyID, nil
 }

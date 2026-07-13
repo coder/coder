@@ -14,8 +14,16 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/quartz"
 )
+
+func getGatewayKey(ctx context.Context, db database.Store, userID uuid.UUID) (database.APIKey, error) {
+	return db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
+		UserID:    userID,
+		TokenName: GatewayTokenName(userID),
+	})
+}
 
 func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 	t.Parallel()
@@ -33,29 +41,110 @@ func TestSyntheticAPIKeyLifecycle(t *testing.T) {
 	first, err := db.GetAPIKeyByID(t.Context(), firstID)
 	require.NoError(t, err)
 	require.Equal(t, user.LoginType, first.LoginType)
+	require.Equal(t, GatewayTokenName(user.ID), first.TokenName)
+	require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeApiKeyRead}, first.Scopes)
 	require.WithinDuration(t, server.clock.Now().Add(syntheticAPIKeyLifetime), first.ExpiresAt, time.Second)
 
+	// Within the renew margin the key is extended in place: the ID stays
+	// stable because in-flight generations may have delegated it already.
 	err = db.UpdateAPIKeyByID(t.Context(), database.UpdateAPIKeyByIDParams{
 		ID:        first.ID,
 		LastUsed:  first.LastUsed,
-		ExpiresAt: server.clock.Now().Add(syntheticAPIKeyRenewMargin),
+		ExpiresAt: server.clock.Now().Add(time.Hour),
 		IPAddress: first.IPAddress,
 	})
 	require.NoError(t, err)
 
 	renewedID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
 	require.NoError(t, err)
-	require.NotEqual(t, firstID, renewedID)
-	_, err = db.GetAPIKeyByID(t.Context(), firstID)
-	require.NoError(t, err, "renewal must preserve the previous key")
+	require.Equal(t, firstID, renewedID)
+	renewed, err := db.GetAPIKeyByID(t.Context(), renewedID)
+	require.NoError(t, err)
+	require.WithinDuration(t, server.clock.Now().Add(syntheticAPIKeyLifetime), renewed.ExpiresAt, time.Second)
 
-	require.NoError(t, db.DeleteAPIKeyByID(t.Context(), renewedID))
-	_, err = db.GetChatSyntheticAPIKeyByUserID(t.Context(), user.ID)
+	// A fully expired key is extended the same way.
+	err = db.UpdateAPIKeyByID(t.Context(), database.UpdateAPIKeyByIDParams{
+		ID:        first.ID,
+		LastUsed:  first.LastUsed,
+		ExpiresAt: server.clock.Now().Add(-time.Hour),
+		IPAddress: first.IPAddress,
+	})
+	require.NoError(t, err)
+
+	revivedID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstID, revivedID)
+	revived, err := db.GetAPIKeyByID(t.Context(), revivedID)
+	require.NoError(t, err)
+	require.WithinDuration(t, server.clock.Now().Add(syntheticAPIKeyLifetime), revived.ExpiresAt, time.Second)
+
+	// External deletion (password reset, dbpurge) causes a remint.
+	require.NoError(t, db.DeleteAPIKeyByID(t.Context(), firstID))
+	_, err = getGatewayKey(t.Context(), db, user.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	recreatedID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
 	require.NoError(t, err)
-	require.NotEqual(t, renewedID, recreatedID)
+	require.NotEqual(t, firstID, recreatedID)
+}
+
+func TestSyntheticAPIKeyIgnoresUserTokenCollision(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	server := &Server{db: db, clock: quartz.NewReal()}
+
+	// Token names are unvalidated user input, so a user can create a token
+	// named exactly like the synthetic gateway key. It must never be picked
+	// up or extended; its near-margin expiry would otherwise trigger the
+	// extension path.
+	collisionExpiry := server.clock.Now().Add(time.Hour).UTC()
+	collision, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeToken,
+		TokenName: GatewayTokenName(user.ID),
+		ExpiresAt: collisionExpiry,
+	})
+
+	syntheticID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, collision.ID, syntheticID)
+
+	synthetic, err := db.GetAPIKeyByID(t.Context(), syntheticID)
+	require.NoError(t, err)
+	require.Equal(t, user.LoginType, synthetic.LoginType)
+
+	unchanged, err := db.GetAPIKeyByID(t.Context(), collision.ID)
+	require.NoError(t, err)
+	require.WithinDuration(t, collisionExpiry, unchanged.ExpiresAt, time.Millisecond)
+}
+
+func TestSyntheticAPIKeySurvivesSuspension(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	server := &Server{db: db, clock: quartz.NewReal()}
+
+	keyID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+
+	_, err = db.UpdateUserStatus(t.Context(), database.UpdateUserStatusParams{
+		ID:        user.ID,
+		Status:    database.UserStatusSuspended,
+		UpdatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	// Suspension does not delete the key. Delegated gateway authorization
+	// rejects suspended owners at request time instead; see the
+	// aibridgedserver IsAuthorized tests for that rejection.
+	_, err = db.GetAPIKeyByID(t.Context(), keyID)
+	require.NoError(t, err)
+	sameID, err := server.ensureSyntheticAPIKeyID(t.Context(), user.ID)
+	require.NoError(t, err)
+	require.Equal(t, keyID, sameID)
 }
 
 func TestSyntheticAPIKeyConcurrentMint(t *testing.T) {
@@ -149,7 +238,7 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 
 			_, err = db.GetAPIKeyByID(t.Context(), syntheticID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
-			_, err = db.GetChatSyntheticAPIKeyByUserID(t.Context(), user.ID)
+			_, err = getGatewayKey(t.Context(), db, user.ID)
 			require.ErrorIs(t, err, sql.ErrNoRows)
 
 			after, err := db.GetChatByID(t.Context(), chat.ID)
