@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
-import { groupAIBudget, groupById, groupsForUser } from "#/api/queries/groups";
+import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
 import {
 	deleteUserAIBudgetOverride,
 	saveUserAIBudgetOverride,
@@ -71,15 +71,6 @@ export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
 > = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
 	const queryClient = useQueryClient();
-	const shouldLoadEffectiveGroup =
-		!!effectiveGroupId && effectiveGroupId !== currentGroup.id;
-	const effectiveGroupQuery = useQuery({
-		...groupById(effectiveGroupId ?? "", { exclude_members: true }),
-		enabled: open && shouldLoadEffectiveGroup,
-	});
-	const budgetGroup = shouldLoadEffectiveGroup
-		? effectiveGroupQuery.data
-		: currentGroup;
 	const budgetOverrideQuery = useQuery({
 		...userAIBudgetOverride(user.id),
 		enabled: open,
@@ -89,8 +80,8 @@ export const UserAIBudgetOverrideDialog: FC<
 		enabled: open,
 	});
 	const groupBudgetQuery = useQuery({
-		...groupAIBudget(budgetGroup?.id ?? currentGroup.id),
-		enabled: open && budgetGroup !== undefined,
+		...groupAIBudget(currentGroup.id),
+		enabled: open,
 	});
 	const saveMutation = useMutation(
 		saveUserAIBudgetOverride(queryClient, user.id),
@@ -100,12 +91,10 @@ export const UserAIBudgetOverrideDialog: FC<
 	);
 
 	const loadError =
-		effectiveGroupQuery.error ??
 		budgetOverrideQuery.error ??
 		userGroupsQuery.error ??
 		groupBudgetQuery.error;
 	const isLoading =
-		effectiveGroupQuery.isLoading ||
 		budgetOverrideQuery.isLoading ||
 		userGroupsQuery.isLoading ||
 		groupBudgetQuery.isLoading;
@@ -115,7 +104,6 @@ export const UserAIBudgetOverrideDialog: FC<
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				// Don't close while a mutation is in flight.
 				if (!isSubmitting) {
 					onOpenChange(nextOpen);
 				}
@@ -146,10 +134,10 @@ export const UserAIBudgetOverrideDialog: FC<
 						<Spinner loading />
 						Loading AI budget...
 					</div>
-				) : budgetGroup ? (
+				) : (
 					<OverrideForm
 						user={user}
-						currentGroup={budgetGroup}
+						currentGroup={currentGroup}
 						defaultGroupId={
 							effectiveGroupId === undefined
 								? currentGroup.id
@@ -163,7 +151,7 @@ export const UserAIBudgetOverrideDialog: FC<
 						onRemove={deleteMutation.mutateAsync}
 						onClose={() => onOpenChange(false)}
 					/>
-				) : null}
+				)}
 			</DialogContent>
 		</Dialog>
 	);
@@ -201,8 +189,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	const overrideId = useId();
 
 	const [overrideEnabled, setOverrideEnabled] = useState(override !== null);
-	// Seed from the override, else the group budget. Neither (uncapped) seeds
-	// empty, so enabling the override prompts for a value.
+	// Uncapped (no override or group budget) seeds empty, prompting for a value.
 	const [budgetDollars, setBudgetDollars] = useState(() => {
 		const seedMicros = (override ?? groupBudget)?.spend_limit_micros;
 		return seedMicros === undefined ? "" : String(microsToDollars(seedMicros));
@@ -232,9 +219,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	// Hold the error until the field is touched, so it doesn't flag immediately.
 	const budgetInvalid = overrideEnabled && budgetTouched && !budgetValid;
 	const budgetDisablesAI = budgetValid && budgetAmount === 0;
-	// Footer shows only when there's something to save or remove.
 	const showFooter = overrideEnabled || override !== null;
-	// Submittable with a valid amount to write, or an existing override to remove.
 	const canSubmit =
 		!isSubmitting && (overrideEnabled ? budgetValid : override !== null);
 
