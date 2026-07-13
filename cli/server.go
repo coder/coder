@@ -2838,8 +2838,8 @@ func ConfigureTraceProvider(
 	return ConfigureTraceProviderWithService(ctx, logger, cfg, "coderd")
 }
 
-// ConfigureTraceProviderWithService configures tracing with a specified service
-// name.
+// ConfigureTraceProviderWithService is the parameterized variant of
+// ConfigureTraceProvider.
 func ConfigureTraceProviderWithService(
 	ctx context.Context,
 	logger slog.Logger,

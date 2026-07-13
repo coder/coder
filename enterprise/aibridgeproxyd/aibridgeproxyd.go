@@ -118,7 +118,7 @@ var blockedIPRanges = func() []net.IPNet {
 // It is responsible for:
 //   - intercepting HTTPS requests to AI providers
 //   - decrypting requests using the configured MITM CA certificate
-//   - forwarding requests to aibridged for processing
+//   - forwarding requests to AI Gateway for processing
 type Server struct {
 	ctx        context.Context
 	logger     slog.Logger
@@ -175,7 +175,7 @@ type requestContext struct {
 	// CoderToken is the authentication token extracted from Proxy-Authorization.
 	// Set in authMiddleware during the CONNECT handshake.
 	CoderToken string
-	// Provider is the aibridge provider name.
+	// Provider is the AI Gateway provider name.
 	// Set in authMiddleware during the CONNECT handshake.
 	Provider string
 	// RequestID is a unique identifier for this request.
@@ -309,9 +309,9 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	// Override goproxy's default transport, which has InsecureSkipVerify: true.
-	// This applies to all proxy.Tr traffic: MITM requests forwarded to aibridge,
+	// This applies to all proxy.Tr traffic: MITM requests forwarded to AI Gateway,
 	// passthrough requests, and HTTPS upstream proxy connections. Proxy is
-	// intentionally unset so MITM requests go directly to aibridge, never
+	// intentionally unset so MITM requests go directly to AI Gateway, never
 	// through an upstream proxy or HTTPS_PROXY env var.
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
@@ -344,7 +344,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	srv.providerRouter.Store(emptyProviderRouter)
 
 	// Configure upstream proxy for tunneled (non-provider-host) CONNECT requests.
-	// Provider-host domains are intercepted and forwarded to aibridge directly,
+	// Provider-host domains are intercepted and forwarded to AI Gateway directly,
 	// bypassing the upstream proxy.
 	if opts.UpstreamProxy != "" {
 		upstreamURL, err := url.Parse(opts.UpstreamProxy)
@@ -501,7 +501,7 @@ func (s *Server) IsTLSListener() bool {
 	return s.tlsEnabled
 }
 
-// GatewayURL returns the parsed AI Gateway URL with a normalized port.
+// GatewayURL returns the parsed AI Gateway URL.
 func (s *Server) GatewayURL() *url.URL {
 	return s.gatewayURL
 }
@@ -804,7 +804,7 @@ func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.
 // and not exempted by AllowedPrivateCIDRs or the AI Gateway URL hostname.
 func (s *Server) isBlockedIP(ip net.IP, hostname string, port string) bool {
 	// Always allow the AI Gateway URL hostname+port so the proxy does not
-	// block connections to its own deployment. Hostname-based (not IP-based)
+	// block connections to the AI Gateway. Hostname-based (not IP-based)
 	// to handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
 	// The port is normalized at startup to handle URLs without explicit ports.
 	if strings.EqualFold(hostname, s.gatewayURL.Hostname()) && port == s.gatewayPort {
@@ -974,31 +974,31 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
-	aiBridgeURL, err := url.JoinPath(s.gatewayURL.String(), reqCtx.Provider, originalPath)
+	gatewayTargetURL, err := url.JoinPath(s.gatewayURL.String(), reqCtx.Provider, originalPath)
 	if err != nil {
-		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
+		logger.Error(s.ctx, "failed to build AI Gateway target URL", slog.Error(err))
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Gateway URL")
 	}
 
-	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
+	parsedGatewayTargetURL, err := url.Parse(gatewayTargetURL)
 	if err != nil {
-		logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
+		logger.Error(s.ctx, "failed to parse AI Gateway target URL", slog.Error(err))
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Gateway URL")
 	}
 
 	// Preserve query parameters from the original request.
 	// Both URL and Host must be set for the request to be properly routed.
-	aiBridgeParsedURL.RawQuery = req.URL.RawQuery
-	req.URL = aiBridgeParsedURL
-	req.Host = aiBridgeParsedURL.Host
+	parsedGatewayTargetURL.RawQuery = req.URL.RawQuery
+	req.URL = parsedGatewayTargetURL
+	req.Host = parsedGatewayTargetURL.Host
 
 	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
 
 	// Set request ID header to correlate requests between aibridgeproxyd and aibridged.
 	req.Header.Set(agplaibridge.HeaderCoderRequestID, reqCtx.RequestID.String())
 
-	logger.Info(s.ctx, "routing MITM request to aibridged",
-		slog.F("aibridged_url", aiBridgeParsedURL.String()),
+	logger.Info(s.ctx, "routing MITM request to AI Gateway",
+		slog.F("gateway_target_url", parsedGatewayTargetURL.String()),
 	)
 
 	// Dump the outgoing request when API dumping is enabled.
