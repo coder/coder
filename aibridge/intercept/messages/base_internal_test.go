@@ -1128,7 +1128,8 @@ func TestWriteUpstreamError(t *testing.T) {
 }
 
 // TestBedrockMantleIsPassthrough verifies a mantle provider reports the mantle
-// protocol and that Model() returns the client's model.
+// protocol, that Model() returns the client's model, and that building the
+// upstream service leaves the request body untouched.
 func TestBedrockMantleIsPassthrough(t *testing.T) {
 	t.Parallel()
 
@@ -1138,8 +1139,10 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 		bedrock: &BedrockRuntime{
 			Cfg: config.AWSBedrock{
 				Region:   "us-east-1",
+				BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
 				Protocol: config.BedrockProtocolMantle,
 			},
+			Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
 		},
 		logger: slog.Make(),
 	}
@@ -1147,6 +1150,15 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	require.True(t, i.isBedrockMantle())
 	require.False(t, i.isBedrockInvokeModel())
 	require.Equal(t, "anthropic.claude-opus-4-8", i.Model())
+
+	// newMessagesService dispatches InvokeModel augmentation but skips it for
+	// mantle. Building the service must not rewrite the body, and the signing
+	// middleware it installs only runs at request time, so reqPayload stays
+	// byte-identical here.
+	before := string(i.reqPayload)
+	_, err := i.newMessagesService(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, before, string(i.reqPayload))
 }
 
 // TestAWSMantleOptionsValidation verifies the mantle protocol requires a
