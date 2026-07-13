@@ -144,6 +144,29 @@ jobs:
             printf '%s' "$page_path"
           }
 
+          # Returns how many leading pages fit within a byte budget for
+          # the comment. Each page costs its checklist line (markup +
+          # filename code span + the preview URL, which embeds the
+          # branch) plus its base64 state entry; the estimate
+          # deliberately overshoots to stay under GitHub's comment limit.
+          # $1 budget, $2 URL-prefix length, $3 bytes already reserved.
+          # Reads one filename per line on stdin.
+          pages_within_budget() {
+            local budget="$1" url_prefix_len="$2" running="$3"
+            local keep=0 filename len cost
+            while IFS= read -r filename; do
+              [ -z "$filename" ] && continue
+              len=$(printf '%s' "$filename" | LC_ALL=C wc -c | tr -d ' ')
+              cost=$((20 + url_prefix_len + 2 * len + 80))
+              if [ $((running + cost)) -gt "$budget" ]; then
+                break
+              fi
+              running=$((running + cost))
+              keep=$((keep + 1))
+            done
+            printf '%s' "$keep"
+          }
+
           # Look up the existing docs-preview comment id up front so both
           # the cleanup path and the upsert path can reuse it without
           # listing twice. The body is fetched later, just before state
@@ -194,6 +217,7 @@ jobs:
           # A file with no manifest route 404s on the docs site, so drop
           # it from the list rather than link to a broken preview.
           eligible_tsv=$(printf '%s\n' "$changed_tsv" | while IFS=$'\t' read -r filename sha; do
+            [ -z "$filename" ] && continue
             if printf '%s\n' "$allowed_paths" | grep -qxF "$filename"; then
               printf '%s\t%s\n' "$filename" "$sha"
             fi
@@ -212,6 +236,10 @@ jobs:
           # stale read taken several API calls earlier. `|| true` keeps a
           # transient API error from failing the run; state recovery then
           # just treats every page as new.
+          #
+          # A reviewer toggle that lands in the small window between this
+          # read and the PATCH below is lost, but reappears correctly on
+          # the next push. Accepted limitation, not a bug.
           existing_body=""
           if [ -n "$existing_id" ]; then
             existing_body=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' || true)
@@ -229,7 +257,14 @@ jobs:
           if [ -n "$existing_body" ]; then
             old_state_b64=$(printf '%s\n' "$existing_body" | grep -oE "${STATE_PREFIX}[A-Za-z0-9+/=]+" | sed "s/^${STATE_PREFIX}//") || true
             if [ -n "$old_state_b64" ]; then
-              old_state_json=$(printf '%s' "$old_state_b64" | base64 -d)
+              # Guard the decode: a truncated or corrupted marker must
+              # degrade to "treat every page as new", not kill the run
+              # (base64 -d and jq both run under set -e). Require the
+              # result to parse as a JSON object, else keep {}.
+              decoded=$(printf '%s' "$old_state_b64" | base64 -d 2>/dev/null || true)
+              if printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
+                old_state_json="$decoded"
+              fi
             fi
 
             # shellcheck disable=SC2016 # backticks below are literal Markdown code-span delimiters, not command substitution.
@@ -257,29 +292,32 @@ jobs:
               {filename: $f.filename, sha: $f.sha, checked: $checked}
             ] | sort_by(.filename)')
 
-          # Cap the rendered list so a very large docs PR can't overflow
-          # GitHub's 65536-char comment limit. Each page costs ~125 chars
-          # of checklist plus ~115 chars of base64 state (~240 total), so
-          # 200 pages stays well under the ceiling with room for the
-          # fixed body. Any surplus is summarized in a trailing line, and
-          # both the state marker and the checklist derive from the
-          # capped set.
-          max_preview_pages=200
-          total_pages=$(printf '%s' "$final_rows" | jq 'length')
-          omitted_pages=0
-          if [ "$total_pages" -gt "$max_preview_pages" ]; then
-            omitted_pages=$((total_pages - max_preview_pages))
-            final_rows=$(printf '%s' "$final_rows" | jq --argjson n "$max_preview_pages" '.[:$n]')
-          fi
-
-          new_state_json=$(printf '%s' "$final_rows" | jq -c 'map({(.filename): .sha}) | add // {}')
-          new_state_b64=$(printf '%s' "$new_state_json" | base64 -w0)
-
           # URL-encode the branch name so slashes and special
           # characters don't break the preview URL. The page path is
           # left as-is because its components are simple ASCII path
           # segments and the slashes between them must be preserved.
           encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
+          url_prefix="https://coder.com/docs/@${encoded_branch}"
+
+          # Byte-budget the list against GitHub's 65536-char comment
+          # limit. A fixed page count isn't safe: every line embeds the
+          # URL-encoded branch, so a long branch name inflates per-line
+          # cost and overflow can hit well under 300 pages. Reserve
+          # headroom for the fixed body and the base64 state marker,
+          # include as many leading pages as fit, and summarize the rest.
+          # Both the checklist and the state marker derive from the kept
+          # set.
+          comment_budget=60000
+          total_pages=$(printf '%s' "$final_rows" | jq 'length')
+          keep_pages=$(printf '%s' "$final_rows" | jq -r '.[].filename' \
+            | pages_within_budget "$comment_budget" "${#url_prefix}" 1500)
+          omitted_pages=$((total_pages - keep_pages))
+          if [ "$omitted_pages" -gt 0 ]; then
+            final_rows=$(printf '%s' "$final_rows" | jq --argjson n "$keep_pages" '.[:$n]')
+          fi
+
+          new_state_json=$(printf '%s' "$final_rows" | jq -c 'map({(.filename): .sha}) | add // {}')
+          new_state_b64=$(printf '%s' "$new_state_json" | base64 -w0)
 
           # Emit one <filename>\t<checked> row per page with a single jq
           # pass, rather than two jq spawns per row inside the loop.
@@ -288,7 +326,7 @@ jobs:
             [ -z "$filename" ] && continue
             page_path=$(map_doc_path "$filename")
 
-            url="https://coder.com/docs/@${encoded_branch}"
+            url="$url_prefix"
             if [ -n "$page_path" ]; then
               url="${url}/${page_path}"
             fi
@@ -319,20 +357,26 @@ jobs:
           ${DOCS_PREVIEW_MARKER}
           <!-- ${STATE_PREFIX}${new_state_b64} -->"
 
-          # Upsert: update the existing docs-preview comment if one
-          # exists, otherwise create a new one. This prevents duplicate
-          # preview comments on every push to the PR.
+          # Upsert: PATCH the existing comment if we found one, else
+          # create it. existing_id is re-derived from a live list on
+          # every run (never persisted), so a genuinely deleted comment
+          # isn't found and lands in the create branch below.
+          #
+          # Therefore a PATCH failure against a known existing_id almost
+          # always means the comment still exists and the error is
+          # transient: never create in that case, or we post a permanent
+          # duplicate (the write-path sibling of the guarded list
+          # failure). Fail instead; the next push retries.
           if [ -n "$existing_id" ]; then
-            if ! gh api --method PATCH \
+            if gh api --method PATCH \
               "repos/${REPO}/issues/comments/${existing_id}" \
               --field body="$comment_body"; then
-              echo "PATCH failed (comment may have been deleted); creating a new comment."
-              existing_id=""
-            else
               echo "Updated existing docs preview comment (id=${existing_id})."
+            else
+              echo "Failed to update docs preview comment ${existing_id}; not creating a duplicate." >&2
+              exit 1
             fi
-          fi
-          if [ -z "$existing_id" ]; then
+          else
             gh pr comment "${PR_NUMBER}" \
               --repo "${REPO}" \
               --body "$comment_body"

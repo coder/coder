@@ -332,6 +332,46 @@ else
 	failures=$((failures + 1))
 fi
 
+# pages_within_budget mirrors the byte-budget cap in docs-preview.yaml
+# (CRF-15/CRF-19): given a budget, the per-line URL-prefix length, and
+# bytes already reserved, it returns how many leading pages fit.
+pages_within_budget() {
+	local budget="$1" url_prefix_len="$2" running="$3"
+	local keep=0 filename len cost
+	while IFS= read -r filename; do
+		[ -z "$filename" ] && continue
+		len=$(printf '%s' "$filename" | LC_ALL=C wc -c | tr -d ' ')
+		cost=$((20 + url_prefix_len + 2 * len + 80))
+		if [ $((running + cost)) -gt "$budget" ]; then
+			break
+		fi
+		running=$((running + cost))
+		keep=$((keep + 1))
+	done
+	printf '%s' "$keep"
+}
+
+pages_fixture=$(printf 'docs/a.md\ndocs/b.md\ndocs/c.md\ndocs/d.md\ndocs/e.md')
+assert_budget() {
+	local budget="$1" prefix_len="$2" reserved="$3" expected="$4"
+	local actual
+	actual=$(printf '%s\n' "$pages_fixture" | pages_within_budget "$budget" "$prefix_len" "$reserved")
+	if [ "$actual" = "$expected" ]; then
+		echo "PASS: pages_within_budget($budget, $prefix_len, $reserved) -> $expected"
+	else
+		echo "FAIL: pages_within_budget($budget, $prefix_len, $reserved) -> $actual (expected $expected)"
+		failures=$((failures + 1))
+	fi
+}
+
+# Each "docs/?.md" is 9 bytes -> cost 20 + 100 + 18 + 80 = 218 per page.
+# budget 1000, reserve 0: 218*4=872 fits, the 5th (1090) overflows -> 4.
+assert_budget 1000 100 0 4
+# A generous budget fits all five pages.
+assert_budget 100000 100 0 5
+# A reservation that already fills the budget fits none.
+assert_budget 1000 100 1000 0
+
 if [ "$failures" -gt 0 ]; then
 	echo ""
 	echo "$failures test(s) failed."
