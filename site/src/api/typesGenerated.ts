@@ -373,7 +373,7 @@ export interface AIProviderBedrockSettings {
 	/**
 	 * Protocol selects the Bedrock wire protocol. An empty value resolves to
 	 * AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
-	 * behavior without a schema version bump.
+	 * behavior.
 	 */
 	readonly protocol?: AIProviderBedrockProtocol;
 }
