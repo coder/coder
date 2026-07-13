@@ -343,8 +343,12 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
+	// A chat in any of these statuses has an in-flight run that
+	// archiving would interrupt, so ask for confirmation first.
 	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
-		chat?.status === "pending" || chat?.status === "running";
+		chat?.status === "running" ||
+		chat?.status === "interrupting" ||
+		chat?.status === "requires_action";
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;

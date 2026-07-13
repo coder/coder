@@ -29,6 +29,7 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -806,7 +807,6 @@ type Options struct {
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
 	ReplicaErrorGracePeriod   time.Duration
-	ClusterHost               string // IP or hostname to reach this specific replica
 	DERPServerRelayAddress    string
 	DERPServerRegionID        int
 
@@ -1013,6 +1013,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				}
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					// Swap the real nats_ca CA cache and the replica peer fetcher
+					// in so the first route handshake can negotiate mTLS.
+					natsPubsub.SetCACache(api.AGPL.NATSCACache)
 					natsPubsub.SetPeerFetcher(api.replicaManager)
 					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
 				}
@@ -1045,6 +1048,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
 					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					// Revert to the noop CA cache: new route handshakes can no
+					// longer mint a leaf, so the cluster mesh stops forming.
+					natsPubsub.SetCACache(cryptokeys.NoopSigningKeycache{})
 					api.replicaManager.SetCallback("nats", nil)
 				}
 			}

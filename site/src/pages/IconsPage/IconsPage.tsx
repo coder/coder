@@ -1,13 +1,12 @@
 import { useTheme } from "@emotion/react";
-import InputAdornment from "@mui/material/InputAdornment";
-import Link from "@mui/material/Link";
-import TextField from "@mui/material/TextField";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import uFuzzy from "ufuzzy";
 import { Button } from "#/components/Button/Button";
 import { CopyableValue } from "#/components/CopyableValue/CopyableValue";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Input } from "#/components/Input/Input";
+import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -107,47 +106,32 @@ const IconsPage: FC = () => {
 						All of the icons included with Coder
 					</PageHeaderSubtitle>
 				</PageHeader>
-				<TextField
-					size="small"
-					InputProps={{
-						"aria-label": "Filter",
-						name: "query",
-						placeholder: "Search…",
-						value: searchInputText,
-						onChange: (event) => setSearchInputText(event.target.value),
-						sx: {
-							borderRadius: "6px",
-							marginLeft: "-1px",
-							"& input::placeholder": {
-								color: theme.palette.text.secondary,
-							},
-							"& .MuiInputAdornment-root": {
-								marginLeft: 0,
-							},
-						},
-						startAdornment: (
-							<InputAdornment position="start">
-								<SearchIcon className="size-icon-xs text-content-secondary" />
-							</InputAdornment>
-						),
-						endAdornment: searchInputText && (
-							<InputAdornment position="end">
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											onClick={() => setSearchInputText("")}
-										>
-											<XIcon className="size-icon-xs" />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Clear filter</TooltipContent>
-								</Tooltip>
-							</InputAdornment>
-						),
-					}}
-				/>
+				<div className="relative max-w-xs">
+					<SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-icon-xs text-content-secondary" />
+					<Input
+						aria-label="Filter"
+						name="query"
+						placeholder="Search…"
+						value={searchInputText}
+						onChange={(event) => setSearchInputText(event.target.value)}
+						className="pl-9 pr-10"
+					/>
+					{searchInputText && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									onClick={() => setSearchInputText("")}
+									className="absolute right-1 top-1/2 -translate-y-1/2"
+								>
+									<XIcon className="size-icon-xs" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Clear filter</TooltipContent>
+						</Tooltip>
+					)}
+				</div>
 
 				<div className="flex flex-row gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (

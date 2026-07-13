@@ -1221,7 +1221,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("ignores message_part updates while chat is pending", async () => {
+	it("ignores message_part updates while chat is waiting", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
@@ -1284,12 +1284,12 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "status",
 				chat_id: chatID,
-				status: { status: "pending" },
+				status: { status: "waiting" },
 			});
 		});
 
 		await waitFor(() => {
-			// Stream state is preserved after status=pending (the
+			// Stream state is preserved after status=waiting (the
 			// durable message event handles cleanup via
 			// needsStreamReset). Only new message_parts should be
 			// blocked by the shouldApplyMessagePart gate.
@@ -1315,7 +1315,7 @@ describe("useChatStore", () => {
 
 		await waitFor(() => {
 			// The late message_part should not be applied because
-			// shouldApplyMessagePart gates on pending/waiting.
+			// shouldApplyMessagePart gates on waiting.
 			// Stream state still shows the original "first".
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "first" },
@@ -2622,13 +2622,13 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "status",
 				chat_id: subagentChatID,
-				status: { status: "completed" },
+				status: { status: "waiting" },
 			});
 		});
 
 		await waitFor(() => {
 			expect(result.current.subagentStatusOverrides.get(subagentChatID)).toBe(
-				"completed",
+				"waiting",
 			);
 		});
 		// Main chat status should remain "running" from the initial
@@ -2868,10 +2868,10 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("does not surface reconnectState for completed chats", async () => {
+	it("does not surface reconnectState for settled chats", async () => {
 		immediateAnimationFrame();
 
-		const chatID = "chat-disconnect-completed";
+		const chatID = "chat-disconnect-settled";
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
@@ -2883,7 +2883,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: { ...buildChat(chatID), status: "completed" },
+					chatRecord: { ...buildChat(chatID), status: "waiting" },
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2902,7 +2902,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("completed");
+			expect(result.current.chatStatus).toBe("waiting");
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
@@ -2912,7 +2912,7 @@ describe("useChatStore", () => {
 
 		await waitFor(() => {
 			expect(result.current.reconnectState).toBeNull();
-			expect(result.current.chatStatus).toBe("completed");
+			expect(result.current.chatStatus).toBe("waiting");
 		});
 	});
 	it("uses exponential backoff on consecutive disconnects", async () => {
@@ -3539,9 +3539,9 @@ describe("useChatStore", () => {
 			expect(result.current.chatStatus).toBe("running");
 		});
 
-		// Simulate a stale REST refetch returning "pending".
+		// Simulate a stale REST refetch returning "waiting".
 		rerender({
-			chatRecord: { ...buildChat(chatID), status: "pending" },
+			chatRecord: { ...buildChat(chatID), status: "waiting" },
 		});
 
 		// The store must ignore the stale REST value because the
@@ -3926,9 +3926,9 @@ describe("thinking indicator event ordering", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Server sends message_part then immediately transitions to pending.
-		// The buffered parts must be discarded (not applied) because
-		// pending status clears stream state.
+		// Server sends message_part then immediately transitions to
+		// waiting. The buffered parts must be discarded (not applied)
+		// because waiting status clears stream state.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3941,13 +3941,13 @@ describe("thinking indicator event ordering", () => {
 				{
 					type: "status",
 					chat_id: chatID,
-					status: { status: "pending" },
+					status: { status: "waiting" },
 				},
 			]);
 		});
 
 		await waitFor(() => {
-			expect(result.current.chatStatus).toBe("pending");
+			expect(result.current.chatStatus).toBe("waiting");
 			expect(result.current.streamState).toBeNull();
 		});
 
@@ -4014,13 +4014,13 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "status",
 				chat_id: chatID,
-				status: { status: "completed" },
+				status: { status: "waiting" },
 			});
 		});
 
 		await waitFor(() => {
 			const sidebarChats = readInfiniteChats(queryClient);
-			expect(sidebarChats?.[0].status).toBe("completed");
+			expect(sidebarChats?.[0].status).toBe("waiting");
 		});
 	});
 
@@ -4211,14 +4211,14 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "status",
 				chat_id: chatID,
-				status: { status: "completed" },
+				status: { status: "waiting" },
 			});
 		});
 
 		await waitFor(() => {
 			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.find((c) => c.id === chatID)?.status).toBe(
-				"completed",
+				"waiting",
 			);
 		});
 
@@ -4351,14 +4351,14 @@ describe("updateSidebarChat via stream events", () => {
 			mockSocket.emitData({
 				type: "status",
 				chat_id: chatID,
-				status: { status: "completed" },
+				status: { status: "waiting" },
 			});
 		});
 
 		await waitFor(() => {
 			const sidebarChats = readInfiniteChats(queryClient);
 			// Status should update, but updated_at must stay untouched.
-			expect(sidebarChats?.[0].status).toBe("completed");
+			expect(sidebarChats?.[0].status).toBe("waiting");
 			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
 		});
 	});

@@ -5606,165 +5606,6 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 	return i, err
 }
 
-const acquireChats = `-- name: AcquireChats :many
-WITH acquired_chats AS (
-UPDATE
-    chats
-SET
-    status = 'running'::chat_status,
-    started_at = $1::timestamptz,
-    heartbeat_at = $1::timestamptz,
-    updated_at = $1::timestamptz,
-    worker_id = $2::uuid
-WHERE
-    id = ANY(
-        SELECT
-            id
-        FROM
-            chats
-        WHERE
-            status = 'pending'::chat_status
-            AND archived = false
-        ORDER BY
-            updated_at ASC
-        FOR UPDATE
-            SKIP LOCKED
-        LIMIT
-            $3::int
-    )
-RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort
-),
-chats_expanded AS (
-    SELECT
-        acquired_chats.id,
-        acquired_chats.owner_id,
-        acquired_chats.workspace_id,
-        acquired_chats.title,
-        acquired_chats.status,
-        acquired_chats.worker_id,
-        acquired_chats.started_at,
-        acquired_chats.heartbeat_at,
-        acquired_chats.created_at,
-        acquired_chats.updated_at,
-        acquired_chats.parent_chat_id,
-        acquired_chats.root_chat_id,
-        acquired_chats.last_model_config_id,
-        acquired_chats.last_reasoning_effort,
-        acquired_chats.archived,
-        acquired_chats.last_error,
-        acquired_chats.mode,
-        acquired_chats.mcp_server_ids,
-        acquired_chats.labels,
-        acquired_chats.build_id,
-        acquired_chats.agent_id,
-        acquired_chats.pin_order,
-        acquired_chats.last_read_message_id,
-        acquired_chats.dynamic_tools,
-        acquired_chats.organization_id,
-        acquired_chats.plan_mode,
-        acquired_chats.client_type,
-        acquired_chats.last_turn_summary,
-        acquired_chats.snapshot_version,
-        acquired_chats.history_version,
-        acquired_chats.queue_version,
-        acquired_chats.generation_attempt,
-        acquired_chats.retry_state,
-        acquired_chats.retry_state_version,
-        acquired_chats.runner_id,
-        acquired_chats.requires_action_deadline_at,
-        COALESCE(root.user_acl, acquired_chats.user_acl) AS user_acl,
-        COALESCE(root.group_acl, acquired_chats.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        acquired_chats.context_aggregate_hash,
-        acquired_chats.context_dirty_since,
-        acquired_chats.context_dirty_resources,
-        acquired_chats.context_error
-    FROM
-        acquired_chats
-    LEFT JOIN chats root ON root.id = COALESCE(acquired_chats.root_chat_id, acquired_chats.parent_chat_id)
-    JOIN visible_users owner ON owner.id = acquired_chats.owner_id
-)
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error
-FROM chats_expanded
-`
-
-type AcquireChatsParams struct {
-	StartedAt time.Time `db:"started_at" json:"started_at"`
-	WorkerID  uuid.UUID `db:"worker_id" json:"worker_id"`
-	NumChats  int32     `db:"num_chats" json:"num_chats"`
-}
-
-// Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
-// to prevent multiple replicas from acquiring the same chat.
-func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, acquireChats, arg.StartedAt, arg.WorkerID, arg.NumChats)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.LastReasoningEffort,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
-			&i.LastReadMessageID,
-			&i.DynamicTools,
-			&i.OrganizationID,
-			&i.PlanMode,
-			&i.ClientType,
-			&i.LastTurnSummary,
-			&i.SnapshotVersion,
-			&i.HistoryVersion,
-			&i.QueueVersion,
-			&i.GenerationAttempt,
-			&i.RetryState,
-			&i.RetryStateVersion,
-			&i.RunnerID,
-			&i.RequiresActionDeadlineAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.OwnerUsername,
-			&i.OwnerName,
-			&i.ContextAggregateHash,
-			&i.ContextDirtySince,
-			&i.ContextDirtyResources,
-			&i.ContextError,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
 WITH acquired AS (
     UPDATE
@@ -6036,7 +5877,7 @@ WITH to_archive AS (
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < $1::timestamptz
       -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
+      AND c.status NOT IN ('running', 'requires_action')
       AND COALESCE(activity.last_activity_at, c.created_at) < $1::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
@@ -6443,10 +6284,9 @@ SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbe
 FROM chats_expanded
 WHERE agent_id = $1::uuid
     AND archived = false
-    -- Active statuses only: waiting, pending, running, paused,
-    -- requires_action.
-    -- Excludes completed and error (terminal states).
-    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
+    -- Active statuses only: waiting, running, requires_action.
+    -- Excludes error (terminal state) and interrupting.
+    AND status IN ('waiting', 'running', 'requires_action')
 ORDER BY updated_at DESC
 `
 
@@ -6538,8 +6378,6 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'pending'::chat_status,
-        'paused'::chat_status,
         'requires_action'::chat_status
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < $1::timestamptz
@@ -10400,7 +10238,7 @@ UPDATE chats
 SET context_dirty_since = $1
 WHERE agent_id = $2::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'paused', 'pending', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM $3
     AND context_dirty_since IS NULL
