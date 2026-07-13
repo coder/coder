@@ -88,7 +88,7 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// reintroduces a navigation race in tests that goto() right after
 	// login. See https://github.com/coder/coder/pull/27107.
 	await page.waitForURL((url) => url.pathname === "/workspaces");
-	await expect(page).toHaveTitle(/Workspaces/);
+	await expect(page).toHaveTitle("Workspaces - Coder");
 	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
