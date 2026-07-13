@@ -292,6 +292,20 @@ func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
 		require.False(t, hasFieldError(create.Validate(), "settings.region"))
 	})
 
+	t.Run("MantleRequiresRegionOnUpdate", func(t *testing.T) {
+		t.Parallel()
+		settings := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Protocol: codersdk.AIProviderBedrockProtocolMantle,
+			},
+		}
+		update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+		require.True(t, hasFieldError(update.Validate(), "settings.region"))
+
+		settings.Bedrock.Region = "us-east-1"
+		require.False(t, hasFieldError(update.Validate(), "settings.region"))
+	})
+
 	t.Run("InvokeModelDoesNotRequireRegionField", func(t *testing.T) {
 		t.Parallel()
 		// The default (invoke-model) protocol keeps its existing rules; the

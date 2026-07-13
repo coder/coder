@@ -284,13 +284,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 				Detail: "external_id is server-generated and cannot be set",
 			})
 		}
-		// The Mantle protocol signs requests with SigV4, which requires a region.
-		if req.Settings.Bedrock.ResolvedProtocol() == AIProviderBedrockProtocolMantle && req.Settings.Bedrock.Region == "" {
-			validations = append(validations, ValidationError{
-				Field:  "settings.region",
-				Detail: "region is required for the mantle protocol",
-			})
-		}
+		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
@@ -344,6 +338,7 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	if req.Settings != nil && req.Settings.Bedrock != nil {
 		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
 		validations = append(validations, validateAIProviderBedrockProtocol(req.Settings.Bedrock.Protocol)...)
+		validations = append(validations, validateAIProviderBedrockMantleRegion(*req.Settings.Bedrock)...)
 	}
 	return validations
 }
@@ -377,6 +372,17 @@ func validateAIProviderBedrockProtocol(protocol AIProviderBedrockProtocol) []Val
 			Detail: fmt.Sprintf("unsupported bedrock protocol %q, must be one of %q or %q", protocol, AIProviderBedrockProtocolInvokeModel, AIProviderBedrockProtocolMantle),
 		}}
 	}
+}
+
+func validateAIProviderBedrockMantleRegion(b AIProviderBedrockSettings) []ValidationError {
+	// The Mantle protocol signs requests with SigV4, which requires a region.
+	if b.ResolvedProtocol() == AIProviderBedrockProtocolMantle && b.Region == "" {
+		return []ValidationError{{
+			Field:  "settings.region",
+			Detail: "region is required for the mantle protocol",
+		}}
+	}
+	return nil
 }
 
 func validateAIProviderRoleARN(roleARN string) []ValidationError {
