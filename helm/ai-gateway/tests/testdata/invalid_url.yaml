@@ -1,0 +1,7 @@
+coder:
+  image:
+    tag: v2.30.0
+aigateway:
+  coderURL: coder.example.com
+  keySecret:
+    name: key

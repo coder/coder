@@ -1,0 +1,4 @@
+{{- range .Values.extraTemplates }}
+---
+{{ include "coder-ai-gateway.renderTemplate" (dict "value" . "context" $) }}
+{{- end }}

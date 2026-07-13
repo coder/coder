@@ -1,0 +1,13 @@
+coder:
+  image:
+    tag: v2.30.0
+aigateway:
+  coderService:
+    scheme: http
+  keySecret:
+    name: ai-gateway-key
+service:
+  type: NodePort
+  nodePort: 30401
+  externalTrafficPolicy: Local
+  sessionAffinity: ClientIP

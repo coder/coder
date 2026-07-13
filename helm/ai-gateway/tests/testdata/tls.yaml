@@ -1,0 +1,20 @@
+coder:
+  image:
+    tag: v2.30.0
+aigateway:
+  coderURL: https://coder.example.com
+  keySecret:
+    name: ai-gateway-key
+    key: token
+  coderTLS:
+    caSecret:
+      name: coder-ca
+      key: root.pem
+    clientSecret:
+      name: coder-client
+      certKey: client.crt
+      keyKey: client.key
+  listenerTLS:
+    secretName: gateway-tls
+    certKey: cert.pem
+    keyKey: key.pem

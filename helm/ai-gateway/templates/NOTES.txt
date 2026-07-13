@@ -1,0 +1,8 @@
+Coder AI Gateway is installed as {{ include "coder.name" . }}.
+
+Configure the Coder deployment with:
+
+  CODER_AI_GATEWAY_PROXY_TARGET={{ ternary "https" "http" (not (empty .Values.aigateway.listenerTLS.secretName)) }}://{{ include "coder.name" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+The metrics listener is active on port 2112. Configure discovery with
+coder.podAnnotations or resources managed by your monitoring stack.

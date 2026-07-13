@@ -1,0 +1,11 @@
+coder:
+  image:
+    tag: v2.30.0
+  env:
+    - name: CODER_URL
+      value: https://override.example.com
+aigateway:
+  coderService:
+    scheme: http
+  keySecret:
+    name: key

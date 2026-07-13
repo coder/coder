@@ -1,0 +1,11 @@
+coder:
+  image:
+    tag: v2.30.0
+aigateway:
+  coderService:
+    name: coder-primary
+    namespace: coder-system
+    scheme: https
+    port: 8443
+  keySecret:
+    name: ai-gateway-key
