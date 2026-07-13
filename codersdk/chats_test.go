@@ -548,6 +548,27 @@ func TestChatModelCallConfig_UnmarshalLegacyPricing(t *testing.T) {
 	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
 }
 
+func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
+	t.Parallel()
+
+	var decoded codersdk.ChatModelCallConfig
+	err := decoded.UnmarshalStrict([]byte(`{
+		"temperature": 0.5,
+		"cost": {"input_price_per_million_tokens": "5"},
+		"input_price_per_million_tokens": 1.5,
+		"provider_options": {"anthropic": {"thinking": {"budget_tokens": 1024}}}
+	}`))
+	require.NoError(t, err)
+	require.NotNil(t, decoded.Temperature)
+	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("5")))
+
+	err = decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
+	require.ErrorContains(t, err, `unknown field "bogus_setting"`)
+
+	// UnmarshalJSON stays lenient.
+	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
+}
+
 func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 
