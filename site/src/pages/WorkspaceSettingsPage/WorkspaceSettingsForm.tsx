@@ -1,6 +1,3 @@
-import type { Theme } from "@emotion/react";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import { useFormik } from "formik";
 import upperFirst from "lodash/upperFirst";
 import type { FC } from "react";
@@ -17,7 +14,17 @@ import {
 	FormSection,
 	HorizontalForm,
 } from "#/components/Form/Form";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import {
 	getFormHelpers,
 	nameValidator,
@@ -61,6 +68,19 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 		error,
 	);
 
+	const nameField = getFieldHelpers("name");
+	const nameDisabled = !workspace.allow_renames || form.isSubmitting;
+	const nameHelperText = workspace.allow_renames
+		? form.values.name !== form.initialValues.name &&
+			"Depending on the template, renaming your workspace may be destructive"
+		: "Renaming your workspace can be destructive and is disabled by the template.";
+
+	const automaticUpdatesValue = workspace.template_require_active_version
+		? "always"
+		: form.values.automatic_updates;
+	const automaticUpdatesDisabled =
+		form.isSubmitting || workspace.template_require_active_version;
+
 	return (
 		<HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
 			<FormSection
@@ -68,21 +88,32 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 				description="Update the name of your workspace."
 			>
 				<FormFields>
-					<TextField
-						{...getFieldHelpers("name")}
-						disabled={!workspace.allow_renames || form.isSubmitting}
-						onChange={onChangeTrimmed(form)}
-						autoFocus
-						fullWidth
-						label="Name"
-						css={workspace.allow_renames && styles.nameWarning}
-						helperText={
-							workspace.allow_renames
-								? form.values.name !== form.initialValues.name &&
-									"Depending on the template, renaming your workspace may be destructive"
-								: "Renaming your workspace can be destructive and is disabled by the template."
-						}
-					/>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="name">Name</Label>
+						<Input
+							id="name"
+							name={nameField.name}
+							// biome-ignore lint/a11y/noAutofocus: focus the primary field on load
+							autoFocus
+							disabled={nameDisabled}
+							value={nameField.value ?? ""}
+							onChange={onChangeTrimmed(form)}
+							onBlur={nameField.onBlur}
+							aria-invalid={nameField.error}
+						/>
+						{nameHelperText && (
+							<span
+								className={cn(
+									"text-xs",
+								workspace.allow_renames
+									? "text-content-warning"
+									: "text-content-secondary",
+							)}
+							>
+								{nameHelperText}
+							</span>
+						)}
+					</div>
 				</FormFields>
 			</FormSection>
 			<FormSection
@@ -90,30 +121,32 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 				description="Configure your workspace to automatically update when started."
 			>
 				<FormFields>
-					<TextField
-						{...getFieldHelpers("automatic_updates")}
-						id="automatic_updates"
-						label="Update Policy"
-						value={
-							workspace.template_require_active_version
-								? "always"
-								: form.values.automatic_updates
-						}
-						select
-						disabled={
-							form.isSubmitting || workspace.template_require_active_version
-						}
-						helperText={
-							workspace.template_require_active_version &&
-							"The template for this workspace requires automatic updates."
-						}
-					>
-						{AutomaticUpdateses.map((value) => (
-							<MenuItem value={value} key={value}>
-								{upperFirst(value)}
-							</MenuItem>
-						))}
-					</TextField>
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="automatic_updates">Update Policy</Label>
+						<Select
+							value={automaticUpdatesValue}
+							onValueChange={(value) => {
+								void form.setFieldValue("automatic_updates", value);
+							}}
+							disabled={automaticUpdatesDisabled}
+						>
+							<SelectTrigger id="automatic_updates">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{AutomaticUpdateses.map((value) => (
+									<SelectItem value={value} key={value}>
+										{upperFirst(value)}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						{workspace.template_require_active_version && (
+							<span className="text-xs text-content-secondary">
+								The template for this workspace requires automatic updates.
+							</span>
+						)}
+					</div>
 				</FormFields>
 			</FormSection>
 			{formEnabled && (
@@ -130,12 +163,4 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 			)}
 		</HorizontalForm>
 	);
-};
-
-const styles = {
-	nameWarning: (theme: Theme) => ({
-		"& .MuiFormHelperText-root": {
-			color: theme.palette.warning.light,
-		},
-	}),
 };
