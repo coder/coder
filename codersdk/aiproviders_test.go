@@ -308,14 +308,18 @@ func TestAIProviderRequest_ValidateBedrockMantle(t *testing.T) {
 
 	t.Run("InvokeModelDoesNotRequireRegionField", func(t *testing.T) {
 		t.Parallel()
-		// The default (invoke-model) protocol keeps its existing rules; the
-		// mantle-specific region check must not fire for it.
-		create := codersdk.CreateAIProviderRequest{
-			Type:     codersdk.AIProviderTypeBedrock,
-			Name:     "bedrock",
-			BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
-			Settings: codersdk.AIProviderSettings{},
+		// The mantle-specific region check must not fire for the invoke-model
+		// protocol, whether it is set explicitly or left empty (existing rows).
+		for _, protocol := range []codersdk.AIProviderBedrockProtocol{"", codersdk.AIProviderBedrockProtocolInvokeModel} {
+			create := codersdk.CreateAIProviderRequest{
+				Type:    codersdk.AIProviderTypeBedrock,
+				Name:    "bedrock",
+				BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+				Settings: codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{Protocol: protocol},
+				},
+			}
+			require.False(t, hasFieldError(create.Validate(), "settings.region"))
 		}
-		require.False(t, hasFieldError(create.Validate(), "settings.region"))
 	})
 }
