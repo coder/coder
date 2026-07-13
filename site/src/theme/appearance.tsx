@@ -5,24 +5,26 @@ import {
 	useContext,
 	useMemo,
 } from "react";
-import {
-	type ExternalImageModeStyles,
-	forDarkThemes,
-} from "#/theme/externalImages";
+import type { ExternalImageModeStyles } from "#/theme/externalImages";
 
 /**
- * Publishes appearance-related values derived from the active site theme so
- * components can consume them without depending on Emotion's `useTheme`. The
- * values originate from the site theme and are provided by `ThemeOverride`.
+ * Publishes *user* appearance values derived from the active site theme so
+ * components can consume them without depending on Emotion's `useTheme`.
+ *
+ * This is the client-side, theme-derived appearance surface (for example, how
+ * external images should be tinted for the active theme). It is intentionally
+ * distinct from the user `appearanceSettings` query (theme, terminal font) and
+ * from the deployment-level `AppearanceConfig` (application name, logo, service
+ * banners) that admins configure.
+ *
+ * Values are provided by the surrounding `AppearanceProvider` (see
+ * `ThemeOverride` and the Storybook preview decorator).
  */
 interface Appearance {
 	externalImages: ExternalImageModeStyles;
 }
 
-const AppearanceContext = createContext<Appearance>({
-	// Defaults to `forDarkThemes` to match `DEFAULT_THEME`.
-	externalImages: forDarkThemes,
-});
+const AppearanceContext = createContext<Appearance | undefined>(undefined);
 
 interface AppearanceProviderProps {
 	externalImages: ExternalImageModeStyles;
@@ -46,5 +48,11 @@ export const AppearanceProvider: FC<AppearanceProviderProps> = ({
 };
 
 export const useAppearance = (): Appearance => {
-	return useContext(AppearanceContext);
+	const appearance = useContext(AppearanceContext);
+	if (appearance === undefined) {
+		throw new Error(
+			"useAppearance must be used within an AppearanceProvider",
+		);
+	}
+	return appearance;
 };
