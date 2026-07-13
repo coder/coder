@@ -19,7 +19,7 @@ const UpdateMCPServerPage: FC = () => {
 	const { serverId } = useParams<{ serverId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const serversQuery = useQuery(mcpServerConfigs());
+	const serversQuery = useQuery(mcpServerConfigs("global"));
 	const updateMutation = useMutation(updateMCPServerConfig(queryClient));
 	const deleteMutation = useMutation(deleteMCPServerConfig(queryClient));
 	const server = serversQuery.data?.find((item) => item.id === serverId);

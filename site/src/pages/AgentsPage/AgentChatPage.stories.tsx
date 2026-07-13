@@ -275,7 +275,7 @@ const buildQueries = (
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
-		{ key: mcpServerConfigsKey, data: [] },
+		{ key: [...mcpServerConfigsKey, "all"], data: [] },
 		buildChatAuthorizationQuery(chat, {
 			canShareChat: {
 				action: "share",

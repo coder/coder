@@ -19,20 +19,31 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { MCPServerRow } from "./components/MCPServerRow";
+import type { MCPServerFormVariant } from "./components/mcpServerFormLogic";
 
 interface MCPServersPageViewProps {
 	isLoading: boolean;
 	error: unknown;
 	servers: readonly TypesGen.MCPServerConfig[];
+	/** Route prefix for the add and edit sub-pages. */
+	basePath?: string;
+	description?: string;
+	/** "personal" hides the deployment availability column. */
+	variant?: MCPServerFormVariant;
 }
 
 const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	isLoading,
 	error,
 	servers,
+	basePath = "/ai/settings/mcp-servers",
+	description = "Configure external MCP servers that provide additional tools for Coder Agents.",
+	variant = "deployment",
 }) => {
 	const navigate = useNavigate();
-	const goToAddServer = () => void navigate("/ai/settings/mcp-servers/add");
+	const goToAddServer = () => void navigate(`${basePath}/add`);
+	const showAvailability = variant === "deployment";
+	const title = variant === "personal" ? "Personal MCP servers" : "MCP servers";
 
 	return (
 		<div>
@@ -44,11 +55,8 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 					</Button>
 				}
 			>
-				<SettingsHeaderTitle>MCP servers</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Configure external MCP servers that provide additional tools for Coder
-					Agents.
-				</SettingsHeaderDescription>
+				<SettingsHeaderTitle>{title}</SettingsHeaderTitle>
+				<SettingsHeaderDescription>{description}</SettingsHeaderDescription>
 			</SettingsHeader>
 			{Boolean(error) && (
 				<div className="mb-4">
@@ -60,7 +68,9 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 					<TableRow>
 						<TableHead className="w-1/2">Name</TableHead>
 						<TableHead className="w-1/5">Auth Method</TableHead>
-						<TableHead className="w-1/5">Availability</TableHead>
+						{showAvailability && (
+							<TableHead className="w-1/5">Availability</TableHead>
+						)}
 						<TableHead className="w-32">Status</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open server</span>
@@ -86,9 +96,8 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 							<MCPServerRow
 								key={server.id}
 								server={server}
-								onClick={() =>
-									void navigate(`/ai/settings/mcp-servers/${server.id}`)
-								}
+								showAvailability={showAvailability}
+								onClick={() => void navigate(`${basePath}/${server.id}`)}
 							/>
 						))
 					)}

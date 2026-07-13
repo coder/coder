@@ -2,6 +2,14 @@ import type * as TypesGen from "#/api/typesGenerated";
 
 export const SECRET_PLACEHOLDER = "••••••••••••••••";
 
+/**
+ * MCPServerFormVariant controls which fields the form exposes.
+ * The "deployment" variant is the admin-managed, deployment-wide
+ * configuration. The "personal" variant hides deployment policy
+ * fields (availability) and creates servers owned by the caller.
+ */
+export type MCPServerFormVariant = "deployment" | "personal";
+
 export const TRANSPORT_OPTIONS = [
 	{ value: "streamable_http", label: "Streamable HTTP" },
 	{ value: "sse", label: "SSE" },
@@ -119,6 +127,7 @@ export const canSubmitMCPServerForm = (
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
+	variant: MCPServerFormVariant = "deployment",
 ): TypesGen.CreateMCPServerConfigRequest => {
 	const toolAllowList = values.toolAllowList
 		.split(",")
@@ -129,6 +138,7 @@ export const buildCreateMCPServerConfigRequest = (
 		.map((tool) => tool.trim())
 		.filter(Boolean);
 
+	const personal = variant === "personal";
 	const request: TypesGen.CreateMCPServerConfigRequest = {
 		display_name: values.displayName.trim(),
 		slug: values.slug.trim(),
@@ -137,7 +147,10 @@ export const buildCreateMCPServerConfigRequest = (
 		url: values.url.trim(),
 		transport: values.transport,
 		auth_type: values.authType,
-		availability: values.availability,
+		// Personal servers have no deployment availability policy; the
+		// picker treats them as opt-in.
+		availability: personal ? "default_off" : values.availability,
+		...(personal ? { personal: true } : {}),
 		enabled: values.enabled,
 		model_intent: values.modelIntent,
 		allow_in_plan_mode: values.allowInPlanMode,

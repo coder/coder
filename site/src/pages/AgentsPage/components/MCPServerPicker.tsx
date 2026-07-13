@@ -196,8 +196,11 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	);
 	const popupRef = useRef<Window | null>(null);
 
-	// Filter to enabled servers only.
+	// Filter to enabled servers only, grouped into deployment-wide
+	// servers and the user's own personal servers.
 	const enabledServers = servers.filter((s) => s.enabled);
+	const globalServers = enabledServers.filter((s) => !s.owner_id);
+	const personalServers = enabledServers.filter((s) => s.owner_id);
 
 	// Servers shown in the trigger icon stack: selected and
 	// fully ready (no outstanding auth required).
@@ -285,88 +288,138 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 			<PopoverContent align="start" className="w-52 p-0">
 				<TooltipProvider delayDuration={300}>
 					<div className="max-h-64 overflow-y-auto py-1 [scrollbar-width:thin]">
-						{enabledServers.map((server) => {
-							const isForceOn = server.availability === "force_on";
-							const isSelected =
-								isForceOn || selectedServerIds.includes(server.id);
-							const needsAuth =
-								server.auth_type === "oauth2" && !server.auth_connected;
-							const isConnecting = connectingServerId === server.id;
-
-							return (
-								<Tooltip key={server.id}>
-									<TooltipTrigger asChild>
-										<div className="flex items-center gap-2 px-2.5 py-1.5">
-											<MCPIcon
-												iconUrl={server.icon_url}
-												name={server.display_name}
-												className="size-5"
-											/>
-											<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
-												{server.display_name}
-											</span>
-											{isForceOn && (
-												<LockIcon className="size-3 shrink-0 text-content-secondary" />
-											)}
-											{needsAuth ? (
-												<Button
-													variant="outline"
-													size="sm"
-													className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-[10px] leading-none border-border/50"
-													onClick={(e) => {
-														e.stopPropagation();
-														handleConnect(server);
-													}}
-													disabled={disabled || connectingServerId !== null}
-													aria-label={`Authenticate with ${server.display_name}`}
-												>
-													{isConnecting ? (
-														<Spinner loading className="h-2.5 w-2.5" />
-													) : null}
-													Auth
-												</Button>
-											) : (
-												<Switch
-													checked={isSelected}
-													onCheckedChange={(checked) =>
-														handleToggle(server.id, checked)
-													}
-													disabled={disabled || isForceOn}
-													aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-												/>
-											)}
-										</div>
-									</TooltipTrigger>
-									<TooltipContent
-										side="right"
-										sideOffset={8}
-										className="max-w-[220px] px-2.5 py-1.5"
-									>
-										<span className="block font-semibold leading-tight text-content-primary">
-											{server.display_name}
-										</span>
-										{server.description && (
-											<span className="block leading-tight text-content-secondary">
-												{server.description}
-											</span>
-										)}
-										<span className="mt-1 block text-content-secondary leading-tight">
-											{availabilityLabel(server.availability)}
-										</span>
-										{server.auth_type !== "none" && (
-											<span className="block text-content-secondary leading-tight">
-												{server.auth_connected
-													? "Authenticated"
-													: "Not authenticated"}
-											</span>
-										)}
-									</TooltipContent>
-								</Tooltip>
-							);
-						})}
+						{globalServers.map((server) => (
+							<ServerItem
+								key={server.id}
+								server={server}
+								selectedServerIds={selectedServerIds}
+								connectingServerId={connectingServerId}
+								disabled={disabled}
+								onToggle={handleToggle}
+								onConnect={handleConnect}
+							/>
+						))}
+						{personalServers.length > 0 && (
+							<>
+								{globalServers.length > 0 && (
+									<div className="mx-2.5 mt-1 border-0 border-t border-solid border-border pt-1" />
+								)}
+								<div
+									data-testid="mcp-personal-section"
+									className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-content-secondary"
+								>
+									Personal
+								</div>
+								{personalServers.map((server) => (
+									<ServerItem
+										key={server.id}
+										server={server}
+										selectedServerIds={selectedServerIds}
+										connectingServerId={connectingServerId}
+										disabled={disabled}
+										onToggle={handleToggle}
+										onConnect={handleConnect}
+									/>
+								))}
+							</>
+						)}
 					</div>
 				</TooltipProvider>
 			</PopoverContent>
 		</Popover>
+	);
+};
+
+// ── Server row inside the popover ──────────────────────────────
+
+interface ServerItemProps {
+	server: TypesGen.MCPServerConfig;
+	selectedServerIds: readonly string[];
+	connectingServerId: string | null;
+	disabled: boolean;
+	onToggle: (serverId: string, checked: boolean) => void;
+	onConnect: (server: TypesGen.MCPServerConfig) => void;
+}
+
+const ServerItem: FC<ServerItemProps> = ({
+	server,
+	selectedServerIds,
+	connectingServerId,
+	disabled,
+	onToggle,
+	onConnect,
+}) => {
+	const isForceOn = server.availability === "force_on";
+	const isSelected = isForceOn || selectedServerIds.includes(server.id);
+	const needsAuth = server.auth_type === "oauth2" && !server.auth_connected;
+	const isConnecting = connectingServerId === server.id;
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<div className="flex items-center gap-2 px-2.5 py-1.5">
+					<MCPIcon
+						iconUrl={server.icon_url}
+						name={server.display_name}
+						className="size-5"
+					/>
+					<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
+						{server.display_name}
+					</span>
+					{isForceOn && (
+						<LockIcon className="size-3 shrink-0 text-content-secondary" />
+					)}
+					{needsAuth ? (
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-[10px] leading-none border-border/50"
+							onClick={(e) => {
+								e.stopPropagation();
+								onConnect(server);
+							}}
+							disabled={disabled || connectingServerId !== null}
+							aria-label={`Authenticate with ${server.display_name}`}
+						>
+							{isConnecting ? (
+								<Spinner loading className="h-2.5 w-2.5" />
+							) : null}
+							Auth
+						</Button>
+					) : (
+						<Switch
+							checked={isSelected}
+							onCheckedChange={(checked) => onToggle(server.id, checked)}
+							disabled={disabled || isForceOn}
+							aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
+						/>
+					)}
+				</div>
+			</TooltipTrigger>
+			<TooltipContent
+				side="right"
+				sideOffset={8}
+				className="max-w-[220px] px-2.5 py-1.5"
+			>
+				<span className="block font-semibold leading-tight text-content-primary">
+					{server.display_name}
+				</span>
+				{server.description && (
+					<span className="block leading-tight text-content-secondary">
+						{server.description}
+					</span>
+				)}
+				<span className="mt-1 block text-content-secondary leading-tight">
+					{server.owner_id
+						? "Personal"
+						: availabilityLabel(server.availability)}
+				</span>
+				{server.auth_type !== "none" && (
+					<span className="block text-content-secondary leading-tight">
+						{server.auth_connected ? "Authenticated" : "Not authenticated"}
+					</span>
+				)}
+			</TooltipContent>
+		</Tooltip>
 	);
 };

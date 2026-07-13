@@ -19,50 +19,58 @@ import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	AVAILABILITY_OPTIONS,
 	type MCPServerFormValues,
+	type MCPServerFormVariant,
 } from "./mcpServerFormLogic";
 
 interface MCPServerBehaviorSectionProps {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
+	variant: MCPServerFormVariant;
 	disabled: boolean;
 }
 
 export const MCPServerBehaviorSection: FC<MCPServerBehaviorSectionProps> = ({
 	form,
 	formId,
+	variant,
 	disabled,
 }) => {
 	return (
 		<>
-			<Field
-				label="Availability"
-				htmlFor={`${formId}-availability`}
-				className="max-w-md"
-				description={
-					AVAILABILITY_OPTIONS.find(
-						(option) => option.value === form.values.availability,
-					)?.description
-				}
-			>
-				<Select
-					value={form.values.availability}
-					onValueChange={(value) =>
-						void form.setFieldValue("availability", value)
+			{variant === "deployment" && (
+				<Field
+					label="Availability"
+					htmlFor={`${formId}-availability`}
+					className="max-w-md"
+					description={
+						AVAILABILITY_OPTIONS.find(
+							(option) => option.value === form.values.availability,
+						)?.description
 					}
-					disabled={disabled}
 				>
-					<SelectTrigger id={`${formId}-availability`} className="shadow-none">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{AVAILABILITY_OPTIONS.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</Field>
+					<Select
+						value={form.values.availability}
+						onValueChange={(value) =>
+							void form.setFieldValue("availability", value)
+						}
+						disabled={disabled}
+					>
+						<SelectTrigger
+							id={`${formId}-availability`}
+							className="shadow-none"
+						>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{AVAILABILITY_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</Field>
+			)}
 			<div className="flex flex-col gap-4">
 				<SwitchField
 					label="Model intent"

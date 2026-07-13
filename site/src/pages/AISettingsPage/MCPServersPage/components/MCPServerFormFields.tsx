@@ -20,12 +20,14 @@ import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
 import {
 	type MCPServerFormValues,
+	type MCPServerFormVariant,
 	slugify,
 	TRANSPORT_OPTIONS,
 } from "./mcpServerFormLogic";
 
 interface MCPServerFormFieldsProps {
 	form: FormikContextType<MCPServerFormValues>;
+	variant: MCPServerFormVariant;
 	isSaving: boolean;
 	isDisabled: boolean;
 	canSubmit: boolean;
@@ -41,6 +43,7 @@ interface MCPServerFormFieldsProps {
 
 export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	form,
+	variant,
 	isSaving,
 	isDisabled,
 	canSubmit,
@@ -177,7 +180,11 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 
 					<CollapsibleSection
 						title="Behavior"
-						description="Availability, model intent, identity headers, and tool governance."
+						description={
+							variant === "personal"
+								? "Model intent, identity headers, and tool governance."
+								: "Availability, model intent, identity headers, and tool governance."
+						}
 						open={showBehavior}
 						onOpenChange={setShowBehavior}
 						className="border-0 border-t border-solid border-border"
@@ -186,6 +193,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 						<MCPServerBehaviorSection
 							form={form}
 							formId={formId}
+							variant={variant}
 							disabled={isDisabled}
 						/>
 					</CollapsibleSection>

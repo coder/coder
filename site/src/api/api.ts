@@ -3952,9 +3952,13 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
-		const response =
-			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);
+	getMCPServerConfigs = async (
+		scope?: TypesGen.MCPServerConfigScope,
+	): Promise<TypesGen.MCPServerConfig[]> => {
+		const url = scope
+			? `${mcpServerConfigsPath}?scope=${encodeURIComponent(scope)}`
+			: mcpServerConfigsPath;
+		const response = await this.axios.get<TypesGen.MCPServerConfig[]>(url);
 		return response.data;
 	};
 

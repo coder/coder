@@ -8,7 +8,7 @@ import MCPServersPageView from "./MCPServersPageView";
 
 const MCPServersPage: FC = () => {
 	const { permissions } = useAuthenticated();
-	const serversQuery = useQuery(mcpServerConfigs());
+	const serversQuery = useQuery(mcpServerConfigs("global"));
 	const servers = (serversQuery.data ?? []).toSorted((a, b) =>
 		a.display_name.localeCompare(b.display_name),
 	);

@@ -11,12 +11,14 @@ import {
 	buildUpdateMCPServerConfigRequest,
 	canSubmitMCPServerForm,
 	type MCPServerFormValues,
+	type MCPServerFormVariant,
 } from "./mcpServerFormLogic";
 
 type MCPServerFormCreateProps = {
 	server?: undefined;
 	isSaving: boolean;
 	isDeleting?: false;
+	variant?: MCPServerFormVariant;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -30,6 +32,7 @@ type MCPServerFormEditProps = {
 	server: TypesGen.MCPServerConfig;
 	isSaving: boolean;
 	isDeleting: boolean;
+	variant?: MCPServerFormVariant;
 	onCreateServer?: undefined;
 	onUpdateServer: (
 		serverId: string,
@@ -46,6 +49,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	server,
 	isSaving,
 	isDeleting = false,
+	variant = "deployment",
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -69,7 +73,9 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					buildUpdateMCPServerConfigRequest(values),
 				);
 			} else if (onCreateServer) {
-				await onCreateServer(buildCreateMCPServerConfigRequest(values));
+				await onCreateServer(
+					buildCreateMCPServerConfigRequest(values, variant),
+				);
 			}
 		},
 	});
@@ -89,6 +95,11 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				server={server}
 				title={title}
 				iconUrl={form.values.iconURL}
+				backPath={
+					variant === "personal"
+						? "/agents/settings/mcp-servers"
+						: "/ai/settings/mcp-servers"
+				}
 				isEditing={isEditing}
 				isDisabled={isDisabled}
 				onRequestDelete={() => setConfirmingDelete(true)}
@@ -97,6 +108,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 			<div className="flex flex-col gap-6 pt-6">
 				<MCPServerFormFields
 					form={form}
+					variant={variant}
 					isSaving={isSaving}
 					isDisabled={isDisabled}
 					canSubmit={canSubmit}

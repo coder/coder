@@ -10,10 +10,16 @@ import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 
 interface MCPServerRowProps {
 	server: TypesGen.MCPServerConfig;
+	/** Hidden for personal servers, which have no availability policy. */
+	showAvailability?: boolean;
 	onClick: () => void;
 }
 
-export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
+export const MCPServerRow: FC<MCPServerRowProps> = ({
+	server,
+	showAvailability = true,
+	onClick,
+}) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const enabled = server.enabled;
 
@@ -39,9 +45,11 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 			<TableCell className="w-1/5 text-sm">
 				{AUTH_TYPE_LABELS[server.auth_type] ?? server.auth_type}
 			</TableCell>
-			<TableCell className="w-1/5 text-sm">
-				{AVAILABILITY_LABELS[server.availability] ?? server.availability}
-			</TableCell>
+			{showAvailability && (
+				<TableCell className="w-1/5 text-sm">
+					{AVAILABILITY_LABELS[server.availability] ?? server.availability}
+				</TableCell>
+			)}
 			<TableCell className="w-32">
 				<Badge variant="default">{enabled ? "Enabled" : "Disabled"}</Badge>
 			</TableCell>

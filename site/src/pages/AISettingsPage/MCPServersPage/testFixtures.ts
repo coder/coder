@@ -61,3 +61,16 @@ export const MockMemoryMCPServer: TypesGen.MCPServerConfig = {
 	availability: "force_on",
 	enabled: true,
 };
+
+export const MockPersonalMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-personal-notes",
+	display_name: "Notes",
+	slug: "notes",
+	owner_id: "personal-owner-id",
+	url: "https://mcp.example.com/notes",
+	transport: "streamable_http",
+	auth_type: "none",
+	availability: "default_off",
+	enabled: true,
+};

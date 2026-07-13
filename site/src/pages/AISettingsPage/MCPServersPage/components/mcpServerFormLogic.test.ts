@@ -118,4 +118,26 @@ describe("mcpServerFormLogic", () => {
 		expect(untouched.custom_headers).toBeUndefined();
 		expect(touched.custom_headers).toEqual({ "X-Test": "secret" });
 	});
+
+	it("marks personal-variant create payloads as personal with default_off availability", () => {
+		const request = buildCreateMCPServerConfigRequest(
+			validValues({ availability: "default_on" }),
+			"personal",
+		);
+		expect(request.personal).toBe(true);
+		expect(request.availability).toBe("default_off");
+	});
+
+	it("does not mark deployment create payloads as personal", () => {
+		const request = buildCreateMCPServerConfigRequest(
+			validValues({ availability: "default_on" }),
+		);
+		expect(request.personal).toBeUndefined();
+		expect(request.availability).toBe("default_on");
+	});
+
+	it("omits personal from update requests", () => {
+		const request = buildUpdateMCPServerConfigRequest(validValues());
+		expect(request).not.toHaveProperty("personal");
+	});
 });

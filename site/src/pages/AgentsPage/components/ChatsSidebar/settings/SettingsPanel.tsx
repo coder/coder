@@ -5,6 +5,7 @@ import {
 	KeyIcon,
 	PanelLeftCloseIcon,
 	ReceiptTextIcon,
+	ServerIcon,
 	Settings2Icon,
 	ShrinkIcon,
 	UserIcon,
@@ -102,6 +103,13 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					label="Compaction"
 					active={settingsSection === "compaction"}
 					to="/agents/settings/compaction"
+					state={location.state}
+				/>
+				<SettingsNavItem
+					icon={ServerIcon}
+					label="Personal MCP servers"
+					active={settingsSection === "mcp-servers"}
+					to="/agents/settings/mcp-servers"
 					state={location.state}
 				/>
 				{showApiKeysItem && (

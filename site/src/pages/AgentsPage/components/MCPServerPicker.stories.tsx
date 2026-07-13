@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
@@ -102,6 +102,33 @@ const disabledServer = createServerConfig({
 	slug: "disabled",
 	url: "https://mcp.disabled.com/v1",
 	enabled: false,
+});
+
+const personalNotesServer = createServerConfig({
+	id: "mcp-personal-notes",
+	display_name: "Notes",
+	slug: "notes",
+	description: "Personal note taking",
+	owner_id: "personal-owner-id",
+	url: "https://mcp.example.com/notes",
+	auth_type: "none",
+	availability: "default_off",
+	enabled: true,
+	auth_connected: false,
+});
+
+const personalOAuthServer = createServerConfig({
+	id: "mcp-personal-oauth",
+	display_name: "My Tracker",
+	slug: "my-tracker",
+	description: "Personal issue tracker",
+	owner_id: "personal-owner-id",
+	url: "https://mcp.example.com/tracker",
+	auth_type: "oauth2",
+	has_oauth2_secret: true,
+	availability: "default_off",
+	enabled: true,
+	auth_connected: false,
 });
 
 const allServers = [
@@ -263,5 +290,58 @@ export const IconStackOverflow: Story = {
 	args: {
 		servers: allServers,
 		selectedServerIds: allServers.map((s) => s.id),
+	},
+};
+
+/** Global and personal servers are grouped, personal section last. */
+export const MixedGlobalAndPersonal: Story = {
+	args: {
+		servers: [...allServers, personalNotesServer],
+		selectedServerIds: getDefaultMCPSelection(allServers),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "MCP servers" }));
+		await body.findByTestId("mcp-personal-section");
+		await expect(
+			body.getByRole("switch", { name: /notes/i }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("switch", { name: /sentry/i }),
+		).toBeInTheDocument();
+	},
+};
+
+/** Only personal servers, no global section header divider. */
+export const PersonalOnly: Story = {
+	args: {
+		servers: [personalNotesServer, personalOAuthServer],
+		selectedServerIds: [personalNotesServer.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "MCP servers" }));
+		await body.findByTestId("mcp-personal-section");
+		await expect(
+			body.getByRole("switch", { name: /notes/i }),
+		).toBeInTheDocument();
+	},
+};
+
+/** Personal OAuth2 server needing authentication shows the Auth button. */
+export const PersonalOAuthNeedsAuth: Story = {
+	args: {
+		servers: [personalOAuthServer],
+		selectedServerIds: [personalOAuthServer.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "MCP servers" }));
+		await body.findByRole("button", {
+			name: "Authenticate with My Tracker",
+		});
 	},
 };

@@ -2032,10 +2032,12 @@ export const deleteChatUsageLimitGroupOverride = (
 
 export const mcpServerConfigsKey = ["mcp-server-configs"] as const;
 
-export const mcpServerConfigs = () => ({
-	queryKey: mcpServerConfigsKey,
+export const mcpServerConfigs = (
+	scope: TypesGen.MCPServerConfigScope = "all",
+) => ({
+	queryKey: [...mcpServerConfigsKey, scope] as const,
 	queryFn: (): Promise<TypesGen.MCPServerConfig[]> =>
-		API.experimental.getMCPServerConfigs(),
+		API.experimental.getMCPServerConfigs(scope),
 });
 
 const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
