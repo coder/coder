@@ -223,6 +223,85 @@ else
 	echo -e "${RED}✗ Protected Resource Metadata missing bearer token support${NC}\n"
 fi
 
+# Test 8: Public Client (Dynamic Client Registration, no client_secret)
+echo -e "${YELLOW}Test 8: Public Client Dynamic Registration + PKCE-only Flow${NC}"
+
+PUBLIC_APP_NAME="test-mcp-public-$(date +%s)"
+PUBLIC_REG_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/register" \
+	-H "Content-Type: application/json" \
+	-d "{
+    \"client_name\": \"$PUBLIC_APP_NAME\",
+    \"redirect_uris\": [\"http://localhost:9876/callback\"],
+    \"token_endpoint_auth_method\": \"none\"
+  }")
+
+if ! PUBLIC_CLIENT_ID=$(echo "$PUBLIC_REG_RESPONSE" | jq -r '.client_id'); then
+	echo -e "${RED}Failed to register public client:${NC}"
+	echo "$PUBLIC_REG_RESPONSE" | jq .
+	exit 1
+fi
+
+# RFC 7591 section 3.2.1: client_secret is CONDITIONAL, not REQUIRED. A
+# public client must not receive one at all.
+if echo "$PUBLIC_REG_RESPONSE" | jq -e 'has("client_secret")' >/dev/null; then
+	echo -e "${RED}✗ Public client registration response unexpectedly included client_secret${NC}\n"
+	exit 1
+fi
+echo -e "${GREEN}✓ Public client registered with no client_secret: $PUBLIC_APP_NAME (ID: $PUBLIC_CLIENT_ID)${NC}"
+
+PUBLIC_CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c -43)
+PUBLIC_CODE_CHALLENGE=$(echo -n "$PUBLIC_CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
+PUBLIC_STATE=$(openssl rand -hex 16)
+
+PUBLIC_AUTH_URL="$BASE_URL/oauth2/authorize?client_id=$PUBLIC_CLIENT_ID&response_type=code&redirect_uri=http://localhost:9876/callback&state=$PUBLIC_STATE&code_challenge=$PUBLIC_CODE_CHALLENGE&code_challenge_method=S256"
+
+PUBLIC_REDIRECT_URL=$(curl -s -X POST "$PUBLIC_AUTH_URL" \
+	-H "Coder-Session-Token: $SESSION_TOKEN" \
+	-w '\n%{redirect_url}' \
+	-o /dev/null)
+
+PUBLIC_CODE=$(echo "$PUBLIC_REDIRECT_URL" | grep -oE 'code=[^&]+' | sed 's/code=//')
+
+if [ -n "$PUBLIC_CODE" ]; then
+	echo -e "${GREEN}✓ Got authorization code for public client${NC}"
+else
+	echo -e "${RED}✗ Failed to get authorization code for public client${NC}"
+	exit 1
+fi
+
+# Exchange with PKCE alone. Note there is no client_secret parameter at all.
+PUBLIC_TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/tokens" \
+	-H "Content-Type: application/x-www-form-urlencoded" \
+	-d "grant_type=authorization_code" \
+	-d "code=$PUBLIC_CODE" \
+	-d "client_id=$PUBLIC_CLIENT_ID" \
+	-d "redirect_uri=http://localhost:9876/callback" \
+	-d "code_verifier=$PUBLIC_CODE_VERIFIER")
+
+if echo "$PUBLIC_TOKEN_RESPONSE" | jq -e '.access_token' >/dev/null; then
+	echo -e "${GREEN}✓ Public client PKCE-only token exchange successful (no client_secret sent)${NC}\n"
+else
+	echo -e "${RED}✗ Public client PKCE-only token exchange failed:${NC}"
+	echo "$PUBLIC_TOKEN_RESPONSE" | jq .
+	exit 1
+fi
+
+# Verify the resulting access token actually works.
+PUBLIC_ACCESS_TOKEN=$(echo "$PUBLIC_TOKEN_RESPONSE" | jq -r '.access_token')
+PUBLIC_ME_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v2/users/me" \
+	-H "Authorization: Bearer $PUBLIC_ACCESS_TOKEN")
+
+if [ "$PUBLIC_ME_HTTP_CODE" = "200" ]; then
+	echo -e "${GREEN}✓ Public client access token works${NC}\n"
+else
+	echo -e "${RED}✗ Public client access token failed (HTTP $PUBLIC_ME_HTTP_CODE)${NC}\n"
+fi
+
+# Cleanup the public test app.
+curl -s -X DELETE "$BASE_URL/api/v2/oauth2-provider/apps/$PUBLIC_CLIENT_ID" \
+	-H "$AUTH_HEADER" >/dev/null
+echo -e "${GREEN}✓ Deleted public test app${NC}"
+
 # Cleanup
 echo -e "${YELLOW}Cleaning up...${NC}"
 curl -s -X DELETE "$BASE_URL/api/v2/oauth2-provider/apps/$CLIENT_ID" \
