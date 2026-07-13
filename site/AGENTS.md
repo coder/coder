@@ -1,332 +1,148 @@
 # Frontend Development Guidelines
 
-## TypeScript LSP Navigation (USE FIRST)
+Repo-specific rules for `site/`. Generic React and TypeScript knowledge
+is assumed; this file lists the deltas this repo enforces.
 
-When investigating or editing TypeScript/React code, always use the TypeScript language server tools for accurate navigation:
+Use the TypeScript LSP tools first when investigating code (definition,
+references, hover, diagnostics, rename_symbol); do not manually search
+files for symbols.
 
-- **Find component/function definitions**: `mcp__typescript-language-server__definition ComponentName`
-  - Example: `mcp__typescript-language-server__definition LoginPage`
-- **Find all usages**: `mcp__typescript-language-server__references ComponentName`
-  - Example: `mcp__typescript-language-server__references useAuthenticate`
-- **Get type information**: `mcp__typescript-language-server__hover site/src/pages/LoginPage.tsx 42 15`
-- **Check for errors**: `mcp__typescript-language-server__diagnostics site/src/pages/LoginPage.tsx`
-- **Rename symbols**: `mcp__typescript-language-server__rename_symbol site/src/components/Button.tsx 10 5 PrimaryButton`
-- **Edit files**: `mcp__typescript-language-server__edit_file` for multi-line edits
+## Commands
 
-## Bash commands
+- `pnpm dev` - Vite dev server
+- `pnpm storybook --no-open` - Storybook dev server. Required before the
+  Storybook MCP server (`http://localhost:6006/mcp`, configured in the
+  repo root `.mcp.json`) can connect.
+- `pnpm test` - Vitest unit tests (this repo uses Vitest, not Jest)
+- `pnpm test -- path/to/specific.test.ts` - single unit test file
+- `pnpm test:storybook` - story play-function tests via Vitest + Playwright
+- `pnpm test:storybook src/path/to/component.stories.tsx` - single story file
+- `pnpm lint` - full suite: Biome lint, TypeScript (`lint:types`),
+  circular deps, React Compiler check, knip
+- `pnpm check` - Biome lint and format checks only; it does NOT type
+  check. Type checking runs through `pnpm lint`.
+- `pnpm format` - Biome format; run before creating a PR
+- `pnpm playwright:test` - e2e tests; remind the user a license is
+  required to run all of them
 
-- `pnpm dev` - Start Vite development server
-- `pnpm storybook --no-open` - Start Storybook dev server
-- `pnpm test:storybook` - Run storybook story tests (play functions) via Vitest + Playwright
-- `pnpm test:storybook src/path/to/component.stories.tsx` - Run a single story file
-- `pnpm test` - Run jest unit tests
-- `pnpm test -- path/to/specific.test.ts` - Run a single test file
-- `pnpm lint` - Run complete linting suite (Biome + TypeScript + circular deps + knip)
-- `pnpm lint:fix` - Auto-fix linting issues where possible
-- `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
-- `pnpm format` - Format frontend code. Always run before creating a PR
+Playwright failure artifacts land in `site/test-results/` (HTML report in
+`site/playwright-report/`, coderd debug log in
+`site/e2e/test-results/debug.log`). In CI, the `test-e2e` job uploads
+artifacts named `playwright-artifacts-<matrix job>-<commit SHA>`.
 
-## Storybook MCP
+## Components and styling
 
-The `.mcp.json` at the repo root includes a Storybook MCP server
-(`http://localhost:6006/mcp`). It provides tools for searching components,
-reading stories, and capturing screenshots directly from Storybook.
+- Search for existing implementations before creating UI: shared
+  primitives in `site/src/components/`, business-logic components in
+  `site/src/modules/`, and sibling files for local helpers. Keep one-off
+  variants of shared primitives local to your feature folder; promote
+  them only when reuse and design justify it.
+- Changing `site/src/components/` is cross-cutting: it affects every
+  consumer, so coordinate with design before extending shared primitives.
+- MUI is deprecated; use shadcn/ui-style components from
+  `site/src/components` (add them manually, not via the shadcn CLI).
+- Emotion CSS is deprecated; use Tailwind with the semantic tokens from
+  `tailwind.config.js` (`content`, `surface`, `border`, `highlight`). No
+  `dark:` prefix. The Tailwind reset stays disabled for MUI compatibility.
+- Keep component files under ~500 lines; extract sub-components beyond that.
 
-Because it is an HTTP-type MCP server, Storybook must already be running
-before the MCP client can connect. Start it first:
+## Code style
 
-```sh
-pnpm storybook --no-open
-```
+- Biome handles linting and formatting (not ESLint/Prettier).
+- ES modules, destructured imports, `for...of` over `forEach`.
+- Access browser globals directly (`location.href`, not
+  `window.location.href`); Coder is a pure SPA, so never add
+  `typeof window` style runtime checks.
+- Match existing patterns in the file you are editing before introducing
+  new conventions (shared API helpers, state initialization style).
+- Match errors by error code or HTTP status, never by message string.
+- Use the JSX boolean shorthand (`<Foo prop />`, not `<Foo prop={true} />`).
+- Do not add helpers, aliases, wrapper hooks, or components that only
+  rename or forward a single operation; inline them at the call site.
+  After refactors, delete helpers that collapsed to pass-throughs.
+- Comments explain non-obvious behavior or invariants. Remove narration,
+  restated signatures, and change-history notes.
 
-## Failure artifacts
+## TypeScript
 
-Playwright writes per-test failure artifacts to `site/test-results/` when
-running `pnpm playwright:test` from `site/`. Failed tests keep screenshots,
-videos, and traces through the Playwright config. The HTML report is written
-to `site/playwright-report/`, and the coderd debug log is written to
-`site/e2e/test-results/debug.log`.
+- Never use `as unknown as X` double assertions; fix types at the source.
+- Prefer type guards and annotations over `as` casts; avoid the non-null
+  assertion operator (`!.`).
+- Use generated types from `src/api/typesGenerated.ts` for all API types;
+  never re-declare them.
+- If a component's implementation depends on a prop, make it required.
+- Avoid `@ts-ignore` and lint suppressions; document why when unavoidable.
 
-In CI, the `test-e2e` job uploads failure artifacts to the workflow run's
-Artifacts section. Look for artifact names prefixed with
-`playwright-artifacts-`, followed by the matrix job name and commit SHA.
-Debug logs and pprof dumps use the same job name and commit SHA convention.
+## Data and state
 
-## Components
+- Use React Query for all server state. Never call an `API` function
+  directly from a rendered component.
+- Query keys must nest under established parent hierarchies (for example
+  `["chats", "costSummary", ...]`, not `["chatCostSummary"]`) so parent
+  invalidation works.
+- When you do not need to await a mutation, use `mutate()` with
+  `onSuccess`/`onError`, not `mutateAsync()` in a try/catch that swallows
+  errors.
+- Use effects only to synchronize with external systems. Compute derived
+  values during render; never `useEffect` + `setState` to derive state.
+- List every reactive value in dependency arrays; use refs only for a
+  documented non-reactive boundary.
 
-- MUI components are deprecated - migrate away from these when encountered
-- Use shadcn/ui components first - check `site/src/components` for existing implementations.
-- Do not use shadcn CLI - manually add components to maintain consistency
-- The modules folder should contain components with business logic specific to the codebase.
-- Create custom components only when shadcn alternatives don't exist
-- **Before creating any new component**, search the codebase for existing
-  implementations. Check `site/src/components/` for shared primitives
-  (Table, Badge, icons, error handlers) and sibling files for local
-  helpers. Duplicating existing components wastes effort and creates
-  maintenance burden.
-- **Modifying core components is a cross-cutting change.** Treat new
-  exports or visual changes in `site/src/components/` differently from
-  feature-folder edits. They affect every consumer across the site, so
-  coordinate with design before extending them. When you need a small
-  variant of a shared primitive (for example, a separator with
-  feature-specific styling), define it locally in your feature folder
-  first and graduate it later if a shared design lands.
-- Keep component files under ~500 lines. When a file grows beyond that,
-  extract logical sections into sub-components or a folder with an
-  index file.
+## React Compiler and performance
 
-## Styling
+- The React Compiler scope is defined by the include filter in
+  `site/vite.config.mts` (currently `src/pages/AgentsPage/` and
+  `src/pages/AIBridgePage/`) and enforced by
+  `site/scripts/check-compiler.mjs`. Inside that scope, do not add
+  `useMemo`, `useCallback`, or `memo()`. The one exception is `memo()` on
+  list-item components rendered in a `.map()`, because the compiler does
+  not add `React.memo()` behavior across component boundaries.
+- Outside the compiled scope, add manual memoization only for a measured
+  or structurally necessary reason, documented near the code.
+- Extract frequently changing state (scroll, hover, animation) into a
+  child component instead of re-rendering a large parent subtree, and
+  throttle high-frequency handlers with `requestAnimationFrame`.
 
-- Emotion CSS is deprecated. Use Tailwind CSS instead.
-- Use custom Tailwind classes in tailwind.config.js.
-- Tailwind CSS reset is currently not used to maintain compatibility with MUI
-- Responsive design - use Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
-- Do not use `dark:` prefix for dark mode
+## Testing
 
-## Tailwind Best Practices
-
-- Group related classes
-- Use semantic color names from the theme inside `tailwind.config.js` including `content`, `surface`, `border`, `highlight` semantic tokens
-- Prefer Tailwind utilities over custom CSS when possible
-
-## General Code style
-
-- Use ES modules (import/export) syntax, not CommonJS (require)
-- Destructure imports when possible (eg. import { foo } from 'bar')
-- Prefer `for...of` over `forEach` for iteration
-- **Biome** handles both linting and formatting (not ESLint/Prettier)
-- Access browser globals like `location`, `navigator`, and `document`
-  directly. Do not prefix them with `window.` (e.g., write
-  `location.href`, not `window.location.href`). They are globally
-  available in every browser context.
-- Do not use `typeof window`, `typeof document`, or similar runtime checks for browser globals. Coder is a pure SPA so these globals are always available.
-- Always use react-query for data fetching. Do not attempt to manage any
-  data life cycle manually. Do not ever call an `API` function directly
-  within a component.
-- **Match existing patterns** in the same file before introducing new
-  conventions. For example, if sibling API methods use a shared helper
-  like `getURLWithSearchParams`, do not manually build `URLSearchParams`.
-  If sibling components initialize state with `useMemo`, don't switch to
-  `useState(initialFn)` in the same file without reason.
-- Match errors by error code or HTTP status, never by comparing error
-  message strings. String matching is brittle; messages change, get
-  localized, or get reformatted.
-- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
-  in code, comments, string literals, or documentation. Use commas,
-  semicolons, or periods instead. Restructure the sentence if needed.
-- For JSX boolean props that are `true`, use the shorthand form
-  (`<Foo prop />`) instead of `<Foo prop={true} />`. The two are
-  equivalent; the shorthand is the React convention and reduces noise.
-- **Avoid unnecessary indirection.** Inline single-use module-level
-  constants, single-use aliases, and one-line helpers that just return a
-  single field at the call site. Do not create wrapper hooks that only
-  delegate to a library hook plus a couple of derived booleans. Inline
-  the call at each site instead. Indirection should pay for itself with
-  shared usage or non-trivial logic; otherwise it adds a layer reviewers
-  have to navigate without explaining anything.
-- **Re-evaluate helpers after upstream refactors.** When you change how
-  a value is computed (for example, by moving fallback logic into the
-  builder), check whether existing helpers that consumed that value have
-  collapsed to a pass-through. If a helper now just returns a single
-  field, delete it and inline the field access at the call sites.
-
-## TypeScript Type Safety
-
-- **Never use `as unknown as X`** double assertions. They bypass
-  TypeScript's type system entirely and hide real type incompatibilities.
-  If types don't align, fix the types at the source.
-- **Prefer type annotations over `as` casts.** When narrowing is needed,
-  use type guards or conditional checks instead of assertions.
-- **Avoid the non-null assertion operator (`!.`)**. If a value could be
-  null/undefined, add a proper guard or narrow the type. If it can never
-  be null, fix the upstream type definition to reflect that.
-- **Use generated types from `api/typesGenerated.ts`** for all
-  API/server types. Never manually re-declare types that already exist in
-  generated code — duplicated types drift out of sync with the backend.
-- If a component's implementation depends on a prop being present, make
-  that prop **required** in the type definition. Optional props that are
-  actually required create a false sense of flexibility and hide bugs.
-- Avoid `// @ts-ignore` and `// eslint-disable`. If they seem necessary,
-  document why and seek a better-typed alternative first.
-
-## React Query Patterns
-
-- **Query keys must nest** under established parent key hierarchies. For
-  example, use `["chats", "costSummary", ...]` not `["chatCostSummary"]`.
-  Flat keys that break hierarchy prevent
-  `queryClient.invalidateQueries(parentKey)` from correctly invalidating
-  related queries.
-- When you don't need to `await` a mutation result, use **`mutate()`**
-  with `onSuccess`/`onError` callbacks — not `mutateAsync()` wrapped in
-  `try/catch` with an empty catch block. Empty catch blocks silently
-  swallow errors. `mutate()` automatically surfaces errors through
-  react-query's error state.
+- Storybook stories and `play` functions are the only place for rendered
+  component and page behavior: visual states, interactions, keyboard
+  navigation, focus management, accessibility. Do not create standalone
+  vitest/RTL test files for components or pages. Reserve plain Vitest for
+  pure logic: utilities, data transformations, `renderHook()` hooks
+  without DOM assertions, and query/cache operations.
+- Assert observable behavior via roles, accessible names, and visibility
+  (`queryByRole`, `toBeVisible()`), never CSS class names. Use
+  `data-testid` only when an element has no semantic role.
+- Do not depend on `behavior: "smooth"` scrolling in tests; use
+  `behavior: "instant"` or set scroll position directly.
+- Update or add stories whenever you change a component's appearance or
+  behavior; stale stories hide regressions.
 
 ## Accessibility
 
-- Every `<table>` / `<Table>` must have an **`aria-label`** or
-  `<caption>` so screen readers can distinguish between multiple tables
-  on a page.
-- Every element with `tabIndex={0}` must have a semantic **`role`**
-  attribute (e.g., `role="button"`, `role="row"`) so assistive technology
-  can communicate what the element is.
-- When hiding an interactive element visually (e.g., `opacity-0`,
-  `pointer-events-none`), you **must also** remove it from the keyboard
-  tab order and accessibility tree. Add `tabIndex={-1}` and
-  `aria-hidden="true"`, or better yet, conditionally render the element
-  so it's not in the DOM at all. `pointer-events: none` only suppresses
-  mouse/touch — keyboard and screen readers still reach the element.
-
-## Testing Patterns
-
-- **Assert observable behavior, not CSS class names.** In Storybook play
-  functions and tests, use queries like `queryByRole`, `toBeVisible()`,
-  or `not.toBeVisible()` — not assertions on class names like
-  `opacity-0`. Asserting class names couples tests to the specific
-  Tailwind/CSS technique and breaks when the styling mechanism changes
-  without user-visible regression.
-- **Use `data-testid`** for test element lookup when an element has no
-  semantic role or accessible name (e.g., scroll containers, wrapper
-  divs). Never use CSS class substring matches like
-  `querySelector("[class*='flex-col-reverse']")` — these break silently
-  on class renames or Tailwind output changes.
-- **Don't depend on `behavior: "smooth"` scroll** in tests. Smooth
-  scrolling is async and implementation-defined — in test environments,
-  `scrollTo` may not produce native scroll events at all. Use
-  `behavior: "instant"` in test contexts or mock the scroll position
-  directly.
-- When modifying a component's visual appearance or behavior, **update or
-  add Storybook stories** to capture the change. Stories must stay
-  current as components evolve — stale stories hide regressions.
+- Every table needs an `aria-label` or `<caption>`.
+- Every element with `tabIndex={0}` needs a semantic `role`.
+- When visually hiding an interactive element (`opacity-0`,
+  `pointer-events-none`), also remove it from the tab order and
+  accessibility tree (`tabIndex={-1}` plus `aria-hidden`, or better,
+  conditionally render it). `pointer-events: none` only suppresses
+  mouse and touch input.
+- Use `React.useId()` for element IDs; hard-coded IDs collide when a
+  component renders twice.
 
 ## Robustness
 
-- When rendering user-facing text from nullable/optional data, always
-  provide a **visible fallback** (e.g., "Untitled", "N/A", em-dash).
-  Never render a blank cell or element.
-- When converting strings to numbers (e.g., `Number(apiValue)`), **guard
-  against `NaN`** and non-finite results before formatting. For example,
-  `Number("abc").toFixed(2)` produces `"NaN"`.
-- When using `toLocaleString()`, always pass an **explicit locale**
-  (e.g., `"en-US"`) for deterministic output across environments. Without
-  a locale, `1234` formats as `"1.234"` in `de-DE` but `"1,234"` in
-  `en-US`.
+- Render a visible fallback ("Untitled", "N/A") for nullable user-facing
+  text; never a blank cell.
+- Guard `Number(...)` conversions against `NaN` before formatting.
+- Pass an explicit locale to `toLocaleString()` for deterministic output.
+- Accept dynamic values like the current time as props so components stay
+  deterministic and testable in Storybook.
 
-## Performance
+## Pre-PR checklist
 
-- `src/pages/AgentsPage/` (including `components/ChatElements/`) is opted
-  into React Compiler via `babel-plugin-react-compiler`. The compiler
-  automatically memoizes values, callbacks, and JSX at build time. Do
-  not add `useMemo`, `useCallback`, or `memo()` in these directories
-  — the compiler handles it. The only exception is `memo()` on
-  list-item components rendered in a `.map()` (e.g. `ChatMessageItem`,
-  `Tool`, `ChatTreeNode`, `LazyFileDiff`) because the compiler does
-  not add `React.memo()` behavior across component boundaries.
-- When adding state that changes frequently (scroll position, hover,
-  animation frame), **extract the state and its dependent UI into a child
-  component** rather than keeping it in a parent that renders a large
-  subtree. This prevents React from re-rendering the entire subtree on
-  every state change.
-- **Throttle high-frequency event handlers** (scroll, resize, mousemove)
-  that call `setState`. Use `requestAnimationFrame` or a throttle
-  utility. Even when React skips re-renders for identical state, the
-  handler itself still runs on every frame (60Hz+).
-
-## Workflow
-
-- Be sure to typecheck when you're done making a series of code changes
-- Prefer running single tests, and not the whole test suite, for performance
-- Some e2e tests require a license from the user to execute
-- Use pnpm format before creating a PR
-- **ALWAYS use TypeScript LSP tools first** when investigating code - don't manually search files
-
-## Pre-PR Checklist
-
-1. `pnpm check` - Ensure no TypeScript errors
-2. `pnpm lint` - Fix linting issues
-3. `pnpm format` - Format code consistently
-4. `pnpm test` - Run affected unit tests
-5. Visual check in Storybook if component changes
-
-## Migration (MUI → shadcn) (Emotion → Tailwind)
-
-### Migration Strategy
-
-- Identify MUI components in current feature
-- Find shadcn equivalent in existing components
-- Create wrapper if needed for missing functionality
-- Update tests to reflect new component structure
-- Remove MUI imports once migration complete
-
-### Migration Guidelines
-
-- Use Tailwind classes for all new styling
-- Replace Emotion `css` prop with Tailwind classes
-- Leverage custom color tokens: `content-primary`, `surface-secondary`, etc.
-- Use `className` with `clsx` for conditional styling
-
-## React Rules
-
-### 1. Purity & Immutability
-
-- **Components and custom Hooks must be pure and idempotent**—same inputs → same output; move side-effects to event handlers or Effects.
-- **Never mutate props, state, or values returned by Hooks.** Always create new objects or use the setter from useState.
-
-### 2. Rules of Hooks
-
-- **Only call Hooks at the top level** of a function component or another custom Hook—never in loops, conditions, nested functions, or try / catch.
-- **Only call Hooks from React functions.** Regular JS functions, classes, event handlers, useMemo, etc. are off-limits.
-
-### 3. React orchestrates execution
-
-- **Don't call component functions directly; render them via JSX.** This keeps Hook rules intact and lets React optimize reconciliation.
-- **Never pass Hooks around as values or mutate them dynamically.** Keep Hook usage static and local to each component.
-
-### 4. State Management
-
-- After calling a setter you'll still read the **previous** state during the same event; updates are queued and batched.
-- Use **functional updates** (setX(prev ⇒ …)) whenever next state depends on previous state.
-- Pass a function to useState(initialFn) for **lazy initialization**—it runs only on the first render.
-- If the next state is Object.is-equal to the current one, React skips the re-render.
-
-### 5. Effects
-
-- An Effect takes a **setup** function and optional **cleanup**; React runs setup after commit, cleanup before the next setup or on unmount.
-- The **dependency array must list every reactive value** referenced inside the Effect, and its length must stay constant.
-- Effects run **only on the client**, never during server rendering.
-- Use Effects solely to **synchronize with external systems**; if you're not "escaping React," you probably don't need one.
-- **Never use `useEffect` to derive state from props or other state.** If
-  a value can be computed during render, use `useMemo` or a plain
-  variable. A `useEffect` that reads state A and calls `setState(B)` on
-  every change is a code smell — it causes an extra render cycle and adds
-  unnecessary complexity.
-
-### 6. Lists & Keys
-
-- Every sibling element in a list **needs a stable, unique key prop**. Never use array indexes or Math.random(); prefer data-driven IDs.
-- Keys aren't passed to children and **must not change between renders**; if you return multiple nodes per item, use `<Fragment key={id}>`
-- **Never use `key={String(booleanState)}`** to force remounts. When the
-  boolean flips, React unmounts and remounts the component synchronously,
-  killing exit animations (e.g., dialog close transitions) and wasting
-  renders. Use a monotonically increasing counter or avoid `key` for
-  this pattern entirely.
-
-### 7. Refs & DOM Access
-
-- useRef stores a mutable .current **without causing re-renders**.
-- **Don't call Hooks (including useRef) inside loops, conditions, or map().** Extract a child component instead.
-- **Avoid reading or mutating refs during render;** access them in event handlers or Effects after commit.
-
-### 8. Element IDs
-
-- **Use `React.useId()`** to generate unique IDs for form elements,
-  labels, and ARIA attributes. Never hard-code string IDs — they collide
-  when a component is rendered multiple times on the same page.
-
-### 9. Component Testability
-
-- When a component depends on a dynamic value like the current time or
-  date, **accept it as a prop** (or via context) rather than reading it
-  internally (e.g., `new Date()`, `Date.now()`). This makes the
-  component deterministic and testable in Storybook without mocking
-  globals.
+1. `pnpm lint` - Biome, type check, circular deps, compiler check, knip
+2. `pnpm format` - format code consistently
+3. `pnpm test` - run affected unit tests
+4. Visual check in Storybook if components changed

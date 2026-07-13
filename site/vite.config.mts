@@ -17,6 +17,7 @@ const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
+		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
 		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
 	},
 };
