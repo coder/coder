@@ -9,14 +9,14 @@ Nothing under this directory is published to
 | Path                    | Purpose                                                             |
 |-------------------------|---------------------------------------------------------------------|
 | `content-guidelines.md` | Canonical content rules: what belongs in `docs/`, what doesn't, why |
-| `style-guide.md`        | Canonical prose style guide for `docs/`                             |
+| `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
 See [`content-guidelines.md`](content-guidelines.md) for the canonical
 rules on what content belongs in `docs/` and what should be routed
 elsewhere (blog, changelog, Support KB, etc.).
 
-See [`style-guide.md`](style-guide.md) for the prose style guide. The
+See [`style-guide/`](style-guide/README.md) for the prose style guide. The
 `styles/Coder/` directory holds the custom Vale rules that enforce parts
 of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at
 `docs/.style/styles/`.
@@ -25,8 +25,9 @@ of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at
 
 The leading dot mirrors the `.github/`, `.vscode/`, and `.claude/`
 convention already used in this repo for tooling-internal directories.
-Vale and the structural Markdown linters still pick it up; coder.com's
-docs site does not.
+The structural Markdown linters still pick it up, as does Vale for the
+annotation demo; coder.com's docs site does not. Refer to "What does not
+run against this directory" below for the Vale exemption.
 
 ## How exclusion from coder.com works
 
@@ -78,6 +79,10 @@ directory from the surgical-reindex payload on mixed commits.
   headings and prose, so the repo-root `.vale.ini` clears `BasedOnStyles` for
   `docs/.style/**` and re-includes only `_vale-annotation-demo.md`.
   Zero-baseline is therefore measured over `docs/` excluding `docs/.style/`.
+  This exemption matches on repo-root-relative paths, which is what
+  `make lint/prose` and CI pass. Editor and LSP integrations that invoke Vale
+  with absolute paths bypass the glob and still flag the guide's intentional
+  examples, so treat those in-editor findings on `docs/.style/` as expected.
 
 ## Editing the content guidelines
 
