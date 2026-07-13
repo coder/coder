@@ -1156,7 +1156,7 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	// middleware it installs only runs at request time, so reqPayload stays
 	// byte-identical here.
 	before := string(i.reqPayload)
-	_, err := i.newMessagesService(context.Background())
+	_, err := i.newMessagesService(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, before, string(i.reqPayload))
 }
@@ -1199,7 +1199,7 @@ func TestAWSMantleOptionsValidation(t *testing.T) {
 					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
 				},
 			}
-			opts, err := base.withBedrockMantleOptions(context.Background())
+			opts, err := base.withBedrockMantleOptions(t.Context())
 			if tt.errorMsg != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errorMsg)

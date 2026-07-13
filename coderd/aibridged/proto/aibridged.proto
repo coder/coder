@@ -236,6 +236,6 @@ message AIProviderKindBedrock {
   string role_arn = 6;
   string external_id = 7;
   // protocol selects the Bedrock wire protocol ("invoke-model" or "mantle").
-  // Empty fallbacks to invoke-model.
+  // Empty falls back to invoke-model.
   string protocol = 8;
 }

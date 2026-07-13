@@ -1681,7 +1681,7 @@ type AIProviderKindBedrock struct {
 	RoleArn         string `protobuf:"bytes,6,opt,name=role_arn,json=roleArn,proto3" json:"role_arn,omitempty"`
 	ExternalId      string `protobuf:"bytes,7,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	// protocol selects the Bedrock wire protocol ("invoke-model" or "mantle").
-	// Empty fallbacks to invoke-model.
+	// Empty falls back to invoke-model.
 	Protocol string `protobuf:"bytes,8,opt,name=protocol,proto3" json:"protocol,omitempty"`
 }
 
