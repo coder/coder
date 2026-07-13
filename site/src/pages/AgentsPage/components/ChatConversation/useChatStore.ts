@@ -86,7 +86,7 @@ export const useChatStore = (
 	// source for chatStatus and the REST-fetched chatRecord.status
 	// must not overwrite it. Without this guard, a React Query
 	// refetch (e.g. on window focus) can regress chatStatus to a
-	// stale value like "pending", causing shouldApplyMessagePart()
+	// stale value like "waiting", causing shouldApplyMessagePart()
 	// to drop all incoming parts.
 	const wsStatusReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
@@ -388,8 +388,7 @@ export const useChatStore = (
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
 		const shouldApplyMessagePart = (): boolean => {
-			const currentStatus = store.getSnapshot().chatStatus;
-			return currentStatus !== "pending" && currentStatus !== "waiting";
+			return store.getSnapshot().chatStatus !== "waiting";
 		};
 
 		const schedulePartsFlush = () => {
@@ -584,12 +583,8 @@ export const useChatStore = (
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
 							store.setChatStatus(nextStatus);
-							if (nextStatus === "pending" || nextStatus === "waiting") {
+							if (nextStatus === "waiting") {
 								discardBufferedParts();
-								store.clearRetryState();
-							}
-							if (nextStatus === "running") {
-								store.clearRetryState();
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);

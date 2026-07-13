@@ -33,6 +33,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 var (
@@ -113,11 +114,15 @@ type Server struct {
 	// budgetPolicy selects the effective group when a user belongs to multiple
 	// budgeted groups, used for cost attribution on token usage records.
 	budgetPolicy codersdk.AIBudgetPolicy
+	// budgetPeriod is the deployment-configured budgeting period used to
+	// derive the window over which user AI spend is aggregated.
+	budgetPeriod codersdk.AIBudgetPeriod
+	clock        quartz.Clock
 }
 
 func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
-	aiSeatTracker aiseats.SeatTracker,
+	aiSeatTracker aiseats.SeatTracker, clock quartz.Clock,
 ) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
@@ -138,6 +143,8 @@ func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logg
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
 		aiSeatTracker:       aiSeatTracker,
 		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(bridgeCfg.BudgetPolicy),
+		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(bridgeCfg.BudgetPeriod),
+		clock:               clock,
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
@@ -747,7 +754,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 }
 
 // IsBudgetExceeded reports whether the user's AI spend has reached their
-// effective limit over [PeriodStart, now].
+// effective limit over [periodStart, now], where periodStart is the start of
+// the current deployment-configured budget period.
 func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceededRequest) (*proto.IsBudgetExceededResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
@@ -756,14 +764,13 @@ func (s *Server) IsBudgetExceeded(ctx context.Context, in *proto.IsBudgetExceede
 	if err != nil {
 		return nil, xerrors.Errorf("invalid user_id %q: %w", in.GetUserId(), err)
 	}
-	// An unset PeriodStart deserializes to time.Unix(0, 0), which would
-	// incorrectly aggregate the user's lifetime spend against a period budget.
-	if in.PeriodStart == nil {
-		return nil, xerrors.New("period_start is required")
-	}
-	periodStart := in.GetPeriodStart().AsTime()
 
-	userBudget, err := s.checkUserAIBudget(ctx, userID, periodStart)
+	periodWindow, err := budget.CurrentPeriod(s.clock.Now(), s.budgetPeriod)
+	if err != nil {
+		return nil, xerrors.Errorf("compute AI budget period: %w", err)
+	}
+
+	userBudget, err := s.checkUserAIBudget(ctx, userID, periodWindow.Start)
 	if err != nil {
 		return nil, err
 	}

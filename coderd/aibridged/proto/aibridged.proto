@@ -35,7 +35,7 @@ service Authorizer {
   // TODO: add authorization; currently only key validation takes place.
   rpc IsAuthorized(IsAuthorizedRequest) returns (IsAuthorizedResponse);
   // IsBudgetExceeded reports whether the user's AI spend has reached their
-  // effective limit over [period_start, now].
+  // effective limit for the current deployment-configured budget period.
   rpc IsBudgetExceeded(IsBudgetExceededRequest) returns (IsBudgetExceededResponse);
 }
 
@@ -189,8 +189,6 @@ message IsAuthorizedResponse {
 
 message IsBudgetExceededRequest {
   string user_id = 1; // UUID
-  // The spend aggregation window is [period_start, now].
-  google.protobuf.Timestamp period_start = 2;
 }
 
 message IsBudgetExceededResponse {

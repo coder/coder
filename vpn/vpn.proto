@@ -30,6 +30,7 @@ message ManagerMessage {
 		NetworkSettingsResponse network_settings = 3;
 		StartRequest start = 4;
 		StopRequest stop = 5;
+		WakeRequest wake = 6;
 	}
 }
 
@@ -42,6 +43,7 @@ message TunnelMessage {
 		NetworkSettingsRequest network_settings = 4;
 		StartResponse start = 5;
 		StopResponse stop = 6;
+		WakeResponse wake = 7;
 	}
 }
 
@@ -289,4 +291,12 @@ message Status {
 	// should replace their current peer state. Only the Upserted fields will
 	// be populated.
 	PeerUpdate peer_update = 3;
+}
+
+// WakeRequest is sent by the manager after the system wakes from sleep. The
+// tunnel uses this as a hint to rediscover network paths.
+message WakeRequest {}
+
+message WakeResponse {
+	bool success = 1;
 }

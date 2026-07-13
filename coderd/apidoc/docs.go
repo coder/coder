@@ -16750,6 +16750,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "last_reasoning_effort": {
+                    "type": "string"
+                },
                 "last_turn_summary": {
                     "type": "string"
                 },
@@ -17692,20 +17695,14 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "waiting",
-                "pending",
                 "running",
-                "paused",
-                "completed",
                 "error",
                 "requires_action",
                 "interrupting"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
-                "ChatStatusPending",
                 "ChatStatusRunning",
-                "ChatStatusPaused",
-                "ChatStatusCompleted",
                 "ChatStatusError",
                 "ChatStatusRequiresAction",
                 "ChatStatusInterrupting"
@@ -18228,6 +18225,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -18286,6 +18286,9 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -19054,13 +19057,15 @@ const docTemplate = `{
                 "workspace_apps_api_key",
                 "workspace_apps_token",
                 "oidc_convert",
-                "tailnet_resume"
+                "tailnet_resume",
+                "nats_ca"
             ],
             "x-enum-varnames": [
                 "CryptoKeyFeatureWorkspaceAppsAPIKey",
                 "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
-                "CryptoKeyFeatureTailnetResume"
+                "CryptoKeyFeatureTailnetResume",
+                "CryptoKeyFeatureNATSCA"
             ]
         },
         "codersdk.CustomNotificationContent": {
@@ -19656,6 +19661,9 @@ const docTemplate = `{
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },

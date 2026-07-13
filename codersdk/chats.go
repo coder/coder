@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -87,10 +88,7 @@ type ChatStatus string
 
 const (
 	ChatStatusWaiting        ChatStatus = "waiting"
-	ChatStatusPending        ChatStatus = "pending"
 	ChatStatusRunning        ChatStatus = "running"
-	ChatStatusPaused         ChatStatus = "paused"
-	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
 	ChatStatusInterrupting   ChatStatus = "interrupting"
@@ -107,26 +105,27 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID       `json:"id" format:"uuid"`
-	OrganizationID    uuid.UUID       `json:"organization_id" format:"uuid"`
-	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
-	OwnerUsername     string          `json:"owner_username,omitempty"`
-	OwnerName         string          `json:"owner_name,omitempty"`
-	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
-	Title             string          `json:"title"`
-	Status            ChatStatus      `json:"status"`
-	PlanMode          ChatPlanMode    `json:"plan_mode,omitempty"`
-	LastError         *ChatError      `json:"last_error,omitempty"`
-	LastTurnSummary   *string         `json:"last_turn_summary"`
-	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
-	Archived          bool            `json:"archived"`
+	ID                  uuid.UUID       `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID       `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID       `json:"owner_id" format:"uuid"`
+	OwnerUsername       string          `json:"owner_username,omitempty"`
+	OwnerName           string          `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID       `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string         `json:"last_reasoning_effort,omitempty"`
+	Title               string          `json:"title"`
+	Status              ChatStatus      `json:"status"`
+	PlanMode            ChatPlanMode    `json:"plan_mode,omitempty"`
+	LastError           *ChatError      `json:"last_error,omitempty"`
+	LastTurnSummary     *string         `json:"last_turn_summary"`
+	DiffStatus          *ChatDiffStatus `json:"diff_status,omitempty"`
+	CreatedAt           time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time       `json:"updated_at" format:"date-time"`
+	Archived            bool            `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -548,13 +547,14 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
-	Content        []ChatInputPart   `json:"content"`
-	SystemPrompt   string            `json:"system_prompt,omitempty"`
-	WorkspaceID    *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID  *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	MCPServerIDs   []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
-	Labels         map[string]string `json:"labels,omitempty"`
+	OrganizationID  uuid.UUID         `json:"organization_id" format:"uuid"`
+	Content         []ChatInputPart   `json:"content"`
+	SystemPrompt    string            `json:"system_prompt,omitempty"`
+	WorkspaceID     *uuid.UUID        `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
+	MCPServerIDs    []uuid.UUID       `json:"mcp_server_ids,omitempty" format:"uuid"`
+	Labels          map[string]string `json:"labels,omitempty"`
 	// UnsafeDynamicTools declares client-executed tools that the
 	// LLM can invoke. This API is highly experimental and highly
 	// subject to change.
@@ -615,7 +615,8 @@ type CreateChatMessageRequest struct {
 	BusyBehavior  ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
-	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
+	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
+	ReasoningEffort *string       `json:"reasoning_effort,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
@@ -624,7 +625,8 @@ type EditChatMessageRequest struct {
 	// ModelConfigID, when set, overrides the model used for the
 	// replacement user message and the assistant turn that follows.
 	// When nil the original message's model is preserved.
-	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -775,15 +777,17 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 // ChatModelOverrideResponse is the response body for the chat model override
 // configuration endpoint.
 type ChatModelOverrideResponse struct {
-	Context       ChatModelOverrideContext `json:"context"`
-	ModelConfigID string                   `json:"model_config_id"`
-	IsMalformed   bool                     `json:"is_malformed"`
+	Context         ChatModelOverrideContext `json:"context"`
+	ModelConfigID   string                   `json:"model_config_id"`
+	ReasoningEffort *string                  `json:"reasoning_effort,omitempty"`
+	IsMalformed     bool                     `json:"is_malformed"`
 }
 
 // UpdateChatModelOverrideRequest is the request body for updating the chat
 // model override configuration endpoint.
 type UpdateChatModelOverrideRequest struct {
-	ModelConfigID string `json:"model_config_id"`
+	ModelConfigID   string  `json:"model_config_id"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
 // ChatPersonalModelOverrideContext identifies which chat context the user
@@ -808,11 +812,12 @@ const (
 
 // ChatPersonalModelOverride is a resolved user personal model override.
 type ChatPersonalModelOverride struct {
-	Context       ChatPersonalModelOverrideContext `json:"context"`
-	Mode          ChatPersonalModelOverrideMode    `json:"mode"`
-	ModelConfigID string                           `json:"model_config_id"`
-	IsSet         bool                             `json:"is_set"`
-	IsMalformed   bool                             `json:"is_malformed"`
+	Context         ChatPersonalModelOverrideContext `json:"context"`
+	Mode            ChatPersonalModelOverrideMode    `json:"mode"`
+	ModelConfigID   string                           `json:"model_config_id"`
+	ReasoningEffort *string                          `json:"reasoning_effort,omitempty"`
+	IsSet           bool                             `json:"is_set"`
+	IsMalformed     bool                             `json:"is_malformed"`
 }
 
 // ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
@@ -835,8 +840,9 @@ type UserChatPersonalModelOverridesResponse struct {
 // UpdateUserChatPersonalModelOverrideRequest is the request body for updating
 // a user personal model override.
 type UpdateUserChatPersonalModelOverrideRequest struct {
-	Mode          ChatPersonalModelOverrideMode `json:"mode"`
-	ModelConfigID string                        `json:"model_config_id"`
+	Mode            ChatPersonalModelOverrideMode `json:"mode"`
+	ModelConfigID   string                        `json:"model_config_id"`
+	ReasoningEffort *string                       `json:"reasoning_effort,omitempty"`
 }
 
 // ChatPersonalModelOverridesAdminSettings describes whether users may manage
@@ -904,16 +910,36 @@ type AdvisorConfig struct {
 // the request and response shapes are currently identical.
 type UpdateAdvisorConfigRequest = AdvisorConfig
 
+// ChatComputerUseProvider identifies the provider that backs computer use for
+// the virtual desktop.
+type ChatComputerUseProvider string
+
+const (
+	ChatComputerUseProviderAnthropic ChatComputerUseProvider = "anthropic"
+	ChatComputerUseProviderOpenAI    ChatComputerUseProvider = "openai"
+)
+
+// AllChatComputerUseProviders contains every ChatComputerUseProvider value.
+var AllChatComputerUseProviders = []ChatComputerUseProvider{
+	ChatComputerUseProviderAnthropic,
+	ChatComputerUseProviderOpenAI,
+}
+
+// Valid reports whether p is a supported computer use provider.
+func (p ChatComputerUseProvider) Valid() bool {
+	return slices.Contains(AllChatComputerUseProviders, p)
+}
+
 // ChatComputerUseProviderResponse is the response for getting the computer use
 // provider setting.
 type ChatComputerUseProviderResponse struct {
-	Provider string `json:"provider"`
+	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // UpdateChatComputerUseProviderRequest is the request to update the computer use
 // provider setting.
 type UpdateChatComputerUseProviderRequest struct {
-	Provider string `json:"provider"`
+	Provider ChatComputerUseProvider `json:"provider"`
 }
 
 // ChatDebugLoggingAdminSettings describes the runtime admin setting
@@ -1262,8 +1288,11 @@ type ChatModelConfig struct {
 	ContextLimit         int64                `json:"context_limit"`
 	CompressionThreshold int32                `json:"compression_threshold"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
-	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+	// ReasoningEfforts lists selectable reasoning effort values through
+	// the model's configured maximum.
+	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -1289,7 +1318,6 @@ type ChatModelOpenAIProviderOptions struct {
 	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty" description:"Maximum number of tool calls per response"`
 	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
 	User                *string          `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort     *string          `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 	ReasoningSummary    *string          `json:"reasoning_summary,omitempty" description:"Controls whether reasoning tokens are summarized in the response" enum:"auto,concise,detailed"`
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
@@ -1315,7 +1343,6 @@ type ChatModelAnthropicThinkingOptions struct {
 type ChatModelAnthropicProviderOptions struct {
 	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
 	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
-	Effort                 *string                            `json:"effort,omitempty" label:"Reasoning Effort" description:"Controls the level of reasoning effort" enum:"low,medium,high,xhigh,max"`
 	ThinkingDisplay        *string                            `json:"thinking_display,omitempty" label:"Thinking Display" description:"Controls how Anthropic returns thinking content" enum:"summarized,omitted"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
@@ -1346,17 +1373,15 @@ type ChatModelGoogleProviderOptions struct {
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
-	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	User *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
 }
 
 // ChatModelReasoningOptions configures reasoning behavior for model
 // providers that support it.
 type ChatModelReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
-	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
-	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	Enabled   *bool  `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
+	Exclude   *bool  `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
+	MaxTokens *int64 `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
 }
 
 // ChatModelOpenRouterProvider configures OpenRouter routing preferences.
@@ -1409,16 +1434,51 @@ type ModelCostConfig struct {
 	CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
 }
 
+// Reasoning effort levels, ordered low to high for clamping and comparison.
+const (
+	ChatModelReasoningEffortNone    = "none"
+	ChatModelReasoningEffortMinimal = "minimal"
+	ChatModelReasoningEffortLow     = "low"
+	ChatModelReasoningEffortMedium  = "medium"
+	ChatModelReasoningEffortHigh    = "high"
+	ChatModelReasoningEffortXHigh   = "xhigh"
+	ChatModelReasoningEffortMax     = "max"
+)
+
+var chatModelReasoningEffortValues = []string{
+	ChatModelReasoningEffortNone,
+	ChatModelReasoningEffortMinimal,
+	ChatModelReasoningEffortLow,
+	ChatModelReasoningEffortMedium,
+	ChatModelReasoningEffortHigh,
+	ChatModelReasoningEffortXHigh,
+	ChatModelReasoningEffortMax,
+}
+
+// ChatModelReasoningEffortValues returns the global reasoning effort scale.
+func ChatModelReasoningEffortValues() []string {
+	return slices.Clone(chatModelReasoningEffortValues)
+}
+
+// ChatModelReasoningEffortConfig configures per-model reasoning effort
+// bounds. When configured, Default and Max must both be provided before
+// storing.
+type ChatModelReasoningEffortConfig struct {
+	Default *string `json:"default,omitempty" label:"Default Reasoning Effort" description:"Reasoning effort used when the user has not selected one" enum:"none,minimal,low,medium,high,xhigh,max"`
+	Max     *string `json:"max,omitempty" label:"Max Reasoning Effort" description:"Maximum reasoning effort the user may select" enum:"none,minimal,low,medium,high,xhigh,max"`
+}
+
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
-	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
-	Temperature      *float64                  `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
-	TopP             *float64                  `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
-	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
-	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
-	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
-	Cost             *ModelCostConfig          `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
-	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+	MaxOutputTokens  *int64                          `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
+	Temperature      *float64                        `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
+	TopP             *float64                        `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
+	TopK             *int64                          `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
+	PresencePenalty  *float64                        `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
+	FrequencyPenalty *float64                        `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
+	Cost             *ModelCostConfig                `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
+	ReasoningEffort  *ChatModelReasoningEffortConfig `json:"reasoning_effort,omitempty" description:"Default and max reasoning effort for the model"`
+	ProviderOptions  *ChatModelProviderOptions       `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
 }
 
 // UnmarshalJSON accepts both the current nested cost object and the previous

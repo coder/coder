@@ -80,6 +80,26 @@
 				"description": "Cache write or cache creation token price in USD per 1M tokens",
 				"required": false,
 				"input_type": "input"
+			},
+			{
+				"json_name": "reasoning_effort.default",
+				"go_name": "ReasoningEffort.Default",
+				"type": "string",
+				"description": "Reasoning effort used when the user has not selected one",
+				"label": "Default Reasoning Effort",
+				"required": false,
+				"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+				"input_type": "select"
+			},
+			{
+				"json_name": "reasoning_effort.max",
+				"go_name": "ReasoningEffort.Max",
+				"type": "string",
+				"description": "Maximum reasoning effort the user may select",
+				"label": "Max Reasoning Effort",
+				"required": false,
+				"enum": ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+				"input_type": "select"
 			}
 		]
 	},
@@ -101,16 +121,6 @@
 					"description": "Maximum number of tokens the model may use for thinking",
 					"required": false,
 					"input_type": "input"
-				},
-				{
-					"json_name": "effort",
-					"go_name": "Effort",
-					"type": "string",
-					"description": "Controls the level of reasoning effort",
-					"label": "Reasoning Effort",
-					"required": false,
-					"enum": ["low", "medium", "high", "xhigh", "max"],
-					"input_type": "select"
 				},
 				{
 					"json_name": "thinking_display",
@@ -289,15 +299,6 @@
 					"hidden": true
 				},
 				{
-					"json_name": "reasoning_effort",
-					"go_name": "ReasoningEffort",
-					"type": "string",
-					"description": "Controls the level of reasoning effort",
-					"required": false,
-					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
-					"input_type": "select"
-				},
-				{
 					"json_name": "reasoning_summary",
 					"go_name": "ReasoningSummary",
 					"type": "string",
@@ -433,15 +434,6 @@
 					"required": false,
 					"input_type": "input",
 					"hidden": true
-				},
-				{
-					"json_name": "reasoning_effort",
-					"go_name": "ReasoningEffort",
-					"type": "string",
-					"description": "Controls the level of reasoning effort",
-					"required": false,
-					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
-					"input_type": "select"
 				}
 			]
 		},
@@ -470,15 +462,6 @@
 					"description": "Maximum number of tokens for reasoning output",
 					"required": false,
 					"input_type": "input"
-				},
-				{
-					"json_name": "reasoning.effort",
-					"go_name": "Reasoning.Effort",
-					"type": "string",
-					"description": "Controls the level of reasoning effort",
-					"required": false,
-					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
-					"input_type": "select"
 				},
 				{
 					"json_name": "extra_body",
@@ -569,15 +552,6 @@
 					"description": "Maximum number of tokens for reasoning output",
 					"required": false,
 					"input_type": "input"
-				},
-				{
-					"json_name": "reasoning.effort",
-					"go_name": "Reasoning.Effort",
-					"type": "string",
-					"description": "Controls the level of reasoning effort",
-					"required": false,
-					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
-					"input_type": "select"
 				},
 				{
 					"json_name": "providerOptions",

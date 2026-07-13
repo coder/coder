@@ -2,8 +2,10 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -53,8 +55,56 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 // quickgenTemperature keeps title and status-label output stable
 // across repeated runs over the same input. Fantasy providers drop
 // this with a call warning for models that reject it (OpenAI
-// reasoning models, Anthropic thinking models).
+// reasoning models, Anthropic thinking models), but only for model
+// names they recognize. generateQuickgenObject handles models that
+// reject the parameter at the API instead.
 const quickgenTemperature = 0.0
+
+// generateQuickgenObject generates a structured object with provider
+// retries and the pinned quickgen temperature. Model aliases served
+// through gateways such as AI Bridge are not recognized by fantasy's
+// per-model parameter stripping and can reject temperature with a
+// bad-request error, so the call is retried without temperature when
+// the model rejects it.
+func generateQuickgenObject[T any](
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResult[T], error) {
+	call.Temperature = ptr.Ref(quickgenTemperature)
+	var result *fantasy.ObjectResult[T]
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		result, genErr = object.Generate[T](retryCtx, model, call)
+		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
+			// The model rejects the temperature parameter. Drop it
+			// for this and any later retry attempts.
+			call.Temperature = nil
+			result, genErr = object.Generate[T](retryCtx, model, call)
+		}
+		return genErr
+	}, nil)
+	return result, err
+}
+
+// isTemperatureRejectedError reports whether a provider rejected the
+// request because the model does not accept the temperature parameter,
+// for example Anthropic's "`temperature` is deprecated for this model."
+// or OpenAI's "Unsupported parameter: 'temperature' is not supported
+// with this model.". Quickgen only sends a valid temperature value, so
+// any bad-request response mentioning temperature means the model
+// rejects the parameter itself.
+func isTemperatureRejectedError(err error) bool {
+	var providerErr *fantasy.ProviderError
+	if !errors.As(err, &providerErr) {
+		return false
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return strings.Contains(text, "temperature")
+}
 
 const (
 	// maxConversationContextRunes caps the conversation sample in manual
@@ -86,10 +136,11 @@ var preferredTitleModels = []struct {
 }
 
 type shortTextCandidate struct {
-	provider string
-	model    string
-	route    aiGatewayModelRoute
-	lm       fantasy.LanguageModel
+	provider        string
+	model           string
+	route           aiGatewayModelRoute
+	lm              fantasy.LanguageModel
+	providerOptions fantasy.ProviderOptions
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
@@ -185,7 +236,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			messages,
 			pasteText,
 			string(route.Provider.Type),
-			modelConfig.Model,
+			modelConfig,
 			model,
 			route,
 			modelOpts,
@@ -216,7 +267,7 @@ func (p *Server) maybeGenerateChatTitle(
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	fallbackProvider string,
-	fallbackModelName string,
+	fallbackConfig database.ChatModelConfig,
 	fallbackModel fantasy.LanguageModel,
 	fallbackRoute aiGatewayModelRoute,
 	modelOpts modelBuildOptions,
@@ -257,17 +308,19 @@ func (p *Server) maybeGenerateChatTitle(
 	var candidate shortTextCandidate
 	if overrideSet {
 		candidate = shortTextCandidate{
-			provider: string(overrideRoute.Provider.Type),
-			model:    overrideConfig.Model,
-			route:    overrideRoute,
-			lm:       overrideModel,
+			provider:        string(overrideRoute.Provider.Type),
+			model:           overrideConfig.Model,
+			route:           overrideRoute,
+			lm:              overrideModel,
+			providerOptions: p.titleGenerationProviderOptions(ctx, overrideModel, overrideConfig),
 		}
 	} else {
 		candidate = shortTextCandidate{
-			provider: fallbackProvider,
-			model:    fallbackModelName,
-			route:    fallbackRoute,
-			lm:       fallbackModel,
+			provider:        fallbackProvider,
+			model:           fallbackConfig.Model,
+			route:           fallbackRoute,
+			lm:              fallbackModel,
+			providerOptions: p.titleGenerationProviderOptions(ctx, fallbackModel, fallbackConfig),
 		}
 	}
 
@@ -309,7 +362,7 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 	}
 
-	title, err := generateTitle(candidateCtx, candidateModel, input)
+	title, err := generateTitle(candidateCtx, candidateModel, candidate.providerOptions, input)
 	finishDebugRun(err)
 	if err != nil {
 		if overrideSet {
@@ -346,6 +399,28 @@ func (p *Server) maybeGenerateChatTitle(
 	chat.Title = title
 	generatedTitle.Store(title)
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
+}
+
+func (p *Server) titleGenerationProviderOptions(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	config database.ChatModelConfig,
+) fantasy.ProviderOptions {
+	callConfig := codersdk.ChatModelCallConfig{}
+	if len(config.Options) > 0 {
+		if err := json.Unmarshal(config.Options, &callConfig); err != nil {
+			p.logger.Debug(ctx, "failed to parse title generation model call config",
+				slog.F("model_config_id", config.ID),
+				slog.Error(err),
+			)
+		}
+	}
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions)
+	return chatprovider.ApplyReasoningEffort(
+		model,
+		providerOptions,
+		chatprovider.ResolveReasoningEffort(nil, callConfig.ReasoningEffort),
+	)
 }
 
 func (p *Server) newQuickgenDebugModel(
@@ -471,9 +546,10 @@ func (p *Server) prepareQuickgenDebugCandidate(
 func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
+	providerOptions fantasy.ProviderOptions,
 	input string,
 ) (string, error) {
-	title, err := generateStructuredTitle(ctx, model, titleGenerationPrompt, input)
+	title, err := generateStructuredTitle(ctx, model, providerOptions, titleGenerationPrompt, input)
 	if err != nil {
 		return "", err
 	}
@@ -483,12 +559,14 @@ func generateTitle(
 func generateStructuredTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
+	providerOptions fantasy.ProviderOptions,
 	systemPrompt string,
 	userInput string,
 ) (string, error) {
 	title, _, err := generateStructuredTitleWithUsage(
 		ctx,
 		model,
+		providerOptions,
 		systemPrompt,
 		userInput,
 	)
@@ -501,6 +579,7 @@ func generateStructuredTitle(
 func generateStructuredTitleWithUsage(
 	ctx context.Context,
 	model fantasy.LanguageModel,
+	providerOptions fantasy.ProviderOptions,
 	systemPrompt string,
 	userInput string,
 ) (string, fantasy.Usage, error) {
@@ -525,18 +604,13 @@ func generateStructuredTitleWithUsage(
 	}
 
 	var maxOutputTokens int64 = 256
-	var result *fantasy.ObjectResult[generatedTitle]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-		var genErr error
-		result, genErr = object.Generate[generatedTitle](retryCtx, model, fantasy.ObjectCall{
-			Prompt:            prompt,
-			SchemaName:        "propose_title",
-			SchemaDescription: "Propose a short chat title.",
-			MaxOutputTokens:   &maxOutputTokens,
-			Temperature:       ptr.Ref(quickgenTemperature),
-		})
-		return genErr
-	}, nil)
+	result, err := generateQuickgenObject[generatedTitle](ctx, model, fantasy.ObjectCall{
+		Prompt:            prompt,
+		SchemaName:        "propose_title",
+		SchemaDescription: "Propose a short chat title.",
+		MaxOutputTokens:   &maxOutputTokens,
+		ProviderOptions:   providerOptions,
+	})
 	if err != nil {
 		var usage fantasy.Usage
 		var noObjErr *fantasy.NoObjectGeneratedError
@@ -844,7 +918,8 @@ func generateManualTitle(
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
 	fallbackModel fantasy.LanguageModel,
-) (string, fantasy.Usage, error) {
+	providerOptions fantasy.ProviderOptions,
+) (string, error) {
 	turns := extractManualTitleTurns(messages, pasteText)
 	selected := selectManualTitleTurnIndexes(turns)
 
@@ -852,7 +927,7 @@ func generateManualTitle(
 		return turn.role == string(database.ChatMessageRoleUser)
 	})
 	if firstUserIndex == -1 {
-		return "", fantasy.Usage{}, nil
+		return "", nil
 	}
 	firstUserText := truncateRunes(turns[firstUserIndex].text, maxLatestUserMessageRunes)
 
@@ -871,17 +946,18 @@ func generateManualTitle(
 		userInput = strings.TrimSpace(firstUserText)
 	}
 
-	title, usage, err := generateStructuredTitleWithUsage(
+	title, _, err := generateStructuredTitleWithUsage(
 		titleCtx,
 		fallbackModel,
+		providerOptions,
 		systemPrompt,
 		userInput,
 	)
 	if err != nil {
-		return "", usage, err
+		return "", err
 	}
 
-	return title, usage, nil
+	return title, nil
 }
 
 const turnStatusLabelPrompt = "You write compact chat status labels for a sidebar or push notification. " +
@@ -990,18 +1066,12 @@ func generateStructuredTurnStatusLabel(
 	}
 
 	var maxOutputTokens int64 = 64
-	var result *fantasy.ObjectResult[generatedTurnStatusLabel]
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-		var genErr error
-		result, genErr = object.Generate[generatedTurnStatusLabel](retryCtx, model, fantasy.ObjectCall{
-			Prompt:            prompt,
-			SchemaName:        "propose_turn_status_label",
-			SchemaDescription: "Propose a compact chat status label.",
-			MaxOutputTokens:   &maxOutputTokens,
-			Temperature:       ptr.Ref(quickgenTemperature),
-		})
-		return genErr
-	}, nil)
+	result, err := generateQuickgenObject[generatedTurnStatusLabel](ctx, model, fantasy.ObjectCall{
+		Prompt:            prompt,
+		SchemaName:        "propose_turn_status_label",
+		SchemaDescription: "Propose a compact chat status label.",
+		MaxOutputTokens:   &maxOutputTokens,
+	})
 	if err != nil {
 		return "", xerrors.Errorf("generate structured turn status label: %w", err)
 	}
@@ -1017,8 +1087,6 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "The turn finished and the chat is idle."
-	case database.ChatStatusPending:
-		return "Another user message is queued and the chat will continue."
 	case database.ChatStatusRequiresAction:
 		return "The chat is waiting for user input or action."
 	case database.ChatStatusError:
@@ -1032,8 +1100,6 @@ func fallbackTurnStatusLabel(status database.ChatStatus) string {
 	switch status {
 	case database.ChatStatusWaiting:
 		return "Finished latest turn"
-	case database.ChatStatusPending:
-		return "Still working on request"
 	case database.ChatStatusRequiresAction:
 		return "Waiting for user input"
 	case database.ChatStatusError:
