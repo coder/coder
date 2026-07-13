@@ -2,6 +2,7 @@ package slackd
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -85,13 +87,19 @@ func (f *fakeUserInfoAPI) GetUserInfoContext(_ context.Context, user string) (*s
 
 // fakeChatSubmitter records chatd calls and returns scripted results.
 type fakeChatSubmitter struct {
-	mu          sync.Mutex
-	createCalls []chatd.CreateOptions
-	sendCalls   []chatd.SendMessageOptions
+	mu             sync.Mutex
+	createCalls    []chatd.CreateOptions
+	sendCalls      []chatd.SendMessageOptions
+	interruptCalls []database.Chat
+	// ops records the order of chatd calls ("interrupt", "create",
+	// "send") so tests can assert siblings are interrupted before
+	// message submission.
+	ops []string
 
-	createChat database.Chat
-	createErr  error
-	sendErr    error
+	createChat   database.Chat
+	createErr    error
+	sendErr      error
+	interruptErr error
 
 	called chan struct{}
 }
@@ -103,6 +111,7 @@ func newFakeChatSubmitter() *fakeChatSubmitter {
 func (f *fakeChatSubmitter) CreateChat(_ context.Context, opts chatd.CreateOptions) (database.Chat, error) {
 	f.mu.Lock()
 	f.createCalls = append(f.createCalls, opts)
+	f.ops = append(f.ops, "create")
 	f.mu.Unlock()
 	f.called <- struct{}{}
 	return f.createChat, f.createErr
@@ -111,9 +120,18 @@ func (f *fakeChatSubmitter) CreateChat(_ context.Context, opts chatd.CreateOptio
 func (f *fakeChatSubmitter) SendMessage(_ context.Context, opts chatd.SendMessageOptions) (chatd.SendMessageResult, error) {
 	f.mu.Lock()
 	f.sendCalls = append(f.sendCalls, opts)
+	f.ops = append(f.ops, "send")
 	f.mu.Unlock()
 	f.called <- struct{}{}
 	return chatd.SendMessageResult{}, f.sendErr
+}
+
+func (f *fakeChatSubmitter) InterruptChat(_ context.Context, chat database.Chat) (database.Chat, error) {
+	f.mu.Lock()
+	f.interruptCalls = append(f.interruptCalls, chat)
+	f.ops = append(f.ops, "interrupt")
+	f.mu.Unlock()
+	return chat, f.interruptErr
 }
 
 func (f *fakeChatSubmitter) snapshot() ([]chatd.CreateOptions, []chatd.SendMessageOptions) {
@@ -123,14 +141,28 @@ func (f *fakeChatSubmitter) snapshot() ([]chatd.CreateOptions, []chatd.SendMessa
 		append([]chatd.SendMessageOptions(nil), f.sendCalls...)
 }
 
+// interrupts returns the interrupted chats and the ordered op log.
+func (f *fakeChatSubmitter) interrupts() ([]database.Chat, []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]database.Chat(nil), f.interruptCalls...),
+		append([]string(nil), f.ops...)
+}
+
 func newTestServer(t *testing.T, db database.Store, chat ChatSubmitter, owner uuid.UUID, socket *fakeSocketClient) *Server {
 	t.Helper()
+	return newTestServerWithProvider(t, db, chat, owner, "", socket)
+}
+
+func newTestServerWithProvider(t *testing.T, db database.Store, chat ChatSubmitter, owner uuid.UUID, providerID string, socket *fakeSocketClient) *Server {
+	t.Helper()
 	server, err := New(Options{
-		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
-		Database:        db,
-		Chat:            chat,
-		ChatOwnerUserID: owner,
-		SocketClient:    socket,
+		Logger:                 slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
+		Database:               db,
+		Chat:                   chat,
+		ChatOwnerUserID:        owner,
+		ExternalAuthProviderID: providerID,
+		SocketClient:           socket,
 		UserInfoAPI: &fakeUserInfoAPI{
 			botUID: "UBOT",
 			users: map[string]*slack.User{
@@ -144,6 +176,10 @@ func newTestServer(t *testing.T, db database.Store, chat ChatSubmitter, owner uu
 }
 
 func mentionEvent(eventID, channel, ts, threadTS, text string) socketmode.Event {
+	return mentionEventFrom(eventID, "USENDER", channel, ts, threadTS, text)
+}
+
+func mentionEventFrom(eventID, slackUserID, channel, ts, threadTS, text string) socketmode.Event {
 	return socketmode.Event{
 		Type:    socketmode.EventTypeEventsAPI,
 		Request: &socketmode.Request{EnvelopeID: eventID},
@@ -153,7 +189,7 @@ func mentionEvent(eventID, channel, ts, threadTS, text string) socketmode.Event 
 			InnerEvent: slackevents.EventsAPIInnerEvent{
 				Data: &slackevents.AppMentionEvent{
 					Type:            "app_mention",
-					User:            "USENDER",
+					User:            slackUserID,
 					Text:            text,
 					TimeStamp:       ts,
 					ThreadTimeStamp: threadTS,
@@ -171,6 +207,30 @@ func seedOwner(t *testing.T, db database.Store) (database.User, database.Organiz
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model", IsDefault: true})
 	return user, org
+}
+
+// seedMember creates an active user that belongs to org.
+func seedMember(t *testing.T, db database.Store, org database.Organization) database.User {
+	t.Helper()
+	user := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	return user
+}
+
+// linkSlackIdentity links a Coder user to a Slack user id under the
+// given external auth provider, mirroring the oauth_extra payload the
+// Slack provider stores.
+func linkSlackIdentity(t *testing.T, db database.Store, providerID string, userID uuid.UUID, slackUserID string) {
+	t.Helper()
+	extra, err := json.Marshal(map[string]any{
+		"authed_user": map[string]any{"id": slackUserID},
+	})
+	require.NoError(t, err)
+	dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		ProviderID: providerID,
+		UserID:     userID,
+		OAuthExtra: pqtype.NullRawMessage{RawMessage: extra, Valid: true},
+	})
 }
 
 func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
@@ -205,6 +265,7 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 		LabelSlackd:      "true",
 		LabelSlackThread: "C1:100.1",
 	}, create.DedupLabels)
+	assert.False(t, create.DedupAcrossOwners)
 	require.Len(t, create.InitialUserContent, 1)
 	part := create.InitialUserContent[0]
 	assert.Equal(t, "Ev1", part.Metadata[MetadataKeySlackEventID])
@@ -265,7 +326,7 @@ func TestHandleMentionCreateRaceFallsBackToSend(t *testing.T) {
 	// SendMessage is dropped as a duplicate. Both are success paths.
 	winnerChatID := uuid.New()
 	chat := newFakeChatSubmitter()
-	chat.createChat = database.Chat{ID: winnerChatID}
+	chat.createChat = database.Chat{ID: winnerChatID, OwnerID: owner.ID}
 	chat.createErr = chatd.ErrChatAlreadyExists
 	chat.sendErr = chatd.ErrDuplicateMessage
 	socket := newFakeSocketClient()
@@ -315,4 +376,83 @@ func TestExtractMentions(t *testing.T) {
 	ids := extractMentions("<@U1> hi <@U2> and <@U1> again")
 	require.Equal(t, []string{"U1", "U2"}, ids)
 	require.Empty(t, extractMentions("no mentions here"))
+}
+
+func TestWithThreadLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SerializesSameThread", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		owner, _ := seedOwner(t, db)
+		server := newTestServer(t, db, newFakeChatSubmitter(), owner.ID, newFakeSocketClient())
+
+		firstEntered := make(chan struct{})
+		firstRelease := make(chan struct{})
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- server.withThreadLock(ctx, "C1:100.1", func() error {
+				close(firstEntered)
+				<-firstRelease
+				return nil
+			})
+		}()
+		_ = testutil.TryReceive(ctx, t, firstEntered)
+
+		secondEntered := make(chan struct{})
+		secondDone := make(chan error, 1)
+		go func() {
+			secondDone <- server.withThreadLock(ctx, "C1:100.1", func() error {
+				close(secondEntered)
+				return nil
+			})
+		}()
+
+		// While the first holder is inside its critical section, the
+		// second must not enter.
+		require.Never(t, func() bool {
+			select {
+			case <-secondEntered:
+				return true
+			default:
+				return false
+			}
+		}, time.Second, testutil.IntervalFast)
+
+		close(firstRelease)
+		require.NoError(t, testutil.TryReceive(ctx, t, firstDone))
+		_ = testutil.TryReceive(ctx, t, secondEntered)
+		require.NoError(t, testutil.TryReceive(ctx, t, secondDone))
+	})
+
+	t.Run("DifferentThreadsIndependent", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		owner, _ := seedOwner(t, db)
+		server := newTestServer(t, db, newFakeChatSubmitter(), owner.ID, newFakeSocketClient())
+
+		firstEntered := make(chan struct{})
+		firstRelease := make(chan struct{})
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- server.withThreadLock(ctx, "C1:100.1", func() error {
+				close(firstEntered)
+				<-firstRelease
+				return nil
+			})
+		}()
+		_ = testutil.TryReceive(ctx, t, firstEntered)
+
+		// A different thread's lock is not contended.
+		require.NoError(t, server.withThreadLock(ctx, "C2:200.1", func() error {
+			return nil
+		}))
+
+		close(firstRelease)
+		require.NoError(t, testutil.TryReceive(ctx, t, firstDone))
+	})
 }

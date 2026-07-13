@@ -288,6 +288,12 @@ Configure the background chat processing daemon.
       --slack-chat-owner-user-id string, $CODER_SLACK_CHAT_OWNER_USER_ID
           UUID of the Coder user that owns chats created from Slack messages.
 
+      --slack-external-auth-provider-id string, $CODER_SLACK_EXTERNAL_AUTH_PROVIDER_ID
+          ID of the configured Slack external auth provider used to map Slack
+          senders to Coder users. When set, chats created for new Slack threads
+          are owned by the Coder user linked to the sending Slack account;
+          senders without a link fall back to the configured chat owner user ID.
+
 CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.

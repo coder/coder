@@ -843,7 +843,7 @@ func New(options *Options) *API {
 			// for the Slack chat tools. Partial or invalid
 			// configuration logs a warning inside parseSlackConfig
 			// and disables the integration.
-			slackCfg, slackEnabled := parseSlackConfig(api.ctx, options.Logger, options.DeploymentValues)
+			slackCfg, slackEnabled := parseSlackConfig(api.ctx, options.Logger, options.DeploymentValues, options.ExternalAuthConfigs)
 			var slackAPI chattool.SlackAPI
 			if slackEnabled {
 				slackAPI = slackCfg.client
@@ -2365,7 +2365,11 @@ type slackConfig struct {
 	botToken string
 	appToken string
 	ownerID  uuid.UUID
-	client   *slack.Client
+	// externalAuthProviderID is the validated Slack external auth
+	// provider used to map Slack senders to Coder chat owners. Empty
+	// when user mapping is disabled.
+	externalAuthProviderID string
+	client                 *slack.Client
 }
 
 // parseSlackConfig parses the Slack deployment values and builds the
@@ -2373,7 +2377,7 @@ type slackConfig struct {
 // integration is not configured. Partial or invalid configuration also
 // disables the integration; a warning describing the problem is logged
 // instead of failing.
-func parseSlackConfig(ctx context.Context, logger slog.Logger, values *codersdk.DeploymentValues) (cfg *slackConfig, enabled bool) {
+func parseSlackConfig(ctx context.Context, logger slog.Logger, values *codersdk.DeploymentValues, externalAuthConfigs []*externalauth.Config) (cfg *slackConfig, enabled bool) {
 	slackValues := values.AI.Slack
 	botToken := slackValues.BotToken.Value()
 	appToken := slackValues.AppToken.Value()
@@ -2411,11 +2415,37 @@ func parseSlackConfig(ctx context.Context, logger slog.Logger, values *codersdk.
 		)
 		return nil, false
 	}
+	externalAuthProviderID := slackValues.ExternalAuthProviderID.Value()
+	if externalAuthProviderID != "" {
+		var provider *externalauth.Config
+		for _, eac := range externalAuthConfigs {
+			if eac.ID == externalAuthProviderID {
+				provider = eac
+				break
+			}
+		}
+		if provider == nil {
+			logger.Warn(ctx, "the Slack integration is misconfigured and will be disabled: the configured Slack external auth provider id does not match any external auth provider",
+				slog.F("external_auth_provider_id", externalAuthProviderID),
+			)
+			return nil, false
+		}
+		// External auth provider types are matched case-insensitively,
+		// mirroring how externalauth itself compares them.
+		if !strings.EqualFold(provider.Type, string(codersdk.EnhancedExternalAuthProviderSlack)) {
+			logger.Warn(ctx, "the Slack integration is misconfigured and will be disabled: the configured Slack external auth provider is not of type slack",
+				slog.F("external_auth_provider_id", externalAuthProviderID),
+				slog.F("type", provider.Type),
+			)
+			return nil, false
+		}
+	}
 	return &slackConfig{
-		botToken: botToken,
-		appToken: appToken,
-		ownerID:  ownerID,
-		client:   slack.New(botToken, slack.OptionAppLevelToken(appToken)),
+		botToken:               botToken,
+		appToken:               appToken,
+		ownerID:                ownerID,
+		externalAuthProviderID: externalAuthProviderID,
+		client:                 slack.New(botToken, slack.OptionAppLevelToken(appToken)),
 	}, true
 }
 
@@ -2423,13 +2453,14 @@ func parseSlackConfig(ctx context.Context, logger slog.Logger, values *codersdk.
 // non-nil configuration returned by parseSlackConfig.
 func (api *API) startSlackd(options *Options, cfg *slackConfig) error {
 	slackDaemon, err := slackd.New(slackd.Options{
-		Logger:          options.Logger.Named("slackd"),
-		Database:        options.Database,
-		Chat:            api.chatDaemon,
-		ChatOwnerUserID: cfg.ownerID,
-		BotToken:        cfg.botToken,
-		AppToken:        cfg.appToken,
-		UserInfoAPI:     cfg.client,
+		Logger:                 options.Logger.Named("slackd"),
+		Database:               options.Database,
+		Chat:                   api.chatDaemon,
+		ChatOwnerUserID:        cfg.ownerID,
+		ExternalAuthProviderID: cfg.externalAuthProviderID,
+		BotToken:               cfg.botToken,
+		AppToken:               cfg.appToken,
+		UserInfoAPI:            cfg.client,
 	})
 	if err != nil {
 		return xerrors.Errorf("construct slackd: %w", err)

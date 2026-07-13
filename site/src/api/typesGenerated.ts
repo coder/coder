@@ -8033,6 +8033,13 @@ export interface SlackConfig {
 	readonly bot_token: string;
 	readonly app_token: string;
 	readonly chat_owner_user_id: string;
+	/**
+	 * ExternalAuthProviderID names the configured Slack external auth
+	 * provider whose user links map Slack senders to Coder users. When
+	 * set, chats created for new Slack threads are owned by the linked
+	 * Coder user, falling back to ChatOwnerUserID for unlinked senders.
+	 */
+	readonly external_auth_provider_id: string;
 }
 
 // From codersdk/roles.go

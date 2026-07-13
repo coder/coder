@@ -513,6 +513,12 @@ type sqlcQuerier interface {
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
 	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
 	GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
+	// Returns non-archived chats across all owners whose labels contain
+	// label_filter (jsonb containment), oldest first. slackd uses it to
+	// look up a sender's chat for a Slack thread (filtering by owner in
+	// Go) and to find sibling chats bound to the same thread across all
+	// owners for interruption.
+	GetChatsByLabels(ctx context.Context, labelFilter json.RawMessage) ([]Chat, error)
 	// Returns non-archived chats owned by the user whose labels contain
 	// label_filter (jsonb containment), oldest first. Used by integrations
 	// (e.g. slackd) to find the chat bound to an external conversation,
@@ -913,6 +919,12 @@ type sqlcQuerier interface {
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
+	// Returns every Coder user whose external auth link for the provider
+	// stores the given provider-side user id in oauth_extra (e.g. Slack's
+	// authed_user.id). All matches are returned, including deleted or
+	// suspended users, so callers can detect ambiguous or unusable
+	// identity mappings instead of silently picking one account.
+	GetUsersByExternalAuthProviderUserID(ctx context.Context, arg GetUsersByExternalAuthProviderUserIDParams) ([]User, error)
 	// This shouldn't check for deleted, because it's frequently used
 	// to look up references to actions. eg. a user could build a workspace
 	// for another user, then be deleted... we still want them to appear!

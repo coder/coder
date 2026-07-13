@@ -23487,6 +23487,10 @@ const docTemplate = `{
                 },
                 "chat_owner_user_id": {
                     "type": "string"
+                },
+                "external_auth_provider_id": {
+                    "description": "ExternalAuthProviderID names the configured Slack external auth\nprovider whose user links map Slack senders to Coder users. When\nset, chats created for new Slack threads are owned by the linked\nCoder user, falling back to ChatOwnerUserID for unlinked senders.",
+                    "type": "string"
                 }
             }
         },

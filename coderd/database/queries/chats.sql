@@ -1927,6 +1927,18 @@ WHERE owner_id = @owner_id::uuid
     AND labels @> @label_filter::jsonb
 ORDER BY created_at ASC, id ASC;
 
+-- name: GetChatsByLabels :many
+-- Returns non-archived chats across all owners whose labels contain
+-- label_filter (jsonb containment), oldest first. slackd uses it to
+-- look up a sender's chat for a Slack thread (filtering by owner in
+-- Go) and to find sibling chats bound to the same thread across all
+-- owners for interruption.
+SELECT *
+FROM chats_expanded
+WHERE archived = false
+    AND labels @> @label_filter::jsonb
+ORDER BY created_at ASC, id ASC;
+
 -- name: GetLastChatMessageByRole :one
 SELECT
     *

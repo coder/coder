@@ -3448,6 +3448,21 @@ func (mr *MockStoreMockRecorder) GetChatsByIDsForRunnerSync(ctx, ids any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByIDsForRunnerSync", reflect.TypeOf((*MockStore)(nil).GetChatsByIDsForRunnerSync), ctx, ids)
 }
 
+// GetChatsByLabels mocks base method.
+func (m *MockStore) GetChatsByLabels(ctx context.Context, labelFilter json.RawMessage) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsByLabels", ctx, labelFilter)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsByLabels indicates an expected call of GetChatsByLabels.
+func (mr *MockStoreMockRecorder) GetChatsByLabels(ctx, labelFilter any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByLabels", reflect.TypeOf((*MockStore)(nil).GetChatsByLabels), ctx, labelFilter)
+}
+
 // GetChatsByOwnerAndLabels mocks base method.
 func (m *MockStore) GetChatsByOwnerAndLabels(ctx context.Context, arg database.GetChatsByOwnerAndLabelsParams) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -6356,6 +6371,21 @@ func (m *MockStore) GetUsers(ctx context.Context, arg database.GetUsersParams) (
 func (mr *MockStoreMockRecorder) GetUsers(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsers", reflect.TypeOf((*MockStore)(nil).GetUsers), ctx, arg)
+}
+
+// GetUsersByExternalAuthProviderUserID mocks base method.
+func (m *MockStore) GetUsersByExternalAuthProviderUserID(ctx context.Context, arg database.GetUsersByExternalAuthProviderUserIDParams) ([]database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUsersByExternalAuthProviderUserID", ctx, arg)
+	ret0, _ := ret[0].([]database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUsersByExternalAuthProviderUserID indicates an expected call of GetUsersByExternalAuthProviderUserID.
+func (mr *MockStoreMockRecorder) GetUsersByExternalAuthProviderUserID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUsersByExternalAuthProviderUserID", reflect.TypeOf((*MockStore)(nil).GetUsersByExternalAuthProviderUserID), ctx, arg)
 }
 
 // GetUsersByIDs mocks base method.

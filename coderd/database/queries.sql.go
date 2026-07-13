@@ -9075,6 +9075,87 @@ func (q *sqlQuerier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.
 	return items, nil
 }
 
+const getChatsByLabels = `-- name: GetChatsByLabels :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error
+FROM chats_expanded
+WHERE archived = false
+    AND labels @> $1::jsonb
+ORDER BY created_at ASC, id ASC
+`
+
+// Returns non-archived chats across all owners whose labels contain
+// label_filter (jsonb containment), oldest first. slackd uses it to
+// look up a sender's chat for a Slack thread (filtering by owner in
+// Go) and to find sibling chats bound to the same thread across all
+// owners for interruption.
+func (q *sqlQuerier) GetChatsByLabels(ctx context.Context, labelFilter json.RawMessage) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByLabels, labelFilter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatsByOwnerAndLabels = `-- name: GetChatsByOwnerAndLabels :many
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error
 FROM chats_expanded
@@ -13838,6 +13919,69 @@ func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uu
 			&i.OAuthRefreshTokenKeyID,
 			&i.OAuthExtra,
 			&i.OauthRefreshFailureReason,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUsersByExternalAuthProviderUserID = `-- name: GetUsersByExternalAuthProviderUserID :many
+SELECT users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule, users.name, users.github_com_user_id, users.hashed_one_time_passcode, users.one_time_passcode_expires_at, users.is_system, users.is_service_account, users.chat_spend_limit_micros
+FROM external_auth_links
+JOIN users ON users.id = external_auth_links.user_id
+WHERE external_auth_links.provider_id = $1::text
+    AND external_auth_links.oauth_extra -> 'authed_user' ->> 'id' = $2::text
+ORDER BY users.created_at ASC, users.id ASC
+`
+
+type GetUsersByExternalAuthProviderUserIDParams struct {
+	ProviderID     string `db:"provider_id" json:"provider_id"`
+	ExternalUserID string `db:"external_user_id" json:"external_user_id"`
+}
+
+// Returns every Coder user whose external auth link for the provider
+// stores the given provider-side user id in oauth_extra (e.g. Slack's
+// authed_user.id). All matches are returned, including deleted or
+// suspended users, so callers can detect ambiguous or unusable
+// identity mappings instead of silently picking one account.
+func (q *sqlQuerier) GetUsersByExternalAuthProviderUserID(ctx context.Context, arg GetUsersByExternalAuthProviderUserIDParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersByExternalAuthProviderUserID, arg.ProviderID, arg.ExternalUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.RBACRoles,
+			&i.LoginType,
+			&i.AvatarURL,
+			&i.Deleted,
+			&i.LastSeenAt,
+			&i.QuietHoursSchedule,
+			&i.Name,
+			&i.GithubComUserID,
+			&i.HashedOneTimePasscode,
+			&i.OneTimePasscodeExpiresAt,
+			&i.IsSystem,
+			&i.IsServiceAccount,
+			&i.ChatSpendLimitMicros,
 		); err != nil {
 			return nil, err
 		}

@@ -45,6 +45,11 @@ type CreateChatInput struct {
 	// contain the filter already exists, the transaction aborts and
 	// CreateChat returns that chat with ErrChatAlreadyExists.
 	DedupLabelFilter pqtype.NullRawMessage
+	// DedupAcrossOwners widens the DedupLabelFilter lookup to chats
+	// of every owner instead of only OwnerID's chats. The caller must
+	// derive DedupLockID without the owner so racing owners serialize
+	// on the same lock.
+	DedupAcrossOwners bool
 }
 
 // ErrChatAlreadyExists indicates chat creation was aborted because a
@@ -97,10 +102,18 @@ func CreateChat(
 				return xerrors.Errorf("acquire chat creation dedup lock: %w", err)
 			}
 			if input.DedupLabelFilter.Valid {
-				existing, err := store.GetChatsByOwnerAndLabels(ctx, database.GetChatsByOwnerAndLabelsParams{
-					OwnerID:     input.OwnerID,
-					LabelFilter: input.DedupLabelFilter.RawMessage,
-				})
+				var (
+					existing []database.Chat
+					err      error
+				)
+				if input.DedupAcrossOwners {
+					existing, err = store.GetChatsByLabels(ctx, input.DedupLabelFilter.RawMessage)
+				} else {
+					existing, err = store.GetChatsByOwnerAndLabels(ctx, database.GetChatsByOwnerAndLabelsParams{
+						OwnerID:     input.OwnerID,
+						LabelFilter: input.DedupLabelFilter.RawMessage,
+					})
+				}
 				if err != nil {
 					return xerrors.Errorf("look up chats by dedup labels: %w", err)
 				}

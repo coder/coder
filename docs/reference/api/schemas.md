@@ -997,7 +997,8 @@
   "slack": {
     "app_token": "string",
     "bot_token": "string",
-    "chat_owner_user_id": "string"
+    "chat_owner_user_id": "string",
+    "external_auth_provider_id": "string"
   }
 }
 ```
@@ -5741,7 +5742,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "slack": {
         "app_token": "string",
         "bot_token": "string",
-        "chat_owner_user_id": "string"
+        "chat_owner_user_id": "string",
+        "external_auth_provider_id": "string"
       }
     },
     "allow_workspace_renames": true,
@@ -6355,7 +6357,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "slack": {
       "app_token": "string",
       "bot_token": "string",
-      "chat_owner_user_id": "string"
+      "chat_owner_user_id": "string",
+      "external_auth_provider_id": "string"
     }
   },
   "allow_workspace_renames": true,
@@ -11435,17 +11438,19 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "app_token": "string",
   "bot_token": "string",
-  "chat_owner_user_id": "string"
+  "chat_owner_user_id": "string",
+  "external_auth_provider_id": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type   | Required | Restrictions | Description |
-|----------------------|--------|----------|--------------|-------------|
-| `app_token`          | string | false    |              |             |
-| `bot_token`          | string | false    |              |             |
-| `chat_owner_user_id` | string | false    |              |             |
+| Name                        | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
+|-----------------------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `app_token`                 | string | false    |              |                                                                                                                                                                                                                                                                        |
+| `bot_token`                 | string | false    |              |                                                                                                                                                                                                                                                                        |
+| `chat_owner_user_id`        | string | false    |              |                                                                                                                                                                                                                                                                        |
+| `external_auth_provider_id` | string | false    |              | External auth provider ID names the configured Slack external auth provider whose user links map Slack senders to Coder users. When set, chats created for new Slack threads are owned by the linked Coder user, falling back to ChatOwnerUserID for unlinked senders. |
 
 ## codersdk.SlimRole
 

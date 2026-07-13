@@ -4313,6 +4313,15 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "slackChatOwnerUserId",
 		},
+		{
+			Name:        "Slack External Auth Provider ID",
+			Description: "ID of the configured Slack external auth provider used to map Slack senders to Coder users. When set, chats created for new Slack threads are owned by the Coder user linked to the sending Slack account; senders without a link fall back to the configured chat owner user ID.",
+			Flag:        "slack-external-auth-provider-id",
+			Env:         "CODER_SLACK_EXTERNAL_AUTH_PROVIDER_ID",
+			Value:       &c.AI.Slack.ExternalAuthProviderID,
+			Group:       &deploymentGroupChat,
+			YAML:        "slackExternalAuthProviderId",
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -5003,6 +5012,11 @@ type SlackConfig struct {
 	BotToken        serpent.String `json:"bot_token" typescript:",notnull"`
 	AppToken        serpent.String `json:"app_token" typescript:",notnull"`
 	ChatOwnerUserID serpent.String `json:"chat_owner_user_id" typescript:",notnull"`
+	// ExternalAuthProviderID names the configured Slack external auth
+	// provider whose user links map Slack senders to Coder users. When
+	// set, chats created for new Slack threads are owned by the linked
+	// Coder user, falling back to ChatOwnerUserID for unlinked senders.
+	ExternalAuthProviderID serpent.String `json:"external_auth_provider_id" typescript:",notnull"`
 }
 
 type TemplateBuilderConfig struct {

@@ -1145,6 +1145,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatsByOwnerAndLabels(gomock.Any(), arg).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
 	}))
+	s.Run("GetChatsByLabels", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := json.RawMessage(`{"slackd":"true"}`)
+		dbm.EXPECT().GetChatsByLabels(gomock.Any(), gomock.Any()).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
+	}))
 	s.Run("GetChatsByChatFileID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
 		chatB := testutil.Fake(s.T(), faker, database.Chat{})
@@ -2999,6 +3005,18 @@ func (s *MethodTestSuite) TestUser() {
 		ids := []uuid.UUID{a.ID, b.ID}
 		dbm.EXPECT().GetUsersByIDs(gomock.Any(), ids).Return([]database.User{a, b}, nil).AnyTimes()
 		check.Args(ids).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
+	}))
+	s.Run("GetUsersByExternalAuthProviderUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		a := testutil.Fake(s.T(), faker, database.User{})
+		b := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.GetUsersByExternalAuthProviderUserIDParams{
+			ProviderID:     "slack",
+			ExternalUserID: "U123",
+		}
+		dbm.EXPECT().GetUsersByExternalAuthProviderUserID(gomock.Any(), arg).Return([]database.User{a, b}, nil).AnyTimes()
+		// Authorized as a user-read of every returned user; no
+		// external auth link fields are exposed.
+		check.Args(arg).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("GetUsers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetUsersParams{}

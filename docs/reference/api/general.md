@@ -230,7 +230,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "slack": {
         "app_token": "string",
         "bot_token": "string",
-        "chat_owner_user_id": "string"
+        "chat_owner_user_id": "string",
+        "external_auth_provider_id": "string"
       }
     },
     "allow_workspace_renames": true,

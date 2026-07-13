@@ -810,6 +810,12 @@ chat:
   # UUID of the Coder user that owns chats created from Slack messages.
   # (default: <unset>, type: string)
   slackChatOwnerUserId: ""
+  # ID of the configured Slack external auth provider used to map Slack senders to
+  # Coder users. When set, chats created for new Slack threads are owned by the
+  # Coder user linked to the sending Slack account; senders without a link fall back
+  # to the configured chat owner user ID.
+  # (default: <unset>, type: string)
+  slackExternalAuthProviderId: ""
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.

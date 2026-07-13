@@ -1773,6 +1773,16 @@ App-level token (xapp-...) with connections:write used for the Slack Socket Mode
 
 UUID of the Coder user that owns chats created from Slack messages.
 
+### --slack-external-auth-provider-id
+
+|             |                                                     |
+|-------------|-----------------------------------------------------|
+| Type        | <code>string</code>                                 |
+| Environment | <code>$CODER_SLACK_EXTERNAL_AUTH_PROVIDER_ID</code> |
+| YAML        | <code>chat.slackExternalAuthProviderId</code>       |
+
+ID of the configured Slack external auth provider used to map Slack senders to Coder users. When set, chats created for new Slack threads are owned by the Coder user linked to the sending Slack account; senders without a link fall back to the configured chat owner user ID.
+
 ### --ai-gateway-enabled
 
 |             |                                        |

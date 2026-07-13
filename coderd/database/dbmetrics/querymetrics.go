@@ -1865,6 +1865,14 @@ func (m queryMetricsStore) GetChatsByIDsForRunnerSync(ctx context.Context, ids [
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatsByLabels(ctx context.Context, labelFilter json.RawMessage) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByLabels(ctx, labelFilter)
+	m.queryLatencies.WithLabelValues("GetChatsByLabels").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByLabels").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatsByOwnerAndLabels(ctx context.Context, arg database.GetChatsByOwnerAndLabelsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatsByOwnerAndLabels(ctx, arg)
@@ -3398,6 +3406,14 @@ func (m queryMetricsStore) GetUsers(ctx context.Context, arg database.GetUsersPa
 	r0, r1 := m.s.GetUsers(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUsers").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUsers").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUsersByExternalAuthProviderUserID(ctx context.Context, arg database.GetUsersByExternalAuthProviderUserIDParams) ([]database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUsersByExternalAuthProviderUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUsersByExternalAuthProviderUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUsersByExternalAuthProviderUserID").Inc()
 	return r0, r1
 }
 

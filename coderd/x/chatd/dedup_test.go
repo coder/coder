@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
@@ -239,6 +240,136 @@ func TestCreateChatDedupLabels(t *testing.T) {
 		for i, err := range errs {
 			if xerrors.Is(err, chatd.ErrChatAlreadyExists) {
 				require.Equal(t, chatID, chats[i].ID)
+			}
+		}
+	})
+}
+
+func TestCreateChatDedupAcrossOwners(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	userA, org, model := seedChatDependencies(t, db)
+	userB := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userB.ID, OrganizationID: org.ID})
+	apiKeyA := testAPIKeyID(t, db, userA.ID)
+	apiKeyB := testAPIKeyID(t, db, userB.ID)
+
+	opts := func(owner uuid.UUID, apiKeyID string, labels map[string]string, acrossOwners bool) chatd.CreateOptions {
+		return chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            owner,
+			APIKeyID:           apiKeyID,
+			Title:              "cross-owner dedup test",
+			InitialUserContent: textPartWithMetadata("first", "slack_event_id", uuid.NewString()),
+			ModelConfigID:      model.ID,
+			Labels:             database.StringMap(labels),
+			DedupLabels:        labels,
+			DedupAcrossOwners:  acrossOwners,
+		}
+	}
+
+	t.Run("OwnerScopedAllowsSeparateOwners", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		labels := map[string]string{"slackd": "true", "slack_thread": "C3:300.1"}
+		// With owner-scoped dedup (the default), different owners may
+		// create chats with identical labels.
+		chatA, err := server.CreateChat(ctx, opts(userA.ID, apiKeyA, labels, false))
+		require.NoError(t, err)
+		chatB, err := server.CreateChat(ctx, opts(userB.ID, apiKeyB, labels, false))
+		require.NoError(t, err)
+		require.NotEqual(t, chatA.ID, chatB.ID)
+	})
+
+	t.Run("SecondOwnerGetsExistingChat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		labels := map[string]string{"slackd": "true", "slack_thread": "C3:300.2"}
+		chatA, err := server.CreateChat(ctx, opts(userA.ID, apiKeyA, labels, true))
+		require.NoError(t, err)
+
+		existing, err := server.CreateChat(ctx, opts(userB.ID, apiKeyB, labels, true))
+		require.ErrorIs(t, err, chatd.ErrChatAlreadyExists)
+		require.Equal(t, chatA.ID, existing.ID)
+		require.Equal(t, userA.ID, existing.OwnerID)
+	})
+
+	t.Run("DifferentLabelsCreateSeparateChats", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chatA, err := server.CreateChat(ctx, opts(userA.ID, apiKeyA, map[string]string{"slackd": "true", "slack_thread": "C3:300.3"}, true))
+		require.NoError(t, err)
+		chatB, err := server.CreateChat(ctx, opts(userB.ID, apiKeyB, map[string]string{"slackd": "true", "slack_thread": "C3:300.4"}, true))
+		require.NoError(t, err)
+		require.NotEqual(t, chatA.ID, chatB.ID)
+	})
+
+	t.Run("RequiresDedupLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		o := opts(userA.ID, apiKeyA, nil, true)
+		_, err := server.CreateChat(ctx, o)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, chatd.ErrChatAlreadyExists)
+	})
+
+	t.Run("DedupLabelsMustBeSubsetOfLabels", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		o := opts(userA.ID, apiKeyA, map[string]string{"slackd": "true"}, true)
+		o.Labels = database.StringMap{"other": "1"}
+		_, err := server.CreateChat(ctx, o)
+		require.Error(t, err)
+	})
+
+	t.Run("ConcurrentDifferentOwners", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		labels := map[string]string{"slackd": "true", "slack_thread": "C3:300.5"}
+		owners := []struct {
+			id       uuid.UUID
+			apiKeyID string
+		}{
+			{userA.ID, apiKeyA},
+			{userB.ID, apiKeyB},
+			{userA.ID, apiKeyA},
+			{userB.ID, apiKeyB},
+		}
+		chats := make([]database.Chat, len(owners))
+		errs := make([]error, len(owners))
+		var wg sync.WaitGroup
+		for i, owner := range owners {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				chats[i], errs[i] = server.CreateChat(ctx, opts(owner.id, owner.apiKeyID, labels, true))
+			}()
+		}
+		wg.Wait()
+
+		var created, existing int
+		var winner database.Chat
+		for i, err := range errs {
+			switch {
+			case err == nil:
+				created++
+				winner = chats[i]
+			case xerrors.Is(err, chatd.ErrChatAlreadyExists):
+				existing++
+			default:
+				t.Fatalf("unexpected error: %v", err)
+			}
+		}
+		require.Equal(t, 1, created)
+		require.Equal(t, len(owners)-1, existing)
+		// Every loser was handed the winning chat with its owner, so
+		// callers can switch to the winner's identity.
+		for i, err := range errs {
+			if xerrors.Is(err, chatd.ErrChatAlreadyExists) {
+				require.Equal(t, winner.ID, chats[i].ID)
+				require.Equal(t, winner.OwnerID, chats[i].OwnerID)
 			}
 		}
 	})

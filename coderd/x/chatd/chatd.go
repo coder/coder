@@ -1175,6 +1175,14 @@ type CreateOptions struct {
 	// DedupLabels must be a subset of Labels so the created chat
 	// matches its own dedup filter.
 	DedupLabels map[string]string
+	// DedupAcrossOwners widens DedupLabels deduplication to all chat
+	// owners: the advisory lock is derived from the dedup labels
+	// alone and the existing-chat lookup ignores OwnerID, so replicas
+	// racing to create a chat for the same external conversation on
+	// behalf of different owners still produce exactly one chat,
+	// regardless of which owner each replica resolved. It requires
+	// non-empty DedupLabels and changes nothing else about creation.
+	DedupAcrossOwners bool
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1314,6 +1322,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		dedupLockID int64
 		dedupFilter pqtype.NullRawMessage
 	)
+	if opts.DedupAcrossOwners && len(opts.DedupLabels) == 0 {
+		return database.Chat{}, xerrors.New("dedup_across_owners requires non-empty dedup labels")
+	}
 	if len(opts.DedupLabels) > 0 {
 		for key, value := range opts.DedupLabels {
 			if opts.Labels[key] != value {
@@ -1327,7 +1338,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, xerrors.Errorf("marshal dedup labels: %w", err)
 		}
 		dedupFilter = pqtype.NullRawMessage{RawMessage: filterJSON, Valid: true}
-		dedupLockID = database.GenLockID("chatd:create-dedup:" + opts.OwnerID.String() + ":" + string(filterJSON))
+		if opts.DedupAcrossOwners {
+			// The lock excludes the owner so different owners racing
+			// on the same labels serialize on one lock.
+			dedupLockID = database.GenLockID("chatd:create-dedup:" + string(filterJSON))
+		} else {
+			dedupLockID = database.GenLockID("chatd:create-dedup:" + opts.OwnerID.String() + ":" + string(filterJSON))
+		}
 	}
 
 	userPrompt := SanitizePromptText(opts.SystemPrompt)
@@ -1389,10 +1406,11 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
-		ClientType:       opts.ClientType,
-		InitialMessages:  initialMessages,
-		DedupLockID:      dedupLockID,
-		DedupLabelFilter: dedupFilter,
+		ClientType:        opts.ClientType,
+		InitialMessages:   initialMessages,
+		DedupLockID:       dedupLockID,
+		DedupLabelFilter:  dedupFilter,
+		DedupAcrossOwners: opts.DedupAcrossOwners,
 	})
 	if err != nil {
 		if xerrors.Is(err, chatstate.ErrChatAlreadyExists) {

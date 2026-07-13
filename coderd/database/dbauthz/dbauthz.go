@@ -786,14 +786,15 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					// Chat access to find, create, and submit messages
 					// to chats bound to Slack threads. User and
-					// organization read access to resolve the configured
-					// chat owner and their organization. API key create
-					// access to mint the delegated key attached to
+					// organization read access to resolve the chat owner
+					// (linked or configured fallback) and their
+					// organization. API key read and create access to
+					// reuse or mint the delegated key attached to
 					// submitted user messages.
 					rbac.ResourceChat.Type:         {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:         {policy.ActionRead},
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
-					rbac.ResourceApiKey.Type:       {policy.ActionCreate},
+					rbac.ResourceApiKey.Type:       {policy.ActionCreate, policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -3631,6 +3632,10 @@ func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUI
 	return q.db.GetChatsByIDsForRunnerSync(ctx, ids)
 }
 
+func (q *querier) GetChatsByLabels(ctx context.Context, labelFilter json.RawMessage) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByLabels)(ctx, labelFilter)
+}
+
 func (q *querier) GetChatsByOwnerAndLabels(ctx context.Context, arg database.GetChatsByOwnerAndLabelsParams) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerAndLabels)(ctx, arg)
 }
@@ -5256,6 +5261,25 @@ func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.GetAuthorizedUsers(ctx, arg, prep)
+}
+
+// GetUsersByExternalAuthProviderUserID resolves Coder users from a
+// provider-side user id stored on their external auth links. It is a
+// user lookup: each returned user must be readable by the caller, and
+// no external auth link fields (tokens, oauth_extra) are returned.
+// Authorization errors fail the whole call instead of filtering rows
+// so callers can rely on the result for ambiguity detection.
+func (q *querier) GetUsersByExternalAuthProviderUserID(ctx context.Context, arg database.GetUsersByExternalAuthProviderUserIDParams) ([]database.User, error) {
+	users, err := q.db.GetUsersByExternalAuthProviderUserID(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		if err := q.authorizeContext(ctx, policy.ActionRead, user.RBACObject()); err != nil {
+			return nil, err
+		}
+	}
+	return users, nil
 }
 
 // GetUsersByIDs is only used for usernames on workspace return data.

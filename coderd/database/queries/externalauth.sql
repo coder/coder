@@ -7,6 +7,19 @@ DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
 -- name: GetExternalAuthLinksByUserID :many
 SELECT * FROM external_auth_links WHERE user_id = $1;
 
+-- name: GetUsersByExternalAuthProviderUserID :many
+-- Returns every Coder user whose external auth link for the provider
+-- stores the given provider-side user id in oauth_extra (e.g. Slack's
+-- authed_user.id). All matches are returned, including deleted or
+-- suspended users, so callers can detect ambiguous or unusable
+-- identity mappings instead of silently picking one account.
+SELECT users.*
+FROM external_auth_links
+JOIN users ON users.id = external_auth_links.user_id
+WHERE external_auth_links.provider_id = @provider_id::text
+    AND external_auth_links.oauth_extra -> 'authed_user' ->> 'id' = @external_user_id::text
+ORDER BY users.created_at ASC, users.id ASC;
+
 -- name: InsertExternalAuthLink :one
 INSERT INTO external_auth_links (
     provider_id,
