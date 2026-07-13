@@ -278,7 +278,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/ai-gateway/sessions">AI Sessions</Link>
+						<Link to="/ai-gateway/sessions">AI sessions</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewHealth && (
