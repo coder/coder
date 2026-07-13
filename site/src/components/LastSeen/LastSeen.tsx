@@ -1,7 +1,7 @@
 import type dayjs from "dayjs";
 import type { FC, HTMLAttributes } from "react";
 import { cn } from "#/utils/cn";
-import { isAfter, relativeTime, subtractTime } from "#/utils/time";
+import { isAfter, subtractTime, timeFrom } from "#/utils/time";
 
 interface LastSeenProps
 	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
@@ -21,13 +21,13 @@ const displayFor = (
 		return { message: "Now", color: "text-content-success" };
 	}
 	if (isAfter(at, subtractTime(now, 3, "day"))) {
-		return { message: relativeTime(at), color: "text-content-primary" };
+		return { message: timeFrom(at, now), color: "text-content-primary" };
 	}
 	if (isAfter(at, subtractTime(now, 1, "month"))) {
-		return { message: relativeTime(at), color: "text-content-warning" };
+		return { message: timeFrom(at, now), color: "text-content-warning" };
 	}
 	if (isAfter(at, subtractTime(now, 100, "year"))) {
-		return { message: relativeTime(at), color: "text-content-destructive" };
+		return { message: timeFrom(at, now), color: "text-content-destructive" };
 	}
 	return { message: "Never", color: "text-content-secondary" };
 };
