@@ -10,8 +10,8 @@ import type { KnownModel } from "./types";
 // catalog and should be reviewed when the catalog is refreshed.
 //
 // Reasoning configuration is split per model based on Anthropic API support:
-// models that support adaptive thinking (Opus 4.8, Opus 4.7, Opus 4.6,
-// Sonnet 4.6) carry `reasoningEffort`, which Coder maps to
+// models that support adaptive thinking (Fable 5, Mythos 5, Opus 4.8,
+// Opus 4.7, Opus 4.6, Sonnet 4.6) carry `reasoningEffort`, which Coder maps to
 // `thinking.type: "adaptive"` with the `effort` parameter. Models that do not
 // (Haiku 4.5, Sonnet 4.5)
 // carry `thinkingBudgetTokens` instead, which Coder maps to the legacy
@@ -19,6 +19,45 @@ import type { KnownModel } from "./types";
 // the legacy path produces an "adaptive thinking is not supported on this
 // model" HTTP 400 from Anthropic.
 export const anthropicKnownModels = [
+	{
+		provider: "anthropic",
+		modelIdentifier: "claude-fable-5",
+		displayName: "Claude Fable 5",
+		aliases: [],
+		contextLimit: 1_000_000,
+		maxOutputTokens: 128_000,
+		reasoningEffort: "high",
+		inputCost: 10,
+		outputCost: 50,
+		cacheReadCost: 1,
+		cacheWriteCost: 12.5,
+		sourceMetadata: {
+			sourceName: "models.dev",
+			sourceRetrievedAt: "2026-07-09",
+			lastUpdated: "2026-06-09",
+		},
+	},
+	// models.dev does not list claude-mythos-5. Anthropic documents that
+	// Mythos 5 shares Fable 5's specs and pricing, so this entry mirrors
+	// the claude-fable-5 models.dev entry.
+	{
+		provider: "anthropic",
+		modelIdentifier: "claude-mythos-5",
+		displayName: "Claude Mythos 5",
+		aliases: [],
+		contextLimit: 1_000_000,
+		maxOutputTokens: 128_000,
+		reasoningEffort: "high",
+		inputCost: 10,
+		outputCost: 50,
+		cacheReadCost: 1,
+		cacheWriteCost: 12.5,
+		sourceMetadata: {
+			sourceName: "models.dev",
+			sourceRetrievedAt: "2026-07-09",
+			lastUpdated: "2026-06-09",
+		},
+	},
 	{
 		provider: "anthropic",
 		modelIdentifier: "claude-opus-4-8",

@@ -136,6 +136,8 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
@@ -328,6 +330,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	reasoningEffort,
+	onReasoningEffortChange,
 	canConfigureAgentSetup,
 	providerCount,
 	modelCount,
@@ -941,6 +945,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								modelOptions={modelOptions}
 								modelSelectorPlaceholder={modelSelectorPlaceholder}
 								modelSelectorHelp={modelSelectorHelp}
+								reasoningEffort={reasoningEffort}
+								onReasoningEffortChange={onReasoningEffortChange}
 								planModeEnabled={planModeEnabled}
 								onPlanModeToggle={onPlanModeToggle}
 								isModelCatalogLoading={isModelCatalogLoading}

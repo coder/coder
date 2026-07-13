@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -13,14 +14,20 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	tracenoop "go.opentelemetry.io/otel/trace/noop"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	"go.opentelemetry.io/otel/semconv/v1.14.0/httpconv"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	coderdtracing "github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/retry"
@@ -30,9 +37,45 @@ import (
 const (
 	shutdownTimeout = 5 * time.Minute
 
+	healthzPath = "/healthz"
+	readyzPath  = "/readyz"
+
 	keyFlagsExclusiveErr = "--key and --key-file options are mutually exclusive"
 	keyFlagsMissingErr   = "an AI Gateway key is required, set --key (CODER_AI_GATEWAY_KEY) or --key-file (CODER_AI_GATEWAY_KEY_FILE)"
 )
+
+// aiGatewayInheritedEnvs are the coderd deployment options, keyed by env var,
+// that the standalone Gateway inherits.
+var aiGatewayInheritedEnvs = map[string]struct{}{
+	// Logging
+	"CODER_LOGGING_HUMAN":       {},
+	"CODER_LOGGING_JSON":        {},
+	"CODER_LOGGING_STACKDRIVER": {},
+	"CODER_LOG_FILTER":          {},
+	"CODER_VERBOSE":             {},
+
+	// Tracing
+	"CODER_TRACE_DATADOG":           {},
+	"CODER_TRACE_ENABLE":            {},
+	"CODER_TRACE_HONEYCOMB_API_KEY": {},
+	"CODER_TRACE_LOGS":              {},
+
+	// AI Gateway
+	"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED":           {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD": {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
+	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
+	"CODER_AI_GATEWAY_DUMP_DIR":                          {},
+	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
+	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
+	"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
+
+	// Prometheus
+	"CODER_PROMETHEUS_ADDRESS": {},
+	"CODER_PROMETHEUS_ENABLE":  {},
+}
 
 // aiGatewayStart runs the AI Gateway as a standalone process.
 func (r *RootCmd) aiGatewayStart() *serpent.Command {
@@ -42,7 +85,6 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 		httpAddress string
 		tlsCertFile string
 		tlsKeyFile  string
-		verbose     bool
 	)
 
 	vals := new(codersdk.DeploymentValues)
@@ -80,30 +122,53 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.Errorf("configure Coder deployment connection: %w", err)
 			}
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			if verbose {
-				logger = logger.Leveled(slog.LevelDebug)
+			logger, closeLogger, err := clilog.New(clilog.FromDeploymentValues(vals)).Build(inv)
+			if err != nil {
+				return xerrors.Errorf("make logger: %w", err)
 			}
+			defer closeLogger()
+			logger = logger.Named("ai-gateway")
 
-			// Metrics and tracing are not exposed by standalone mode yet
-			// (TODO AIGOV-317), but the pool and the reloader require a metrics
-			// object and a tracer.
+			logger.Debug(signalCtx, "started debug logging")
+			logger.Sync()
+
 			registry := prometheus.NewRegistry()
+			registry.MustRegister(collectors.NewGoCollector())
+			registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
 			metrics := aibridge.NewMetrics(registry)
 			providerMetrics := aibridged.NewMetrics(registry)
-			tracer := tracenoop.NewTracerProvider().Tracer("aibridged")
+
+			tracerProvider, _, closeTracing := agpl.ConfigureTraceProviderWithService(signalCtx, logger, vals, "coder-ai-gateway")
+			defer func() {
+				logger.Debug(signalCtx, "closing tracing")
+				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
+				logger.Debug(signalCtx, "tracing closed", slog.Error(traceCloseErr))
+			}()
+			tracer := tracerProvider.Tracer("ai-gateway")
+
+			if vals.Prometheus.Enable.Value() {
+				logger.Info(signalCtx, "starting Prometheus endpoint", slog.F("address", vals.Prometheus.Address.String()))
+				closeFunc := agpl.ServeHandler(signalCtx, logger, promhttp.InstrumentMetricHandler(
+					registry, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}),
+				), vals.Prometheus.Address.String(), "prometheus")
+				defer closeFunc()
+			}
+
+			gatewayLogger := logger.Named("ai-gateway")
 
 			// Standalone Gateway starts with an empty pool. Providers are
 			// fetched later via GetAIProviders DRPC and pool is updated.
-			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, logger.Named("pool"), metrics, tracer)
+			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, nil, gatewayLogger.Named("pool"), metrics, tracer)
 			if err != nil {
 				return xerrors.Errorf("create request pool: %w", err)
 			}
+			registry.MustRegister(keypool.NewStateCollector(pool.KeyPools))
 
 			dialer := aibridged.NewWebsocketDialer(serverURL, transport, resolvedKey)
 			aibridgedCtx, aibridgedCancel := context.WithCancel(context.Background())
 			defer aibridgedCancel()
-			srv, err := aibridged.New(aibridgedCtx, pool, dialer, logger.Named("aibridged"), tracer)
+			srv, err := aibridged.New(aibridgedCtx, pool, dialer, gatewayLogger, tracer)
 			if err != nil {
 				return xerrors.Errorf("start AI Gateway daemon: %w", err)
 			}
@@ -114,7 +179,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			// started below. The reloader's client acquisition honors the
 			// context of each Reload call, so loadProviders is bounded by
 			// signalCtx and the watch loop by watchCtx.
-			providerLogger := logger.Named("aibridge.providers")
+			providerLogger := gatewayLogger.Named("providers")
 			reloader := agpl.NewPoolRPCReloader(pool, srv.ClientContext, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
 			if err := loadProviders(signalCtx, reloader, providerLogger, srv.Done()); err != nil {
 				if signalCtx.Err() != nil {
@@ -124,7 +189,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				return xerrors.Errorf("initialize ai providers: %w", err)
 			}
 
-			mw := coderd.AIGatewayDataPlaneMiddleware(vals.AI.BridgeConfig)
+			mw := gatewayMiddleware(vals.AI.BridgeConfig, tracer)
 
 			// Watch coderd for provider changes and refresh the pool on each
 			// signal.
@@ -143,28 +208,7 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				watchWG.Wait()
 			}()
 
-			// The standalone listener is dedicated to Gateway traffic, so
-			// the daemon is served at the root. The /api/v2/ai-gateway
-			// and /api/v2/aibridge/ aliases are added for compatibility
-			// with the embedded route.
-			mux := http.NewServeMux()
-			mux.Handle("/api/v2/aibridge/", mw(http.StripPrefix("/api/v2/aibridge", srv)))
-			mux.Handle("/api/v2/ai-gateway/", mw(http.StripPrefix("/api/v2/ai-gateway", srv)))
-			mux.Handle("/", mw(srv))
-
-			// healthz: returns 200 once the HTTP server is listening.
-			mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-
-			// readyz: returns 200 only when the DRPC connection to coderd is established.
-			mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
-				if srv.Ready() {
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-				w.WriteHeader(http.StatusServiceUnavailable)
-			})
+			mux := newGatewayMux(srv, srv.Ready, mw)
 
 			listener, err := net.Listen("tcp", httpAddress)
 			if err != nil {
@@ -248,44 +292,75 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			Description: "Path to a PEM-encoded TLS private key. Enables TLS termination when set together with --tls-cert-file.",
 			Value:       serpent.StringOf(&tlsKeyFile),
 		},
-		{
-			Flag:        "verbose",
-			Env:         "CODER_AI_GATEWAY_VERBOSE",
-			Description: "Output debug-level logs.",
-			Value:       serpent.BoolOf(&verbose),
-			Default:     "false",
-		},
 	}
 
-	// Standalone Gateway only uses part of the options from "AI Gateway" group.
-	// Other options from the group are coderd-only (eg. budget, provider-seeding).
-	standaloneOpts := map[string]struct{}{
-		"CODER_AI_GATEWAY_ALLOW_BYOK":                        {},
-		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS":                {},
-		"CODER_AI_GATEWAY_DUMP_DIR":                          {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED":           {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD": {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
-		"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
-		"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
-	}
-
-	var aiGatewayOpts serpent.OptionSet
 	for _, opt := range vals.Options() {
-		if opt.Group == nil || opt.Group.Name != "AI Gateway" {
-			continue
+		if _, ok := aiGatewayInheritedEnvs[opt.Env]; ok {
+			cmd.Options = append(cmd.Options, opt)
 		}
-		if _, ok := standaloneOpts[opt.Env]; !ok {
-			continue
-		}
-		aiGatewayOpts = append(aiGatewayOpts, opt)
 	}
-
-	cmd.Options = append(cmd.Options, aiGatewayOpts...)
 
 	return cmd
+}
+
+// gatewayMiddleware composes the standalone gateway's per-request middleware.
+// Tracing is outermost so request is traced even when the other guards short-circuit.
+func gatewayMiddleware(cfg codersdk.AIBridgeConfig, tracer trace.Tracer) func(http.Handler) http.Handler {
+	mw := coderd.AIGatewayDataPlaneMiddleware(cfg)
+	traced := tracingMiddleware(tracer)
+	return func(next http.Handler) http.Handler {
+		return traced(mw(next))
+	}
+}
+
+// newGatewayMux builds the standalone gateway's HTTP routes.
+// The middleware is applied only to the LLM data-plane routes.
+func newGatewayMux(aibridgedHandler http.Handler, aibridgedReady func() bool, middleware func(http.Handler) http.Handler) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/api/v2/aibridge/", middleware(http.StripPrefix("/api/v2/aibridge", aibridgedHandler)))
+	mux.Handle("/api/v2/ai-gateway/", middleware(http.StripPrefix("/api/v2/ai-gateway", aibridgedHandler)))
+	mux.Handle("/", middleware(aibridgedHandler))
+
+	// healthz: returns 200 once the HTTP server is listening.
+	mux.HandleFunc(healthzPath, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// readyz: returns 200 only when the DRPC connection to coderd is established.
+	mux.HandleFunc(readyzPath, func(w http.ResponseWriter, _ *http.Request) {
+		if aibridgedReady() {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+
+	return mux
+}
+
+// tracingMiddleware traces every request to the wrapped handler, unlike
+// tracing.Middleware which only spans coderd's route patterns.
+func tracingMiddleware(tracer trace.Tracer) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			sw := &coderdtracing.StatusWriter{ResponseWriter: rw}
+			r, span := coderdtracing.StartHTTPSpan(tracer, sw, r, fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+			defer span.End()
+
+			next.ServeHTTP(sw, r)
+
+			status := sw.Status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			span.SetAttributes(
+				semconv.HTTPMethodKey.String(r.Method),
+				semconv.HTTPTargetKey.String(r.URL.RequestURI()),
+				semconv.HTTPStatusCodeKey.Int(status),
+			)
+			span.SetStatus(httpconv.ServerStatus(status))
+		})
+	}
 }
 
 // resolveAIGatewayKey resolves key from --key or --key-file flags.

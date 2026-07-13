@@ -11,11 +11,13 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -585,7 +587,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 		[]database.ChatMessage{message},
 		nil,
 		"openai",
-		"test-model",
+		database.ChatModelConfig{Model: "test-model"},
 		model,
 		aiGatewayModelRoute{},
 		modelBuildOptions{},
@@ -606,6 +608,62 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	gotTitle, ok := generated.Load()
 	require.True(t, ok)
 	require.Equal(t, wantTitle, gotTitle)
+}
+
+func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	chat, messages := titleOverrideTestChatAndMessages(t)
+	reasoningEffort := "high"
+	maxReasoningEffort := "max"
+	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+			Default: &reasoningEffort,
+			Max:     &maxReasoningEffort,
+		},
+	})
+	require.NoError(t, err)
+
+	model := &chattest.FakeModel{
+		ProviderName: fantasyopenai.Name,
+		ModelName:    "gpt-4o-mini",
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			require.NotNil(t, call.MaxOutputTokens)
+			require.Equal(t, int64(256), *call.MaxOutputTokens)
+			providerOptions, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+			require.True(t, ok, "%T", call.ProviderOptions[fantasyopenai.Name])
+			require.NotNil(t, providerOptions.ReasoningEffort)
+			require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "Reasoning title"},
+			}, nil
+		},
+	}
+
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
+		ID:    chat.ID,
+		Title: "Reasoning title",
+	}).Return(chatWithTitle(chat, "Reasoning title"), nil)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := titleOverrideTestServer(db, logger)
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		messages,
+		nil,
+		fantasyopenai.Name,
+		database.ChatModelConfig{Model: "gpt-4o-mini", Options: modelConfigRaw},
+		model,
+		aiGatewayModelRoute{},
+		modelBuildOptions{},
+		&generatedChatTitle{},
+		logger,
+		nil,
+	)
 }
 
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
@@ -647,11 +705,12 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		},
 	}
 
-	title, _, err := generateManualTitle(
+	title, err := generateManualTitle(
 		context.Background(),
 		messages,
 		nil,
 		model,
+		nil,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Refresh title", title)
@@ -684,16 +743,17 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		},
 	}
 
-	_, _, err := generateManualTitle(
+	_, err := generateManualTitle(
 		context.Background(),
 		messages,
 		nil,
 		model,
+		nil,
 	)
 	require.NoError(t, err)
 }
 
-func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) {
+func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 	t.Parallel()
 
 	messages := []database.ChatMessage{
@@ -718,16 +778,14 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		},
 	}
 
-	_, usage, err := generateManualTitle(
+	_, err := generateManualTitle(
 		context.Background(),
 		messages,
 		nil,
 		model,
+		nil,
 	)
 	require.ErrorContains(t, err, "generated title was empty")
-	require.Equal(t, int64(11), usage.InputTokens)
-	require.Equal(t, int64(7), usage.OutputTokens)
-	require.Equal(t, int64(18), usage.TotalTokens)
 }
 
 func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
@@ -828,6 +886,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 	title, _, err := generateStructuredTitleWithUsage(
 		t.Context(),
 		model,
+		nil,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -838,6 +897,48 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 	require.Equal(t, "required", body["tool_choice"])
 	require.Equal(t, quickgenTemperature, body["temperature"],
 		"title generation should pin temperature for repeatable output")
+}
+
+// newTemperatureRejectedError mirrors the bad-request error returned
+// through AI Bridge by models that do not accept the temperature
+// parameter.
+func newTemperatureRejectedError() *fantasy.ProviderError {
+	return &fantasy.ProviderError{
+		Title: "bad request",
+		Message: `POST "http://coder-aibridge/v1/messages": 400 Bad Request ` +
+			`{"error":{"message":"` + "`temperature`" + ` is deprecated for this model.",` +
+			`"type":"invalid_request_error"},"request_id":"","type":"error"}`,
+		StatusCode: http.StatusBadRequest,
+	}
+}
+
+func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T) {
+	t.Parallel()
+
+	var sawTemperature []bool
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			sawTemperature = append(sawTemperature, call.Temperature != nil)
+			if call.Temperature != nil {
+				return nil, newTemperatureRejectedError()
+			}
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "Failed workspace logs"},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		nil,
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+	require.Equal(t, []bool{true, false}, sawTemperature,
+		"generation should retry without temperature after the model rejects it")
 }
 
 func newOpenAICompatStructuredOutputServer(
@@ -952,6 +1053,50 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			"status-label generation should pin temperature for repeatable output")
 	})
 
+	t.Run("drops temperature when model rejects it", func(t *testing.T) {
+		t.Parallel()
+
+		var sawTemperature []bool
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				sawTemperature = append(sawTemperature, call.Temperature != nil)
+				if call.Temperature != nil {
+					return nil, newTemperatureRejectedError()
+				}
+				return &fantasy.ObjectResponse{
+					Object: map[string]any{"label": "Submitted PR"},
+				}, nil
+			},
+		}
+
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		require.NoError(t, err)
+		require.Equal(t, "Submitted PR", label)
+		require.Equal(t, []bool{true, false}, sawTemperature,
+			"generation should retry without temperature after the model rejects it")
+	})
+
+	t.Run("surfaces unrelated bad request errors", func(t *testing.T) {
+		t.Parallel()
+
+		var calls int
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				calls++
+				return nil, &fantasy.ProviderError{
+					Title:      "bad request",
+					Message:    "tools.0.custom.input_schema: JSON schema is invalid",
+					StatusCode: http.StatusBadRequest,
+				}
+			},
+		}
+
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		require.ErrorContains(t, err, "JSON schema is invalid")
+		require.Equal(t, 1, calls,
+			"bad requests unrelated to temperature should not trigger a second attempt")
+	})
+
 	t.Run("rejects narrative label", func(t *testing.T) {
 		t.Parallel()
 
@@ -974,6 +1119,72 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
 	})
+}
+
+func TestIsTemperatureRejectedError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "nil error",
+			err:  nil,
+			want: false,
+		},
+		{
+			name: "plain error mentioning temperature",
+			err:  xerrors.New("temperature is deprecated for this model"),
+			want: false,
+		},
+		{
+			name: "bad request rejecting temperature",
+			err:  newTemperatureRejectedError(),
+			want: true,
+		},
+		{
+			name: "wrapped bad request rejecting temperature",
+			err:  xerrors.Errorf("tool-based generation failed: %w", newTemperatureRejectedError()),
+			want: true,
+		},
+		{
+			name: "bad request with temperature only in response body",
+			err: &fantasy.ProviderError{
+				Title:        "bad request",
+				Message:      "provider request failed",
+				StatusCode:   http.StatusBadRequest,
+				ResponseBody: []byte(`{"error":{"message":"Unsupported parameter: 'temperature' is not supported with this model."}}`),
+			},
+			want: true,
+		},
+		{
+			name: "bad request unrelated to temperature",
+			err: &fantasy.ProviderError{
+				Title:      "bad request",
+				Message:    "tools.0.custom.input_schema: JSON schema is invalid",
+				StatusCode: http.StatusBadRequest,
+			},
+			want: false,
+		},
+		{
+			name: "server error mentioning temperature",
+			err: &fantasy.ProviderError{
+				Title:      "internal server error",
+				Message:    "temperature processing failed",
+				StatusCode: http.StatusInternalServerError,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, isTemperatureRejectedError(tt.err))
+		})
+	}
 }
 
 func mustChatMessage(

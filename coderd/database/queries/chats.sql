@@ -20,6 +20,7 @@ chats_expanded AS (
         updated_chats.parent_chat_id,
         updated_chats.root_chat_id,
         updated_chats.last_model_config_id,
+        updated_chats.last_reasoning_effort,
         updated_chats.archived,
         updated_chats.last_error,
         updated_chats.mode,
@@ -86,6 +87,7 @@ chats_expanded AS (
         updated_chats.parent_chat_id,
         updated_chats.root_chat_id,
         updated_chats.last_model_config_id,
+        updated_chats.last_reasoning_effort,
         updated_chats.archived,
         updated_chats.last_error,
         updated_chats.mode,
@@ -817,6 +819,7 @@ chats_expanded AS (
         inserted_chat.parent_chat_id,
         inserted_chat.root_chat_id,
         inserted_chat.last_model_config_id,
+        inserted_chat.last_reasoning_effort,
         inserted_chat.archived,
         inserted_chat.last_error,
         inserted_chat.mode,
@@ -856,32 +859,37 @@ SELECT *
 FROM chats_expanded;
 
 -- name: InsertChatMessages :many
-WITH updated_chat AS (
+WITH batch AS (
+    SELECT
+        (
+            SELECT val
+            FROM UNNEST(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        ) AS last_model_config_id,
+        (
+            SELECT NULLIF(val, '')::chat_reasoning_effort
+            FROM UNNEST(@reasoning_effort::text[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != ''
+            ORDER BY ord DESC
+            LIMIT 1
+        ) AS last_reasoning_effort
+),
+updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = (
-            SELECT val
-            FROM UNNEST(@model_config_id::uuid[])
-                WITH ORDINALITY AS t(val, ord)
-            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
-            ORDER BY ord DESC
-            LIMIT 1
-        )
+        last_model_config_id = COALESCE(batch.last_model_config_id, chats.last_model_config_id),
+        last_reasoning_effort = COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
+    FROM batch
     WHERE
-        id = @chat_id::uuid
-        AND EXISTS (
-            SELECT 1
-            FROM UNNEST(@model_config_id::uuid[])
-            WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
-        )
-        AND chats.last_model_config_id IS DISTINCT FROM (
-            SELECT val
-            FROM UNNEST(@model_config_id::uuid[])
-                WITH ORDINALITY AS t(val, ord)
-            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
-            ORDER BY ord DESC
-            LIMIT 1
+        chats.id = @chat_id::uuid
+        AND (
+            chats.last_model_config_id IS DISTINCT FROM COALESCE(batch.last_model_config_id, chats.last_model_config_id)
+            OR chats.last_reasoning_effort IS DISTINCT FROM COALESCE(batch.last_reasoning_effort, chats.last_reasoning_effort)
         )
 )
 INSERT INTO chat_messages (
@@ -889,6 +897,7 @@ INSERT INTO chat_messages (
     created_by,
     api_key_id,
     model_config_id,
+    reasoning_effort,
     role,
     content,
     content_version,
@@ -909,6 +918,7 @@ SELECT
     NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(UNNEST(@api_key_id::text[]), ''),
     NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST(@reasoning_effort::text[]), '')::chat_reasoning_effort,
     UNNEST(@role::chat_message_role[]),
     UNNEST(@content::text[])::jsonb,
     UNNEST(@content_version::smallint[]),
@@ -952,6 +962,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1018,6 +1029,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1082,6 +1094,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1146,6 +1159,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1210,6 +1224,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1273,6 +1288,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1336,6 +1352,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1417,6 +1434,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1633,6 +1651,7 @@ chats_expanded AS (
         acquired_chats.parent_chat_id,
         acquired_chats.root_chat_id,
         acquired_chats.last_model_config_id,
+        acquired_chats.last_reasoning_effort,
         acquired_chats.archived,
         acquired_chats.last_error,
         acquired_chats.mode,
@@ -1701,6 +1720,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -1897,11 +1917,12 @@ RETURNING
 -- Legacy queue insertion path. When no caller-supplied creator exists,
 -- preserve the created_by invariant by attributing the queued row to the
 -- chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
 SELECT
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
+    sqlc.narg('reasoning_effort')::chat_reasoning_effort,
     sqlc.narg('api_key_id')::text,
     chats.owner_id
 FROM chats
@@ -1976,6 +1997,7 @@ chats_expanded AS (
         locked_chat.parent_chat_id,
         locked_chat.root_chat_id,
         locked_chat.last_model_config_id,
+        locked_chat.last_reasoning_effort,
         locked_chat.archived,
         locked_chat.last_error,
         locked_chat.mode,
@@ -2036,6 +2058,7 @@ chats_expanded AS (
         shared_chat.parent_chat_id,
         shared_chat.root_chat_id,
         shared_chat.last_model_config_id,
+        shared_chat.last_reasoning_effort,
         shared_chat.archived,
         shared_chat.last_error,
         shared_chat.mode,
@@ -2712,6 +2735,7 @@ chats_expanded AS (
         bumped_chat.parent_chat_id,
         bumped_chat.root_chat_id,
         bumped_chat.last_model_config_id,
+        bumped_chat.last_reasoning_effort,
         bumped_chat.archived,
         bumped_chat.last_error,
         bumped_chat.mode,
@@ -2783,6 +2807,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -2846,6 +2871,7 @@ chats_expanded AS (
         updated_chat.parent_chat_id,
         updated_chat.root_chat_id,
         updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
         updated_chat.archived,
         updated_chat.last_error,
         updated_chat.mode,
@@ -2900,11 +2926,12 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, api_key_id, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, api_key_id, created_by)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
+    sqlc.narg('reasoning_effort')::chat_reasoning_effort,
     sqlc.narg('api_key_id')::text,
     @created_by::uuid
 )

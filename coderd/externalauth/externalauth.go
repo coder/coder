@@ -216,9 +216,10 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		Expiry:       externalAuthLink.OAuthExpiry,
 	}
 
-	// Note: The TokenSource(...) method will make no remote HTTP requests if the
-	// token is expired and no refresh token is set. This is important to prevent
-	// spamming the API, consuming rate limits, when the token is known to fail.
+	// NOTE: TokenSource(...).Token() will short-circuit if the token:
+	// - is not expired (returns original token)
+	// - is expired and has no refresh token (returns error)
+	// This means we will avoid making useless HTTP requests.
 	//
 	// External providers (GitHub in particular) intermittently fail token
 	// refreshes with transient errors such as 5xx responses, network timeouts,
@@ -229,9 +230,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// will never succeed and retrying wastes the refresh quota.
 	token, err := c.refreshTokenWithRetry(ctx, existingToken)
 	if err != nil {
-		// TokenSource can fail for numerous reasons. If it fails because of
-		// a bad refresh token, then the refresh token is invalid, and we should
-		// get rid of it. Keeping it around will cause additional refresh
+		// A refresh attempt can fail for numerous reasons. If it fails because
+		// of a bad refresh token, then the refresh token is invalid, and we
+		// should get rid of it. Keeping it around will cause additional refresh
 		// attempts that will fail and cost us api rate limits.
 		//
 		// The error message is saved for debugging purposes.
@@ -305,8 +306,8 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
 		}
 
-		// TokenSource(...).Token() will always return the current token if the token is not expired.
-		// So this error is only returned if a refresh of the token failed.
+		// Non-expired tokens are short-circuited as noted above; reaching here
+		// means refresh failed.
 		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
 	}
 
@@ -1343,8 +1344,16 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 	)
 }
 
-// When authenticating via Entra ID ADO only supports v1 tokens that requires the 'resource' rather than scopes
-// When ADO gets support for V2 Entra ID tokens this struct and functions can be removed
+// The Entra wrapper accounts for two things:
+//
+//  1. When authenticating via Entra ID ADO only supports v1 tokens which
+//     require 'resource'.
+//
+//  2. When refreshing, Entra ID requires the original scopes or it will switch
+//     to using the default scopes.
+//
+//     This struct and its functions might be removable once ADO gets support for
+//     Entra ID V2.
 type entraV1Oauth struct {
 	*oauth2.Config
 }
@@ -1361,6 +1370,47 @@ func (c *entraV1Oauth) Exchange(ctx context.Context, code string, opts ...oauth2
 			oauth2.SetAuthURLParam("resource", azureDevOpsAppID),
 		)...,
 	)
+}
+
+func (c *entraV1Oauth) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
+	return oauth2.ReuseTokenSource(token, &entraV1TokenSource{
+		ctx:   ctx,
+		cfg:   c,
+		token: token,
+	})
+}
+
+type entraV1TokenSource struct {
+	ctx   context.Context
+	cfg   *entraV1Oauth
+	token *oauth2.Token
+}
+
+func (s *entraV1TokenSource) Token() (*oauth2.Token, error) {
+	var refreshToken string
+	if s.token != nil {
+		refreshToken = s.token.RefreshToken
+	}
+	if refreshToken == "" {
+		return s.cfg.Config.TokenSource(s.ctx, s.token).Token()
+	}
+
+	refreshOpts := []oauth2.AuthCodeOption{
+		oauth2.SetAuthURLParam("grant_type", "refresh_token"),
+		oauth2.SetAuthURLParam("refresh_token", refreshToken),
+	}
+	if len(s.cfg.Config.Scopes) > 0 {
+		refreshOpts = append(refreshOpts, oauth2.SetAuthURLParam("scope", strings.Join(s.cfg.Config.Scopes, " ")))
+	}
+
+	token, err := s.cfg.Exchange(s.ctx, "", refreshOpts...)
+	if err != nil {
+		return nil, err
+	}
+	if token.RefreshToken == "" {
+		token.RefreshToken = refreshToken
+	}
+	return token, nil
 }
 
 // exchangeWithClientSecret wraps an OAuth config and adds the client secret
@@ -1427,7 +1477,7 @@ func isRateLimited(resp *http.Response) bool {
 	return false
 }
 
-// isFailedRefresh returns true if the error returned by the TokenSource.Token()
+// isFailedRefresh returns true if the error returned by the refresh attempt
 // is due to a failed refresh. The failure being the refresh token itself.
 // If this returns true, no amount of retries will fix the issue.
 //

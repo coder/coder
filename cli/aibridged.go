@@ -44,7 +44,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, cfg codersdk.AIBridgeConfig, reg pr
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
-	logger := coderAPI.Logger.Named("aibridged")
+	logger := coderAPI.Logger.Named("ai-gateway")
 
 	providerMetrics := aibridged.NewMetrics(reg)
 	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)

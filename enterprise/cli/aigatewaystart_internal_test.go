@@ -4,15 +4,20 @@ package cli
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -186,32 +191,144 @@ func TestResolveAIGatewayKey(t *testing.T) {
 	}
 }
 
-func TestAIGatewayStart_DeploymentOptions(t *testing.T) {
+// TestAIGatewayStart_TracingMiddleware verifies the gateway mux built by
+// newGatewayMux traces the LLM routes while leaving the health probes untraced.
+func TestAIGatewayStart_TracingMiddleware(t *testing.T) {
 	t.Parallel()
 
-	cmd := (&RootCmd{}).aiGatewayStart()
+	tracer := sdktrace.NewTracerProvider().Tracer("test")
+	for _, tc := range []struct {
+		name       string
+		path       string
+		ready      bool
+		traced     bool
+		wantStatus int
+	}{
+		{name: "root LLM route", path: "/anthropic/v1/messages", ready: true, traced: true, wantStatus: http.StatusTeapot},
+		{name: "aibridge alias", path: "/api/v2/aibridge/v1/messages", ready: true, traced: true, wantStatus: http.StatusTeapot},
+		{name: "healthz", path: healthzPath, ready: true, traced: false, wantStatus: http.StatusOK},
+		{name: "readyz ready", path: readyzPath, ready: true, traced: false, wantStatus: http.StatusOK},
+		{name: "readyz not ready", path: readyzPath, ready: false, traced: false, wantStatus: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Standalone Gateway only consumes deployment options used in LLM traffic.
-	// Coderd-only settings such as provider seeds, retention,
-	// structured logging, and Coder MCP injection must stay server-only.
-	var got []string
-	for _, opt := range cmd.Options {
-		if opt.Group != nil && opt.Group.Name == "AI Gateway" {
-			got = append(got, opt.Env)
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			})
+			mux := newGatewayMux(handler, func() bool { return tc.ready }, tracingMiddleware(tracer))
+
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tc.path, nil)
+			require.NotPanics(t, func() {
+				mux.ServeHTTP(rec, req)
+			})
+			require.Equal(t, tc.wantStatus, rec.Code)
+
+			if tc.traced {
+				require.NotEmpty(t, rec.Header().Get("X-Trace-ID"), "expected a span to be created")
+			} else {
+				require.Empty(t, rec.Header().Get("X-Trace-ID"), "health probes must not be traced")
+			}
+		})
+	}
+}
+
+// TestAIGatewayStart_TracingOutermost verifies the request
+// rejected by AIGatewayDataPlaneMiddleware middleware is still traced.
+func TestAIGatewayStart_TracingOutermost(t *testing.T) {
+	t.Parallel()
+
+	tracer := sdktrace.NewTracerProvider().Tracer("test")
+
+	cfg := codersdk.AIBridgeConfig{
+		AllowBYOK: false,
+	}
+
+	var handlerCalls atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handlerCalls.Add(1)
+		w.WriteHeader(http.StatusOK)
+	})
+	wrapped := gatewayMiddleware(cfg, tracer)(handler)
+
+	// BYOK request
+	req := httptest.NewRequest(http.MethodPost, "/anthropic/v1/messages", nil)
+	req.Header.Set(agplaibridge.HeaderCoderToken, "byok-token")
+
+	rec := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec, req)
+
+	// req rejected but still traced
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.NotEmpty(t, rec.Header().Get("X-Trace-ID"), "rejected requests must still be traced")
+	require.Equal(t, int32(0), handlerCalls.Load(), "rejected request must not reach the handler")
+}
+
+// TestAIGatewayStart_InheritedOptions verifies that options inherited
+// from coderd's deployment values are consciously used or dropped.
+// A newly added option in these groups fails this test until it
+// is consciously placed in one bucket, preventing silent drift
+// in what the gateway exposes.
+func TestAIGatewayStart_InheritedOptions(t *testing.T) {
+	t.Parallel()
+
+	// Groups the gateway sources options from.
+	sourceGroups := map[string]struct{}{
+		"Logging":    {},
+		"Tracing":    {},
+		"AI Gateway": {},
+		"Prometheus": {},
+	}
+
+	// Options in the source groups that the gateway intentionally does not
+	// inherit because they only apply to coderd.
+	dropped := map[string]struct{}{
+		// Logging
+		"CODER_ENABLE_TERRAFORM_DEBUG_MODE": {},
+
+		// AI Gateway (coderd-only: provider seeding, budgets, retention, etc.)
+		"CODER_AI_BUDGET_PERIOD":                     {},
+		"CODER_AI_BUDGET_POLICY":                     {},
+		"CODER_AI_GATEWAY_ANTHROPIC_BASE_URL":        {},
+		"CODER_AI_GATEWAY_ANTHROPIC_KEY":             {},
+		"CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY":        {},
+		"CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET": {},
+		"CODER_AI_GATEWAY_BEDROCK_BASE_URL":          {},
+		"CODER_AI_GATEWAY_BEDROCK_MODEL":             {},
+		"CODER_AI_GATEWAY_BEDROCK_REGION":            {},
+		"CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL":  {},
+		"CODER_AI_GATEWAY_ENABLED":                   {},
+		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS":    {},
+		"CODER_AI_GATEWAY_OPENAI_BASE_URL":           {},
+		"CODER_AI_GATEWAY_OPENAI_KEY":                {},
+		"CODER_AI_GATEWAY_RETENTION":                 {},
+		"CODER_AI_GATEWAY_STRUCTURED_LOGGING":        {},
+
+		// Prometheus (coderd-only: agent/database collectors)
+		"CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY": {},
+		"CODER_PROMETHEUS_COLLECT_AGENT_STATS":      {},
+		"CODER_PROMETHEUS_COLLECT_DB_METRICS":       {},
+	}
+
+	dv := codersdk.DeploymentValues{}
+	var unclassified []string
+	for _, opt := range dv.Options() {
+		if opt.Group == nil || opt.Env == "" {
+			continue
+		}
+		if _, ok := sourceGroups[opt.Group.Name]; !ok {
+			continue
+		}
+		_, inherited := aiGatewayInheritedEnvs[opt.Env]
+		_, drop := dropped[opt.Env]
+		require.Falsef(t, inherited && drop, "%s option is both inherited and dropped", opt.Env)
+		if !inherited && !drop {
+			unclassified = append(unclassified, opt.Env)
 		}
 	}
-
-	want := []string{
-		"CODER_AI_GATEWAY_ALLOW_BYOK",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS",
-		"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT",
-		"CODER_AI_GATEWAY_DUMP_DIR",
-		"CODER_AI_GATEWAY_MAX_CONCURRENCY",
-		"CODER_AI_GATEWAY_RATE_LIMIT",
-		"CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
-	}
-	require.ElementsMatch(t, want, got)
+	require.Emptyf(t, unclassified,
+		"options from source groups are neither inherited nor dropped.\n"+
+			"Check if option is applicable for standalone AI Gateway.\n"+
+			"If so, add it to aiGatewayInheritedEnvs, otherwise add it to the dropped set: %v", unclassified)
 }

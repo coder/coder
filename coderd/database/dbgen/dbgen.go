@@ -131,6 +131,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
 		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
+		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
 		Role:                []database.ChatMessageRole{role},
 		Content:             []string{content},
 		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
@@ -2022,6 +2023,8 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 			ID:             interception.ID,
 			EndedAt:        *endedAt,
 			CredentialHint: takeFirst(seed.CredentialHint, ""),
+			ErrorType:      database.NullAIBridgeInterceptionErrorType{},
+			ErrorMessage:   sql.NullString{},
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}

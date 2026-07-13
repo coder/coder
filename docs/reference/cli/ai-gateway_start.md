@@ -65,15 +65,96 @@ Path to a PEM-encoded TLS certificate. Enables TLS termination when set together
 
 Path to a PEM-encoded TLS private key. Enables TLS termination when set together with --tls-cert-file.
 
-### --verbose
+### --prometheus-enable
 
-|             |                                        |
-|-------------|----------------------------------------|
-| Type        | <code>bool</code>                      |
-| Environment | <code>$CODER_AI_GATEWAY_VERBOSE</code> |
-| Default     | <code>false</code>                     |
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_PROMETHEUS_ENABLE</code>        |
+| YAML        | <code>introspection.prometheus.enable</code> |
 
-Output debug-level logs.
+Serve prometheus metrics on the address defined by prometheus address.
+
+### --prometheus-address
+
+|             |                                               |
+|-------------|-----------------------------------------------|
+| Type        | <code>host:port</code>                        |
+| Environment | <code>$CODER_PROMETHEUS_ADDRESS</code>        |
+| YAML        | <code>introspection.prometheus.address</code> |
+| Default     | <code>127.0.0.1:2112</code>                   |
+
+The bind address to serve prometheus metrics.
+
+### --trace
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_TRACE_ENABLE</code>          |
+| YAML        | <code>introspection.tracing.enable</code> |
+
+Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+
+### --trace-honeycomb-api-key
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_TRACE_HONEYCOMB_API_KEY</code> |
+
+Enables trace exporting to Honeycomb.io using the provided API Key.
+
+### --trace-logs
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_TRACE_LOGS</code>                 |
+| YAML        | <code>introspection.tracing.captureLogs</code> |
+
+Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.
+
+### -l, --log-filter
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>string-array</code>                 |
+| Environment | <code>$CODER_LOG_FILTER</code>            |
+| YAML        | <code>introspection.logging.filter</code> |
+
+Filter debug logs by matching against a given regex. Use .* to match all debug logs.
+
+### --log-human
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_LOGGING_HUMAN</code>            |
+| YAML        | <code>introspection.logging.humanPath</code> |
+| Default     | <code>/dev/stderr</code>                     |
+
+Output human-readable logs to a given file.
+
+### --log-json
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_LOGGING_JSON</code>            |
+| YAML        | <code>introspection.logging.jsonPath</code> |
+
+Output JSON logs to a given file.
+
+### --log-stackdriver
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_LOGGING_STACKDRIVER</code>            |
+| YAML        | <code>introspection.logging.stackdriverPath</code> |
+
+Output Stackdriver compatible logs to a given file.
 
 ### --ai-gateway-max-concurrency
 

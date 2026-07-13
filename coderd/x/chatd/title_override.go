@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"strings"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -13,6 +14,28 @@ import (
 )
 
 const titleGenerationOverrideContext = "title_generation"
+
+type parsedModelOverride struct {
+	modelConfigID   uuid.UUID
+	reasoningEffort *string
+}
+
+func parseModelOverride(raw string) (parsedModelOverride, bool) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return parsedModelOverride{}, true
+	}
+	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
+	modelConfigID, err := uuid.Parse(rawID)
+	if err != nil || (hasEffort && rawEffort == "") {
+		return parsedModelOverride{}, false
+	}
+	parsed := parsedModelOverride{modelConfigID: modelConfigID}
+	if hasEffort {
+		parsed.reasoningEffort = &rawEffort
+	}
+	return parsed, true
+}
 
 func readTitleGenerationModelOverride(
 	ctx context.Context,
@@ -47,7 +70,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		)
 	}
 
-	modelConfig, overrideSet, err := p.resolveConfiguredModelOverride(
+	modelConfig, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
 		raw,
@@ -64,6 +87,7 @@ func (p *Server) resolveTitleGenerationModelOverride(
 	if !overrideSet {
 		return database.ChatModelConfig{}, nil, aiGatewayModelRoute{}, false, nil
 	}
+	modelConfig = withResolvedReasoningEffort(modelConfig, overrideEffort)
 
 	//nolint:gocritic // Title overrides need chatd-scoped provider reads for user-owned chats.
 	route, err := p.resolveModelRouteForConfig(dbauthz.AsChatd(ctx), chat.OwnerID, modelConfig)

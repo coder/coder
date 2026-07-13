@@ -32,9 +32,6 @@ OPTIONS:
           Path to a PEM-encoded TLS private key. Enables TLS termination when
           set together with --tls-cert-file.
 
-      --verbose bool, $CODER_AI_GATEWAY_VERBOSE (default: false)
-          Output debug-level logs.
-
 AI GATEWAY OPTIONS: 
       --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
           Base directory for dumping AI Gateway request/response pairs to disk
@@ -65,6 +62,41 @@ AI GATEWAY OPTIONS:
           provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
           making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
           username).
+
+INTROSPECTION / LOGGING OPTIONS: 
+      --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)
+          Output human-readable logs to a given file.
+
+      --log-json string, $CODER_LOGGING_JSON
+          Output JSON logs to a given file.
+
+  -l, --log-filter string-array, $CODER_LOG_FILTER
+          Filter debug logs by matching against a given regex. Use .* to match
+          all debug logs.
+
+      --log-stackdriver string, $CODER_LOGGING_STACKDRIVER
+          Output Stackdriver compatible logs to a given file.
+
+INTROSPECTION / PROMETHEUS OPTIONS: 
+      --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
+          The bind address to serve prometheus metrics.
+
+      --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
+          Serve prometheus metrics on the address defined by prometheus address.
+
+INTROSPECTION / TRACING OPTIONS: 
+      --trace-logs bool, $CODER_TRACE_LOGS
+          Enables capturing of logs as events in traces. This is useful for
+          debugging, but may result in a very large amount of events being sent
+          to the tracing backend which may incur significant costs.
+
+      --trace bool, $CODER_TRACE_ENABLE
+          Whether application tracing data is collected. It exports to a backend
+          configured by environment variables. See:
+          https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+
+      --trace-honeycomb-api-key string, $CODER_TRACE_HONEYCOMB_API_KEY
+          Enables trace exporting to Honeycomb.io using the provided API Key.
 
 ———
 Run `coder --help` for a list of global options.

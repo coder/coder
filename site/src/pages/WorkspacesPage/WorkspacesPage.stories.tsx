@@ -462,6 +462,12 @@ const stoppedWorkspaces: Workspace[] = [
 	{ ...MockStoppedWorkspace, id: "3" },
 ];
 
+const mixedStateWorkspaces: Workspace[] = [
+	{ ...MockStoppedWorkspace, id: "1" },
+	{ ...MockWorkspace, id: "2" },
+	{ ...MockStoppedWorkspace, id: "3" },
+];
+
 export const StartsOnlySelectedWorkspaces: Story = {
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
@@ -488,6 +494,103 @@ export const StartsOnlySelectedWorkspaces: Story = {
 			"2",
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
+	},
+};
+
+export const StartIgnoresAlreadyRunningWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: mixedStateWorkspaces,
+			count: mixedStateWorkspaces.length,
+		});
+		spyOn(API, "startWorkspace").mockResolvedValue(MockWorkspaceBuild);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+
+		const startItem = await body.findByRole("menuitem", { name: /start/i });
+		expect(startItem).not.toHaveAttribute("data-disabled");
+		await user.click(startItem);
+
+		await waitFor(() => expect(API.startWorkspace).toHaveBeenCalledTimes(2));
+		expect(API.startWorkspace).toHaveBeenCalledWith(
+			"1",
+			MockStoppedWorkspace.latest_build.template_version_id,
+		);
+		expect(API.startWorkspace).toHaveBeenCalledWith(
+			"3",
+			MockStoppedWorkspace.latest_build.template_version_id,
+		);
+	},
+};
+
+export const StopIgnoresAlreadyStoppedWorkspaces: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: mixedStateWorkspaces,
+			count: mixedStateWorkspaces.length,
+		});
+		spyOn(API, "stopWorkspace").mockResolvedValue(MockWorkspaceBuild);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+
+		const stopItem = await body.findByRole("menuitem", { name: /stop/i });
+		expect(stopItem).not.toHaveAttribute("data-disabled");
+		await user.click(stopItem);
+
+		await waitFor(() => expect(API.stopWorkspace).toHaveBeenCalledTimes(1));
+		expect(API.stopWorkspace).toHaveBeenCalledWith("2");
+	},
+};
+
+export const StartDisabledWhenNoWorkspacesAreStartable: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: runningWorkspaces,
+			count: runningWorkspaces.length,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+
+		const startItem = await body.findByRole("menuitem", { name: /start/i });
+		expect(startItem).toHaveAttribute("data-disabled");
+	},
+};
+
+export const StopDisabledWhenNoWorkspacesAreStoppable: Story = {
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: stoppedWorkspaces,
+			count: stoppedWorkspaces.length,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const user = userEvent.setup();
+
+		await selectWorkspaces(canvas, user, ["1", "2", "3"]);
+		await openBulkActions(canvas, user);
+
+		const stopItem = await body.findByRole("menuitem", { name: /stop/i });
+		expect(stopItem).toHaveAttribute("data-disabled");
 	},
 };
 

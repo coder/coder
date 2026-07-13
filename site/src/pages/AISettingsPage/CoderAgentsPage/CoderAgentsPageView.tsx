@@ -19,7 +19,7 @@ import {
 } from "./components/SubagentModelOverrideSettings";
 
 type SaveModelOverride = (
-	req: { readonly model_config_id: string },
+	req: TypesGen.UpdateChatModelOverrideRequest,
 	options?: MutationCallbacks,
 ) => void;
 
