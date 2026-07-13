@@ -69,8 +69,8 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-examples-2025-10-29": true,
 }
 
-// BedrockPRMUserAgent is Coder's AWS attribution marker for outbound
-// Bedrock requests.
+// BedrockPRMUserAgent is Coder's AWS Partner Revenue Measurement (PRM)
+// attribution marker for outbound Bedrock requests.
 //
 // It is appended to Bedrock User-Agent headers so AWS can recognize the
 // traffic as Coder-associated Bedrock usage.
