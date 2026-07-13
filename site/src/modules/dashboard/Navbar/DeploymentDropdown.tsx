@@ -90,17 +90,17 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			)}
 			{canViewAuditLog && (
 				<DropdownMenuItem asChild>
-					<Link to={linkToAuditing}>Audit Logs</Link>
+					<Link to={linkToAuditing}>Audit logs</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewConnectionLog && (
 				<DropdownMenuItem asChild>
-					<Link to="/connectionlog">Connection Logs</Link>
+					<Link to="/connectionlog">Connection logs</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewAIBridge && (
 				<DropdownMenuItem asChild>
-					<Link to="/ai-gateway/sessions">AI Sessions</Link>
+					<Link to="/ai-gateway/sessions">AI sessions</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewHealth && (
