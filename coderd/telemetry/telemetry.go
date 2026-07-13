@@ -2356,7 +2356,7 @@ var agentsExperiments = []agentsExperiment{
 const (
 	// AgentsExperimentAdvisorReuseChatModel reports that the advisor has no active
 	// dedicated model override and reuses the chat model at runtime.
-	AgentsExperimentAdvisorReuseChatModel = "reuse_chat_model"
+	AgentsExperimentAdvisorReuseChatModel = "advisor_reuse_chat_model"
 	// AgentsExperimentUnknown reports a value that could not be determined,
 	// e.g. after a transient DB error.
 	AgentsExperimentUnknown = "unknown"
