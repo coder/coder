@@ -4598,6 +4598,7 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "chat-advisor"
 	| "chat-virtual-desktop"
+	| "coder-assistant"
 	| "example"
 	| "mcp-server-http"
 	| "minimum-implicit-member"
@@ -4612,6 +4613,7 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"chat-advisor",
 	"chat-virtual-desktop",
+	"coder-assistant",
 	"example",
 	"mcp-server-http",
 	"minimum-implicit-member",

@@ -10,6 +10,7 @@ import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { Switch } from "#/components/Switch/Switch";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { Section } from "#/pages/UserSettingsPage/Section";
 import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 import { AppearanceForm } from "./AppearanceForm";
@@ -103,6 +104,8 @@ const CoderAssistantSection: FC = () => {
 
 const AppearancePage: FC = () => {
 	const queryClient = useQueryClient();
+	const { experiments } = useDashboard();
+	const coderAssistantEnabled = experiments.includes("coder-assistant");
 	const updateAppearanceSettingsMutation = useMutation(
 		updateAppearanceSettings(queryClient),
 	);
@@ -137,7 +140,7 @@ const AppearancePage: FC = () => {
 				activeScheme={osColorScheme}
 				onSubmit={submitAppearanceSettings}
 			/>
-			<CoderAssistantSection />
+			{coderAssistantEnabled && <CoderAssistantSection />}
 		</>
 	);
 };

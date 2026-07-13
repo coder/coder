@@ -149,6 +149,7 @@ interface SetupPageViewProps {
 	error?: unknown;
 	isLoading?: boolean;
 	authMethods: TypesGen.AuthMethods | undefined;
+	showAssistantToggle: boolean;
 }
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
@@ -156,6 +157,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	error,
 	isLoading,
 	authMethods,
+	showAssistantToggle,
 }) => {
 	const [agentEnabled, setAgentEnabled] = useState(false);
 	const form: FormikContextType<TypesGen.CreateFirstUserRequest> =
@@ -421,29 +423,31 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					</div>
 
 					{/* Coder Assistant opt-in */}
-					<label
-						htmlFor="coder-agent-toggle"
-						className="flex cursor-pointer gap-3 items-start p-4 rounded-lg border border-border hover:border-border-secondary transition-colors"
-					>
-						<Switch
-							id="coder-agent-toggle"
-							checked={agentEnabled}
-							onCheckedChange={(checked) => setAgentEnabled(checked === true)}
-							data-testid="coder-agent-toggle"
-							className="mt-0.5"
-						/>
-						<div className="flex flex-col gap-0.5">
-							<span className="text-sm font-semibold">
-								Enable Coder Assistant
-							</span>
-							<span className="text-xs text-content-secondary leading-relaxed">
-								The Coder Assistant is an AI helper that lives in your
-								dashboard. It can help manage templates, create workspaces, and
-								answer questions about your deployment. Requires an AI provider
-								to be configured.
-							</span>
-						</div>
-					</label>
+					{showAssistantToggle && (
+						<label
+							htmlFor="coder-agent-toggle"
+							className="flex cursor-pointer gap-3 items-start p-4 rounded-lg border border-border hover:border-border-secondary transition-colors"
+						>
+							<Switch
+								id="coder-agent-toggle"
+								checked={agentEnabled}
+								onCheckedChange={(checked) => setAgentEnabled(checked === true)}
+								data-testid="coder-agent-toggle"
+								className="mt-0.5"
+							/>
+							<div className="flex flex-col gap-0.5">
+								<span className="text-sm font-semibold">
+									Enable Coder Assistant
+								</span>
+								<span className="text-xs text-content-secondary leading-relaxed">
+									The Coder Assistant is an AI helper that lives in your
+									dashboard. It can help manage templates, create workspaces,
+									and answer questions about your deployment. Requires an AI
+									provider to be configured.
+								</span>
+							</div>
+						</label>
+					)}
 
 					{/* Error alert */}
 					{isAxiosError(error) && error.response?.data?.message && (

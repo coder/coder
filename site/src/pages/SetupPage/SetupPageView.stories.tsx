@@ -8,6 +8,9 @@ const meta: Meta<typeof SetupPageView> = {
 	title: "pages/SetupPage",
 	parameters: { chromatic },
 	component: SetupPageView,
+	args: {
+		showAssistantToggle: true,
+	},
 };
 
 export default meta;

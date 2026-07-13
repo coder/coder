@@ -23,6 +23,8 @@ export const SetupPage: FC = () => {
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
+	const coderAssistantEnabled =
+		metadata.experiments.value?.includes("coder-assistant") ?? false;
 	const setupRequired = useRef(false);
 
 	useEffect(() => {
@@ -78,6 +80,7 @@ export const SetupPage: FC = () => {
 				authMethods={authMethodsQuery.data}
 				isLoading={isSigningIn || createFirstUserMutation.isPending}
 				error={createFirstUserMutation.error}
+				showAssistantToggle={coderAssistantEnabled}
 				onSubmit={async (firstUser) => {
 					await createFirstUserMutation.mutateAsync(firstUser);
 					await signIn(firstUser.email, firstUser.password);

@@ -5225,6 +5225,7 @@ const (
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 	ExperimentChatAdvisor           Experiment = "chat-advisor"            // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop    Experiment = "chat-virtual-desktop"    // Enables virtual desktop and computer use provider for agents.
+	ExperimentCoderAssistant        Experiment = "coder-assistant"         // Enables the Coder Assistant feature.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5253,6 +5254,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
+	case ExperimentCoderAssistant:
+		return "Coder Assistant"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5275,6 +5278,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAIGatewayCostControl,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
+	ExperimentCoderAssistant,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

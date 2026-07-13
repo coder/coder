@@ -825,6 +825,19 @@ The generation goroutine supports:
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
 
+##### Coder Assistant chats
+
+Chats labeled `coder-agent=true` (created by the dashboard's floating assistant) receive two extra system prompt injections during `prepareGeneration`:
+
+- `CoderAgentSystemPrompt`, which establishes the assistant's identity and behavior.
+- A user-context block describing the chat owner: username, name, deployment roles, and organization memberships, plus the dashboard page the user is currently viewing, read from the `coder-agent-page` label.
+
+The owner and organization reads for the user-context block run under `dbauthz.AsSystemRestricted` because the chatd subject cannot read user or organization rows. These reads are best-effort: on failure the context block is skipped and the turn proceeds without it.
+
+The `coder-agent-page` label is maintained by the client, which `PATCH`es it as the user navigates. Because the value is client-supplied, it is sanitized by `sanitizeCoderAgentPage` before being embedded in the prompt: only plain absolute paths pass, and values containing whitespace, quotes, backticks, backslashes, or angle brackets are dropped.
+
+Everything else about Coder Assistant chats is standard chat behavior: tools, streaming, and ACLs work the same as for any other chat.
+
 #### Interrupt goroutine
 
 The interrupt goroutine is responsible for handling interrupts. It is spawned when the event indicates the core state machine is in `I0` or `I1` (status is `interrupting`).

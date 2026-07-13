@@ -9,6 +9,7 @@ import {
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
+import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import { CoderAssistantProviderSetup } from "./CoderAssistantProviderSetup";
 
@@ -126,6 +127,9 @@ const CoderAssistantIntroContent: FC<{ providerConfigured: boolean }> = ({
 
 export const CoderAssistantIntroPage: FC = () => {
 	const { isLoading, isSignedIn } = useAuthContext();
+	const { metadata } = useEmbeddedMetadata();
+	const coderAssistantEnabled =
+		metadata.experiments.value?.includes("coder-assistant") ?? false;
 
 	// The flow has two steps: configure an AI provider so the Coder Assistant
 	// can actually respond, then meet the Coder Assistant itself.
@@ -138,6 +142,10 @@ export const CoderAssistantIntroPage: FC = () => {
 	const [introAlreadyCompleted] = useState(
 		() => readLS("coder_agent_intro_completed") === "true",
 	);
+
+	if (!coderAssistantEnabled) {
+		return <Navigate to="/templates" replace />;
+	}
 
 	if (!isLoading && !isSignedIn) {
 		return <Navigate to="/login" replace />;

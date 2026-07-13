@@ -31,6 +31,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { getOSKey } from "#/utils/platform";
 import {
@@ -135,6 +136,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	location,
 	currentUserId,
 }) => {
+	const { experiments } = useDashboard();
+	const coderAssistantEnabled = experiments.includes("coder-assistant");
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
@@ -644,9 +647,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			</div>
 			{/* Docked above the footer so the Assistant drawer stays pinned
 			    and expands upward instead of scrolling with the chat list. */}
-			<ChatTreeContext value={chatTreeCtx}>
-				<AssistantChatsSection />
-			</ChatTreeContext>
+			{coderAssistantEnabled && (
+				<ChatTreeContext value={chatTreeCtx}>
+					<AssistantChatsSection />
+				</ChatTreeContext>
+			)}
 			<UserSidebarFooter />
 		</div>
 	);

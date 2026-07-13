@@ -49,25 +49,25 @@ const coderAgentPageLabelKey = "coder-agent-page"
 // is unknown.
 func CoderAgentUserContext(user database.User, roles []string, orgNames []string, currentPage string) string {
 	var b strings.Builder
-	b.WriteString("<user-context>\n")
-	b.WriteString("You are assisting the following Coder user:\n")
-	b.WriteString("- Username: " + user.Username + "\n")
+	_, _ = b.WriteString("<user-context>\n")
+	_, _ = b.WriteString("You are assisting the following Coder user:\n")
+	_, _ = b.WriteString("- Username: " + user.Username + "\n")
 	if name := strings.TrimSpace(user.Name); name != "" {
-		b.WriteString("- Name: " + name + "\n")
+		_, _ = b.WriteString("- Name: " + name + "\n")
 	}
 	rolesLine := "member (no elevated deployment roles)"
 	if len(roles) > 0 {
 		rolesLine = strings.Join(roles, ", ")
 	}
-	b.WriteString("- Deployment roles: " + rolesLine + "\n")
+	_, _ = b.WriteString("- Deployment roles: " + rolesLine + "\n")
 	if len(orgNames) > 0 {
-		b.WriteString("- Organizations: " + strings.Join(orgNames, ", ") + "\n")
+		_, _ = b.WriteString("- Organizations: " + strings.Join(orgNames, ", ") + "\n")
 	}
 	if page := sanitizeCoderAgentPage(currentPage); page != "" {
-		b.WriteString("They are currently viewing the " + page + " page in the Coder dashboard.\n")
+		_, _ = b.WriteString("They are currently viewing the " + page + " page in the Coder dashboard.\n")
 	}
-	b.WriteString("Tailor guidance to their permissions: deployment admins can manage templates, users, and settings; members can manage their own workspaces.\n")
-	b.WriteString("</user-context>")
+	_, _ = b.WriteString("Tailor guidance to their permissions: deployment admins can manage templates, users, and settings; members can manage their own workspaces.\n")
+	_, _ = b.WriteString("</user-context>")
 	return b.String()
 }
 

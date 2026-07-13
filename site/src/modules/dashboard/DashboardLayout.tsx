@@ -10,6 +10,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
@@ -18,8 +19,10 @@ import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
+	const coderAssistantEnabled = experiments.includes("coder-assistant");
 
 	return (
 		<>
@@ -109,9 +112,11 @@ export const DashboardLayout: FC = () => {
 			</div>
 
 			{/* Coder Assistant floating button and panel */}
-			<CoderAssistantProvider>
-				<CoderAssistant />
-			</CoderAssistantProvider>
+			{coderAssistantEnabled && (
+				<CoderAssistantProvider>
+					<CoderAssistant />
+				</CoderAssistantProvider>
+			)}
 		</>
 	);
 };
