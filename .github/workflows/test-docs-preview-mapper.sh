@@ -332,45 +332,117 @@ else
 	failures=$((failures + 1))
 fi
 
-# pages_within_budget mirrors the byte-budget cap in docs-preview.yaml
-# (CRF-15/CRF-19): given a budget, the per-line URL-prefix length, and
-# bytes already reserved, it returns how many leading pages fit.
-pages_within_budget() {
-	local budget="$1" url_prefix_len="$2" running="$3"
-	local keep=0 filename len cost
-	while IFS= read -r filename; do
+# build_comment_body mirrors the body assembler in docs-preview.yaml
+# (CRF-15): it renders the first N pages of $final_rows into the exact
+# comment body the workflow posts, so the comment can be sized by
+# measuring the real bytes instead of estimating a per-page cost. Reads
+# the $final_rows, $total_pages, $url_prefix, $DOCS_PREVIEW_MARKER, and
+# $STATE_PREFIX globals set before each case below. Keep in sync with
+# docs-preview.yaml.
+DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
+STATE_PREFIX='docs-preview-state:'
+build_comment_body() {
+	local n="$1" rows state_json state_b64 checklist="" intro
+	local filename checked page_path url box omitted
+
+	rows=$(printf '%s' "$final_rows" | jq -c --argjson n "$n" '.[:$n]')
+	state_json=$(printf '%s' "$rows" | jq -c 'map({(.filename): .sha}) | add // {}')
+	state_b64=$(printf '%s' "$state_json" | base64 -w0)
+
+	while IFS=$'\t' read -r filename checked; do
 		[ -z "$filename" ] && continue
-		len=$(printf '%s' "$filename" | LC_ALL=C wc -c | tr -d ' ')
-		cost=$((20 + url_prefix_len + 2 * len + 80))
-		if [ $((running + cost)) -gt "$budget" ]; then
-			break
+		page_path=$(map_doc_path "$filename")
+		url="$url_prefix"
+		if [ -n "$page_path" ]; then
+			url="${url}/${page_path}"
 		fi
-		running=$((running + cost))
-		keep=$((keep + 1))
+		box=" "
+		if [ "$checked" = "true" ]; then
+			box="x"
+		fi
+		checklist="${checklist}- [${box}] [\`${filename}\`](${url})"$'\n'
+	done < <(printf '%s' "$rows" | jq -r '.[] | [.filename, (.checked | tostring)] | @tsv')
+
+	omitted=$((total_pages - n))
+	if [ "$omitted" -gt 0 ]; then
+		checklist="${checklist}"$'\n'"_and ${omitted} more changed page(s) not listed to stay under GitHub's comment size limit._"$'\n'
+	fi
+
+	intro="Check off a page once you've reviewed it. If a page changes in a later push, its checkbox clears automatically so it gets a fresh look. Pages not yet wired into the docs navigation aren't listed here."
+
+	printf '## Docs preview\n\n%s\n\n%s\n%s\n<!-- %s%s -->' \
+		"$intro" "$checklist" "$DOCS_PREVIEW_MARKER" "$STATE_PREFIX" "$state_b64"
+}
+
+# cap_pages mirrors the measure-and-binary-search cap in docs-preview.yaml:
+# keep every page if the whole body fits, else the largest leading prefix
+# whose rendered body stays under $budget.
+cap_pages() {
+	local budget="$1" keep lo hi mid
+	if [ "$(build_comment_body "$total_pages" | LC_ALL=C wc -c)" -le "$budget" ]; then
+		printf '%s' "$total_pages"
+		return
+	fi
+	lo=0
+	hi=$((total_pages - 1))
+	keep=0
+	while [ "$lo" -le "$hi" ]; do
+		mid=$(((lo + hi) / 2))
+		if [ "$(build_comment_body "$mid" | LC_ALL=C wc -c)" -le "$budget" ]; then
+			keep=$mid
+			lo=$((mid + 1))
+		else
+			hi=$((mid - 1))
+		fi
 	done
 	printf '%s' "$keep"
 }
 
-pages_fixture=$(printf 'docs/a.md\ndocs/b.md\ndocs/c.md\ndocs/d.md\ndocs/e.md')
-assert_budget() {
-	local budget="$1" prefix_len="$2" reserved="$3" expected="$4"
-	local actual
-	actual=$(printf '%s\n' "$pages_fixture" | pages_within_budget "$budget" "$prefix_len" "$reserved")
-	if [ "$actual" = "$expected" ]; then
-		echo "PASS: pages_within_budget($budget, $prefix_len, $reserved) -> $expected"
-	else
-		echo "FAIL: pages_within_budget($budget, $prefix_len, $reserved) -> $actual (expected $expected)"
-		failures=$((failures + 1))
-	fi
-}
+budget=65000
 
-# Each "docs/?.md" is 9 bytes -> cost 20 + 100 + 18 + 80 = 218 per page.
-# budget 1000, reserve 0: 218*4=872 fits, the 5th (1090) overflows -> 4.
-assert_budget 1000 100 0 4
-# A generous budget fits all five pages.
-assert_budget 100000 100 0 5
-# A reservation that already fills the budget fits none.
-assert_budget 1000 100 1000 0
+# Repo-scale worst case: a docs migration touching 400 pages on a long
+# ticket-prefixed branch, ~60-char paths, the shape reviewers measured
+# overflowing the old per-page estimate. The cap must keep the real body
+# under GitHub's 65536-char limit while still listing as many pages as fit.
+url_prefix="https://coder.com/docs/@feature-team-very-long-branch-name-docs-migration-2024"
+final_rows=$(jq -nc '[range(400) | {
+	filename: ("docs/reference/generated/section-\(. + 1000)/really-long-page-name-\(. + 1000).md"),
+	sha: ("0123456789abcdef0123456789abcdef" + (. + 100000 | tostring)),
+	checked: false
+}]')
+total_pages=$(printf '%s' "$final_rows" | jq 'length')
+
+keep=$(cap_pages "$budget")
+final_body_bytes=$(build_comment_body "$keep" | LC_ALL=C wc -c)
+if [ "$keep" -lt "$total_pages" ] && [ "$final_body_bytes" -le 65536 ]; then
+	echo "PASS: repo-scale cap keeps $keep/$total_pages pages, body ${final_body_bytes}B <= 65536"
+else
+	echo "FAIL: repo-scale cap keeps $keep/$total_pages pages, body ${final_body_bytes}B (want < total and <= 65536)"
+	failures=$((failures + 1))
+fi
+
+# Tightness: one page past the cap must exceed the budget, proving the
+# cap doesn't leave usable space on the table.
+over_body_bytes=$(build_comment_body "$((keep + 1))" | LC_ALL=C wc -c)
+if [ "$over_body_bytes" -gt "$budget" ]; then
+	echo "PASS: cap is tight (keep+1 body ${over_body_bytes}B > ${budget})"
+else
+	echo "FAIL: cap is not tight (keep+1 body ${over_body_bytes}B <= ${budget})"
+	failures=$((failures + 1))
+fi
+
+# A small PR keeps every page and renders no omitted-pages summary line.
+url_prefix="https://coder.com/docs/@short-branch"
+final_rows=$(jq -nc '[range(5) | {filename: ("docs/page-\(.).md"), sha: "abc", checked: false}]')
+total_pages=$(printf '%s' "$final_rows" | jq 'length')
+keep=$(cap_pages "$budget")
+small_body=$(build_comment_body "$keep")
+if [ "$keep" -eq 5 ] && ! printf '%s' "$small_body" | grep -q "more changed page"; then
+	echo "PASS: small PR keeps all 5 pages with no summary line"
+else
+	echo "FAIL: small PR keep=$keep (expected 5) or unexpected summary line"
+	failures=$((failures + 1))
+fi
 
 if [ "$failures" -gt 0 ]; then
 	echo ""
