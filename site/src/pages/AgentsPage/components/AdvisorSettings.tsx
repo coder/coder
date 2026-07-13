@@ -180,11 +180,12 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// A stored effort can become unselectable if the model config's
 			// efforts changed after the setting was saved. Submit the same
 			// sanitized effort the slider displays so the backend does not
-			// reject the stale value.
+			// reject the stale value. An empty effort stays empty so the
+			// advisor keeps following the model config's default.
 			const submitOption = enabledModelOptions.find(
 				(option) => option.id === source.model_config_id,
 			);
-			if (submitOption) {
+			if (submitOption && source.reasoning_effort) {
 				source = {
 					...source,
 					reasoning_effort:
