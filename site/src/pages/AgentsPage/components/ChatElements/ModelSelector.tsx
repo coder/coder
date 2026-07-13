@@ -216,7 +216,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										}}
 										className={cn(
 											"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
-											!selectedModel && "bg-surface-secondary",
+											!value && "bg-surface-secondary",
 										)}
 									>
 										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
@@ -225,7 +225,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										<CheckIcon
 											className={cn(
 												"ml-auto size-4 shrink-0",
-												selectedModel && "opacity-0",
+												value && "opacity-0",
 											)}
 										/>
 									</CommandItem>

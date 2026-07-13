@@ -181,20 +181,26 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// efforts changed after the setting was saved. Submit the same
 			// sanitized effort the slider displays so the backend does not
 			// reject the stale value. An empty effort stays empty so the
-			// advisor keeps following the model config's default.
+			// advisor keeps following the model config's default. When the
+			// saved model is unavailable (disabled), drop the effort entirely
+			// so unrelated edits still save.
 			const submitOption = enabledModelOptions.find(
 				(option) => option.id === source.model_config_id,
 			);
-			if (submitOption && source.reasoning_effort) {
-				source = {
-					...source,
-					reasoning_effort:
-						pickReasoningEffort(
-							source.reasoning_effort,
-							submitOption.reasoningEfforts ?? [],
-							submitOption.reasoningEffortDefault,
-						) ?? "",
-				};
+			if (source.reasoning_effort) {
+				if (submitOption) {
+					source = {
+						...source,
+						reasoning_effort:
+							pickReasoningEffort(
+								source.reasoning_effort,
+								submitOption.reasoningEfforts ?? [],
+								submitOption.reasoningEffortDefault,
+							) ?? "",
+					};
+				} else {
+					source = { ...source, reasoning_effort: "" };
+				}
 			}
 			const request = toAdvisorConfigRequest(source);
 			onSaveAdvisorConfig(request, {
