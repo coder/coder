@@ -8,8 +8,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// TestOAuth2ClientRegistrationRequest_DetermineClientType covers D1-01: the
-// client type must be derived from the requested token_endpoint_auth_method
+// TestOAuth2ClientRegistrationRequest_DetermineClientType verifies that the
+// client type is derived from the requested token_endpoint_auth_method
 // (RFC 7591 §2, OAuth 2.1 §2.1), not hardcoded to "confidential".
 func TestOAuth2ClientRegistrationRequest_DetermineClientType(t *testing.T) {
 	t.Parallel()

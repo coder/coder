@@ -43,7 +43,7 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeRefreshToken)
 	require.Contains(t, metadata.CodeChallengeMethodsSupported, codersdk.OAuth2PKCECodeChallengeMethodS256)
 	// Public (secretless, PKCE-only) clients must be advertised so they can
-	// discover that Coder will accept a "none" auth method (D1-03).
+	// discover that Coder will accept a "none" auth method.
 	require.Contains(t, metadata.TokenEndpointAuthMethodsSupported, codersdk.OAuth2TokenEndpointAuthMethodNone)
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)

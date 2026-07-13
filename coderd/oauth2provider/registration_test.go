@@ -105,9 +105,9 @@ func TestCreateDynamicClientRegistration_DCREnabled(t *testing.T) {
 }
 
 // TestCreateDynamicClientRegistration is a focused unit test on the RFC 7591
-// handler itself, bypassing the full coderdtest HTTP server. It covers
-// D1-01/D1-02: whether a client_secret is minted, and what client_type is
-// persisted, must follow the requested token_endpoint_auth_method.
+// handler itself, bypassing the full coderdtest HTTP server. It verifies that
+// whether a client_secret is minted, and what client_type is persisted,
+// follows the requested token_endpoint_auth_method.
 func TestCreateDynamicClientRegistration(t *testing.T) {
 	t.Parallel()
 
@@ -214,10 +214,10 @@ func TestCreateDynamicClientRegistration(t *testing.T) {
 	}
 }
 
-// TestCreateDynamicClientRegistration_Transaction covers item 10 from the
-// public-client-support proposal: the app insert and the secret insert must
-// share a single database transaction, so a failure partway through can't
-// leave a permanently committed, orphaned app row with no matching secret.
+// TestCreateDynamicClientRegistration_Transaction verifies that the app
+// insert and the secret insert share a single database transaction, so a
+// failure partway through can't leave a permanently committed, orphaned app
+// row with no matching secret.
 //
 // A mock store is used because the failure needs to be injected between the
 // two inserts, which isn't reachable through the public registration API

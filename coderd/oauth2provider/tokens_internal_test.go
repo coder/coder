@@ -373,10 +373,10 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
-// TestExtractTokenRequest_ClientSecretRequirement covers D1-02: client_secret
-// must only be required for the authorization_code grant when the app is
-// confidential. Public clients authenticate with PKCE alone. client_id is
-// always required, regardless of client type.
+// TestExtractTokenRequest_ClientSecretRequirement verifies that
+// client_secret is only required for the authorization_code grant when the
+// app is confidential. Public clients authenticate with PKCE alone.
+// client_id is always required, regardless of client type.
 func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 	t.Parallel()
 
