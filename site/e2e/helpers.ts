@@ -86,7 +86,7 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// has mounted. The title check is the actual synchronization point:
 	// it retries until the page component renders. Removing either wait
 	// reintroduces a navigation race in tests that goto() right after
-	// login. See https://github.com/coder/internal/issues/1605.
+	// login. See https://github.com/coder/coder/pull/27107.
 	await page.waitForURL(/\/workspaces/);
 	await expect(page).toHaveTitle(/Workspaces/);
 	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
