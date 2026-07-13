@@ -283,8 +283,12 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
+	// bedrockCredentialResolutionTimeout bounds the credential
+	// resolution (STS/IRSA) shared by both Bedrock protocols.
+	const bedrockCredentialResolutionTimeout = 30 * time.Second
+
 	if i.isBedrockInvokeModel() {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
 		defer cancel()
 		bedrockOpts, err := i.withBedrockInvokeModelOptions(ctx)
 		if err != nil {
@@ -295,7 +299,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	}
 
 	if i.isBedrockMantle() {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		ctx, cancel := context.WithTimeout(ctx, bedrockCredentialResolutionTimeout)
 		defer cancel()
 		bedrockOpts, err := i.withBedrockMantleOptions(ctx)
 		if err != nil {
