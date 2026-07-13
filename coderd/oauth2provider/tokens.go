@@ -40,7 +40,7 @@ var (
 )
 
 func extractTokenRequest(r *http.Request, callbackURL *url.URL, app database.OAuth2ProviderApp) (codersdk.OAuth2TokenRequest, []codersdk.ValidationError, error) {
-	isPublic := app.ClientType.String == "public"
+	isPublic := app.IsPublic()
 
 	p := httpapi.NewQueryParamParser()
 	err := r.ParseForm()
@@ -214,7 +214,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 }
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
-	isPublic := app.ClientType.String == "public"
+	isPublic := app.IsPublic()
 
 	// Validate the client secret. Public clients have none to validate;
 	// PKCE (checked below) is their only client authentication.
