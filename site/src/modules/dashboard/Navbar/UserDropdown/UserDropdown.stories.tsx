@@ -10,25 +10,15 @@ import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { UserDropdown } from "./UserDropdown";
 
-function mockAISpend(
-	overrides: Partial<UserAISpendStatus> = {},
-): UserAISpendStatus {
-	return {
-		user_id: MockUserOwner.id,
-		spend_limit_micros: 1_200_000_000,
-		effective_group_id: "grp-789",
-		limit_source: "group",
-		current_spend_micros: 819_000_000,
-		period_start: "2026-06-01T00:00:00Z",
-		period_end: "2026-07-01T00:00:00Z",
-		...overrides,
-	};
-}
-
-const aiSpendQuery = (overrides?: Partial<UserAISpendStatus>) => ({
-	key: meAISpendKey,
-	data: mockAISpend(overrides),
-});
+const mockAISpend: UserAISpendStatus = {
+	user_id: MockUserOwner.id,
+	spend_limit_micros: 1_200_000_000,
+	effective_group_id: "grp-789",
+	limit_source: "group",
+	current_spend_micros: 819_000_000,
+	period_start: "2026-06-01T00:00:00Z",
+	period_end: "2026-07-01T00:00:00Z",
+};
 
 const aiCostControl: { features: FeatureName[]; experiments: Experiment[] } = {
 	features: ["aibridge"],
@@ -65,7 +55,7 @@ const openDropdown = async (canvasElement: HTMLElement) => {
 
 const Example: Story = {
 	parameters: {
-		queries: [aiSpendQuery()],
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend without cost control", async () => {
@@ -78,7 +68,7 @@ const Example: Story = {
 export const WithAISpend: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery()],
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows AI spend", async () => {
@@ -97,7 +87,12 @@ export const WithAISpend: Story = {
 export const AISpendWarning: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 1_080_000_000 })],
+		queries: [
+			{
+				key: meAISpendKey,
+				data: { ...mockAISpend, current_spend_micros: 1_080_000_000 },
+			},
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows the warning marker near the limit", async () => {
@@ -116,7 +111,12 @@ export const AISpendWarning: Story = {
 export const AISpendAtLimit: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 1_200_000_000 })],
+		queries: [
+			{
+				key: meAISpendKey,
+				data: { ...mockAISpend, current_spend_micros: 1_200_000_000 },
+			},
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("marks spend at the limit as exceeded", async () => {
@@ -134,7 +134,12 @@ export const AISpendAtLimit: Story = {
 export const AISpendExceeded: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 1_500_000_000 })],
+		queries: [
+			{
+				key: meAISpendKey,
+				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
+			},
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows the exceeded marker at the limit", async () => {
@@ -153,7 +158,9 @@ export const AISpendExceeded: Story = {
 export const AISpendUnlimited: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ spend_limit_micros: null })],
+		queries: [
+			{ key: meAISpendKey, data: { ...mockAISpend, spend_limit_micros: null } },
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows unlimited spend without a bar", async () => {
@@ -172,7 +179,9 @@ export const AISpendUnlimited: Story = {
 export const AISpendZeroSpend: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 0 })],
+		queries: [
+			{ key: meAISpendKey, data: { ...mockAISpend, current_spend_micros: 0 } },
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows zero spend with an empty bar", async () => {
@@ -190,7 +199,16 @@ export const AISpendZeroSpend: Story = {
 export const AISpendZeroLimit: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 0, spend_limit_micros: 0 })],
+		queries: [
+			{
+				key: meAISpendKey,
+				data: {
+					...mockAISpend,
+					current_spend_micros: 0,
+					spend_limit_micros: 0,
+				},
+			},
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("shows a zero limit without exceeding", async () => {
@@ -209,35 +227,47 @@ export const AISpendZeroLimit: Story = {
 
 export const AvatarBorderDisabled: Story = {
 	parameters: {
-		queries: [aiSpendQuery()],
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 };
 
 export const AvatarBorderNormal: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery()],
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
 	},
 };
 
 export const AvatarBorderWarning: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 1_080_000_000 })],
+		queries: [
+			{
+				key: meAISpendKey,
+				data: { ...mockAISpend, current_spend_micros: 1_080_000_000 },
+			},
+		],
 	},
 };
 
 export const AvatarBorderExceeded: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: 1_500_000_000 })],
+		queries: [
+			{
+				key: meAISpendKey,
+				data: { ...mockAISpend, current_spend_micros: 1_500_000_000 },
+			},
+		],
 	},
 };
 
 export const AISpendHiddenOnInvalidData: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ current_spend_micros: -1 })],
+		queries: [
+			{ key: meAISpendKey, data: { ...mockAISpend, current_spend_micros: -1 } },
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on invalid data", async () => {
@@ -250,7 +280,9 @@ export const AISpendHiddenOnInvalidData: Story = {
 export const AISpendHiddenOnNegativeLimit: Story = {
 	parameters: {
 		...aiCostControl,
-		queries: [aiSpendQuery({ spend_limit_micros: -1 })],
+		queries: [
+			{ key: meAISpendKey, data: { ...mockAISpend, spend_limit_micros: -1 } },
+		],
 	},
 	play: async ({ canvasElement, step }) => {
 		await step("hides AI spend on a negative limit", async () => {

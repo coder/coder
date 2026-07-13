@@ -60,7 +60,6 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 		spend && spend.spendLimit !== null
 			? getSeverity(spend.currentSpend, spend.spendLimit)
 			: "normal";
-	const avatarBorderClass = spend ? severityBorderClasses[severity] : undefined;
 
 	return (
 		<DropdownMenu>
@@ -73,7 +72,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 						fallback={user.username}
 						src={user.avatar_url}
 						size="lg"
-						className={avatarBorderClass}
+						className={spend ? severityBorderClasses[severity] : undefined}
 					/>
 				</button>
 			</DropdownMenuTrigger>

@@ -501,15 +501,6 @@ export const OpenAIBudgetForCurrentGroupMember: Story = {
 	},
 };
 
-const showcaseMember = (
-	user: Partial<ReducedUser>,
-	costControl: Partial<GroupMemberAICostControl>,
-): GroupMemberWithAICostControl => ({
-	...MockUserMember,
-	...user,
-	ai_cost_control: { ...mockCostControl, ...costControl },
-});
-
 /** Unresolvable via getGroupById, standing in for another org's group. */
 const unresolvedGroupId = "external-org-group";
 
@@ -523,74 +514,98 @@ export const AIBudgetShowcase: Story = {
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
 				users: [
-					showcaseMember(
-						{ id: "member-none", username: "alice", name: "Alice Chen" },
-						{
+					{
+						...MockUserMember,
+						id: "member-none",
+						username: "alice",
+						name: "Alice Chen",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 0,
 							spend_limit_micros: 0,
 							effective_group_id: MockGroupWithoutMembers.organization_id,
 						},
-					),
-					showcaseMember(
-						{ id: "member-unlimited", username: "bob", name: "Bob Diaz" },
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-unlimited",
+						username: "bob",
+						name: "Bob Diaz",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 0,
 							spend_limit_micros: null,
 							effective_group_id: MockGroupWithoutMembers.organization_id,
 						},
-					),
-					showcaseMember(
-						{ id: "member-elsewhere", username: "priya", name: "Priya Nair" },
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-elsewhere",
+						username: "priya",
+						name: "Priya Nair",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 456_000_000,
 							effective_group_id: unresolvedGroupId,
 						},
-					),
-					showcaseMember(
-						{ id: "member-regular", username: "jordan", name: "Jordan Lee" },
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-regular",
+						username: "jordan",
+						name: "Jordan Lee",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 3_235_000_000,
 							spend_limit_micros: 7_000_000_000,
 						},
-					),
-					showcaseMember(
-						{
-							id: "member-custom",
-							username: "sam",
-							name: "Sam Okafor",
-							status: "dormant",
-						},
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-custom",
+						username: "sam",
+						name: "Sam Okafor",
+						status: "dormant",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 7_175_000_000,
 							limit_source: "user_override",
 						},
-					),
-					showcaseMember(
-						{ id: "member-near", username: "morgan", name: "Morgan Ito" },
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-near",
+						username: "morgan",
+						name: "Morgan Ito",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 6_735_000_000,
 							spend_limit_micros: 7_000_000_000,
 						},
-					),
-					showcaseMember(
-						{ id: "member-over", username: "casey", name: "Casey Novak" },
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-over",
+						username: "casey",
+						name: "Casey Novak",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 7_200_000_000,
 							spend_limit_micros: 7_000_000_000,
 						},
-					),
-					showcaseMember(
-						{
-							id: "member-other-group",
-							username: "riley",
-							name: "Riley Park",
-							status: "suspended",
-						},
-						{
+					},
+					{
+						...MockUserMember,
+						id: "member-other-group",
+						username: "riley",
+						name: "Riley Park",
+						status: "suspended",
+						ai_cost_control: {
+							...mockCostControl,
 							current_spend_micros: 456_000_000,
 							effective_group_id: MockGroup2.id,
 						},
-					),
+					},
 				],
 				count: 8,
 			}),
