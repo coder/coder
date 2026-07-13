@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1943,4 +1944,408 @@ func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
 		require.Equal(t, "trailing-slash-client", created.OAuth2ClientID)
 		require.True(t, created.HasOAuth2Secret)
 	})
+}
+
+// createPersonalMCPServerConfig creates a minimal enabled personal MCP
+// server config with auth_type=none owned by the calling user.
+func createPersonalMCPServerConfig(t testing.TB, client *codersdk.Client, slug string, enabled bool) codersdk.MCPServerConfig {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	config, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "Personal Server " + slug,
+		Slug:          slug,
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/" + slug,
+		AuthType:      "none",
+		Availability:  "default_on",
+		Enabled:       enabled,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		Personal:      true,
+	})
+	require.NoError(t, err)
+	return config
+}
+
+func TestPersonalMCPServerConfigsCreate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	// A regular user without personal:true is forbidden.
+	_, err := memberClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:  "Nope",
+		Slug:         "nope",
+		Transport:    "streamable_http",
+		URL:          "https://mcp.example.com/nope",
+		AuthType:     "none",
+		Availability: "default_on",
+		Enabled:      true,
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	// auth_type none.
+	created := createPersonalMCPServerConfig(t, memberClient, "personal-none", true)
+	require.Equal(t, member.ID, created.OwnerID)
+	// Owners see their personal servers unredacted.
+	require.Equal(t, "https://mcp.example.com/personal-none", created.URL)
+
+	// auth_type api_key.
+	createdAPIKey, err := memberClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:  "Personal API Key",
+		Slug:         "personal-api-key",
+		Transport:    "streamable_http",
+		URL:          "https://mcp.example.com/personal-api-key",
+		AuthType:     "api_key",
+		APIKeyHeader: "X-Api-Key",
+		APIKeyValue:  "secret-value",
+		Availability: "default_on",
+		Enabled:      true,
+		Personal:     true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, member.ID, createdAPIKey.OwnerID)
+	require.True(t, createdAPIKey.HasAPIKey)
+}
+
+// nolint:bodyclose
+func TestPersonalMCPServerOAuth2Ownership(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	ownerClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	otherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	personalCfg, err := ownerClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:    "Personal OAuth2",
+		Slug:           "personal-oauth2-ownership",
+		Transport:      "streamable_http",
+		URL:            "https://mcp.example.com/personal-oauth2",
+		AuthType:       "oauth2",
+		OAuth2ClientID: "test-client",
+		OAuth2AuthURL:  "https://auth.example.com/authorize",
+		OAuth2TokenURL: "https://auth.example.com/token",
+		Availability:   "default_on",
+		Enabled:        true,
+		Personal:       true,
+	})
+	require.NoError(t, err)
+
+	otherClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	assertNotFound := func(endpoint string) {
+		requestURL, err := otherClient.URL.Parse(
+			"/api/experimental/mcp/servers/" + personalCfg.ID.String() + "/oauth2/" + endpoint,
+		)
+		require.NoError(t, err)
+		if endpoint == "callback" {
+			query := requestURL.Query()
+			query.Set("code", "code")
+			query.Set("state", "state")
+			requestURL.RawQuery = query.Encode()
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: otherClient.SessionToken(),
+		})
+
+		res, err := otherClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	}
+	assertNotFound("connect")
+	assertNotFound("callback")
+}
+
+func TestPersonalMCPServerConfigsVisibility(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	otherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	globalCfg := createMCPServerConfig(t, adminClient, "global-server", true)
+	personalCfg := createPersonalMCPServerConfig(t, memberClient, "personal-server", true)
+	disabledPersonalCfg := createPersonalMCPServerConfig(t, memberClient, "personal-disabled", false)
+
+	slugs := func(configs []codersdk.MCPServerConfig) []string {
+		out := make([]string, 0, len(configs))
+		for _, c := range configs {
+			out = append(out, c.Slug)
+		}
+		return out
+	}
+
+	// Owner sees global plus own personal servers, including the
+	// disabled one, unredacted.
+	memberConfigs, err := memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"global-server", "personal-server", "personal-disabled"}, slugs(memberConfigs))
+	for _, c := range memberConfigs {
+		switch c.Slug {
+		case "personal-server", "personal-disabled":
+			require.Equal(t, member.ID, c.OwnerID)
+			require.NotEmpty(t, c.URL, "owner should see personal server unredacted")
+		case "global-server":
+			require.Equal(t, uuid.Nil, c.OwnerID)
+			require.Empty(t, c.URL, "non-admin should see global server redacted")
+		}
+	}
+
+	// Scope filters for the owner.
+	personalOnly, err := memberClient.MCPServerConfigs(ctx, codersdk.MCPServerConfigsOptions{Scope: codersdk.MCPServerConfigScopePersonal})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"personal-server", "personal-disabled"}, slugs(personalOnly))
+
+	globalOnly, err := memberClient.MCPServerConfigs(ctx, codersdk.MCPServerConfigsOptions{Scope: codersdk.MCPServerConfigScopeGlobal})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"global-server"}, slugs(globalOnly))
+
+	// Another regular user never sees the member's personal servers.
+	otherConfigs, err := otherClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"global-server"}, slugs(otherConfigs))
+
+	// Admins never see other users' personal servers either.
+	adminConfigs, err := adminClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"global-server"}, slugs(adminConfigs))
+
+	// Admin scope filters: global excludes admin personal rows, and
+	// personal returns only the admin's own rows.
+	adminPersonal := createPersonalMCPServerConfig(t, adminClient, "admin-personal", true)
+	adminGlobalOnly, err := adminClient.MCPServerConfigs(ctx, codersdk.MCPServerConfigsOptions{Scope: codersdk.MCPServerConfigScopeGlobal})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"global-server"}, slugs(adminGlobalOnly))
+	adminPersonalOnly, err := adminClient.MCPServerConfigs(ctx, codersdk.MCPServerConfigsOptions{Scope: codersdk.MCPServerConfigScopePersonal})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"admin-personal"}, slugs(adminPersonalOnly))
+	adminAll, err := adminClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"global-server", "admin-personal"}, slugs(adminAll))
+	_ = adminPersonal
+
+	// Invalid scope is rejected.
+	_, err = memberClient.MCPServerConfigs(ctx, codersdk.MCPServerConfigsOptions{Scope: "bogus"})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Direct get: owner can fetch (including disabled) unredacted.
+	fetched, err := memberClient.MCPServerConfigByID(ctx, disabledPersonalCfg.ID)
+	require.NoError(t, err)
+	require.Equal(t, member.ID, fetched.OwnerID)
+	require.NotEmpty(t, fetched.URL)
+
+	// Direct get by another user or an admin returns 404.
+	for _, c := range []*codersdk.Client{otherClient, adminClient} {
+		_, err = c.MCPServerConfigByID(ctx, personalCfg.ID)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	}
+	_ = globalCfg
+}
+
+func TestPersonalMCPServerConfigsUpdateDelete(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, member := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	otherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	personalCfg := createPersonalMCPServerConfig(t, memberClient, "personal-crud", true)
+	globalCfg := createMCPServerConfig(t, adminClient, "global-crud", true)
+
+	// Owner can update; ownership is preserved.
+	newName := "Renamed Personal"
+	updated, err := memberClient.UpdateMCPServerConfig(ctx, personalCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		DisplayName: &newName,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Renamed Personal", updated.DisplayName)
+	require.Equal(t, member.ID, updated.OwnerID)
+
+	// Another user and an admin get 404 on update/delete of the
+	// member's personal server.
+	var sdkErr *codersdk.Error
+	for _, c := range []*codersdk.Client{otherClient, adminClient} {
+		_, err = c.UpdateMCPServerConfig(ctx, personalCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+			DisplayName: &newName,
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		err = c.DeleteMCPServerConfig(ctx, personalCfg.ID)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	}
+
+	// A regular user cannot update or delete a global server.
+	_, err = memberClient.UpdateMCPServerConfig(ctx, globalCfg.ID, codersdk.UpdateMCPServerConfigRequest{
+		DisplayName: &newName,
+	})
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	err = memberClient.DeleteMCPServerConfig(ctx, globalCfg.ID)
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	// Owner can delete their personal server.
+	err = memberClient.DeleteMCPServerConfig(ctx, personalCfg.ID)
+	require.NoError(t, err)
+	_, err = memberClient.MCPServerConfigByID(ctx, personalCfg.ID)
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+}
+
+func TestPersonalMCPServerConfigsSlugUniqueness(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	otherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	// Same slug allowed for a global and a personal server, and for
+	// personal servers of two different users.
+	_ = createMCPServerConfig(t, adminClient, "shared-slug", true)
+	_ = createPersonalMCPServerConfig(t, memberClient, "shared-slug", true)
+	_ = createPersonalMCPServerConfig(t, otherClient, "shared-slug", true)
+
+	// Duplicate slug within one user's personal servers conflicts.
+	_, err := memberClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:  "Duplicate",
+		Slug:         "shared-slug",
+		Transport:    "streamable_http",
+		URL:          "https://mcp.example.com/dup",
+		AuthType:     "none",
+		Availability: "default_on",
+		Enabled:      true,
+		Personal:     true,
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+}
+
+func TestPersonalMCPServerChatOwnership(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	// Chat creation requires the agents-access role.
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	otherClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	adminExp := codersdk.NewExperimentalClient(adminClient)
+	_ = createChatModelConfigForMCP(t, adminExp)
+
+	globalCfg := createMCPServerConfig(t, adminClient, "chat-global", true)
+	memberPersonal := createPersonalMCPServerConfig(t, memberClient, "chat-personal", true)
+	disabledPersonal := createPersonalMCPServerConfig(t, memberClient, "chat-disabled-personal", false)
+	otherPersonal := createPersonalMCPServerConfig(t, otherClient, "chat-other-personal", true)
+
+	memberExp := codersdk.NewExperimentalClient(memberClient)
+
+	content := []codersdk.ChatInputPart{{
+		Type: codersdk.ChatInputPartTypeText,
+		Text: "hello",
+	}}
+
+	// Creating a chat with own personal and global server IDs works.
+	chat, err := memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        content,
+		MCPServerIDs:   []uuid.UUID{globalCfg.ID, memberPersonal.ID},
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{globalCfg.ID, memberPersonal.ID}, chat.MCPServerIDs)
+
+	// Creating a chat with a disabled personal server is rejected.
+	_, err = memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        content,
+		MCPServerIDs:   []uuid.UUID{disabledPersonal.ID},
+	})
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Creating a chat with another user's personal server is rejected.
+	_, err = memberExp.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content:        content,
+		MCPServerIDs:   []uuid.UUID{otherPersonal.ID},
+	})
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Sending a message with a disabled personal server is rejected.
+	disabledIDs := []uuid.UUID{disabledPersonal.ID}
+	_, err = memberExp.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content:      content,
+		MCPServerIDs: &disabledIDs,
+	})
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	// Sending a message with another user's personal server is
+	// rejected; the chat's server list stays unchanged.
+	otherIDs := []uuid.UUID{otherPersonal.ID}
+	_, err = memberExp.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content:      content,
+		MCPServerIDs: &otherIDs,
+	})
+	require.Error(t, err)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+	fetched, err := memberExp.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{globalCfg.ID, memberPersonal.ID}, fetched.MCPServerIDs)
+
+	// Sending a message with own personal server is accepted.
+	ownIDs := []uuid.UUID{memberPersonal.ID}
+	_, err = memberExp.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content:      content,
+		MCPServerIDs: &ownIDs,
+	})
+	require.NoError(t, err)
+
+	fetched, err = memberExp.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{memberPersonal.ID}, fetched.MCPServerIDs)
 }

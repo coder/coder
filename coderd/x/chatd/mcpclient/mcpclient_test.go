@@ -114,6 +114,32 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	assert.Equal(t, "Echoes the input", echoInfo.Description)
 }
 
+func TestConnectAll_PrefixesPersonalToolNames(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	globalConfig := makeConfig("notion", ts.URL)
+	personalConfig := makeConfig("notion", ts.URL)
+	personalConfig.OwnerID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx,
+		logger,
+		[]database.MCPServerConfig{globalConfig, personalConfig},
+		nil,
+		uuid.Nil,
+		nil,
+		nil,
+	)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 2)
+	assert.Equal(t, []string{"notion__echo", "p_notion__echo"}, toolNames(tools))
+}
+
 func TestConnectAll_SanitizesDottedSlug(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

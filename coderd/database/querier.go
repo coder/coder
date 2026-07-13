@@ -551,7 +551,7 @@ type sqlcQuerier interface {
 	// Check both to ensure the selected config is actually usable.
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
-	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]MCPServerConfig, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has

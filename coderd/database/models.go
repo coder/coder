@@ -5444,6 +5444,8 @@ type MCPServerConfig struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	// When set, the MCP server config is personal to this user and hidden from all other users. NULL means deployment-wide.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
 type MCPServerUserToken struct {

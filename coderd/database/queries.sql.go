@@ -9076,7 +9076,7 @@ func (q *sqlQuerier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.
 }
 
 const getChatsByOwnerAndLabels = `-- name: GetChatsByOwnerAndLabels :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error
 FROM chats_expanded
 WHERE owner_id = $1::uuid
     AND archived = false
@@ -9117,6 +9117,7 @@ func (q *sqlQuerier) GetChatsByOwnerAndLabels(ctx context.Context, arg GetChatsB
 			&i.ParentChatID,
 			&i.RootChatID,
 			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
@@ -16791,17 +16792,21 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 
 const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    -- Global servers are visible only when enabled; the caller's own
+    -- personal servers are always visible so they can be managed even
+    -- while disabled.
+    (enabled = TRUE AND owner_id IS NULL)
+    OR owner_id = $1::uuid
 ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs)
+func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -16840,6 +16845,7 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.ModelIntent,
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -16856,12 +16862,14 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 
 const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 FROM
     mcp_server_configs
 WHERE
     enabled = TRUE
     AND availability = 'force_on'
+    -- Personal servers can never be force-enabled deployment-wide.
+    AND owner_id IS NULL
 ORDER BY
     display_name ASC
 `
@@ -16906,6 +16914,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.ModelIntent,
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -16922,7 +16931,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 FROM
     mcp_server_configs
 WHERE
@@ -16963,13 +16972,14 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.ModelIntent,
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
+		&i.OwnerID,
 	)
 	return i, err
 }
 
 const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 FROM
     mcp_server_configs
 WHERE
@@ -17010,15 +17020,18 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.ModelIntent,
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
+		&i.OwnerID,
 	)
 	return i, err
 }
 
 const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 FROM
     mcp_server_configs
+WHERE
+    owner_id IS NULL
 ORDER BY
     display_name ASC
 `
@@ -17063,6 +17076,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 			&i.ModelIntent,
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -17079,7 +17093,7 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 
 const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 FROM
     mcp_server_configs
 WHERE
@@ -17128,6 +17142,7 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.ModelIntent,
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}
@@ -17248,7 +17263,8 @@ INSERT INTO mcp_server_configs (
     allow_in_plan_mode,
     forward_coder_headers,
     created_by,
-    updated_by
+    updated_by,
+    owner_id
 ) VALUES (
     $1::text,
     $2::text,
@@ -17276,10 +17292,11 @@ INSERT INTO mcp_server_configs (
     $24::boolean,
     $25::boolean,
     $26::uuid,
-    $27::uuid
+    $27::uuid,
+    $28::uuid
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 `
 
 type InsertMCPServerConfigParams struct {
@@ -17310,6 +17327,7 @@ type InsertMCPServerConfigParams struct {
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
 	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	OwnerID                 uuid.NullUUID  `db:"owner_id" json:"owner_id"`
 }
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
@@ -17341,6 +17359,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.ForwardCoderHeaders,
 		arg.CreatedBy,
 		arg.UpdatedBy,
+		arg.OwnerID,
 	)
 	var i MCPServerConfig
 	err := row.Scan(
@@ -17374,6 +17393,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.ModelIntent,
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
+		&i.OwnerID,
 	)
 	return i, err
 }
@@ -17412,7 +17432,7 @@ SET
 WHERE
     id = $27::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, owner_id
 `
 
 type UpdateMCPServerConfigParams struct {
@@ -17507,6 +17527,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.ModelIntent,
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
+		&i.OwnerID,
 	)
 	return i, err
 }

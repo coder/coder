@@ -1835,10 +1835,11 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetEnabledMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		userID := uuid.New()
 		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
 		configB := testutil.Fake(s.T(), faker, database.MCPServerConfig{})
-		dbm.EXPECT().GetEnabledMCPServerConfigs(gomock.Any()).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
+		dbm.EXPECT().GetEnabledMCPServerConfigs(gomock.Any(), userID).Return([]database.MCPServerConfig{configA, configB}, nil).AnyTimes()
+		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.MCPServerConfig{configA, configB})
 	}))
 	s.Run("GetForcedMCPServerConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.MCPServerConfig{})

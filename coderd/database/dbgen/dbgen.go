@@ -370,6 +370,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
+		OwnerID:                 seed.OwnerID,
 	})
 	require.NoError(t, err, "insert MCP server config")
 	return cfg

@@ -38,7 +38,10 @@ import (
 // slug "srv" + tool "my__tool" vs slug "srv__my" + tool "tool").
 // This doesn't affect tool invocation since originalName is used
 // directly when calling the remote server.
-const toolNameSep = "__"
+const (
+	personalToolNamePrefix = "p_"
+	toolNameSep            = "__"
+)
 
 // truncateToolName caps the assembled tool name at MaxToolNameLen so
 // it fits within provider limits (e.g. OpenAI 64, Bedrock 128).
@@ -299,8 +302,12 @@ func connectOne(
 			continue
 		}
 
+		serverSlug := cfg.Slug
+		if cfg.OwnerID.Valid {
+			serverSlug = personalToolNamePrefix + serverSlug
+		}
 		tools = append(
-			tools, newMCPTool(cfg.ID, cfg.Slug, mcpTool, mcpClient, cfg.ModelIntent),
+			tools, newMCPTool(cfg.ID, serverSlug, mcpTool, mcpClient, cfg.ModelIntent),
 		)
 	}
 

@@ -996,6 +996,9 @@ func (p *Server) resolveExploreToolSnapshot(
 		if err != nil {
 			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
 		}
+		configs = slices.DeleteFunc(configs, func(config database.MCPServerConfig) bool {
+			return !config.Enabled
+		})
 
 		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
 			configs,

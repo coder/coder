@@ -2033,9 +2033,9 @@ func (m queryMetricsStore) GetEnabledChatModelConfigs(ctx context.Context) ([]da
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]database.MCPServerConfig, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetEnabledMCPServerConfigs(ctx)
+	r0, r1 := m.s.GetEnabledMCPServerConfigs(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigs").Inc()
 	return r0, r1

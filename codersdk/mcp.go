@@ -31,6 +31,20 @@ func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) er
 	return nil
 }
 
+// MCPServerConfigScope filters the MCP server config list endpoint.
+type MCPServerConfigScope string
+
+const (
+	// MCPServerConfigScopeAll returns global servers plus the caller's
+	// own personal servers.
+	MCPServerConfigScopeAll MCPServerConfigScope = "all"
+	// MCPServerConfigScopeGlobal returns only deployment-wide servers.
+	MCPServerConfigScopeGlobal MCPServerConfigScope = "global"
+	// MCPServerConfigScopePersonal returns only the caller's own
+	// personal servers.
+	MCPServerConfigScopePersonal MCPServerConfigScope = "personal"
+)
+
 // MCPServerConfig represents an admin-configured MCP server.
 type MCPServerConfig struct {
 	ID          uuid.UUID `json:"id" format:"uuid"`
@@ -43,6 +57,10 @@ type MCPServerConfig struct {
 	URL       string `json:"url"`
 
 	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
+
+	// OwnerID is set for personal servers. A zero (omitted) value
+	// means the server is deployment-wide.
+	OwnerID uuid.UUID `json:"owner_id,omitzero" format:"uuid"`
 
 	// OAuth2 fields (only populated for admins).
 	OAuth2ClientID  string `json:"oauth2_client_id,omitempty"`
@@ -112,6 +130,12 @@ type CreateMCPServerConfigRequest struct {
 	// ForwardCoderHeaders, when true, forwards Coder identity
 	// headers on every outgoing MCP request. See MCPServerConfig.
 	ForwardCoderHeaders bool `json:"forward_coder_headers"`
+
+	// Personal, when true, creates the server as a personal server
+	// owned by the calling user. Personal servers are visible and
+	// manageable only by their owner and do not require admin
+	// permissions to create.
+	Personal bool `json:"personal,omitempty"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -147,8 +171,19 @@ type UpdateMCPServerConfigRequest struct {
 	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
 }
 
-func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/mcp/servers", nil)
+// MCPServerConfigsOptions filters the MCP server config list.
+type MCPServerConfigsOptions struct {
+	// Scope filters results to "global", "personal", or "all"
+	// (default "all").
+	Scope MCPServerConfigScope
+}
+
+func (c *Client) MCPServerConfigs(ctx context.Context, opts ...MCPServerConfigsOptions) ([]MCPServerConfig, error) {
+	path := "/api/experimental/mcp/servers"
+	if len(opts) > 0 && opts[0].Scope != "" {
+		path += "?scope=" + string(opts[0].Scope)
+	}
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}

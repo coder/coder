@@ -2477,10 +2477,13 @@ CREATE TABLE mcp_server_configs (
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
+    owner_id uuid,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
 );
+
+COMMENT ON COLUMN mcp_server_configs.owner_id IS 'When set, the MCP server config is personal to this user and hidden from all other users. NULL means deployment-wide.';
 
 CREATE TABLE mcp_server_user_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4347,9 +4350,6 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
-
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
 
@@ -4795,6 +4795,12 @@ CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (e
 
 CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
 
+CREATE UNIQUE INDEX idx_mcp_server_configs_global_slug ON mcp_server_configs USING btree (slug) WHERE (owner_id IS NULL);
+
+CREATE INDEX idx_mcp_server_configs_owner_id ON mcp_server_configs USING btree (owner_id) WHERE (owner_id IS NOT NULL);
+
+CREATE UNIQUE INDEX idx_mcp_server_configs_owner_slug ON mcp_server_configs USING btree (owner_id, slug) WHERE (owner_id IS NOT NULL);
+
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
@@ -5222,6 +5228,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;

@@ -1001,7 +1001,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
 
-		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx)
+		cfgs, err := crypt.GetEnabledMCPServerConfigs(ctx, uuid.Nil)
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)

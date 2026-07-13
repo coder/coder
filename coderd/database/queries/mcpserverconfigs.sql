@@ -19,6 +19,8 @@ SELECT
     *
 FROM
     mcp_server_configs
+WHERE
+    owner_id IS NULL
 ORDER BY
     display_name ASC;
 
@@ -28,7 +30,11 @@ SELECT
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    -- Global servers are visible only when enabled; the caller's own
+    -- personal servers are always visible so they can be managed even
+    -- while disabled.
+    (enabled = TRUE AND owner_id IS NULL)
+    OR owner_id = @user_id::uuid
 ORDER BY
     display_name ASC;
 
@@ -50,6 +56,8 @@ FROM
 WHERE
     enabled = TRUE
     AND availability = 'force_on'
+    -- Personal servers can never be force-enabled deployment-wide.
+    AND owner_id IS NULL
 ORDER BY
     display_name ASC;
 
@@ -81,7 +89,8 @@ INSERT INTO mcp_server_configs (
     allow_in_plan_mode,
     forward_coder_headers,
     created_by,
-    updated_by
+    updated_by,
+    owner_id
 ) VALUES (
     @display_name::text,
     @slug::text,
@@ -109,7 +118,8 @@ INSERT INTO mcp_server_configs (
     @allow_in_plan_mode::boolean,
     @forward_coder_headers::boolean,
     @created_by::uuid,
-    @updated_by::uuid
+    @updated_by::uuid,
+    sqlc.narg('owner_id')::uuid
 )
 RETURNING
     *;

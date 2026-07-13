@@ -3757,6 +3757,13 @@ export interface CreateMCPServerConfigRequest {
 	 * headers on every outgoing MCP request. See MCPServerConfig.
 	 */
 	readonly forward_coder_headers: boolean;
+	/**
+	 * Personal, when true, creates the server as a personal server
+	 * owned by the calling user. Personal servers are visible and
+	 * manageable only by their owner and do not require admin
+	 * permissions to create.
+	 */
+	readonly personal?: boolean;
 }
 
 // From codersdk/organizations.go
@@ -5571,6 +5578,11 @@ export interface MCPServerConfig {
 	readonly url: string;
 	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 	/**
+	 * OwnerID is set for personal servers. A zero (omitted) value
+	 * means the server is deployment-wide.
+	 */
+	readonly owner_id?: string;
+	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
 	readonly oauth2_client_id?: string;
@@ -5610,6 +5622,27 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+export type MCPServerConfigScope = "all" | "global" | "personal";
+
+export const MCPServerConfigScopes: MCPServerConfigScope[] = [
+	"all",
+	"global",
+	"personal",
+];
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigsOptions filters the MCP server config list.
+ */
+export interface MCPServerConfigsOptions {
+	/**
+	 * Scope filters results to "global", "personal", or "all"
+	 * (default "all").
+	 */
+	readonly Scope: MCPServerConfigScope;
 }
 
 // From codersdk/provisionerdaemons.go

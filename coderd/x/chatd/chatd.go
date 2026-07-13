@@ -1118,6 +1118,10 @@ var (
 	// ErrChatAlreadyExists is returned by CreateChat when DedupLabels
 	// matched an existing chat. The returned chat is the existing one.
 	ErrChatAlreadyExists = chatstate.ErrChatAlreadyExists
+	// ErrInvalidMCPServerIDs indicates a requested MCP server ID does
+	// not exist, is disabled, or refers to a personal server owned by
+	// a different user than the chat owner.
+	ErrInvalidMCPServerIDs = xerrors.New("one or more MCP server IDs do not exist or are not accessible")
 )
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
@@ -1280,6 +1284,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// constraint.
 	if opts.MCPServerIDs == nil {
 		opts.MCPServerIDs = []uuid.UUID{}
+	}
+	if err := validateMCPServerIDOwnership(ctx, p.db, opts.OwnerID, opts.MCPServerIDs); err != nil {
+		return database.Chat{}, err
 	}
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
@@ -1538,6 +1545,9 @@ func (p *Server) SendMessage(
 					slog.F("chat_id", opts.ChatID),
 				)
 			} else {
+				if err := validateMCPServerIDOwnership(ctx, store, lockedChat.OwnerID, *requestedMCPServerIDs); err != nil {
+					return err
+				}
 				lockedChat, err = store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
 					ID:           opts.ChatID,
 					MCPServerIDs: *requestedMCPServerIDs,
@@ -1622,6 +1632,37 @@ func chatdModelConfigLookupContext(ctx context.Context) context.Context {
 	//nolint:gocritic // Chat message admission needs daemon-scoped
 	// deployment-config reads for model config validation.
 	return dbauthz.AsChatd(ctx)
+}
+
+// validateMCPServerIDOwnership rejects MCP server IDs that do not
+// exist, are disabled, or refer to a personal server owned by someone
+// other than the chat owner. Enabled global servers are always allowed.
+// Validation runs against the chat owner, not the API caller, so
+// shared-chat collaborators cannot attach their own personal servers
+// to another user's chat.
+func validateMCPServerIDOwnership(ctx context.Context, store database.Store, chatOwnerID uuid.UUID, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	//nolint:gocritic // Chat admission needs daemon-scoped deployment-config reads to validate MCP server ownership.
+	configs, err := store.GetMCPServerConfigsByIDs(dbauthz.AsChatd(ctx), ids)
+	if err != nil {
+		return xerrors.Errorf("get mcp server configs: %w", err)
+	}
+	byID := make(map[uuid.UUID]database.MCPServerConfig, len(configs))
+	for _, cfg := range configs {
+		byID[cfg.ID] = cfg
+	}
+	for _, id := range ids {
+		cfg, ok := byID[id]
+		if !ok {
+			return xerrors.Errorf("%w: %s", ErrInvalidMCPServerIDs, id)
+		}
+		if !cfg.Enabled || (cfg.OwnerID.Valid && cfg.OwnerID.UUID != chatOwnerID) {
+			return xerrors.Errorf("%w: %s", ErrInvalidMCPServerIDs, id)
+		}
+	}
+	return nil
 }
 
 func resolveSendMessageModelConfigID(

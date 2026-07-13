@@ -64,7 +64,11 @@ func (server *Server) prepareGeneration(
 			mcpConfigs, err = server.db.GetMCPServerConfigsByIDs(ctx, chat.MCPServerIDs)
 			if err != nil {
 				logger.Warn(ctx, "failed to load MCP server configs", slog.Error(err))
+				return nil
 			}
+			mcpConfigs = slices.DeleteFunc(mcpConfigs, func(config database.MCPServerConfig) bool {
+				return !config.Enabled
+			})
 			return nil
 		})
 		g.Go(func() error {

@@ -13,6 +13,10 @@ import (
 // is a *http.Transport it is cloned; otherwise a minimal
 // transport with ProxyFromEnvironment is created as a fallback.
 func mcpHTTPClient() *http.Client {
+	// TODO: MCP transports must use an SSRF-protected HTTP client before
+	// personal MCP servers are enabled in production. The transport must
+	// validate schemes, resolved IPs, and every redirect target. As of right
+	// now, personal MCP servers constitute an SSRF vulnerability.
 	if flag.Lookup("test.v") == nil {
 		return nil
 	}

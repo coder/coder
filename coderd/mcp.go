@@ -149,25 +149,72 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	// Admin users can see all MCP server configs (including disabled
-	// ones) for management purposes. Non-admin users see only enabled
-	// configs, which is sufficient for using the chat feature.
+	scope := codersdk.MCPServerConfigScope(r.URL.Query().Get("scope"))
+	if scope == "" {
+		scope = codersdk.MCPServerConfigScopeAll
+	}
+	switch scope {
+	case codersdk.MCPServerConfigScopeAll, codersdk.MCPServerConfigScopeGlobal, codersdk.MCPServerConfigScopePersonal:
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid scope query parameter.",
+			Detail:  fmt.Sprintf("got %q, want one of %q, %q, %q", scope, codersdk.MCPServerConfigScopeAll, codersdk.MCPServerConfigScopeGlobal, codersdk.MCPServerConfigScopePersonal),
+		})
+		return
+	}
+
+	// Admin users can see all global MCP server configs (including
+	// disabled ones) for management purposes. Non-admin users see only
+	// enabled global configs. Every caller additionally sees their own
+	// personal configs (even disabled); other users' personal configs
+	// are never returned, admins included.
 	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
 
-	var configs []database.MCPServerConfig
-	var err error
-	if isAdmin {
-		configs, err = api.Database.GetMCPServerConfigs(ctx)
-	} else {
-		//nolint:gocritic // All authenticated users need to read enabled MCP server configs to use the chat feature.
-		configs, err = api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
-	}
+	// visible returns enabled global rows plus all rows owned by the
+	// caller.
+	//nolint:gocritic // All authenticated users need to read enabled MCP server configs to use the chat feature.
+	visible, err := api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list MCP server configs.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	var configs []database.MCPServerConfig
+	if isAdmin && scope != codersdk.MCPServerConfigScopePersonal {
+		// Admins manage disabled global rows too, so start from the
+		// full global list and append the admin's own personal rows.
+		configs, err = api.Database.GetMCPServerConfigs(ctx)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to list MCP server configs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if scope == codersdk.MCPServerConfigScopeAll {
+			for _, c := range visible {
+				if c.OwnerID.Valid {
+					configs = append(configs, c)
+				}
+			}
+		}
+	} else {
+		for _, c := range visible {
+			switch scope {
+			case codersdk.MCPServerConfigScopeGlobal:
+				if c.OwnerID.Valid {
+					continue
+				}
+			case codersdk.MCPServerConfigScopePersonal:
+				if !c.OwnerID.Valid {
+					continue
+				}
+			}
+			configs = append(configs, c)
+		}
 	}
 
 	// Look up the calling user's OAuth2 tokens so we can populate
@@ -201,7 +248,9 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
 	for _, config := range configs {
 		var sdkConfig codersdk.MCPServerConfig
-		if isAdmin {
+		// Owners always see their own personal rows unredacted; global
+		// rows are unredacted for admins only.
+		if isAdmin || (config.OwnerID.Valid && config.OwnerID.UUID == apiKey.UserID) {
 			sdkConfig = convertMCPServerConfig(config)
 		} else {
 			sdkConfig = convertMCPServerConfigRedacted(config)
@@ -225,13 +274,35 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	var req codersdk.CreateMCPServerConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Personal servers are owned by the calling user and do not
+	// require admin permissions. The DB calls elevate to a system
+	// context because regular users lack deployment-config access;
+	// ownership is stamped on the row instead.
+	//
+	// TODO: Personal MCP servers must use an SSRF-protected HTTP client
+	// for OAuth discovery and MCP connections before this is enabled in
+	// production. Validate schemes, resolved IPs, redirects, and every
+	// endpoint supplied by discovery metadata. Right now this is a
+	// security vulnerability.
+	//
+	// TODO: Personal MCP servers must not support user_oidc or
+	// forward_coder_headers until there is an explicit security design
+	// for sending Coder and identity-provider credentials to endpoints
+	// controlled by users. Right now this is a security vulnerability.
+	dbCtx := ctx
+	ownerID := uuid.NullUUID{}
+	if req.Personal {
+		//nolint:gocritic // Personal MCP server writes are scoped to the calling user via owner_id.
+		dbCtx = dbauthz.AsSystemRestricted(ctx)
+		ownerID = uuid.NullUUID{UUID: apiKey.UserID, Valid: true}
+	} else if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -258,7 +329,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+			inserted, err := api.Database.InsertMCPServerConfig(dbCtx, database.InsertMCPServerConfigParams{
 				DisplayName:             strings.TrimSpace(req.DisplayName),
 				Slug:                    strings.TrimSpace(req.Slug),
 				Description:             strings.TrimSpace(req.Description),
@@ -286,6 +357,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				ForwardCoderHeaders:     req.ForwardCoderHeaders,
 				CreatedBy:               apiKey.UserID,
 				UpdatedBy:               apiKey.UserID,
+				OwnerID:                 ownerID,
 			})
 			if err != nil {
 				switch {
@@ -319,7 +391,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			result, err := discoverAndRegisterMCPOAuth2(ctx, httpClient, strings.TrimSpace(req.URL), callbackURL)
 			if err != nil {
 				// Clean up: delete the partially created config.
-				deleteErr := api.Database.DeleteMCPServerConfigByID(ctx, inserted.ID)
+				deleteErr := api.Database.DeleteMCPServerConfigByID(dbCtx, inserted.ID)
 				if deleteErr != nil {
 					api.Logger.Warn(ctx, "failed to clean up MCP server config after OAuth2 discovery failure",
 						slog.F("config_id", inserted.ID),
@@ -346,7 +418,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			// Update the record with discovered OAuth2 credentials.
-			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+			updated, err := api.Database.UpdateMCPServerConfig(dbCtx, database.UpdateMCPServerConfigParams{
 				ID:                      inserted.ID,
 				DisplayName:             inserted.DisplayName,
 				Slug:                    inserted.Slug,
@@ -417,7 +489,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+	inserted, err := api.Database.InsertMCPServerConfig(dbCtx, database.InsertMCPServerConfigParams{
 		DisplayName:             strings.TrimSpace(req.DisplayName),
 		Slug:                    strings.TrimSpace(req.Slug),
 		Description:             strings.TrimSpace(req.Description),
@@ -445,6 +517,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ForwardCoderHeaders:     req.ForwardCoderHeaders,
 		CreatedBy:               apiKey.UserID,
 		UpdatedBy:               apiKey.UserID,
+		OwnerID:                 ownerID,
 	})
 	if err != nil {
 		switch {
@@ -488,18 +561,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
 
-	var config database.MCPServerConfig
-	var err error
-	if isAdmin {
-		config, err = api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
-	} else {
-		//nolint:gocritic // All authenticated users can view enabled MCP server configs.
-		config, err = api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-		if err == nil && !config.Enabled {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-	}
+	//nolint:gocritic // All authenticated users can view enabled MCP server configs; ownership is checked below.
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -512,8 +575,20 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isOwner := config.OwnerID.Valid && config.OwnerID.UUID == apiKey.UserID
+	switch {
+	case config.OwnerID.Valid && !isOwner:
+		// Other users' personal servers are hidden from everyone,
+		// admins included.
+		httpapi.ResourceNotFound(rw)
+		return
+	case !config.OwnerID.Valid && !isAdmin && !config.Enabled:
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	var sdkConfig codersdk.MCPServerConfig
-	if isAdmin {
+	if isAdmin || isOwner {
 		sdkConfig = convertMCPServerConfig(config)
 	} else {
 		sdkConfig = convertMCPServerConfigRedacted(config)
@@ -552,12 +627,13 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
+
+	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	if !ok {
 		return
 	}
 
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	dbCtx, ok := api.authorizeMCPServerConfigWrite(rw, r, mcpServerID)
 	if !ok {
 		return
 	}
@@ -583,7 +659,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
-		existing, err := tx.GetMCPServerConfigByID(ctx, mcpServerID)
+		existing, err := tx.GetMCPServerConfigByID(dbCtx, mcpServerID)
 		if err != nil {
 			return err
 		}
@@ -766,7 +842,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		updated, err = tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+		updated, err = tx.UpdateMCPServerConfig(dbCtx, database.UpdateMCPServerConfigParams{
 			DisplayName:             displayName,
 			Slug:                    slug,
 			Description:             description,
@@ -831,29 +907,18 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	mcpServerID, ok := parseMCPServerConfigID(rw, r)
 	if !ok {
 		return
 	}
 
-	if _, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
+	dbCtx, ok := api.authorizeMCPServerConfigWrite(rw, r, mcpServerID)
+	if !ok {
 		return
 	}
 
-	if err := api.Database.DeleteMCPServerConfigByID(ctx, mcpServerID); err != nil {
+	if err := api.Database.DeleteMCPServerConfigByID(dbCtx, mcpServerID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete MCP server config.",
 			Detail:  err.Error(),
@@ -862,6 +927,48 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// authorizeMCPServerConfigWrite authorizes update/delete of an MCP
+// server config. Admins may modify global configs; owners may modify
+// their own personal configs. Other users' personal configs return
+// 404 for everyone, admins included. It returns the context to use
+// for subsequent DB calls (system-restricted on the owner path) and
+// whether the request may proceed.
+//
+//nolint:revive // Helper writes to ResponseWriter on failure.
+func (api *API) authorizeMCPServerConfigWrite(rw http.ResponseWriter, r *http.Request, mcpServerID uuid.UUID) (context.Context, bool) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	//nolint:gocritic // Ownership is checked below; regular users lack deployment-config access.
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return nil, false
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return nil, false
+	}
+
+	if config.OwnerID.Valid {
+		if config.OwnerID.UUID != apiKey.UserID {
+			httpapi.ResourceNotFound(rw)
+			return nil, false
+		}
+		//nolint:gocritic // Personal MCP server writes are scoped to the calling user via the ownership check above.
+		return dbauthz.AsSystemRestricted(ctx), true
+	}
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return nil, false
+	}
+	return ctx, true
 }
 
 // @Summary Initiate MCP server OAuth2 connect
@@ -878,17 +985,8 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	//nolint:gocritic // Any authenticated user can initiate OAuth2 for an enabled MCP server.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
+	config, ok := api.getMCPServerConfigForOAuth2(rw, r, mcpServerID)
+	if !ok {
 		return
 	}
 
@@ -973,17 +1071,8 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	//nolint:gocritic // Any authenticated user can complete OAuth2 for an enabled MCP server.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
+	config, ok := api.getMCPServerConfigForOAuth2(rw, r, mcpServerID)
+	if !ok {
 		return
 	}
 
@@ -1138,6 +1227,34 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	</script></body></html>`))
 }
 
+// getMCPServerConfigForOAuth2 returns global configs and personal configs
+// owned by the caller. Other users' personal configs are hidden with a 404.
+//
+//nolint:revive // Helper writes to ResponseWriter on failure.
+func (api *API) getMCPServerConfigForOAuth2(rw http.ResponseWriter, r *http.Request, mcpServerID uuid.UUID) (database.MCPServerConfig, bool) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	//nolint:gocritic // OAuth2 is available to authenticated users after the ownership check below.
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return database.MCPServerConfig{}, false
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return database.MCPServerConfig{}, false
+	}
+	if config.OwnerID.Valid && config.OwnerID.UUID != apiKey.UserID {
+		httpapi.ResourceNotFound(rw)
+		return database.MCPServerConfig{}, false
+	}
+	return config, true
+}
+
 // @Summary Disconnect MCP server OAuth2 token
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1279,6 +1396,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		ForwardCoderHeaders: config.ForwardCoderHeaders,
 		CreatedAt:           config.CreatedAt,
 		UpdatedAt:           config.UpdatedAt,
+
+		OwnerID: config.OwnerID.UUID,
 	}
 }
 

@@ -3768,11 +3768,11 @@ func (q *querier) GetEnabledChatModelConfigs(ctx context.Context) ([]database.Ge
 	return q.db.GetEnabledChatModelConfigs(ctx)
 }
 
-func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context, userID uuid.UUID) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
-	return q.db.GetEnabledMCPServerConfigs(ctx)
+	return q.db.GetEnabledMCPServerConfigs(ctx, userID)
 }
 
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the

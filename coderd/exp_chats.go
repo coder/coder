@@ -1363,6 +1363,13 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Forbidden(rw)
 			return
 		}
+		if xerrors.Is(err, chatd.ErrInvalidMCPServerIDs) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat.",
 			Detail:  err.Error(),
@@ -3273,6 +3280,13 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot send messages to an archived chat.",
+			})
+			return
+		}
+		if xerrors.Is(sendErr, chatd.ErrInvalidMCPServerIDs) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid MCP server IDs.",
+				Detail:  sendErr.Error(),
 			})
 			return
 		}
