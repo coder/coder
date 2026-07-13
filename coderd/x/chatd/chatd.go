@@ -807,12 +807,10 @@ func (c *turnWorkspaceContext) workspaceAgentIDForConn(
 }
 
 // connAgentID returns the ID of the agent behind the currently
-// cached workspace connection. It reports false when no connection
-// is cached, in which case the caller cannot know which agent
-// served its request. Unlike workspaceAgentIDForConn, this never
-// re-resolves the latest agent, so it stays accurate when the
-// connection was dialed to a pinned agent that is no longer the
-// latest one.
+// cached workspace connection, reporting false when none is cached.
+// Unlike workspaceAgentIDForConn, it never re-resolves the latest
+// agent, so it stays accurate when the connection was dialed to a
+// pinned agent that is no longer the latest one.
 func (c *turnWorkspaceContext) connAgentID() (uuid.UUID, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

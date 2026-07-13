@@ -35,20 +35,14 @@ const (
 	// rejected.
 	maxExecuteTimeout = 4 * time.Hour
 
-	// recordStartTimeout bounds the execution record write that
-	// persists a freshly started process handle. The write runs
-	// on an uncanceled context because an interrupt can cancel
-	// the generation context right after StartProcess returns,
-	// and losing the handle would leave the interrupt path
-	// unable to kill the process.
+	// recordStartTimeout bounds the uncanceled execution record
+	// write in recordProcessStart.
 	recordStartTimeout = 15 * time.Second
 
 	// nullHandleGrace is how long a pre-existing execution
 	// record without a process handle is given for its owner
 	// to record the handle before the process state is
-	// declared unknown. The grace window is anchored on the
-	// record's creation time, not on when this attempt first
-	// observed the row.
+	// declared unknown.
 	nullHandleGrace = 60 * time.Second
 
 	// nullHandlePollInterval is how often the record is
@@ -152,8 +146,7 @@ type ExecuteOptions struct {
 	// Recorder persists per-tool-call execution records so a
 	// retried attempt re-attaches instead of starting a
 	// duplicate process. A nil Recorder disables idempotent
-	// starts and preserves the legacy start-every-time
-	// behavior.
+	// starts.
 	Recorder ExecutionRecorder
 }
 
