@@ -550,15 +550,23 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 	if sub == nil || !errors.Is(err, natsgo.ErrSlowConsumer) {
 		return
 	}
+	// Snapshot candidates under p.mu, then match via the blocking
+	// sub.get() outside the lock. Holding p.mu across get() stalls other
+	// Pubsub operations and can deadlock with subscribeGroup's cleanup.
 	p.mu.Lock()
-	var nsub *groupSub
+	candidates := make([]*groupSub, 0, len(p.subscriptions))
 	for _, candidate := range p.subscriptions {
+		candidates = append(candidates, candidate)
+	}
+	p.mu.Unlock()
+
+	var nsub *groupSub
+	for _, candidate := range candidates {
 		if s, _ := candidate.sub.get(); s == sub {
 			nsub = candidate
 			break
 		}
 	}
-	p.mu.Unlock()
 	if nsub == nil {
 		return
 	}
@@ -706,6 +714,9 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 
 func (p *Pubsub) subscribeGroup(g *groupSub) {
 	defer func() {
+		// Close subscribeDone before taking p.mu: a goroutine holding
+		// p.mu may be blocked in get(), so the reverse order deadlocks.
+		close(g.sub.subscribeDone)
 		if g.sub.err != nil {
 			// failed to subscribe. Kick this out of the pubsub map of subscriptions, so that we don't permanently
 			// fail to subscribe to this event. The subscribe that kicked this off as well as any concurrent ones will
@@ -717,7 +728,6 @@ func (p *Pubsub) subscribeGroup(g *groupSub) {
 				p.metrics.removeEvent()
 			}
 		}
-		close(g.sub.subscribeDone)
 	}()
 	logger := p.logger.With(slog.F("event", g.event))
 	logger.Debug(context.Background(), "subscribing on nats")

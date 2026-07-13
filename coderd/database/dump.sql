@@ -27,6 +27,16 @@ CREATE TYPE ai_seat_usage_reason AS ENUM (
     'task'
 );
 
+CREATE TYPE aibridge_interception_error_type AS ENUM (
+    'bad_request',
+    'unauthorized',
+    'rate_limited',
+    'overloaded',
+    'server_error',
+    'timeout',
+    'unknown'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -338,6 +348,16 @@ CREATE TYPE chat_mode AS ENUM (
 
 CREATE TYPE chat_plan_mode AS ENUM (
     'plan'
+);
+
+CREATE TYPE chat_reasoning_effort AS ENUM (
+    'none',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max'
 );
 
 CREATE TYPE chat_status AS ENUM (
@@ -1559,7 +1579,9 @@ CREATE TABLE aibridge_interceptions (
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
     credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
     agent_firewall_session_id uuid,
-    agent_firewall_sequence_number integer
+    agent_firewall_sequence_number integer,
+    error_type aibridge_interception_error_type,
+    error_message character varying(1024)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1583,6 +1605,10 @@ COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential i
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.';
 
 COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
+
+COMMENT ON COLUMN aibridge_interceptions.error_type IS 'Categorised terminal upstream error for a failed interception; NULL when the interception succeeded.';
+
+COMMENT ON COLUMN aibridge_interceptions.error_message IS 'Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -1922,8 +1948,11 @@ CREATE TABLE chat_messages (
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
     api_key_id text,
-    revision bigint NOT NULL
+    revision bigint NOT NULL,
+    reasoning_effort chat_reasoning_effort
 );
+
+COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -1970,8 +1999,11 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     api_key_id text,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
-    created_by uuid NOT NULL
+    created_by uuid NOT NULL,
+    reasoning_effort chat_reasoning_effort
 );
+
+COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2046,6 +2078,7 @@ CREATE TABLE chats (
     context_dirty_since timestamp with time zone,
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
+    last_reasoning_effort chat_reasoning_effort,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2066,6 +2099,8 @@ COMMENT ON COLUMN chats.context_dirty_since IS 'Set when an agent push changes t
 COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.';
 
 COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
+
+COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2132,6 +2167,7 @@ CREATE VIEW chats_expanded AS
     c.parent_chat_id,
     c.root_chat_id,
     c.last_model_config_id,
+    c.last_reasoning_effort,
     c.archived,
     c.last_error,
     c.mode,

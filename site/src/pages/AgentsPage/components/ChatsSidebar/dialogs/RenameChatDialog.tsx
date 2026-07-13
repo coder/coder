@@ -341,7 +341,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 								isTypingGeneratedTitle
 							}
 						>
-							{isRenamingChat && <Spinner className="h-4 w-4" loading />}
+							{isRenamingChat && <Spinner className="size-4" loading />}
 							Save
 						</Button>
 					</DialogFooter>

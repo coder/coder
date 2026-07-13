@@ -1,13 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
 	title: "pages/TemplateBuilder/SelectionSummary",
 	component: SelectionSummary,
-	args: {
-		onDeselectModule: fn(),
-	},
 };
 
 export default meta;

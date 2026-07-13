@@ -206,6 +206,25 @@ func TestChatFilesAllowLinkedChatReads(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []database.ChatFile{file}, got)
 	})
+
+	t.Run("GetChatFileDataPrefixesByIDs", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		row := testutil.Fake(t, gofakeit.New(0), database.GetChatFileDataPrefixesByIDsRow{})
+		arg := database.GetChatFileDataPrefixesByIDsParams{IDs: []uuid.UUID{row.ID}, PrefixBytes: 64}
+
+		db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+		db.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), arg).Return([]database.GetChatFileDataPrefixesByIDsRow{row}, nil)
+		db.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), row.ID, gomock.Any()).Return([]database.Chat{{ID: uuid.New()}}, nil)
+
+		q := dbauthz.New(db, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		got, err := q.GetChatFileDataPrefixesByIDs(ctx, arg)
+
+		require.NoError(t, err)
+		require.Equal(t, []database.GetChatFileDataPrefixesByIDsRow{row}, got)
+	})
 }
 
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
@@ -959,6 +978,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), file.ID, gomock.Any()).Return([]database.Chat{}, nil).AnyTimes()
 		check.Args([]uuid.UUID{file.ID}).Asserts(rbac.ResourceChat.WithOwner(file.OwnerID.String()).InOrg(file.OrganizationID).WithID(file.ID), policy.ActionRead).Returns([]database.ChatFile{file})
 	}))
+	s.Run("GetChatFileDataPrefixesByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetChatFileDataPrefixesByIDsRow{})
+		arg := database.GetChatFileDataPrefixesByIDsParams{IDs: []uuid.UUID{row.ID}, PrefixBytes: 64}
+		dbm.EXPECT().GetChatFileDataPrefixesByIDs(gomock.Any(), arg).Return([]database.GetChatFileDataPrefixesByIDsRow{row}, nil).AnyTimes()
+		dbm.EXPECT().GetAuthorizedChatsByChatFileID(gomock.Any(), row.ID, gomock.Any()).Return([]database.Chat{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(row.OwnerID.String()).InOrg(row.OrganizationID).WithID(row.ID), policy.ActionRead).Returns([]database.GetChatFileDataPrefixesByIDsRow{row})
+	}))
 	s.Run("GetChatFileMetadataByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		file := testutil.Fake(s.T(), faker, database.ChatFile{})
@@ -1471,23 +1497,6 @@ func (s *MethodTestSuite) TestChats() {
 		}
 		dbm.EXPECT().UpdateChatHeartbeats(gomock.Any(), arg).Return([]uuid.UUID{resultID}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]uuid.UUID{resultID})
-	}))
-	s.Run("UpdateChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
-		arg := database.UpdateChatMessageByIDParams{
-			ID:            msg.ID,
-			ModelConfigID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-			Content: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(`{"blocks":[{"type":"text","text":"updated"}]}`),
-				Valid:      true,
-			},
-		}
-		updated := testutil.Fake(s.T(), faker, database.ChatMessage{ID: msg.ID, ChatID: chat.ID})
-		dbm.EXPECT().GetChatMessageByID(gomock.Any(), msg.ID).Return(msg, nil).AnyTimes()
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatMessageByID(gomock.Any(), arg).Return(updated, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updated)
 	}))
 	s.Run("UpdateChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})

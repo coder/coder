@@ -291,6 +291,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	}
 	type wantConfig struct {
 		ssh        []string
+		notWant    []string
 		regexMatch string
 	}
 	type match struct {
@@ -299,6 +300,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        []string
+		env         map[string]string
 		matches     []match
 		writeConfig writeConfig
 		wantConfig  wantConfig
@@ -786,6 +788,117 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: []string{"Host presto.*", "Match host *.testy !exec"},
 			},
 		},
+		{
+			// Regression test for https://github.com/coder/internal/issues/1208:
+			// an explicitly empty --ssh-host-prefix must not fall back to the
+			// server's default prefix.
+			name: "Explicit empty ssh-host-prefix omits legacy block",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "",
+			},
+			wantErr: false,
+			wantConfig: wantConfig{
+				ssh: []string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=\n",
+					headerEnd,
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// Same as above, but via the env var instead of the flag.
+			name: "Explicit empty ssh-host-prefix env var omits legacy block",
+			args: []string{"--yes"},
+			env: map[string]string{
+				"CODER_CONFIGSSH_SSH_HOST_PREFIX": "",
+			},
+			wantErr: false,
+			wantConfig: wantConfig{
+				ssh: []string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=\n",
+					headerEnd,
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// An explicit empty prefix alongside an explicit suffix should
+			// produce only the suffix block, not both.
+			name: "Explicit empty ssh-host-prefix with hostname-suffix set",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :ssh-host-prefix=\n",
+					"# :hostname-suffix=testy\n",
+					"Host *.testy",
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// Regression test: the "omit this block" choice must survive a
+			// later --use-previous-options run that doesn't repeat the flag,
+			// not just the invocation where the flag was passed.
+			name: "use-previous-options preserves an explicitly empty prefix across runs",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--use-previous-options",
+				"--yes",
+			},
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :ssh-host-prefix=\n",
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// Regression test: --use-previous-options should still win over
+			// this run's explicit empty flag, since that's what "use previous
+			// options" means. The empty-prefix fix must not change this.
+			name: "use-previous-options keeps prior prefix despite this run's explicit empty flag",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=coder-test.",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--use-previous-options",
+				"--yes",
+				"--ssh-host-prefix", "",
+			},
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :ssh-host-prefix=coder-test.",
+					"Host coder-test.*",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -816,6 +929,9 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			inv, root := clitest.New(t, args...)
 			//nolint:gocritic // This has always ran with the admin user.
 			clitest.SetupConfig(t, client, root)
+			for k, v := range tt.env {
+				inv.Environ.Set(k, v)
+			}
 
 			stdout := expecter.NewAttachedToInvocation(t, inv)
 			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
@@ -835,8 +951,9 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 
 			<-done
 
-			if len(tt.wantConfig.ssh) != 0 || tt.wantConfig.regexMatch != "" {
-				got := sshConfigFileRead(t, sshConfigName)
+			if len(tt.wantConfig.ssh) != 0 || tt.wantConfig.regexMatch != "" || len(tt.wantConfig.notWant) != 0 {
+				full := sshConfigFileRead(t, sshConfigName)
+				got := full
 				// Require that the generated config has the expected snippets in order.
 				for _, want := range tt.wantConfig.ssh {
 					idx := strings.Index(got, want)
@@ -847,6 +964,9 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}
 				if tt.wantConfig.regexMatch != "" {
 					assert.Regexp(t, tt.wantConfig.regexMatch, got, "regex match")
+				}
+				for _, notWant := range tt.wantConfig.notWant {
+					assert.NotContains(t, full, notWant, "unexpected snippet found")
 				}
 			}
 		})

@@ -7,8 +7,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// IsSyntheticPasteForTest exposes isSyntheticPaste for external tests.
-var IsSyntheticPasteForTest = isSyntheticPaste
+// SyntheticPasteTitleBudgetForTest exposes syntheticPasteTitleBudget
+// for external tests.
+const SyntheticPasteTitleBudgetForTest = syntheticPasteTitleBudget
 
 // ToolResultPartToMessagePartForTest exposes toolResultPartToMessagePart
 // for external tests.

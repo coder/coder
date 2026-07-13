@@ -136,7 +136,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
 						<ExternalImage
-							className="w-4 h-4"
+							className="size-4"
 							src={selectedProxy.icon_url}
 							alt={selectedProxy.name}
 						/>
@@ -173,7 +173,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 								}}
 							>
 								<ExternalImage
-									className="w-4 h-4"
+									className="size-4"
 									src={p.icon_url}
 									alt={p.name}
 								/>

@@ -36,5 +36,7 @@ ignorePatterns:
   - pattern: "openai.com"
   # merriam-webster.com returns 403 from GitHub runner IPs
   - pattern: "merriam-webster.com"
+  # npmjs.com returns 403 from GitHub runner IPs
+  - pattern: "npmjs.com"
 aliveStatusCodes:
   - 200

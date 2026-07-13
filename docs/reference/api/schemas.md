@@ -55,6 +55,7 @@
 ```json
 {
   "access_token": "string",
+  "expires_at": "string",
   "password": "string",
   "token_extra": {},
   "type": "string",
@@ -65,14 +66,15 @@
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description                                                                              |
-|----------------|--------|----------|--------------|------------------------------------------------------------------------------------------|
-| `access_token` | string | false    |              |                                                                                          |
-| `password`     | string | false    |              |                                                                                          |
-| `token_extra`  | object | false    |              |                                                                                          |
-| `type`         | string | false    |              |                                                                                          |
-| `url`          | string | false    |              |                                                                                          |
-| `username`     | string | false    |              | Deprecated: Only supported on `/workspaceagents/me/gitauth` for backwards compatibility. |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                    |
+|----------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `access_token` | string | false    |              |                                                                                                                                |
+| `expires_at`   | string | false    |              | Expires at is the time the token expires, normalized to UTC (for example, "2024-06-01T15:04:05Z"). Zero value means no expiry. |
+| `password`     | string | false    |              |                                                                                                                                |
+| `token_extra`  | object | false    |              |                                                                                                                                |
+| `type`         | string | false    |              |                                                                                                                                |
+| `url`          | string | false    |              |                                                                                                                                |
+| `username`     | string | false    |              | Deprecated: Only supported on `/workspaceagents/me/gitauth` for backwards compatibility.                                       |
 
 ## agentsdk.GitSSHKey
 
@@ -695,6 +697,8 @@
       "credential_hint": "string",
       "credential_kind": "string",
       "ended_at": "2019-08-24T14:15:22Z",
+      "error_message": "string",
+      "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
       "prompt": "string",
@@ -834,6 +838,8 @@
   "credential_hint": "string",
   "credential_kind": "string",
   "ended_at": "2019-08-24T14:15:22Z",
+  "error_message": "string",
+  "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
   "prompt": "string",
@@ -862,6 +868,8 @@
 | `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `error_message`                  | string                                                                                 | false    |              | Error message is the raw terminal upstream error message from the root interception. Nil when the interception succeeded.                                                                                                                 |
+| `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
@@ -902,6 +910,20 @@
 | `provider_response_id` | string  | false    |              |             |
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
+
+## codersdk.AIBudgetLimitSource
+
+```json
+"user_override"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                 |
+|--------------------------|
+| `group`, `user_override` |
 
 ## codersdk.AIConfig
 
@@ -2083,6 +2105,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "status_code": 0
       },
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_reasoning_effort": "string",
       "last_turn_summary": "string",
       "mcp_server_ids": [
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -2175,6 +2198,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status_code": 0
   },
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_reasoning_effort": "string",
   "last_turn_summary": "string",
   "mcp_server_ids": [
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -2200,39 +2224,40 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `archived`             | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `build_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `children`             | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `context`              | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
-| `created_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `diff_status`          | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `files`                | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`           | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `labels`               | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| » `[any property]`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_error`           | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_model_config_id` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_turn_summary`    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `mcp_server_ids`       | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `organization_id`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_name`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_username`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `parent_chat_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `pin_order`            | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `root_chat_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `shared`               | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `status`               | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `title`                | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `updated_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `warnings`             | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `workspace_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                    | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|-------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `archived`              | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
+| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_reasoning_effort` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatACL
 
@@ -3958,6 +3983,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "status_code": 0
     },
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+    "last_reasoning_effort": "string",
     "last_turn_summary": "string",
     "mcp_server_ids": [
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
@@ -4369,19 +4395,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "plan_mode": "plan"
+  "plan_mode": "plan",
+  "reasoning_effort": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                      | Required | Restrictions | Description                                                                                                  |
-|-------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`   | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
-| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
-| `mcp_server_ids`  | array of string                                           | false    |              |                                                                                                              |
-| `model_config_id` | string                                                    | false    |              |                                                                                                              |
-| `plan_mode`       | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                  |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)    | false    |              |                                                                                                              |
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                              |
+| `mcp_server_ids`   | array of string                                           | false    |              |                                                                                                              |
+| `model_config_id`  | string                                                    | false    |              |                                                                                                              |
+| `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
+| `reasoning_effort` | string                                                    | false    |              |                                                                                                              |
 
 #### Enumerated Values
 
@@ -4586,6 +4614,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "plan_mode": "plan",
+  "reasoning_effort": "string",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -4612,6 +4641,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `model_config_id`      | string                                                    | false    |              |                                                                                                                                            |
 | `organization_id`      | string                                                    | false    |              |                                                                                                                                            |
 | `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                            |
+| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                            |
 | `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
 | `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
@@ -6953,16 +6983,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "type": "text"
     }
   ],
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
-|-------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
-| `model_config_id` | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
+|--------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`          | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
+| `model_config_id`  | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
+| `reasoning_effort` | string                                                    | false    |              |                                                                                                                                                                              |
 
 ## codersdk.EditChatMessageResponse
 
@@ -13922,6 +13954,32 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `spend_limit_micros` | integer | false    |              |             |
 | `updated_at`         | string  | false    |              |             |
 | `user_id`            | string  | false    |              |             |
+
+## codersdk.UserAISpendStatus
+
+```json
+{
+  "current_spend_micros": 0,
+  "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
+  "limit_source": "user_override",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                         | Required | Restrictions | Description                                                                                                          |
+|------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| `current_spend_micros` | integer                                                      | false    |              | Current spend micros is the user's spend on their effective group over the current budget period.                    |
+| `effective_group_id`   | string                                                       | false    |              | Effective group ID is the group the spend is attributed to. Null when no budget applies.                             |
+| `limit_source`         | [codersdk.AIBudgetLimitSource](#codersdkaibudgetlimitsource) | false    |              | Limit source identifies which tier produced the limit. Null when no budget applies.                                  |
+| `period_end`           | string                                                       | false    |              | Period end is the exclusive upper bound of the current budget period.                                                |
+| `period_start`         | string                                                       | false    |              | Period start is the inclusive lower bound of the current budget period.                                              |
+| `spend_limit_micros`   | integer                                                      | false    |              | Spend limit micros is the effective spend limit in micro-units. Null when no budget applies to the user (unlimited). |
+| `user_id`              | string                                                       | false    |              |                                                                                                                      |
 
 ## codersdk.UserActivity
 

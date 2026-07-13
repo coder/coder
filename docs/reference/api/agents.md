@@ -271,6 +271,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 ```json
 {
   "access_token": "string",
+  "expires_at": "string",
   "password": "string",
   "token_extra": {},
   "type": "string",
@@ -315,6 +316,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 ```json
 {
   "access_token": "string",
+  "expires_at": "string",
   "password": "string",
   "token_extra": {},
   "type": "string",

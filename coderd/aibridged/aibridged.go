@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -16,7 +17,11 @@ import (
 	"github.com/coder/retry"
 )
 
-var _ io.Closer = &Server{}
+var (
+	_ io.Closer = &Server{}
+
+	ErrShutdown = xerrors.New("aibridged server shutdown")
+)
 
 // Server provides the AI Bridge functionality.
 // It is responsible for:
@@ -37,15 +42,14 @@ type Server struct {
 	tracer trace.Tracer
 	wg     sync.WaitGroup
 
-	// initConnectionCh will receive when the daemon connects to coderd for the
-	// first time.
-	initConnectionCh   chan struct{}
-	initConnectionOnce sync.Once
+	// connected tracks whether the DRPC connection to coderd is currently active.
+	connected atomic.Bool
 
-	// lifecycleCtx is canceled when we start closing.
+	// lifecycleCtx is canceled when we start closing or when the
+	// connection loop exits permanently.
 	lifecycleCtx context.Context
-	// cancelFn closes the lifecycleCtx.
-	cancelFn func()
+	// cancelFn closes the lifecycleCtx with the reason it closed.
+	cancelFn context.CancelCauseFunc
 
 	shutdownOnce sync.Once
 }
@@ -55,15 +59,14 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
 	daemon := &Server{
-		logger:           logger,
-		tracer:           tracer,
-		clientDialer:     rpcDialer,
-		clientCh:         make(chan DRPCClient),
-		lifecycleCtx:     ctx,
-		cancelFn:         cancel,
-		initConnectionCh: make(chan struct{}),
+		logger:       logger,
+		tracer:       tracer,
+		clientDialer: rpcDialer,
+		clientCh:     make(chan DRPCClient),
+		lifecycleCtx: ctx,
+		cancelFn:     cancel,
 
 		requestBridgePool: pool,
 	}
@@ -78,6 +81,11 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 func (s *Server) connect() {
 	defer s.logger.Debug(s.lifecycleCtx, "connect loop exited")
 	defer s.wg.Done()
+	defer func() {
+		if s.lifecycleCtx.Err() == nil {
+			s.cancelFn(xerrors.New("connect loop exited"))
+		}
+	}()
 
 	logConnect := s.logger.With(slog.F("context", "aibridged.server")).Debug
 	// An exponential back-off occurs when the connection is failing to dial.
@@ -93,13 +101,25 @@ connectLoop:
 		client, err := s.clientDialer(s.lifecycleCtx)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
+				if s.lifecycleCtx.Err() == nil {
+					s.cancelFn(err)
+				}
 				return
 			}
 			var sdkErr *codersdk.Error
-			// If something is wrong with our auth, stop trying to connect.
-			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
-				s.logger.Error(s.lifecycleCtx, "not authorized to dial coderd", slog.Error(err))
-				return
+			// If something is wrong with configuration, stop trying to connect.
+			if errors.As(err, &sdkErr) {
+				switch sdkErr.StatusCode() {
+				// These statuses are terminal failures from the /api/v2/ai-gateway/serve
+				// handshake: wrong gateway key, incompatible API version, or entitlement failure.
+				case http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden:
+					err = xerrors.Errorf("dial coderd: %w", err)
+					s.logger.Error(s.lifecycleCtx, "fatal error dialing coderd", slog.Error(err))
+					s.cancelFn(err)
+					return
+				default:
+					err = xerrors.Errorf("unexpected HTTP response dialing coderd: %w", err)
+				}
 			}
 			if s.isShutdown() {
 				return
@@ -113,17 +133,17 @@ connectLoop:
 		// failure (paired with the warning logged above).
 		s.logger.Info(s.lifecycleCtx, "successfully connected to coderd")
 		retrier.Reset()
-		s.initConnectionOnce.Do(func() {
-			close(s.initConnectionCh)
-		})
+		s.connected.Store(true)
 
 		// Serve the client until we are closed or it disconnects.
 		for {
 			select {
 			case <-s.lifecycleCtx.Done():
+				s.connected.Store(false)
 				client.DRPCConn().Close()
 				return
 			case <-client.DRPCConn().Closed():
+				s.connected.Store(false)
 				logConnect(s.lifecycleCtx, "connection to coderd closed")
 				continue connectLoop
 			case s.clientCh <- client:
@@ -133,9 +153,32 @@ connectLoop:
 	}
 }
 
+// Done returns a channel that is closed when the server lifecycle ends.
+// It closes on explicit shutdown and on fatal connection-loop exit.
+func (s *Server) Done() <-chan struct{} {
+	return s.lifecycleCtx.Done()
+}
+
+// Err returns the reason the server lifecycle ended.
+func (s *Server) Err() error {
+	if cause := context.Cause(s.lifecycleCtx); cause != nil {
+		return cause
+	}
+	return s.lifecycleCtx.Err()
+}
+
 func (s *Server) Client() (DRPCClient, error) {
+	return s.ClientContext(context.Background())
+}
+
+func (s *Server) ClientContext(ctx context.Context) (DRPCClient, error) {
 	select {
-	case <-s.lifecycleCtx.Done():
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-s.Done():
+		if err := s.Err(); err != nil {
+			return nil, err
+		}
 		return nil, xerrors.New("context closed")
 	case client := <-s.clientCh:
 		return client, nil
@@ -156,6 +199,11 @@ func (s *Server) GetRequestHandler(ctx context.Context, req Request) (http.Handl
 	return reqBridge, nil
 }
 
+// Ready reports whether the server currently has an active DRPC connection to coderd.
+func (s *Server) Ready() bool {
+	return s.connected.Load()
+}
+
 // isShutdown returns whether the Server is shutdown or not.
 func (s *Server) isShutdown() bool {
 	select {
@@ -170,7 +218,7 @@ func (s *Server) isShutdown() bool {
 func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	s.shutdownOnce.Do(func() {
-		s.cancelFn()
+		s.cancelFn(ErrShutdown)
 
 		// Wait for any outstanding connections to terminate.
 		s.wg.Wait()

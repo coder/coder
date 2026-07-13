@@ -407,8 +407,10 @@ func Test_mergeSSHOptions_UserOptionsOverrideServerConfig(t *testing.T) {
 	t.Parallel()
 
 	user := sshConfigOptions{
-		userHostPrefix: "dev.",
-		hostnameSuffix: "local",
+		userHostPrefix:         "dev.",
+		hostnameSuffix:         "local",
+		userHostPrefixExplicit: true,
+		hostnameSuffixExplicit: true,
 	}
 	got, err := mergeSSHOptions(user, codersdk.SSHConfigResponse{
 		HostnamePrefix: "coder.",
@@ -417,6 +419,65 @@ func Test_mergeSSHOptions_UserOptionsOverrideServerConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "dev.", got.userHostPrefix)
 	require.Equal(t, "local", got.hostnameSuffix)
+}
+
+func Test_mergeSSHOptions_ExplicitEmptyNotOverridden(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name               string
+		userHostPrefixSet  bool
+		hostnameSuffixSet  bool
+		wantUserHostPrefix string
+		wantHostnameSuffix string
+	}{
+		{
+			name:               "PrefixExplicitlyEmpty",
+			userHostPrefixSet:  true,
+			hostnameSuffixSet:  false,
+			wantUserHostPrefix: "",
+			wantHostnameSuffix: "coder",
+		},
+		{
+			name:               "SuffixExplicitlyEmpty",
+			userHostPrefixSet:  false,
+			hostnameSuffixSet:  true,
+			wantUserHostPrefix: "coder.",
+			wantHostnameSuffix: "",
+		},
+		{
+			name:               "BothExplicitlyEmpty",
+			userHostPrefixSet:  true,
+			hostnameSuffixSet:  true,
+			wantUserHostPrefix: "",
+			wantHostnameSuffix: "",
+		},
+		{
+			name:               "NeitherSet",
+			userHostPrefixSet:  false,
+			hostnameSuffixSet:  false,
+			wantUserHostPrefix: "coder.",
+			wantHostnameSuffix: "coder",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			user := sshConfigOptions{
+				userHostPrefixExplicit: tt.userHostPrefixSet,
+				hostnameSuffixExplicit: tt.hostnameSuffixSet,
+			}
+			got, err := mergeSSHOptions(user, codersdk.SSHConfigResponse{
+				HostnamePrefix: "coder.",
+				HostnameSuffix: "coder",
+			}, t.TempDir(), "/tmp/coder")
+			require.NoError(t, err)
+			require.Equal(t, tt.wantUserHostPrefix, got.userHostPrefix)
+			require.Equal(t, tt.wantHostnameSuffix, got.hostnameSuffix)
+		})
+	}
 }
 
 func Test_mergeSSHOptions_AllowsSafeServerConfig(t *testing.T) {

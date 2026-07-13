@@ -1582,6 +1582,80 @@ func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from
 	require.NoError(t, tx.Commit())
 }
 
+func TestMigration000542ChatReasoningEffortBackfill(t *testing.T) {
+	t.Parallel()
+
+	const priorMigrationVersion = 539
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more || version == priorMigrationVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+	azureID := uuid.New()
+	bedrockID := uuid.New()
+	emptyID := uuid.New()
+	invalidID := uuid.New()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+		VALUES
+			($1, 'azure', 'test-azure-reasoning', TRUE, '', $3, $3),
+			($2, 'bedrock', 'test-bedrock-reasoning', TRUE, '', $3, $3)
+	`, azureID, bedrockID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (id, ai_provider_id, model, display_name, enabled, context_limit, compression_threshold, options, created_at, updated_at)
+		VALUES
+			($3, $1, 'gpt-5.1-azure', 'Azure GPT-5.1', TRUE, 200000, 70, '{"provider_options": {"azure": {"reasoning_effort": " LOW "}}}', $5, $5),
+			($4, $2, 'anthropic.claude-opus-4-6', 'Bedrock Claude Opus', TRUE, 200000, 70, '{"provider_options": {"bedrock": {"effort": "minimal"}}}', $5, $5),
+			(gen_random_uuid(), $1, 'gpt-5.1-empty-effort', 'Azure Empty Effort', TRUE, 200000, 70, '{"provider_options": {"azure": {"reasoning_effort": ""}}}', $5, $5),
+			(gen_random_uuid(), $2, 'anthropic.invalid-effort', 'Bedrock Invalid Effort', TRUE, 200000, 70, '{"provider_options": {"bedrock": {"effort": "extreme"}}}', $5, $5)
+	`, azureID, bedrockID, emptyID, invalidID, now)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	migrationSQL, err := os.ReadFile("000542_chat_reasoning_effort.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(migrationSQL))
+	require.NoError(t, err)
+
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT ap.type::text, cmc.model, cmc.options->'reasoning_effort'->>'default'
+		FROM chat_model_configs cmc
+		JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+		WHERE cmc.ai_provider_id IN ($1, $2)
+		ORDER BY cmc.model
+	`, azureID, bedrockID)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	got := map[string]sql.NullString{}
+	for rows.Next() {
+		var provider, model string
+		var effort sql.NullString
+		require.NoError(t, rows.Scan(&provider, &model, &effort))
+		got[provider+":"+model] = effort
+	}
+	require.NoError(t, rows.Err())
+	require.Equal(t, sql.NullString{String: "low", Valid: true}, got["azure:gpt-5.1-azure"])
+	require.Equal(t, sql.NullString{}, got["azure:gpt-5.1-empty-effort"])
+	require.Equal(t, sql.NullString{String: "minimal", Valid: true}, got["bedrock:anthropic.claude-opus-4-6"])
+	require.Equal(t, sql.NullString{}, got["bedrock:anthropic.invalid-effort"])
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 

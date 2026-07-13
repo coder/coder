@@ -117,7 +117,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		r.Header.Del("X-Api-Key")
 	}
 
-	client, err := s.Client()
+	client, err := s.ClientContext(ctx)
 	if err != nil {
 		logger.Warn(ctx, "failed to connect to coderd", slog.Error(err))
 		http.Error(rw, ErrConnect.Error(), http.StatusServiceUnavailable)

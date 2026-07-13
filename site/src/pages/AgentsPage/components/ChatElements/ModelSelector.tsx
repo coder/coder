@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, InfoIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -15,9 +15,16 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Slider } from "#/components/Slider/Slider";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
+import { formatReasoningEffort } from "../../utils/reasoningEffort";
 
 export interface ModelSelectorOption {
 	id: string;
@@ -28,6 +35,8 @@ export interface ModelSelectorOption {
 	model: string;
 	displayName: string;
 	contextLimit?: number;
+	reasoningEffortDefault?: string;
+	reasoningEfforts?: readonly string[];
 }
 
 interface ModelSelectorProps {
@@ -44,6 +53,8 @@ interface ModelSelectorProps {
 	contentClassName?: string;
 	onTriggerTouchStart?: () => void;
 	enableMobileFullWidthDropdown?: boolean;
+	reasoningEffort?: string;
+	onReasoningEffortChange?: (value: string) => void;
 }
 
 const formatContextLimit = (tokens: number): string => {
@@ -85,6 +96,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	contentClassName,
 	onTriggerTouchStart,
 	enableMobileFullWidthDropdown = false,
+	reasoningEffort,
+	onReasoningEffortChange,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -224,8 +237,80 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						})}
 					</CommandList>
 				</Command>
+				{selectedModel &&
+					reasoningEffort !== undefined &&
+					onReasoningEffortChange && (
+						<ReasoningEffortRow
+							option={selectedModel}
+							value={reasoningEffort}
+							onChange={onReasoningEffortChange}
+						/>
+					)}
 			</PopoverContent>
 		</Popover>
+	);
+};
+
+interface ReasoningEffortRowProps {
+	option: ModelSelectorOption;
+	value: string;
+	onChange: (value: string) => void;
+}
+
+// Effort row pinned below the model list. Lives outside the Command
+// so it stays visible while the list scrolls and cmdk's arrow-key
+// navigation does not capture the slider's keyboard interaction.
+const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
+	option,
+	value,
+	onChange,
+}) => {
+	const selectableEfforts = option.reasoningEfforts ?? [];
+	if (selectableEfforts.length === 0) {
+		return null;
+	}
+	const valueIndex = selectableEfforts.indexOf(value);
+	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
+
+	return (
+		<div className="flex items-center gap-3 border-0 border-t border-solid border-border-default px-3 py-2">
+			<div className="flex shrink-0 items-center gap-1">
+				<span className="text-xs font-medium leading-[18px] text-content-secondary">
+					Effort
+				</span>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							aria-label="About reasoning effort"
+							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+						>
+							<InfoIcon aria-hidden="true" className="size-3" />
+						</button>
+					</TooltipTrigger>
+					<TooltipContent side="top" className="max-w-[240px]">
+						Controls how much reasoning the model performs before responding.
+						Higher effort can improve quality but is slower and costs more.
+					</TooltipContent>
+				</Tooltip>
+			</div>
+			<Slider
+				aria-label="Reasoning effort"
+				value={[effortIndex]}
+				onValueChange={([index]) => {
+					const nextEffort = selectableEfforts[index];
+					if (nextEffort && nextEffort !== value) {
+						onChange(nextEffort);
+					}
+				}}
+				min={0}
+				max={selectableEfforts.length - 1}
+				step={1}
+			/>
+			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary">
+				{formatReasoningEffort(value)}
+			</span>
+		</div>
 	);
 };
 

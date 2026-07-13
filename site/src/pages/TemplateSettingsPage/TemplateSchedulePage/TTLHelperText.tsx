@@ -25,14 +25,20 @@ export const DefaultTTLHelperText = (props: { ttl?: number }) => {
 export const ActivityBumpHelperText = (props: {
 	bump?: number;
 	defaultTTL?: number;
+	allowUserAutostop?: boolean;
 }) => {
-	const { bump = 0, defaultTTL = 0 } = props;
+	const { bump = 0, defaultTTL = 0, allowUserAutostop = false } = props;
 
-	if (!defaultTTL) {
+	// Activity bump extends a workspace's scheduled stop time. If there is no
+	// default TTL AND users cannot set their own autostop, there is no stop
+	// time to bump, so the field has no effect.
+	if (!defaultTTL && !allowUserAutostop) {
 		return (
 			<span>
-				Activity bump only applies when a default TTL is configured. Set a
-				default TTL above to enable activity bumping.
+				Activity bump only applies when "Default autostop" is configured or
+				users are allowed to customize autostop. Set "Default autostop" above or
+				check "Allow users to customize autostop duration for workspaces" below
+				to enable activity bumping.
 			</span>
 		);
 	}
@@ -63,18 +69,29 @@ export const AutostopReminderHelperText = (props: {
 	lead?: number;
 	defaultTTL?: number;
 	autostopRequirementDaysOfWeek?: string;
+	allowUserAutostop?: boolean;
 }) => {
-	const { lead = 0, defaultTTL = 0, autostopRequirementDaysOfWeek } = props;
+	const {
+		lead = 0,
+		defaultTTL = 0,
+		autostopRequirementDaysOfWeek,
+		allowUserAutostop = false,
+	} = props;
 
 	const hasAutostopRequirement =
 		Boolean(autostopRequirementDaysOfWeek) &&
 		autostopRequirementDaysOfWeek !== "off";
 
-	if (!defaultTTL && !hasAutostopRequirement) {
+	// Autostop reminders fire relative to a workspace's scheduled stop, so
+	// this hint only makes sense when none of the sources of a stop deadline
+	// (default TTL, autostop requirement, or user-configured autostop) are
+	// available.
+	if (!defaultTTL && !hasAutostopRequirement && !allowUserAutostop) {
 		return (
 			<span>
 				Autostop reminders only apply when an autostop deadline is configured.
-				Set a default TTL or an autostop requirement above to enable reminders.
+				Set "Default autostop", an autostop requirement, or check "Allow users
+				to customize autostop duration for workspaces" to enable reminders.
 			</span>
 		);
 	}

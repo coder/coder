@@ -307,9 +307,10 @@ export const UnpinAgentItem: Story = {
 	},
 };
 
-export const ChildChatHidesPinAction: Story = {
+export const ChildChatHidesPinAndArchiveActions: Story = {
 	args: {
 		isChildChat: true,
+		hasWorkspace: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -318,11 +319,34 @@ export const ChildChatHidesPinAction: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Rename chat")).toBeInTheDocument();
-			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		const body = within(document.body);
 		expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedChildChatHasNoActionsMenu: Story = {
+	args: {
+		isChildChat: true,
+		isArchived: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Build authentication feature"),
+			).toBeInTheDocument();
+		});
+		// Archive state is root-only, so an archived child chat has no menu
+		// actions at all and the actions trigger is hidden entirely.
+		expect(
+			canvas.queryByLabelText("Open agent actions"),
+		).not.toBeInTheDocument();
 	},
 };
 

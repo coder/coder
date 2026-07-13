@@ -2878,6 +2878,21 @@ func (mr *MockStoreMockRecorder) GetChatFileByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileByID", reflect.TypeOf((*MockStore)(nil).GetChatFileByID), ctx, id)
 }
 
+// GetChatFileDataPrefixesByIDs mocks base method.
+func (m *MockStore) GetChatFileDataPrefixesByIDs(ctx context.Context, arg database.GetChatFileDataPrefixesByIDsParams) ([]database.GetChatFileDataPrefixesByIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatFileDataPrefixesByIDs", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatFileDataPrefixesByIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatFileDataPrefixesByIDs indicates an expected call of GetChatFileDataPrefixesByIDs.
+func (mr *MockStoreMockRecorder) GetChatFileDataPrefixesByIDs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileDataPrefixesByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFileDataPrefixesByIDs), ctx, arg)
+}
+
 // GetChatFileMetadataByChatID mocks base method.
 func (m *MockStore) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
 	m.ctrl.T.Helper()
@@ -9769,21 +9784,6 @@ func (m *MockStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateChatMCPServerIDs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMCPServerIDs", reflect.TypeOf((*MockStore)(nil).UpdateChatMCPServerIDs), ctx, arg)
-}
-
-// UpdateChatMessageByID mocks base method.
-func (m *MockStore) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatMessageByID", ctx, arg)
-	ret0, _ := ret[0].(database.ChatMessage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatMessageByID indicates an expected call of UpdateChatMessageByID.
-func (mr *MockStoreMockRecorder) UpdateChatMessageByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMessageByID", reflect.TypeOf((*MockStore)(nil).UpdateChatMessageByID), ctx, arg)
 }
 
 // UpdateChatModelConfig mocks base method.

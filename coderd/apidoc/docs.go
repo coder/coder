@@ -9652,6 +9652,40 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai/spend": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI spend",
+                "operationId": "get-user-ai-spend",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAISpendStatus"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/appearance": {
             "get": {
                 "produces": [
@@ -14631,6 +14665,10 @@ const docTemplate = `{
                 "access_token": {
                     "type": "string"
                 },
+                "expires_at": {
+                    "description": "ExpiresAt is the time the token expires, normalized to UTC (for\nexample, \"2024-06-01T15:04:05Z\"). Zero value means no expiry.",
+                    "type": "string"
+                },
                 "password": {
                     "type": "string"
                 },
@@ -15189,6 +15227,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "error_message": {
+                    "description": "ErrorMessage is the raw terminal upstream error message from the root\ninterception. Nil when the interception succeeded.",
+                    "type": "string"
+                },
+                "error_type": {
+                    "description": "ErrorType is the categorized terminal upstream error from the root\ninterception, or nil when the interception succeeded. See the\naibridge_interception_error_type enum for possible values.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -15246,6 +15292,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AIBudgetLimitSource": {
+            "type": "string",
+            "enum": [
+                "user_override",
+                "group"
+            ],
+            "x-enum-varnames": [
+                "AIBudgetLimitSourceUserOverride",
+                "AIBudgetLimitSourceGroup"
+            ]
         },
         "codersdk.AIConfig": {
             "type": "object",
@@ -16692,6 +16749,9 @@ const docTemplate = `{
                 "last_model_config_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "last_reasoning_effort": {
+                    "type": "string"
                 },
                 "last_turn_summary": {
                     "type": "string"
@@ -18171,6 +18231,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -18229,6 +18292,9 @@ const docTemplate = `{
                 },
                 "plan_mode": {
                     "$ref": "#/definitions/codersdk.ChatPlanMode"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -19599,6 +19665,9 @@ const docTemplate = `{
                     "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
                     "type": "string",
                     "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "type": "string"
                 }
             }
         },
@@ -25646,6 +25715,46 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UserAISpendStatus": {
+            "type": "object",
+            "properties": {
+                "current_spend_micros": {
+                    "description": "CurrentSpendMicros is the user's spend on their effective group over\nthe current budget period.",
+                    "type": "integer"
+                },
+                "effective_group_id": {
+                    "description": "EffectiveGroupID is the group the spend is attributed to. Null when\nno budget applies.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "limit_source": {
+                    "description": "LimitSource identifies which tier produced the limit. Null when no\nbudget applies.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBudgetLimitSource"
+                        }
+                    ]
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "spend_limit_micros": {
+                    "description": "SpendLimitMicros is the effective spend limit in micro-units.\nNull when no budget applies to the user (unlimited).",
+                    "type": "integer"
                 },
                 "user_id": {
                     "type": "string",

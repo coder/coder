@@ -118,7 +118,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 		<div className="flex items-start gap-2">
 			{parameter.icon && (
 				<ExternalImage
-					className="w-5 h-5 mt-0.5 object-contain"
+					className="size-5 mt-0.5 object-contain"
 					alt="Parameter icon"
 					src={parameter.icon}
 				/>
@@ -528,9 +528,9 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOffIcon className="h-4 w-4" />
+						<EyeOffIcon className="size-4" />
 					) : (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="size-4" />
 					)}
 				</Button>
 			)}
@@ -582,9 +582,9 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
-						<EyeOffIcon className="h-4 w-4" />
+						<EyeOffIcon className="size-4" />
 					) : (
-						<EyeIcon className="h-4 w-4" />
+						<EyeIcon className="size-4" />
 					)}
 				</Button>
 			)}
@@ -626,7 +626,7 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 		<div className="flex items-center gap-2">
 			{option.icon && (
 				<ExternalImage
-					className="w-4 h-4 object-contain"
+					className="size-4 object-contain"
 					src={option.icon}
 					alt=""
 				/>

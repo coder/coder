@@ -18,7 +18,6 @@ func ProviderOptionsFromChatConfig(
 	model fantasy.LanguageModel,
 	options *codersdk.ChatModelOpenAIProviderOptions,
 ) fantasy.ProviderOptionsData {
-	reasoningEffort := ReasoningEffortFromChat(options.ReasoningEffort)
 	if UsesResponsesOptions(model) {
 		include := EnsureResponseIncludes(IncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
@@ -29,7 +28,6 @@ func ProviderOptionsFromChatConfig(
 			Metadata:          options.Metadata,
 			ParallelToolCalls: options.ParallelToolCalls,
 			PromptCacheKey:    chatutil.NormalizedStringPointer(options.PromptCacheKey),
-			ReasoningEffort:   reasoningEffort,
 			ReasoningSummary:  chatutil.NormalizedStringPointer(options.ReasoningSummary),
 			SafetyIdentifier:  chatutil.NormalizedStringPointer(options.SafetyIdentifier),
 			ServiceTier:       ServiceTierFromChat(options.ServiceTier),
@@ -47,7 +45,6 @@ func ProviderOptionsFromChatConfig(
 		TopLogProbs:         options.TopLogProbs,
 		ParallelToolCalls:   options.ParallelToolCalls,
 		User:                chatutil.NormalizedStringPointer(options.User),
-		ReasoningEffort:     reasoningEffort,
 		MaxCompletionTokens: options.MaxCompletionTokens,
 		TextVerbosity:       chatutil.NormalizedStringPointer(options.TextVerbosity),
 		Prediction:          options.Prediction,
@@ -131,33 +128,6 @@ func UsesResponsesOptions(model fantasy.LanguageModel) bool {
 	default:
 		return false
 	}
-}
-
-// ReasoningEffortFromChat normalizes chat-config reasoning effort values for
-// OpenAI and returns the canonical provider effort value.
-func ReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
-	if value == nil {
-		return nil
-	}
-
-	normalized := strings.ToLower(strings.TrimSpace(*value))
-	if normalized == "" {
-		return nil
-	}
-
-	effort := chatutil.NormalizedEnumValue(
-		normalized,
-		string(fantasyopenai.ReasoningEffortMinimal),
-		string(fantasyopenai.ReasoningEffortLow),
-		string(fantasyopenai.ReasoningEffortMedium),
-		string(fantasyopenai.ReasoningEffortHigh),
-		string(fantasyopenai.ReasoningEffortXHigh),
-	)
-	if effort == nil {
-		return nil
-	}
-	valueCopy := fantasyopenai.ReasoningEffort(*effort)
-	return &valueCopy
 }
 
 // ServiceTierFromChat normalizes chat-config service tier values for OpenAI

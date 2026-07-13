@@ -3239,6 +3239,34 @@ func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.C
 	return file, nil
 }
 
+func (q *querier) GetChatFileDataPrefixesByIDs(ctx context.Context, arg database.GetChatFileDataPrefixesByIDsParams) ([]database.GetChatFileDataPrefixesByIDsRow, error) {
+	rows, err := q.db.GetChatFileDataPrefixesByIDs(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	var prepared rbac.PreparedAuthorized
+	for _, row := range rows {
+		fileAuthErr := q.authorizeContext(ctx, policy.ActionRead, row)
+		if fileAuthErr == nil {
+			continue
+		}
+		if prepared == nil {
+			prepared, err = prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
+			if err != nil {
+				return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+			}
+		}
+		chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, row.ID, prepared)
+		if err != nil {
+			return nil, err
+		}
+		if len(chats) == 0 {
+			return nil, fileAuthErr
+		}
+	}
+	return rows, nil
+}
+
 func (q *querier) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
 	if _, err := q.GetChatByID(ctx, chatID); err != nil {
 		return nil, err
@@ -7287,22 +7315,6 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
-}
-
-func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
-	// Authorize update on the parent chat of the edited message.
-	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
-	}
-	return q.db.UpdateChatMessageByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

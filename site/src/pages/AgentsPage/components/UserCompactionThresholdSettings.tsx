@@ -209,7 +209,7 @@ export const UserCompactionThresholdSettings: FC<
 			<div className="flex flex-col gap-2">
 				<ContextCompactionHeader />
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
-					<Spinner loading className="h-4 w-4" />
+					<Spinner loading className="size-4" />
 					Loading thresholds...
 				</div>
 			</div>
@@ -235,7 +235,7 @@ export const UserCompactionThresholdSettings: FC<
 			<ContextCompactionHeader />
 			{isLoadingModelConfigs ? (
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
-					<Spinner loading className="h-4 w-4" />
+					<Spinner loading className="size-4" />
 					Loading models...
 				</div>
 			) : modelConfigsError ? (
@@ -420,7 +420,7 @@ export const UserCompactionThresholdSettings: FC<
 														onClick={handleSaveAll}
 													>
 														{hasAnyPending && (
-															<Spinner loading className="h-4 w-4" />
+															<Spinner loading className="size-4" />
 														)}
 														{hasAnyPending
 															? "Saving..."

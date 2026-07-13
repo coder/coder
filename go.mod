@@ -104,8 +104,12 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 14) coder/fantasy bedrock: mirror the request region when prefixing
 //     cross-region inference profiles so the model-ID prefix matches the
 //     region the request is actually signed for.
-// See: https://github.com/coder/fantasy/commits/2e3ddbca75dd
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260617050554-2e3ddbca75dd
+// 15) coder/fantasy#41, surface Anthropic refusal stop_reason as
+//     content-filter.
+// 16) coder/fantasy#46, route the gpt-5.6 family (sol, terra, luna)
+//     through the OpenAI Responses API.
+// See: https://github.com/coder/fantasy/commits/6da0c3b10237
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260709180403-6da0c3b10237
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -116,9 +120,13 @@ replace github.com/charmbracelet/anthropic-sdk-go => github.com/coder/anthropic-
 // https://github.com/anthropics/anthropic-sdk-go/pull/262
 replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykopping/anthropic-sdk-go v0.0.0-20251230111224-88a4315810bd
 
-// SasSwart perf fork of openai-go with fix for WithJSONSet + deferred serialization.
-// https://github.com/kylecarbs/openai-go/pull/2
-replace github.com/openai/openai-go/v3 => github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae
+// Fork of openai-go with fix for WithJSONSet + deferred serialization: https://github.com/kylecarbs/openai-go/pull/2
+// Also includes an SSE stream fix for OpenRouter: https://github.com/coder/openai-go/pull/3
+//
+// `coder/pinned` is the branch we track.
+//
+// To update, run: `go mod edit -replace github.com/openai/openai-go/v3=github.com/coder/openai-go/v3@coder/pinned; go mod tidy`
+replace github.com/openai/openai-go/v3 => github.com/coder/openai-go/v3 v3.0.0-20260708125056-3633b71968f7
 
 require (
 	cdr.dev/slog/v3 v3.1.0

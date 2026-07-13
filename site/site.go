@@ -436,9 +436,10 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return err
 	})
 	eg.Go(func() error {
-		orgs, err := h.opts.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-			UserID: apiKey.UserID,
-		})
+		// Match the /api/v2/organizations endpoint: RBAC-filtered and
+		// excluding deleted organizations. Membership-scoped queries would
+		// hide organizations that roles like owner can view.
+		orgs, err := h.opts.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		if err == nil {
 			userOrgs = orgs
 		}
