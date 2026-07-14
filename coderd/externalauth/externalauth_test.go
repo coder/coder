@@ -1,6 +1,7 @@
 package externalauth_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -752,18 +754,21 @@ func TestRefreshToken(t *testing.T) {
 		link.OAuthExpiry = expired
 
 		_, err := config.RefreshToken(ctx, db, link)
-		require.NoError(t, err)
+		require.ErrorIs(t, err, context.Canceled)
 		require.Equal(t, int64(1), refreshCalls.Load())
 
-		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-		})
-		require.NoError(t, err)
-		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
-			"DB should have the new access token despite context cancellation")
-		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
-			"DB should have the new refresh token despite context cancellation")
+		require.Eventually(t, func() bool {
+			dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+				ProviderID: link.ProviderID,
+				UserID:     link.UserID,
+			})
+			if err != nil {
+				return false
+			}
+			return err == nil &&
+				dbLink.OAuthAccessToken != oldAccessToken &&
+				dbLink.OAuthRefreshToken != oldRefreshToken
+		}, testutil.WaitShort, testutil.IntervalFast, "never saw refresh token db updated")
 	})
 
 	// SaveBeforeValidate_RateLimited tests the full path: refresh
@@ -1780,49 +1785,161 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 var _ externalauth.SingleflightGroup = (*group)(nil)
 
-type call struct {
-	wg  sync.WaitGroup
-	val any
-	err error
+// The following has been copied from x/sync/singleflight but has been modified
+// to notify when callers join the group so the tests can be deterministic.
+
+// Copyright 2013 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// errGoexit indicates runtime.Goexit was called in
+// the user-given function.
+var errGoexit = xerrors.New("runtime.Goexit was called")
+
+// A panicError is an arbitrary value recovered from a panic
+// with the stack trace during the execution of the given function.
+type panicError struct {
+	value any
+	stack []byte
 }
 
-// group is like singleflight.Group
+// Error implements error interface.
+func (p *panicError) Error() string {
+	return fmt.Sprintf("%v\n\n%s", p.value, p.stack)
+}
+
+func (p *panicError) Unwrap() error {
+	err, ok := p.value.(error)
+	if !ok {
+		return nil
+	}
+
+	return err
+}
+
+func newPanicError(v any) error {
+	stack := debug.Stack()
+
+	// The first line of the stack trace is of the form "goroutine N [status]:"
+	// but by the time the panic reaches Do the goroutine may no longer exist
+	// and its status will have changed. Trim out the misleading line.
+	if line := bytes.IndexByte(stack, '\n'); line >= 0 {
+		stack = stack[line+1:]
+	}
+	return &panicError{value: v, stack: stack}
+}
+
+// call is an in-flight or completed singleflight.Do call
+type call struct {
+	wg sync.WaitGroup
+
+	// These fields are written once before the WaitGroup is done
+	// and are only read after the WaitGroup is done.
+	val any
+	err error
+
+	// These fields are read and written with the singleflight
+	// mutex held before the WaitGroup is done, and are read but
+	// not written after the WaitGroup is done.
+	dups  int
+	chans []chan<- singleflight.Result
+}
+
+// group represents a class of work and forms a namespace in
+// which units of work can be executed with duplicate suppression.
 type group struct {
 	mu     sync.Mutex       // protects m
 	m      map[string]*call // lazily initialized
 	notify chan string
 }
 
-// Do ensures there is only one call to fn in flight at a time.  Any calls that
-// come in while it is in flight wait for the original call and get the same
-// results.
+// DoChan is like Do but returns a channel that will receive the
+// results when they are ready.
 //
-// Blocks if the notifier blocks or is absent.
-func (g *group) Do(key string, fn func() (any, error)) (v any, err error, shared bool) {
+// The returned channel will not be closed.
+func (g *group) DoChan(key string, fn func() (any, error)) <-chan singleflight.Result {
+	ch := make(chan singleflight.Result, 1)
 	g.mu.Lock()
 	if g.m == nil {
 		g.m = make(map[string]*call)
 	}
 	if c, ok := g.m[key]; ok {
-		if g.notify != nil {
-			g.notify <- key
-		}
+		c.dups++
+		c.chans = append(c.chans, ch)
+		g.notify <- key
 		g.mu.Unlock()
-		c.wg.Wait()
-		return c.val, c.err, true
+		return ch
 	}
-	c := new(call)
+	c := &call{chans: []chan<- singleflight.Result{ch}}
 	c.wg.Add(1)
 	g.m[key] = c
 	g.mu.Unlock()
 
+	go g.doCall(c, key, fn)
+
+	return ch
+}
+
+// doCall handles the single call for a key.
+func (g *group) doCall(c *call, key string, fn func() (any, error)) {
+	normalReturn := false
+	recovered := false
+
+	// use double-defer to distinguish panic from runtime.Goexit,
+	// more details see https://golang.org/cl/134395
 	defer func() {
+		// the given function invoked runtime.Goexit
+		if !normalReturn && !recovered {
+			c.err = errGoexit
+		}
+
 		g.mu.Lock()
 		defer g.mu.Unlock()
 		c.wg.Done()
-		delete(g.m, key)
+		if g.m[key] == c {
+			delete(g.m, key)
+		}
+
+		if e, ok := c.err.(*panicError); ok {
+			// In order to prevent the waiting channels from being blocked forever,
+			// needs to ensure that this panic cannot be recovered.
+			if len(c.chans) > 0 {
+				go panic(e)
+				select {} // Keep this goroutine around so that it will appear in the crash dump.
+			} else {
+				panic(e)
+			}
+		} else if c.err == errGoexit {
+			// Already in the process of goexit, no need to call again
+		} else {
+			// Normal return
+			for _, ch := range c.chans {
+				ch <- singleflight.Result{Val: c.val, Err: c.err, Shared: c.dups > 0}
+			}
+		}
 	}()
 
-	c.val, c.err = fn()
-	return c.val, c.err, false
+	func() {
+		defer func() {
+			if !normalReturn {
+				// Ideally, we would wait to take a stack trace until we've determined
+				// whether this is a panic or a runtime.Goexit.
+				//
+				// Unfortunately, the only way we can distinguish the two is to see
+				// whether the recover stopped the goroutine from terminating, and by
+				// the time we know that, the part of the stack trace relevant to the
+				// panic has been discarded.
+				if r := recover(); r != nil {
+					c.err = newPanicError(r)
+				}
+			}
+		}()
+
+		c.val, c.err = fn()
+		normalReturn = true
+	}()
+
+	if !normalReturn {
+		recovered = true
+	}
 }

@@ -57,7 +57,7 @@ const (
 // SingleflightGroup exposes a subset of singleflight.Group for easier testing.
 // singleflight.Group should be used instead of implementing this in production.
 type SingleflightGroup interface {
-	Do(key string, fn func() (any, error)) (v any, err error, shared bool)
+	DoChan(key string, fn func() (any, error)) <-chan singleflight.Result
 }
 
 // Config is used for authentication for Git operations.
@@ -204,15 +204,20 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// in-flight refresh.  Otherwise, the parallel calls will fail with a bad
 	// refresh token error as they can only be used once.
 	key := c.ID + ":" + externalAuthLink.UserID.String()
-	link, err, _ := c.RefreshGroup.Do(key, func() (any, error) {
+	ch := c.RefreshGroup.DoChan(key, func() (any, error) {
 		return c.innerRefreshToken(ctx, db, externalAuthLink)
 	})
-	if newlink, ok := link.(database.ExternalAuthLink); ok {
-		return newlink, err
-	} else if err == nil {
-		err = xerrors.Errorf("got invalid type from token refresh: %T", link)
+	select {
+	case results := <-ch:
+		if newlink, ok := results.Val.(database.ExternalAuthLink); ok {
+			return newlink, results.Err
+		} else if results.Err == nil {
+			return externalAuthLink, xerrors.Errorf("got invalid type from token refresh: %T", results.Val)
+		}
+		return externalAuthLink, results.Err
+	case <-ctx.Done():
+		return externalAuthLink, ctx.Err()
 	}
-	return externalAuthLink, err
 }
 
 func (c *Config) innerRefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
