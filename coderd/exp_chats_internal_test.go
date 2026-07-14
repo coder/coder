@@ -16,149 +16,59 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestEnrichChatAgentIDs(t *testing.T) {
+func TestEnrichMissingChatAgentIDs(t *testing.T) {
 	t.Parallel()
-
 	newAPI := func(t *testing.T) (*API, *dbmock.MockStore) {
 		t.Helper()
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		return &API{
-			Options: &Options{
-				Database: mDB,
-				Logger:   logger,
-			},
-		}, mDB
+		return &API{Options: &Options{Database: mDB, Logger: logger}}, mDB
 	}
-
-	t.Run("ResolvesRootAgentSkippingSubAgent", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx         = testutil.Context(t, testutil.WaitShort)
-			workspaceID = uuid.New()
-			rootAgentID = uuid.New()
-		)
-		api, mDB := newAPI(t)
-
-		// The sub-agent is returned first to prove selection is not
-		// positional.
-		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-			Return([]database.WorkspaceAgent{
-				{
-					ID:       uuid.New(),
-					ParentID: uuid.NullUUID{UUID: rootAgentID, Valid: true},
-					Name:     "dev-container",
-				},
-				{
-					ID:   rootAgentID,
-					Name: "main",
-				},
-			}, nil)
-
-		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}}
-		api.enrichChatAgentIDs(ctx, chats)
-
-		require.NotNil(t, chats[0].AgentID)
-		require.Equal(t, rootAgentID, *chats[0].AgentID)
-	})
-
-	t.Run("DeduplicatesLookupsAndEnrichesChildren", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx         = testutil.Context(t, testutil.WaitShort)
-			workspaceID = uuid.New()
-			agentID     = uuid.New()
-		)
-		api, mDB := newAPI(t)
-
-		// A single lookup serves the root chat and its child; gomock
-		// fails the test on a second call.
-		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-			Return([]database.WorkspaceAgent{{ID: agentID, Name: "main"}}, nil).
-			Times(1)
-
-		chats := []codersdk.Chat{{
-			WorkspaceID: &workspaceID,
-			Children:    []codersdk.Chat{{WorkspaceID: &workspaceID}},
-		}}
-		api.enrichChatAgentIDs(ctx, chats)
-
-		require.NotNil(t, chats[0].AgentID)
-		require.Equal(t, agentID, *chats[0].AgentID)
-		require.NotNil(t, chats[0].Children[0].AgentID)
-		require.Equal(t, agentID, *chats[0].Children[0].AgentID)
-	})
-
-	t.Run("LeavesNullOnError", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx         = testutil.Context(t, testutil.WaitShort)
-			workspaceID = uuid.New()
-		)
-		api, mDB := newAPI(t)
-
-		// The failing lookup must happen once; the nil result is
-		// cached and reused for the second chat in the same
-		// workspace.
-		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-			Return(nil, xerrors.New("boom")).
-			Times(1)
-
-		chats := []codersdk.Chat{
-			{WorkspaceID: &workspaceID},
-			{WorkspaceID: &workspaceID},
+	workspaceID, otherWorkspaceID := uuid.New(), uuid.New()
+	rootAgentID, otherAgentID := uuid.New(), uuid.New()
+	row := func(workspaceID, id uuid.UUID, parentID uuid.NullUUID, name string) database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow {
+		return database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+			WorkspaceID: workspaceID,
+			WorkspaceAgent: database.WorkspaceAgent{
+				ID:       id,
+				ParentID: parentID,
+				Name:     name,
+			},
 		}
-		api.enrichChatAgentIDs(ctx, chats)
-
+	}
+	t.Run("batch selection and shared workspace", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).DoAndReturn(func(_ any, ids []uuid.UUID) ([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow, error) {
+			require.ElementsMatch(t, []uuid.UUID{workspaceID, otherWorkspaceID}, ids)
+			return []database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{
+				row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub"), row(workspaceID, rootAgentID, uuid.NullUUID{}, "root"), row(otherWorkspaceID, otherAgentID, uuid.NullUUID{}, "root"),
+			}, nil
+		}).Times(1)
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID, Children: []codersdk.Chat{{WorkspaceID: &workspaceID}}}, {WorkspaceID: &otherWorkspaceID}}
+		api.enrichMissingChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Equal(t, rootAgentID, *chats[0].AgentID)
+		require.Equal(t, rootAgentID, *chats[0].Children[0].AgentID)
+		require.Equal(t, otherAgentID, *chats[1].AgentID)
+	})
+	t.Run("query error", func(t *testing.T) {
+		t.Parallel()
+		api, mDB := newAPI(t)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("boom"))
+		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}, {WorkspaceID: &otherWorkspaceID}}
+		api.enrichMissingChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
 		require.Nil(t, chats[0].AgentID)
 		require.Nil(t, chats[1].AgentID)
 	})
-
-	t.Run("LeavesNullOnSelectionError", func(t *testing.T) {
+	t.Run("selection error and skips bound or unbound", func(t *testing.T) {
 		t.Parallel()
-
-		var (
-			ctx         = testutil.Context(t, testutil.WaitShort)
-			workspaceID = uuid.New()
-		)
 		api, mDB := newAPI(t)
-
-		// Return only a sub-agent so FindChatAgent errors.
-		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-			Return([]database.WorkspaceAgent{{
-				ID:       uuid.New(),
-				ParentID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
-				Name:     "sub",
-			}}, nil)
-
-		chats := []codersdk.Chat{{WorkspaceID: &workspaceID}}
-		api.enrichChatAgentIDs(ctx, chats)
-
-		require.Nil(t, chats[0].AgentID)
-	})
-
-	t.Run("SkipsChatsWithoutWorkspaceOrWithAgent", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx         = testutil.Context(t, testutil.WaitShort)
-			workspaceID = uuid.New()
-			existing    = uuid.New()
-		)
-		// Neither chat should trigger a lookup.
-		api, _ := newAPI(t)
-
-		chats := []codersdk.Chat{
-			{},
-			{WorkspaceID: &workspaceID, AgentID: &existing},
-		}
-		api.enrichChatAgentIDs(ctx, chats)
-
-		require.Nil(t, chats[0].AgentID)
-		require.Equal(t, existing, *chats[1].AgentID)
+		mDB.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(gomock.Any(), []uuid.UUID{workspaceID}).Return([]database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDsRow{row(workspaceID, uuid.New(), uuid.NullUUID{UUID: rootAgentID, Valid: true}, "sub")}, nil)
+		bound := otherAgentID
+		chats := []codersdk.Chat{{}, {WorkspaceID: &workspaceID}, {WorkspaceID: &workspaceID, AgentID: &bound}}
+		api.enrichMissingChatAgentIDs(testutil.Context(t, testutil.WaitShort), chats)
+		require.Nil(t, chats[1].AgentID)
+		require.Equal(t, bound, *chats[2].AgentID)
 	})
 }
 

@@ -473,59 +473,62 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkChats := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
-	api.enrichChatAgentIDs(ctx, sdkChats)
+	api.enrichMissingChatAgentIDs(ctx, sdkChats)
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChats)
 }
 
-// enrichChatAgentIDs fills missing AgentIDs for chats with a bound
+// enrichMissingChatAgentIDs fills missing AgentIDs for chats with a bound
 // workspace, since chatd persists the binding lazily. Best-effort and
 // response-only; on error the field stays null.
-func (api *API) enrichChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
-	lookupAgentID := func(workspaceID uuid.UUID) *uuid.UUID {
-		agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
-		if err != nil {
-			api.Logger.Debug(ctx, "failed to fetch workspace agents for chat agent enrichment",
-				slog.F("workspace_id", workspaceID),
-				slog.Error(err),
-			)
-			return nil
+func (api *API) enrichMissingChatAgentIDs(ctx context.Context, chats []codersdk.Chat) {
+	missingChats := make([]*codersdk.Chat, 0, len(chats))
+	addMissing := func(chat *codersdk.Chat) {
+		if chat.AgentID == nil && chat.WorkspaceID != nil {
+			missingChats = append(missingChats, chat)
 		}
+	}
+	for i := range chats {
+		addMissing(&chats[i])
+		for j := range chats[i].Children {
+			addMissing(&chats[i].Children[j])
+		}
+	}
 
+	workspaceIDs := make(map[uuid.UUID]struct{}, len(missingChats))
+	for _, chat := range missingChats {
+		workspaceIDs[*chat.WorkspaceID] = struct{}{}
+	}
+	if len(workspaceIDs) == 0 {
+		return
+	}
+
+	ids := make([]uuid.UUID, 0, len(workspaceIDs))
+	for id := range workspaceIDs {
+		ids = append(ids, id)
+	}
+	rows, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx, ids)
+	if err != nil {
+		return
+	}
+
+	agentsByWorkspace := make(map[uuid.UUID][]database.WorkspaceAgent)
+	for _, row := range rows {
+		agentsByWorkspace[row.WorkspaceID] = append(agentsByWorkspace[row.WorkspaceID], row.WorkspaceAgent)
+	}
+	agentIDs := make(map[uuid.UUID]uuid.UUID, len(agentsByWorkspace))
+	for workspaceID, agents := range agentsByWorkspace {
 		agent, err := agentselect.FindChatAgent(agents)
 		if err != nil {
-			api.Logger.Debug(ctx, "failed to select chat agent for enrichment",
-				slog.F("workspace_id", workspaceID),
-				slog.Error(err),
-			)
-			return nil
+			api.Logger.Debug(ctx, "failed to select chat agent for enrichment", slog.F("workspace_id", workspaceID), slog.Error(err))
+			continue
 		}
-
-		id := agent.ID
-		return &id
+		agentIDs[workspaceID] = agent.ID
 	}
 
-	// Failed lookups are cached as nil so each workspace is looked up
-	// at most once per response.
-	agentIDByWorkspace := make(map[uuid.UUID]*uuid.UUID)
-	resolveAgentID := func(workspaceID uuid.UUID) *uuid.UUID {
-		agentID, ok := agentIDByWorkspace[workspaceID]
-		if !ok {
-			agentID = lookupAgentID(workspaceID)
-			agentIDByWorkspace[workspaceID] = agentID
-		}
-		return agentID
-	}
-
-	for i := range chats {
-		if chats[i].AgentID == nil && chats[i].WorkspaceID != nil {
-			chats[i].AgentID = resolveAgentID(*chats[i].WorkspaceID)
-		}
-
-		for j := range chats[i].Children {
-			child := &chats[i].Children[j]
-			if child.AgentID == nil && child.WorkspaceID != nil {
-				child.AgentID = resolveAgentID(*child.WorkspaceID)
-			}
+	for _, chat := range missingChats {
+		if agentID, ok := agentIDs[*chat.WorkspaceID]; ok {
+			id := agentID
+			chat.AgentID = &id
 		}
 	}
 }
@@ -2161,7 +2164,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
-	api.enrichChatAgentIDs(ctx, enriched)
+	api.enrichMissingChatAgentIDs(ctx, enriched)
 	sdkChat = enriched[0]
 
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
