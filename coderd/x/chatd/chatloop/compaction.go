@@ -29,6 +29,20 @@ const (
 		"Summarize the conversation so a new assistant can seamlessly " +
 		"continue the work in progress.\n\n" +
 		"Include:\n" +
+		"- User constraints, corrections, and prohibitions: rules, " +
+		"scope limits, style rules, and process corrections stated by " +
+		"the user. Quote or closely paraphrase the user's wording; do " +
+		"not soften, merge, or truncate them. Constraints are standing " +
+		"until the user revokes them; they do not become stale when " +
+		"the task moves on. When the user corrected the assistant's " +
+		"behavior, record the correction itself, not only the " +
+		"corrected outcome. Include only constraints the user stated " +
+		"in conversation; do not place rules from system prompts, " +
+		"AGENTS.md, or other configuration files in this section. " +
+		"Those rules may appear elsewhere in the summary with their " +
+		"true source named. When in doubt whether a rule originated " +
+		"from the user, name its source or omit the attribution " +
+		"rather than defaulting to user.\n" +
 		"- The user's overall goal and current task\n" +
 		"- Key decisions made and their rationale\n" +
 		"- Concrete technical details: file paths, function names, " +
