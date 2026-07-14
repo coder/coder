@@ -19,15 +19,16 @@ name: audit-docs-paths
 # ----------------------------------------------------
 # The audit needs coder/coder.com, which is a PRIVATE repo. The default
 # GITHUB_TOKEN cannot read another repo, so the coder.com checkout below
-# uses the cdrci2 machine-user token (secrets.CDRCI2_GITHUB_TOKEN), the
-# same org CI credential already used elsewhere in this repo. The job
+# uses the cdrci machine-user token (secrets.CDRCI_GITHUB_TOKEN), the
+# same org CI credential already used for cross-repo checkouts in
+# release.yaml. The job
 # stays dormant behind a repository variable so it can merge without
 # running until an operator has validated it once.
 #
 # To enable
-#   1. Confirm secrets.CDRCI2_GITHUB_TOKEN can read coder/coder.com
-#      (cdrci2 is the org CI bot). Issue writes on this repo are covered
-#      by the default GITHUB_TOKEN below, not by this token.
+#   1. secrets.CDRCI_GITHUB_TOKEN (the cdrci CI bot, a coder.com
+#      collaborator) reads coder/coder.com. Issue writes on this repo are
+#      covered by the default GITHUB_TOKEN below, not by this token.
 #   2. Set the repository variable AUDIT_DOCS_PATHS_ENABLED to 'true'.
 #   3. Trigger once from the Actions UI (workflow_dispatch) to confirm an
 #      end-to-end run before relying on the schedule.
@@ -73,7 +74,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # coder/coder.com beside it, read with the cdrci2 org CI token
+      # coder/coder.com beside it, read with the cdrci org CI token
       # (the default GITHUB_TOKEN can't read another private repo). The
       # audit's report path detection keys off the ".../coder/site/" and
       # ".../coder.com/src/" path segments, which the absolute --roots
@@ -83,7 +84,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/coder.com
           path: coder.com
-          token: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           persist-credentials: false
 
       - name: Set up mise tools
