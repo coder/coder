@@ -2,12 +2,17 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // stubSlackAPI is a no-op chattool.SlackAPI used to enable the Slack
@@ -138,4 +143,96 @@ func TestAppendSlackTools(t *testing.T) {
 			LabelSlackThread: "no-separator",
 		}, false))
 	})
+}
+
+func TestStampSlackPostedMessageTS(t *testing.T) {
+	t.Parallel()
+
+	part := func(mutate func(*codersdk.ChatMessagePart)) codersdk.ChatMessagePart {
+		p := codersdk.ChatMessageToolResult(
+			"call-1", slackSendMessageToolName,
+			json.RawMessage(`{"ok":true,"ts":"123.456"}`), false, false,
+		)
+		if mutate != nil {
+			mutate(&p)
+		}
+		return p
+	}
+
+	t.Run("StampsSuccessfulSend", func(t *testing.T) {
+		t.Parallel()
+		p := part(nil)
+		stampSlackPostedMessageTS(&p)
+		require.Equal(t, "123.456", p.Metadata[MetadataKeySlackPostedMessageTS])
+	})
+
+	t.Run("PreservesExistingMetadata", func(t *testing.T) {
+		t.Parallel()
+		p := part(func(p *codersdk.ChatMessagePart) {
+			p.Metadata = map[string]string{"other": "kept"}
+		})
+		stampSlackPostedMessageTS(&p)
+		require.Equal(t, "kept", p.Metadata["other"])
+		require.Equal(t, "123.456", p.Metadata[MetadataKeySlackPostedMessageTS])
+	})
+
+	t.Run("SkipsNonMatchingParts", func(t *testing.T) {
+		t.Parallel()
+		cases := map[string]codersdk.ChatMessagePart{
+			"OtherTool": part(func(p *codersdk.ChatMessagePart) {
+				p.ToolName = "slack_edit_message"
+			}),
+			"ErrorResult": part(func(p *codersdk.ChatMessagePart) {
+				p.IsError = true
+			}),
+			"NotOK": part(func(p *codersdk.ChatMessagePart) {
+				p.Result = json.RawMessage(`{"ok":false,"ts":"123.456"}`)
+			}),
+			"MissingTS": part(func(p *codersdk.ChatMessagePart) {
+				p.Result = json.RawMessage(`{"ok":true}`)
+			}),
+			"MalformedResult": part(func(p *codersdk.ChatMessagePart) {
+				p.Result = json.RawMessage(`not json`)
+			}),
+			"EmptyResult": part(func(p *codersdk.ChatMessagePart) {
+				p.Result = nil
+			}),
+			"NotToolResult": part(func(p *codersdk.ChatMessagePart) {
+				p.Type = codersdk.ChatMessagePartTypeText
+			}),
+		}
+		for name, p := range cases {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				stampSlackPostedMessageTS(&p)
+				require.NotContains(t, p.Metadata, MetadataKeySlackPostedMessageTS)
+			})
+		}
+	})
+}
+
+func TestBuildCommitStepMessagesStampsSlackPostedMessageTS(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		logger: slog.Make(),
+		step: stepData{Content: []fantasy.Content{
+			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: slackSendMessageToolName, Input: `{"text":"hi"}`},
+			fantasy.ToolResultContent{
+				ToolCallID: "call-1",
+				ToolName:   slackSendMessageToolName,
+				Result:     fantasy.ToolResultOutputContentText{Text: `{"ok":true,"ts":"123.456"}`},
+			},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	parts, err := chatprompt.ParseContent(database.ChatMessage{
+		Role:           got.Messages[1].Role,
+		Content:        got.Messages[1].Content,
+		ContentVersion: got.Messages[1].ContentVersion,
+	})
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, "123.456", parts[0].Metadata[MetadataKeySlackPostedMessageTS])
 }

@@ -384,6 +384,12 @@ type sqlcQuerier interface {
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
+	// Returns the distinct values of a content-part metadata key across
+	// the chat's non-deleted messages (all roles, so tool-result parts
+	// are covered) and its queued messages. Used by integrations (e.g.
+	// slackd) to compute which external messages have already been
+	// submitted to the chat.
+	GetChatContentMetadataValues(ctx context.Context, arg GetChatContentMetadataValuesParams) ([]string, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
 	// Groups by root_chat_id so forked chats roll up under their root.
 	// Only counts assistant-role messages.

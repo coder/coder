@@ -7012,6 +7012,54 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
+const getChatContentMetadataValues = `-- name: GetChatContentMetadataValues :many
+SELECT DISTINCT (part->'metadata'->>($1::text))::text AS value
+FROM (
+    SELECT jsonb_array_elements(content) AS part
+    FROM chat_messages
+    WHERE chat_id = $2::uuid
+        AND deleted = false
+    UNION ALL
+    SELECT jsonb_array_elements(content) AS part
+    FROM chat_queued_messages
+    WHERE chat_id = $2::uuid
+) AS parts
+WHERE part->'metadata'->>($1::text) IS NOT NULL
+`
+
+type GetChatContentMetadataValuesParams struct {
+	MetadataKey string    `db:"metadata_key" json:"metadata_key"`
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Returns the distinct values of a content-part metadata key across
+// the chat's non-deleted messages (all roles, so tool-result parts
+// are covered) and its queued messages. Used by integrations (e.g.
+// slackd) to compute which external messages have already been
+// submitted to the chat.
+func (q *sqlQuerier) GetChatContentMetadataValues(ctx context.Context, arg GetChatContentMetadataValuesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getChatContentMetadataValues, arg.MetadataKey, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		items = append(items, value)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatCostPerChat = `-- name: GetChatCostPerChat :many
 WITH chat_costs AS (
     SELECT

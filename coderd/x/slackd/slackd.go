@@ -15,6 +15,16 @@
 // thread-scoped Postgres advisory lock so concurrent senders on
 // different replicas cannot leave two chats generating.
 //
+// Each mention submits a catch-up: the Slack thread is fetched and
+// every message the chat has not yet seen is included in the user
+// message, one <slack-message> block per Slack message. Ingestion is
+// tracked through content-part metadata: every block part is stamped
+// with slack_message_ts, and the newest stamped ts (the watermark)
+// bounds later fetches. Replies the chat posted itself via the
+// slack_send_message tool are excluded through slack_posted_message_ts
+// metadata that chatd stamps on the tool-result part; they never
+// advance the watermark.
+//
 // Every coderd replica runs its own Socket Mode connection, so the
 // same Slack event can be delivered to multiple replicas. slackd
 // deduplicates in two layers:
@@ -26,16 +36,19 @@
 //   - Message submission stamps the Slack event id into the message
 //     content metadata and asks chatd to reject the submission when a
 //     message with the same event id already exists in the chat's
-//     history or queue.
+//     history or queue. The whole catch-up batch rides on one event
+//     id, so a redelivered event cannot double-ingest thread messages.
 package slackd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -64,6 +77,13 @@ const (
 	// MetadataKeySlackEventID is the content-part metadata key that
 	// stores the unique Slack event id used for deduplication.
 	MetadataKeySlackEventID = chatd.MetadataKeySlackEventID
+	// MetadataKeySlackMessageTS is the content-part metadata key that
+	// stores the Slack message timestamp of an ingested thread message.
+	MetadataKeySlackMessageTS = chatd.MetadataKeySlackMessageTS
+	// MetadataKeySlackPostedMessageTS is the content-part metadata key
+	// that stores the Slack timestamp of a reply the chat posted via
+	// the slack_send_message tool.
+	MetadataKeySlackPostedMessageTS = chatd.MetadataKeySlackPostedMessageTS
 
 	// Reconnection backoff bounds for the Socket Mode run loop.
 	reconnectBackoffFloor = time.Second
@@ -83,8 +103,16 @@ const (
 )
 
 const systemPrompt = `You process messages forwarded from Slack by slackd,
-Coder's built-in Slack integration. Each user message contains Slack
-metadata (channel, timestamps, sender) followed by the message content.
+Coder's built-in Slack integration. Each user message starts with Slack
+thread metadata (channel, thread timestamp) followed by one or more
+<slack-message></slack-message> blocks. Each block is one Slack message
+from the thread, in chronological order, carrying nested
+<timestamp-raw>, <from-user>, and <content> tags. User mentions in the
+content are rendered inline as @name, the way Slack displays them; use
+slack_get_user_info or the <from-user> tags when you need a user's id.
+A single user message may catch you up on several Slack messages at
+once: everything said in the thread since the last message you received
+is included.
 
 You can reply to the Slack thread with the slack_* tools when they are
 available. You must reply in-thread with slack_send_message when the sender
@@ -114,10 +142,11 @@ type SocketClient interface {
 	Ack(req socketmode.Request, payload ...any) error
 }
 
-// UserInfoAPI is the subset of the Slack Web API used by slackd.
-type UserInfoAPI interface {
+// WebAPI is the subset of the Slack Web API used by slackd.
+type WebAPI interface {
 	AuthTestContext(ctx context.Context) (*slack.AuthTestResponse, error)
 	GetUserInfoContext(ctx context.Context, user string) (*slack.User, error)
+	GetConversationRepliesContext(ctx context.Context, params *slack.GetConversationRepliesParameters) ([]slack.Message, bool, string, error)
 }
 
 // socketClientAdapter adapts *socketmode.Client to SocketClient.
@@ -147,23 +176,23 @@ type Options struct {
 	BotToken string
 	AppToken string
 
-	// SocketClient and UserInfoAPI override the real Slack clients in
+	// SocketClient and WebAPI override the real Slack clients in
 	// tests. When nil they are built from BotToken and AppToken.
 	SocketClient SocketClient
-	UserInfoAPI  UserInfoAPI
+	WebAPI       WebAPI
 }
 
 // Server runs the Slack Socket Mode listener. Use New followed by
 // Start; Close stops the listener and waits for in-flight event
 // handlers.
 type Server struct {
-	logger      slog.Logger
-	db          database.Store
-	chat        ChatSubmitter
-	ownerID     uuid.UUID
-	providerID  string
-	socket      SocketClient
-	userInfoAPI UserInfoAPI
+	logger     slog.Logger
+	db         database.Store
+	chat       ChatSubmitter
+	ownerID    uuid.UUID
+	providerID string
+	socket     SocketClient
+	webAPI     WebAPI
 
 	closeCtx    context.Context
 	closeCancel context.CancelFunc
@@ -195,14 +224,14 @@ func New(opts Options) (*Server, error) {
 		return nil, xerrors.New("slackd: chat owner user id is required")
 	}
 	socket := opts.SocketClient
-	userInfoAPI := opts.UserInfoAPI
-	if socket == nil || userInfoAPI == nil {
+	webAPI := opts.WebAPI
+	if socket == nil || webAPI == nil {
 		if opts.BotToken == "" || opts.AppToken == "" {
 			return nil, xerrors.New("slackd: bot token and app token are required")
 		}
 		api := slack.New(opts.BotToken, slack.OptionAppLevelToken(opts.AppToken))
-		if userInfoAPI == nil {
-			userInfoAPI = api
+		if webAPI == nil {
+			webAPI = api
 		}
 		if socket == nil {
 			socket = socketClientAdapter{socketmode.New(api)}
@@ -216,7 +245,7 @@ func New(opts Options) (*Server, error) {
 		ownerID:      opts.ChatOwnerUserID,
 		providerID:   opts.ExternalAuthProviderID,
 		socket:       socket,
-		userInfoAPI:  userInfoAPI,
+		webAPI:       webAPI,
 		closeCtx:     ctx,
 		closeCancel:  cancel,
 		backoffFloor: reconnectBackoffFloor,
@@ -349,29 +378,10 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 	}
 	threadKey := ev.Channel + ":" + threadTS
 
-	botUID, err := s.resolveBotUserID(ctx)
-	if err != nil {
-		s.logger.Warn(ctx, "resolve slack bot user id", slog.Error(err))
-	}
-	text := ev.Text
-	if botUID != "" {
-		text = strings.ReplaceAll(text, fmt.Sprintf("<@%s>", botUID), "")
-	}
-	text = strings.TrimSpace(text)
-	if text == "" {
-		text = "Hello!"
-	}
-
-	message := s.buildMessage(ctx, ev, botUID, text, threadTS)
 	labels := map[string]string{
 		LabelSlackd:      "true",
 		LabelSlackThread: threadKey,
 	}
-	content := []codersdk.ChatMessagePart{{
-		Type:     codersdk.ChatMessagePartTypeText,
-		Text:     message,
-		Metadata: map[string]string{MetadataKeySlackEventID: eventID},
-	}}
 
 	// Every message routes to the sender's own chat for the thread,
 	// so the owner is resolved per message, not only for new threads.
@@ -416,6 +426,25 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 			}
 		}
 
+		// Everything said in the thread since the last ingested message
+		// rides on this event, one <slack-message> block per unseen
+		// Slack message. The unseen set is computed under the thread
+		// lock so the watermark is consistent across replicas.
+		unseen, err := s.unseenThreadMessages(ctx, ev, threadTS, uuid.NullUUID{UUID: chat.ID, Valid: found})
+		if err != nil {
+			return err
+		}
+		// Everything this event carries was already ingested through an
+		// earlier event's catch-up (a late-delivered mention has a fresh
+		// event id, so event-id dedup does not catch it). Submitting
+		// would produce an empty catch-up and disturb the thread.
+		if len(unseen) == 0 {
+			s.logger.Debug(ctx, "no unseen slack messages for event, skipping",
+				slog.F("event_id", eventID), slog.F("thread", threadKey))
+			return nil
+		}
+		content := s.buildContent(ctx, ev, threadTS, eventID, unseen)
+
 		// At most one chat per Slack thread generates at a time: other
 		// owners' chats bound to this thread are interrupted before the
 		// sender's chat receives the message (a newly created chat starts
@@ -446,7 +475,7 @@ func (s *Server) handleMention(ctx context.Context, eventID string, ev *slackeve
 				APIKeyID:           apiKeyID,
 				ModelConfigID:      modelConfig.ID,
 				Title:              "Slack thread " + threadKey,
-				SystemPrompt:       systemPrompt,
+				SystemPrompt:       s.buildSystemPrompt(ctx),
 				InitialUserContent: content,
 				Labels:             database.StringMap(labels),
 				// Dedup is scoped per owner: each (owner, thread) pair
@@ -757,20 +786,43 @@ func (s *Server) ensureAPIKeyID(ctx context.Context, ownerID uuid.UUID) (string,
 	return inserted.ID, nil
 }
 
-// resolveBotUserID caches the bot's own Slack user id, used to strip
-// the bot mention from message text.
+// resolveBotUserID caches the bot's own Slack user id, used to tell
+// the model how it appears in Slack messages.
 func (s *Server) resolveBotUserID(ctx context.Context) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.botUID != "" {
 		return s.botUID, nil
 	}
-	resp, err := s.userInfoAPI.AuthTestContext(ctx)
+	resp, err := s.webAPI.AuthTestContext(ctx)
 	if err != nil {
 		return "", err
 	}
 	s.botUID = resp.UserID
 	return s.botUID, nil
+}
+
+// buildSystemPrompt appends the bot's own Slack identity to the base
+// system prompt so the model can recognize inline @bot-name mentions
+// as referring to itself. When the identity cannot be resolved the
+// base prompt is used unchanged.
+func (s *Server) buildSystemPrompt(ctx context.Context) string {
+	botUID, err := s.resolveBotUserID(ctx)
+	if err != nil {
+		s.logger.Warn(ctx, "resolve slack bot user id for system prompt", slog.Error(err))
+		return systemPrompt
+	}
+	botName := ""
+	if user := s.lookupUser(ctx, botUID); user != nil {
+		botName = user.Name
+	}
+	if botName == "" {
+		return systemPrompt + fmt.Sprintf("\n\nYour Slack user id is <@%s>. "+
+			"Mentions of it in message content refer to you.", botUID)
+	}
+	return systemPrompt + fmt.Sprintf("\n\nYou appear in Slack as @%s (user id <@%s>). "+
+		"When @%s shows up in a message's content, the sender is addressing you.",
+		botName, botUID, botName)
 }
 
 // resolveOrganizationID selects the organization for a chat created
@@ -806,7 +858,7 @@ func (s *Server) lookupUser(ctx context.Context, id string) *slack.User {
 		user, _ := cached.(*slack.User)
 		return user
 	}
-	user, err := s.userInfoAPI.GetUserInfoContext(ctx, id)
+	user, err := s.webAPI.GetUserInfoContext(ctx, id)
 	if err != nil {
 		s.logger.Warn(ctx, "slack user lookup failed", slog.F("user", id), slog.Error(err))
 		return nil
@@ -815,11 +867,13 @@ func (s *Server) lookupUser(ctx context.Context, id string) *slack.User {
 	return user
 }
 
-// buildMessage renders the user message submitted to the chat: Slack
-// metadata followed by the message content and resolved mentions.
-func (s *Server) buildMessage(ctx context.Context, ev *slackevents.AppMentionEvent, botUID, text, threadTS string) string {
-	sender := s.lookupUser(ctx, ev.User)
-	senderName, senderRealName := ev.User, ""
+// buildMessageBody renders the body of a <slack-message> block:
+// nested <timestamp-raw>, <from-user>, and <content> tags. User
+// mentions in the content are rendered inline as @name, the way Slack
+// displays them.
+func (s *Server) buildMessageBody(ctx context.Context, msg slack.Message) string {
+	sender := s.lookupUser(ctx, msg.User)
+	senderName, senderRealName := msg.User, ""
 	if sender != nil {
 		senderName = sender.Name
 		senderRealName = sender.RealName
@@ -827,34 +881,223 @@ func (s *Server) buildMessage(ctx context.Context, ev *slackevents.AppMentionEve
 			senderRealName = sender.Profile.DisplayName
 		}
 	}
+
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "<timestamp-raw>%s</timestamp-raw>\n"+
+		"<from-user>%s (<@%s>) (%s)</from-user>\n"+
+		"<content>\n%s\n</content>\n",
+		msg.Timestamp, senderName, msg.User, senderRealName,
+		strings.TrimRight(s.renderMentionsInline(ctx, msg.Text), "\n"))
+	return sb.String()
+}
+
+// renderMentionsInline replaces <@ID> mention tokens with @name, the
+// way Slack displays them. Tokens whose user lookup fails are left
+// as-is so the id is not lost.
+func (s *Server) renderMentionsInline(ctx context.Context, text string) string {
+	return mentionPattern.ReplaceAllStringFunc(text, func(match string) string {
+		id := mentionPattern.FindStringSubmatch(match)[1]
+		if user := s.lookupUser(ctx, id); user != nil && user.Name != "" {
+			return "@" + user.Name
+		}
+		return match
+	})
+}
+
+// buildContent renders the user message submitted to the chat: a
+// header part carrying the thread metadata and the triggering event id
+// (part 0), followed by one <slack-message> block part per unseen
+// Slack message, in timestamp order. Each block part is stamped with
+// slack_message_ts so later events can compute the unseen set.
+func (s *Server) buildContent(
+	ctx context.Context,
+	ev *slackevents.AppMentionEvent,
+	threadTS, eventID string,
+	unseen []slack.Message,
+) []codersdk.ChatMessagePart {
 	threadLine := threadTS
 	if ev.ThreadTimeStamp == "" {
 		threadLine = "N/A (new thread)"
 	}
+	header := fmt.Sprintf("Slack thread metadata:\n\n"+
+		"Channel ID: %s\nThread Timestamp: %s\n\n"+
+		"The slack-message blocks below are the messages from this Slack "+
+		"thread that have not been submitted to this chat yet, in "+
+		"chronological order.\n",
+		ev.Channel, threadLine)
 
-	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "Slack message metadata:\n\n"+
-		"Timestamp Raw: %s\nThread Timestamp: %s\nChannel ID: %s\n"+
-		"From User: %s (<@%s>) (%s)\n\n"+
-		"Slack Message Content:\n%s\n",
-		ev.TimeStamp, threadLine, ev.Channel, senderName, ev.User, senderRealName, text)
+	parts := []codersdk.ChatMessagePart{{
+		Type:     codersdk.ChatMessagePartTypeText,
+		Text:     header,
+		Metadata: map[string]string{MetadataKeySlackEventID: eventID},
+	}}
+	for _, msg := range unseen {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeText,
+			Text:     "<slack-message>\n" + s.buildMessageBody(ctx, msg) + "</slack-message>\n",
+			Metadata: map[string]string{MetadataKeySlackMessageTS: msg.Timestamp},
+		})
+	}
+	return parts
+}
 
-	mentions := extractMentions(ev.Text)
-	if len(mentions) > 0 {
-		_, _ = sb.WriteString("\nMentions found in the message:\n")
-		for _, id := range mentions {
-			if id == botUID {
-				_, _ = fmt.Fprintf(&sb, "Bot (this is the Slack app the message was sent to): %s\n", id)
-				continue
-			}
-			if user := s.lookupUser(ctx, id); user != nil {
-				_, _ = fmt.Fprintf(&sb, "User: %s => %s (%s)\n", id, user.Name, user.RealName)
-			} else {
-				_, _ = fmt.Fprintf(&sb, "User: %s\n", id)
-			}
+// unseenThreadMessages fetches the Slack thread and returns the
+// messages the chat has not ingested yet, in timestamp order. Seen is
+// defined by the watermark (the newest slack_message_ts already in the
+// chat) plus the exclusion set of replies the chat posted itself
+// (slack_posted_message_ts). A null chatID means the chat does not
+// exist yet and the whole thread is unseen. The fetch is
+// authoritative: a mention at or below the watermark was already
+// ingested by an earlier event's catch-up, so a late-delivered event
+// (which carries a fresh event id and passes event-id dedup) must not
+// re-include it. Only on fetch failure is the mention synthesized from
+// the event payload and returned alone, so a Slack API hiccup never
+// drops the event.
+func (s *Server) unseenThreadMessages(
+	ctx context.Context,
+	ev *slackevents.AppMentionEvent,
+	threadTS string,
+	chatID uuid.NullUUID,
+) ([]slack.Message, error) {
+	mention := slack.Message{Msg: slack.Msg{
+		Timestamp: ev.TimeStamp,
+		User:      ev.User,
+		Text:      ev.Text,
+	}}
+	replies, err := s.fetchThreadReplies(ctx, ev.Channel, threadTS)
+	if err != nil {
+		s.logger.Warn(ctx, "fetch slack thread replies, falling back to mention-only submission",
+			slog.F("channel", ev.Channel), slog.F("thread_ts", threadTS), slog.Error(err))
+		return []slack.Message{mention}, nil
+	}
+
+	// A new chat has no history: the whole thread so far is unseen,
+	// including messages from before the bot was first mentioned.
+	var watermark string
+	posted := map[string]struct{}{}
+	if chatID.Valid {
+		watermark, posted, err = s.loadSeenState(ctx, chatID.UUID)
+		if err != nil {
+			return nil, xerrors.Errorf("load slack ingestion state: %w", err)
 		}
 	}
-	return sb.String()
+
+	unseen := make([]slack.Message, 0, len(replies))
+	for _, msg := range replies {
+		if msg.Timestamp == "" || slackTSCompare(msg.Timestamp, watermark) <= 0 {
+			continue
+		}
+		if _, ok := posted[msg.Timestamp]; ok {
+			continue
+		}
+		unseen = append(unseen, msg)
+	}
+	sort.SliceStable(unseen, func(i, j int) bool {
+		return slackTSCompare(unseen[i].Timestamp, unseen[j].Timestamp) < 0
+	})
+	return unseen, nil
+}
+
+// fetchThreadReplies pages through the Slack thread and returns every
+// message in it, with no sender filtering: bot and app messages are
+// included because sibling chats bound to the same thread post replies
+// this chat has never seen.
+func (s *Server) fetchThreadReplies(ctx context.Context, channel, threadTS string) ([]slack.Message, error) {
+	var all []slack.Message
+	cursor := ""
+	for {
+		msgs, hasMore, nextCursor, err := s.webAPI.GetConversationRepliesContext(ctx, &slack.GetConversationRepliesParameters{
+			ChannelID: channel,
+			Timestamp: threadTS,
+			Cursor:    cursor,
+		})
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, msgs...)
+		if !hasMore {
+			return all, nil
+		}
+		cursor = nextCursor
+	}
+}
+
+// loadSeenState returns the chat's ingestion watermark (the newest
+// slack_message_ts across its non-deleted and queued messages) and the
+// exclusion set of reply timestamps the chat posted itself via
+// slack_send_message. Posted timestamps never advance the watermark: a
+// reply posted at ts T while a human message at T-1 is still unseen
+// must not skip that message.
+func (s *Server) loadSeenState(ctx context.Context, chatID uuid.UUID) (string, map[string]struct{}, error) {
+	seen, err := s.db.GetChatContentMetadataValues(ctx, database.GetChatContentMetadataValuesParams{
+		ChatID:      chatID,
+		MetadataKey: MetadataKeySlackMessageTS,
+	})
+	if err != nil {
+		return "", nil, xerrors.Errorf("get ingested slack message timestamps: %w", err)
+	}
+	watermark := ""
+	for _, ts := range seen {
+		if watermark == "" || slackTSCompare(ts, watermark) > 0 {
+			watermark = ts
+		}
+	}
+	postedValues, err := s.db.GetChatContentMetadataValues(ctx, database.GetChatContentMetadataValuesParams{
+		ChatID:      chatID,
+		MetadataKey: MetadataKeySlackPostedMessageTS,
+	})
+	if err != nil {
+		return "", nil, xerrors.Errorf("get posted slack message timestamps: %w", err)
+	}
+	posted := make(map[string]struct{}, len(postedValues))
+	for _, ts := range postedValues {
+		posted[ts] = struct{}{}
+	}
+	return watermark, posted, nil
+}
+
+// slackTSCompare orders Slack message timestamps ("seconds.suffix")
+// numerically: both segments are parsed as integers because
+// lexicographic order breaks across digit-count boundaries. An empty
+// or malformed timestamp sorts before every well-formed one.
+func slackTSCompare(a, b string) int {
+	aSec, aSuf, aOK := parseSlackTS(a)
+	bSec, bSuf, bOK := parseSlackTS(b)
+	if !aOK || !bOK {
+		switch {
+		case aOK == bOK:
+			return strings.Compare(a, b)
+		case aOK:
+			return 1
+		default:
+			return -1
+		}
+	}
+	if aSec != bSec {
+		return cmp.Compare(aSec, bSec)
+	}
+	return cmp.Compare(aSuf, bSuf)
+}
+
+// parseSlackTS splits a Slack timestamp into its integer seconds and
+// suffix segments. The suffix is optional ("123" parses as 123.0).
+func parseSlackTS(ts string) (secs int64, suffix int64, ok bool) {
+	if ts == "" {
+		return 0, 0, false
+	}
+	secPart, sufPart, hasSuffix := strings.Cut(ts, ".")
+	secs, err := strconv.ParseInt(secPart, 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	if !hasSuffix {
+		return secs, 0, true
+	}
+	suffix, err = strconv.ParseInt(sufPart, 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	return secs, suffix, true
 }
 
 // mentionPattern matches Slack user mentions like <@U0123ABC>.

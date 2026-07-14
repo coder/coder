@@ -2653,6 +2653,21 @@ func (mr *MockStoreMockRecorder) GetChatComputerUseProvider(ctx any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatComputerUseProvider", reflect.TypeOf((*MockStore)(nil).GetChatComputerUseProvider), ctx)
 }
 
+// GetChatContentMetadataValues mocks base method.
+func (m *MockStore) GetChatContentMetadataValues(ctx context.Context, arg database.GetChatContentMetadataValuesParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatContentMetadataValues", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatContentMetadataValues indicates an expected call of GetChatContentMetadataValues.
+func (mr *MockStoreMockRecorder) GetChatContentMetadataValues(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatContentMetadataValues", reflect.TypeOf((*MockStore)(nil).GetChatContentMetadataValues), ctx, arg)
+}
+
 // GetChatCostPerChat mocks base method.
 func (m *MockStore) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	m.ctrl.T.Helper()

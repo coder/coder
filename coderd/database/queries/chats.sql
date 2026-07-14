@@ -1914,6 +1914,25 @@ SELECT EXISTS (
         AND content @> @content_filter::jsonb
 )::bool AS message_exists;
 
+-- name: GetChatContentMetadataValues :many
+-- Returns the distinct values of a content-part metadata key across
+-- the chat's non-deleted messages (all roles, so tool-result parts
+-- are covered) and its queued messages. Used by integrations (e.g.
+-- slackd) to compute which external messages have already been
+-- submitted to the chat.
+SELECT DISTINCT (part->'metadata'->>(@metadata_key::text))::text AS value
+FROM (
+    SELECT jsonb_array_elements(content) AS part
+    FROM chat_messages
+    WHERE chat_id = @chat_id::uuid
+        AND deleted = false
+    UNION ALL
+    SELECT jsonb_array_elements(content) AS part
+    FROM chat_queued_messages
+    WHERE chat_id = @chat_id::uuid
+) AS parts
+WHERE part->'metadata'->>(@metadata_key::text) IS NOT NULL;
+
 -- name: GetChatsByOwnerAndLabels :many
 -- Returns non-archived chats owned by the user whose labels contain
 -- label_filter (jsonb containment), oldest first. Used by integrations

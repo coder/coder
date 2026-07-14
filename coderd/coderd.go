@@ -2460,7 +2460,7 @@ func (api *API) startSlackd(options *Options, cfg *slackConfig) error {
 		ExternalAuthProviderID: cfg.externalAuthProviderID,
 		BotToken:               cfg.botToken,
 		AppToken:               cfg.appToken,
-		UserInfoAPI:            cfg.client,
+		WebAPI:                 cfg.client,
 	})
 	if err != nil {
 		return xerrors.Errorf("construct slackd: %w", err)

@@ -61,6 +61,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	for _, toolResult := range toolResults {
 		part := chatprompt.PartFromContentWithLogger(context.Background(), input.logger, toolResult)
 		applyToolMetadata(&part, input.toolNameToConfigID)
+		stampSlackPostedMessageTS(&part)
 		if part.ToolCallID != "" && input.step.ToolResultCreatedAt != nil {
 			if ts, ok := input.step.ToolResultCreatedAt[part.ToolCallID]; ok {
 				part.CreatedAt = &ts
@@ -848,6 +849,7 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 }
 
 func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart) error {
+	stampSlackPostedMessageTS(&part)
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 	if err != nil {
 		return xerrors.Errorf("marshal partial tool result: %w", err)

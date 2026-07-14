@@ -75,7 +75,8 @@ func TestHandleMentionLinkedSenderOwnsChat(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: linked.ID}
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("100.1", "ULINKED", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("ULINKED", "C1", "100.1", "")))
 
@@ -98,7 +99,8 @@ func TestHandleMentionUnlinkedSenderUsesFallback(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: fallback.ID}
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("100.1", "UNOLINK", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("UNOLINK", "C1", "100.1", "")))
 
@@ -124,7 +126,8 @@ func TestHandleMentionNoProviderIgnoresLinks(t *testing.T) {
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: fallback.ID}
 	// No provider configured: legacy fixed-owner behavior for every
 	// sender, even linked ones.
-	server := newTestServer(t, db, chat, fallback.ID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, "", newFakeSocketClient())
+	webAPI.setReplies(threadMsg("100.1", "ULINKED", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("ULINKED", "C1", "100.1", "")))
 
@@ -147,7 +150,8 @@ func TestHandleMentionOtherProviderLinkIgnored(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: fallback.ID}
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("100.1", "ULINKED", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("ULINKED", "C1", "100.1", "")))
 
@@ -246,7 +250,8 @@ func TestHandleMentionOtherSenderGetsOwnChat(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: linkedB.ID}
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("105.0", "UOTHER", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev2", appMention("UOTHER", "C1", "105.0", "100.1")))
 
@@ -281,7 +286,8 @@ func TestHandleMentionOwnerReplyReusesChatAndInterruptsSiblings(t *testing.T) {
 	own := seedThreadChat(t, db, org, linkedB.ID, "C1:100.1")
 
 	chat := newFakeChatSubmitter()
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("105.0", "UOTHER", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev2", appMention("UOTHER", "C1", "105.0", "100.1")))
 
@@ -313,7 +319,8 @@ func TestHandleMentionUnlinkedSenderGetsFallbackChat(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: fallback.ID}
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("105.0", "UNOLINK", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev2", appMention("UNOLINK", "C1", "105.0", "100.1")))
 
@@ -340,9 +347,11 @@ func TestHandleMentionUnlinkedSendersShareFallbackChat(t *testing.T) {
 	shared := seedThreadChat(t, db, org, fallback.ID, "C1:100.1")
 
 	chat := newFakeChatSubmitter()
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
 
+	webAPI.setReplies(threadMsg("105.0", "UNOLINK1", "<@UBOT> hello"))
 	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("UNOLINK1", "C1", "105.0", "100.1")))
+	webAPI.setReplies(threadMsg("106.0", "UNOLINK2", "<@UBOT> hello"))
 	require.NoError(t, server.handleMention(ctx, "Ev2", appMention("UNOLINK2", "C1", "106.0", "100.1")))
 
 	creates, sends := chat.snapshot()
@@ -421,7 +430,8 @@ func TestHandleMentionInterruptErrorsDoNotBlockSubmission(t *testing.T) {
 
 			chat := newFakeChatSubmitter()
 			chat.interruptErr = tc.err
-			server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+			server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+			webAPI.setReplies(threadMsg("105.0", "UNOLINK", "<@UBOT> hello"))
 
 			require.NoError(t, server.handleMention(ctx, "Ev2", appMention("UNOLINK", "C1", "105.0", "100.1")))
 
@@ -451,7 +461,8 @@ func TestHandleMentionCreateRaceResolvesToSameOwnerChat(t *testing.T) {
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: linked.ID}
 	chat.createErr = chatd.ErrChatAlreadyExists
-	server := newTestServerWithProvider(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, testProviderID, newFakeSocketClient())
+	webAPI.setReplies(threadMsg("200.1", "ULINKED", "<@UBOT> hello"))
 
 	require.NoError(t, server.handleMention(ctx, "Ev3", appMention("ULINKED", "C2", "200.1", "")))
 
@@ -501,8 +512,9 @@ func TestHandleMentionObservesOrganizationChanges(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New(), OwnerID: fallback.ID}
-	server := newTestServer(t, db, chat, fallback.ID, newFakeSocketClient())
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, fallback.ID, "", newFakeSocketClient())
 
+	webAPI.setReplies(threadMsg("100.1", "USENDER", "<@UBOT> hello"))
 	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("USENDER", "C1", "100.1", "")))
 
 	// Move the owner to a new organization between messages. The
@@ -516,6 +528,7 @@ func TestHandleMentionObservesOrganizationChanges(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	webAPI.setReplies(threadMsg("200.1", "USENDER", "<@UBOT> hello"))
 	require.NoError(t, server.handleMention(ctx, "Ev2", appMention("USENDER", "C2", "200.1", "")))
 
 	creates, _ := chat.snapshot()

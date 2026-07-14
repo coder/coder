@@ -1051,6 +1051,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().ChatMessageExistsWithContentMetadata(gomock.Any(), arg).Return(true, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(true)
 	}))
+	s.Run("GetChatContentMetadataValues", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatContentMetadataValuesParams{
+			ChatID:      chat.ID,
+			MetadataKey: "slack_message_ts",
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatContentMetadataValues(gomock.Any(), arg).Return([]string{"100.1"}, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]string{"100.1"})
+	}))
 	s.Run("GetChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})

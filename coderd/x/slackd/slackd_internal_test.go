@@ -3,6 +3,8 @@ package slackd
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -24,6 +26,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -68,21 +72,68 @@ func (f *fakeSocketClient) Ack(req socketmode.Request, _ ...any) error {
 	return nil
 }
 
-// fakeUserInfoAPI serves canned Slack identities.
-type fakeUserInfoAPI struct {
+// fakeWebAPI serves canned Slack identities and scripted thread
+// replies.
+type fakeWebAPI struct {
 	botUID string
 	users  map[string]*slack.User
+
+	mu sync.Mutex
+	// replies is returned from GetConversationRepliesContext, split
+	// into pages of repliesPageSize (all at once when zero).
+	replies         []slack.Message
+	repliesPageSize int
+	repliesErr      error
+	repliesCalls    []slack.GetConversationRepliesParameters
 }
 
-func (f *fakeUserInfoAPI) AuthTestContext(context.Context) (*slack.AuthTestResponse, error) {
+func (f *fakeWebAPI) AuthTestContext(context.Context) (*slack.AuthTestResponse, error) {
 	return &slack.AuthTestResponse{UserID: f.botUID}, nil
 }
 
-func (f *fakeUserInfoAPI) GetUserInfoContext(_ context.Context, user string) (*slack.User, error) {
+func (f *fakeWebAPI) GetUserInfoContext(_ context.Context, user string) (*slack.User, error) {
 	if u, ok := f.users[user]; ok {
 		return u, nil
 	}
 	return nil, xerrors.New("user not found")
+}
+
+func (f *fakeWebAPI) GetConversationRepliesContext(_ context.Context, params *slack.GetConversationRepliesParameters) ([]slack.Message, bool, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repliesCalls = append(f.repliesCalls, *params)
+	if f.repliesErr != nil {
+		return nil, false, "", f.repliesErr
+	}
+	start := 0
+	if params.Cursor != "" {
+		var err error
+		start, err = strconv.Atoi(params.Cursor)
+		if err != nil {
+			return nil, false, "", err
+		}
+	}
+	end := len(f.replies)
+	if f.repliesPageSize > 0 && start+f.repliesPageSize < end {
+		end = start + f.repliesPageSize
+	}
+	page := f.replies[start:end]
+	if end < len(f.replies) {
+		return page, true, strconv.Itoa(end), nil
+	}
+	return page, false, "", nil
+}
+
+// setReplies replaces the scripted thread replies.
+func (f *fakeWebAPI) setReplies(msgs ...slack.Message) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.replies = msgs
+}
+
+// threadMsg builds a scripted Slack thread message.
+func threadMsg(ts, user, text string) slack.Message {
+	return slack.Message{Msg: slack.Msg{Timestamp: ts, User: user, Text: text}}
 }
 
 // fakeChatSubmitter records chatd calls and returns scripted results.
@@ -156,6 +207,19 @@ func newTestServer(t *testing.T, db database.Store, chat ChatSubmitter, owner uu
 
 func newTestServerWithProvider(t *testing.T, db database.Store, chat ChatSubmitter, owner uuid.UUID, providerID string, socket *fakeSocketClient) *Server {
 	t.Helper()
+	server, _ := newTestServerWithWebAPI(t, db, chat, owner, providerID, socket)
+	return server
+}
+
+func newTestServerWithWebAPI(t *testing.T, db database.Store, chat ChatSubmitter, owner uuid.UUID, providerID string, socket *fakeSocketClient) (*Server, *fakeWebAPI) {
+	t.Helper()
+	webAPI := &fakeWebAPI{
+		botUID: "UBOT",
+		users: map[string]*slack.User{
+			"USENDER": {Name: "sender", RealName: "Sender Name"},
+			"UBOT":    {Name: "bot", RealName: "Bot App"},
+		},
+	}
 	server, err := New(Options{
 		Logger:                 slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 		Database:               db,
@@ -163,16 +227,11 @@ func newTestServerWithProvider(t *testing.T, db database.Store, chat ChatSubmitt
 		ChatOwnerUserID:        owner,
 		ExternalAuthProviderID: providerID,
 		SocketClient:           socket,
-		UserInfoAPI: &fakeUserInfoAPI{
-			botUID: "UBOT",
-			users: map[string]*slack.User{
-				"USENDER": {Name: "sender", RealName: "Sender Name"},
-			},
-		},
+		WebAPI:                 webAPI,
 	})
 	require.NoError(t, err)
 	t.Cleanup(server.Close)
-	return server
+	return server, webAPI
 }
 
 func mentionEvent(eventID, channel, ts, threadTS, text string) socketmode.Event {
@@ -243,7 +302,8 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	chat := newFakeChatSubmitter()
 	chat.createChat = database.Chat{ID: uuid.New()}
 	socket := newFakeSocketClient()
-	server := newTestServer(t, db, chat, owner.ID, socket)
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", socket)
+	webAPI.setReplies(threadMsg("100.1", "USENDER", "<@UBOT> hello <@USENDER>"))
 	server.Start(ctx)
 
 	socket.events <- mentionEvent("Ev1", "C1", "100.1", "", "<@UBOT> hello <@USENDER>")
@@ -261,18 +321,28 @@ func TestHandleMentionCreatesChatForNewThread(t *testing.T) {
 	assert.NotEqual(t, uuid.Nil, create.ModelConfigID)
 	assert.Equal(t, "true", create.Labels[LabelSlackd])
 	assert.Equal(t, "C1:100.1", create.Labels[LabelSlackThread])
+	// The system prompt carries the bot's own Slack identity so the
+	// model can recognize inline @bot mentions as referring to itself.
+	assert.Contains(t, create.SystemPrompt, "You appear in Slack as @bot (user id <@UBOT>)")
 	assert.Equal(t, map[string]string{
 		LabelSlackd:      "true",
 		LabelSlackThread: "C1:100.1",
 	}, create.DedupLabels)
 	assert.False(t, create.DedupAcrossOwners)
-	require.Len(t, create.InitialUserContent, 1)
-	part := create.InitialUserContent[0]
-	assert.Equal(t, "Ev1", part.Metadata[MetadataKeySlackEventID])
-	assert.Contains(t, part.Text, "hello")
-	assert.Contains(t, part.Text, "Channel ID: C1")
-	assert.Contains(t, part.Text, "sender")
-	assert.NotContains(t, part.Text, "<@UBOT> hello")
+	require.Len(t, create.InitialUserContent, 2)
+	header := create.InitialUserContent[0]
+	assert.Equal(t, "Ev1", header.Metadata[MetadataKeySlackEventID])
+	assert.Contains(t, header.Text, "Channel ID: C1")
+	assert.Contains(t, header.Text, "N/A (new thread)")
+	block := create.InitialUserContent[1]
+	assert.Equal(t, "100.1", block.Metadata[MetadataKeySlackMessageTS])
+	assert.True(t, strings.HasPrefix(block.Text, "<slack-message>\n"))
+	assert.True(t, strings.HasSuffix(block.Text, "</slack-message>\n"))
+	assert.Contains(t, block.Text, "<timestamp-raw>100.1</timestamp-raw>\n")
+	assert.Contains(t, block.Text, "<from-user>sender (<@USENDER>) (Sender Name)</from-user>\n")
+	// Mentions are rendered inline the way Slack displays them.
+	assert.Contains(t, block.Text, "<content>\n@bot hello @sender\n</content>\n")
+	assert.NotContains(t, block.Text, "<@UBOT>")
 }
 
 func TestHandleMentionSendsToExistingChat(t *testing.T) {
@@ -295,7 +365,8 @@ func TestHandleMentionSendsToExistingChat(t *testing.T) {
 
 	chat := newFakeChatSubmitter()
 	socket := newFakeSocketClient()
-	server := newTestServer(t, db, chat, owner.ID, socket)
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", socket)
+	webAPI.setReplies(threadMsg("105.0", "USENDER", "<@UBOT> follow-up"))
 	server.Start(ctx)
 
 	socket.events <- mentionEvent("Ev2", "C1", "105.0", "100.1", "<@UBOT> follow-up")
@@ -310,8 +381,9 @@ func TestHandleMentionSendsToExistingChat(t *testing.T) {
 	assert.NotEmpty(t, send.APIKeyID)
 	assert.Equal(t, chatd.SendMessageBusyBehaviorInterrupt, send.BusyBehavior)
 	assert.Equal(t, MetadataKeySlackEventID, send.DedupMetadataKey)
-	require.Len(t, send.Content, 1)
+	require.Len(t, send.Content, 2)
 	assert.Equal(t, "Ev2", send.Content[0].Metadata[MetadataKeySlackEventID])
+	assert.Equal(t, "105.0", send.Content[1].Metadata[MetadataKeySlackMessageTS])
 }
 
 func TestHandleMentionCreateRaceFallsBackToSend(t *testing.T) {
@@ -330,7 +402,8 @@ func TestHandleMentionCreateRaceFallsBackToSend(t *testing.T) {
 	chat.createErr = chatd.ErrChatAlreadyExists
 	chat.sendErr = chatd.ErrDuplicateMessage
 	socket := newFakeSocketClient()
-	server := newTestServer(t, db, chat, owner.ID, socket)
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", socket)
+	webAPI.setReplies(threadMsg("200.1", "USENDER", "<@UBOT> race"))
 	server.Start(ctx)
 
 	socket.events <- mentionEvent("Ev3", "C2", "200.1", "", "<@UBOT> race")
@@ -376,6 +449,253 @@ func TestExtractMentions(t *testing.T) {
 	ids := extractMentions("<@U1> hi <@U2> and <@U1> again")
 	require.Equal(t, []string{"U1", "U2"}, ids)
 	require.Empty(t, extractMentions("no mentions here"))
+}
+
+func TestSlackTSCompare(t *testing.T) {
+	t.Parallel()
+
+	assert.Negative(t, slackTSCompare("100.1", "100.2"))
+	assert.Positive(t, slackTSCompare("101.1", "100.2"))
+	assert.Zero(t, slackTSCompare("100.1", "100.1"))
+	// Numeric, not lexicographic: 9 < 10 in both segments.
+	assert.Negative(t, slackTSCompare("9.0", "10.0"))
+	assert.Negative(t, slackTSCompare("100.9", "100.10"))
+	// Empty and malformed timestamps sort before well-formed ones.
+	assert.Negative(t, slackTSCompare("", "100.1"))
+	assert.Negative(t, slackTSCompare("garbage", "100.1"))
+	assert.Positive(t, slackTSCompare("100.1", ""))
+	// Suffix is optional.
+	assert.Zero(t, slackTSCompare("100", "100.0"))
+}
+
+// seedIngestedMessage persists a user message stamped with
+// slack_message_ts values, simulating an earlier catch-up submission.
+func seedIngestedMessage(t *testing.T, db database.Store, chatID uuid.UUID, createdBy uuid.UUID, tss ...string) {
+	t.Helper()
+	parts := make([]codersdk.ChatMessagePart, 0, len(tss))
+	for _, ts := range tss {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeText,
+			Text:     "<slack-message>seeded</slack-message>",
+			Metadata: map[string]string{MetadataKeySlackMessageTS: ts},
+		})
+	}
+	content, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:    chatID,
+		CreatedBy: uuid.NullUUID{UUID: createdBy, Valid: true},
+		Content:   content,
+	})
+}
+
+// seedPostedMessage persists a tool message whose tool-result part is
+// stamped with slack_posted_message_ts, simulating a reply the chat
+// posted via slack_send_message.
+func seedPostedMessage(t *testing.T, db database.Store, chatID uuid.UUID, ts string) {
+	t.Helper()
+	part := codersdk.ChatMessageToolResult("call1", "slack_send_message", json.RawMessage(`{"ok":true,"ts":"`+ts+`"}`), false, false)
+	part.Metadata = map[string]string{MetadataKeySlackPostedMessageTS: ts}
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+	require.NoError(t, err)
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:  chatID,
+		Role:    database.ChatMessageRoleTool,
+		Content: content,
+	})
+}
+
+// blockTimestamps returns the slack_message_ts metadata of each part
+// after the header, in order.
+func blockTimestamps(parts []codersdk.ChatMessagePart) []string {
+	tss := make([]string, 0, len(parts))
+	for _, part := range parts[1:] {
+		tss = append(tss, part.Metadata[MetadataKeySlackMessageTS])
+	}
+	return tss
+}
+
+func TestHandleMentionNewChatIngestsFullThread(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, _ := seedOwner(t, db)
+
+	chat := newFakeChatSubmitter()
+	chat.createChat = database.Chat{ID: uuid.New()}
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	// Paginate to prove the cursor loop is followed.
+	webAPI.repliesPageSize = 2
+	webAPI.setReplies(
+		threadMsg("100.1", "USENDER", "thread start"),
+		threadMsg("101.0", "UOTHER", "a reply from another app"),
+		threadMsg("105.0", "USENDER", "<@UBOT> hello"),
+	)
+
+	require.NoError(t, server.handleMention(ctx, "Ev1", appMention("USENDER", "C1", "105.0", "100.1")))
+
+	creates, sends := chat.snapshot()
+	require.Empty(t, sends)
+	require.Len(t, creates, 1)
+	content := creates[0].InitialUserContent
+	require.Len(t, content, 4)
+	assert.Equal(t, "Ev1", content[0].Metadata[MetadataKeySlackEventID])
+	assert.Equal(t, []string{"100.1", "101.0", "105.0"}, blockTimestamps(content))
+	assert.Contains(t, content[1].Text, "thread start")
+	assert.Contains(t, content[2].Text, "a reply from another app")
+	// The triggering mention's bot reference is rendered inline.
+	assert.NotContains(t, content[3].Text, "<@UBOT>")
+	assert.Contains(t, content[3].Text, "@bot hello")
+
+	webAPI.mu.Lock()
+	defer webAPI.mu.Unlock()
+	require.Len(t, webAPI.repliesCalls, 2)
+	assert.Equal(t, "2", webAPI.repliesCalls[1].Cursor)
+}
+
+func TestHandleMentionIngestsOnlyUnseenMessages(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	existing := seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+	// The chat has ingested up to 102.0 and posted its own reply at
+	// 104.0. The posted ts must not advance the watermark: the human
+	// message at 103.0 is still unseen.
+	seedIngestedMessage(t, db, existing.ID, owner.ID, "100.1", "102.0")
+	seedPostedMessage(t, db, existing.ID, "104.0")
+
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	webAPI.setReplies(
+		threadMsg("100.1", "USENDER", "thread start"),
+		threadMsg("102.0", "USENDER", "already seen"),
+		threadMsg("103.0", "UOTHER", "unseen human message"),
+		threadMsg("104.0", "UBOT", "our own posted reply"),
+		threadMsg("105.0", "USENDER", "<@UBOT> hello"),
+	)
+
+	require.NoError(t, server.handleMention(ctx, "Ev2", appMention("USENDER", "C1", "105.0", "100.1")))
+
+	creates, sends := chat.snapshot()
+	require.Empty(t, creates)
+	require.Len(t, sends, 1)
+	assert.Equal(t, existing.ID, sends[0].ChatID)
+	assert.Equal(t, []string{"103.0", "105.0"}, blockTimestamps(sends[0].Content))
+}
+
+func TestHandleMentionQueuedMessagesCountTowardWatermark(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	existing := seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+
+	// A queued (not yet promoted) catch-up already carries 103.0; a
+	// busy chat must not double-ingest it.
+	queued, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:     codersdk.ChatMessagePartTypeText,
+		Text:     "<slack-message>queued</slack-message>",
+		Metadata: map[string]string{MetadataKeySlackMessageTS: "103.0"},
+	}})
+	require.NoError(t, err)
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:  existing.ID,
+		Content: queued.RawMessage,
+	})
+	require.NoError(t, err)
+
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	webAPI.setReplies(
+		threadMsg("103.0", "UOTHER", "queued already"),
+		threadMsg("105.0", "USENDER", "<@UBOT> hello"),
+	)
+
+	require.NoError(t, server.handleMention(ctx, "Ev3", appMention("USENDER", "C1", "105.0", "100.1")))
+
+	_, sends := chat.snapshot()
+	require.Len(t, sends, 1)
+	assert.Equal(t, []string{"105.0"}, blockTimestamps(sends[0].Content))
+}
+
+func TestHandleMentionFetchIsAuthoritative(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	// The fetch does not return the triggering mention. It is not
+	// synthesized from the event payload: only the fetched thread
+	// content is ingested.
+	webAPI.setReplies(
+		threadMsg("103.0", "UOTHER", "an earlier reply"),
+	)
+
+	require.NoError(t, server.handleMention(ctx, "Ev4", appMention("USENDER", "C1", "105.0", "100.1")))
+
+	_, sends := chat.snapshot()
+	require.Len(t, sends, 1)
+	assert.Equal(t, []string{"103.0"}, blockTimestamps(sends[0].Content))
+}
+
+func TestHandleMentionLateEventAlreadyIngestedSkips(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	existing := seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+	// An earlier event's catch-up already ingested the mention at
+	// 103.0 and a later message at 105.0.
+	seedIngestedMessage(t, db, existing.ID, owner.ID, "100.1", "103.0", "105.0")
+
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	webAPI.setReplies(
+		threadMsg("100.1", "USENDER", "thread start"),
+		threadMsg("103.0", "USENDER", "<@UBOT> late-delivered mention"),
+		threadMsg("105.0", "USENDER", "<@UBOT> newer mention"),
+	)
+
+	// The mention at 103.0 arrives late with a fresh event id, after
+	// its content was ingested and the watermark moved past it. It
+	// must not be re-ingested.
+	require.NoError(t, server.handleMention(ctx, "Ev4-late", appMention("USENDER", "C1", "103.0", "100.1")))
+
+	creates, sends := chat.snapshot()
+	require.Empty(t, creates)
+	require.Empty(t, sends)
+}
+
+func TestHandleMentionRepliesFetchFailureFallsBackToMentionOnly(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	owner, org := seedOwner(t, db)
+	seedThreadChat(t, db, org, owner.ID, "C1:100.1")
+
+	chat := newFakeChatSubmitter()
+	server, webAPI := newTestServerWithWebAPI(t, db, chat, owner.ID, "", newFakeSocketClient())
+	webAPI.repliesErr = xerrors.New("slack is down")
+
+	require.NoError(t, server.handleMention(ctx, "Ev5", appMention("USENDER", "C1", "105.0", "100.1")))
+
+	_, sends := chat.snapshot()
+	require.Len(t, sends, 1)
+	content := sends[0].Content
+	require.Len(t, content, 2)
+	assert.Equal(t, "Ev5", content[0].Metadata[MetadataKeySlackEventID])
+	assert.Equal(t, "105.0", content[1].Metadata[MetadataKeySlackMessageTS])
+	assert.Contains(t, content[1].Text, "hello")
 }
 
 func TestWithThreadLock(t *testing.T) {
