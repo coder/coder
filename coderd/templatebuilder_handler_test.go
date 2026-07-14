@@ -107,10 +107,15 @@ func TestTemplateBuilderBases(t *testing.T) {
 
 		resp, err := client.TemplateBuilderBases(ctx)
 		require.NoError(t, err)
+		require.NotEmpty(t, resp.Bases)
 
-		for i := 1; i < len(resp.Bases); i++ {
+		// The Coder Quickstart base is pinned first as the recommended
+		// starting point; the remaining bases are sorted by name.
+		require.Equal(t, "quickstart", resp.Bases[0].ID,
+			"quickstart base should be pinned first")
+		for i := 2; i < len(resp.Bases); i++ {
 			require.LessOrEqual(t, resp.Bases[i-1].Name, resp.Bases[i].Name,
-				"bases should be sorted by name")
+				"bases after quickstart should be sorted by name")
 		}
 	})
 
