@@ -18,6 +18,7 @@ var allBaseIDs = []string{
 	"gcp-linux",
 	"gcp-windows",
 	"kubernetes",
+	"quickstart",
 	"scratch",
 }
 
@@ -26,7 +27,7 @@ func TestBaseTemplateOS(t *testing.T) {
 
 	linuxBases := []string{
 		"aws-linux", "azure-linux", "digitalocean-linux",
-		"docker", "gcp-linux", "kubernetes", "scratch",
+		"docker", "gcp-linux", "kubernetes", "quickstart", "scratch",
 	}
 	for _, id := range linuxBases {
 		t.Run(id, func(t *testing.T) {
