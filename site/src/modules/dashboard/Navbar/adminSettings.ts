@@ -15,7 +15,7 @@ export type AdminSettingsPermissions = {
 	canViewHealth: boolean;
 };
 
-export type AdminSettingsItem = {
+type AdminSettingsItem = {
 	label: string;
 	to: string;
 };
