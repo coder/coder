@@ -84,7 +84,7 @@ done
 
 if [[ -f AGENTS.md ]]; then
 	root_agent_lines=$(wc -l <AGENTS.md)
-	if ((root_agent_lines > 600)); then
+	if ((root_agent_lines > 150)); then
 		echo "warning: AGENTS.md is $root_agent_lines lines, consider keeping the root guide concise."
 	fi
 fi
