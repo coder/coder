@@ -4639,18 +4639,18 @@ func (p *Server) generateAndStoreChatSummary(
 	defer cancel()
 
 	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
-	authCtx := dbauthz.AsChatd(ctx)
+	ctx = dbauthz.AsChatd(ctx)
 
 	// If a turn commits after this read, the stale history_version makes the
 	// eventual summary write lose instead of omitting that newer turn.
-	chat, err := p.db.GetChatByID(authCtx, chat.ID)
+	chat, err := p.db.GetChatByID(ctx, chat.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to re-read chat for summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
 
-	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
+	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to load messages for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
@@ -4674,9 +4674,9 @@ func (p *Server) generateAndStoreChatSummary(
 	// launching turn: this goroutine may outlive that turn, and AI Gateway
 	// routing needs the current transcript's ActiveAPIKeyID.
 	modelOpts := modelBuildOptionsFromMessages(messages)
-	authCtx = withActiveTurnAPIKeyID(authCtx, modelOpts)
+	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
 
-	model, _, ok := p.resolveChatSummaryModel(authCtx, chat, modelOpts, logger)
+	model, _, ok := p.resolveChatSummaryModel(ctx, chat, modelOpts, logger)
 	if !ok {
 		return
 	}
