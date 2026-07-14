@@ -384,7 +384,7 @@ func getProxyCertPool(t *testing.T) *x509.CertPool {
 // It adds a Proxy-Authorization header with the provided token for authentication.
 // The certPool and insecureSkipVerify parameters control TLS verification:
 //   - If the proxy listener is TLS, include the listener certificate.
-//   - For MITM requests, include the proxy's MITM certificate.
+//   - For MITM'd requests, include the proxy's MITM certificate.
 //   - For tunneled requests, include the target server's certificate.
 //   - Set insecureSkipVerify when the target cert SANs do not match the hostname.
 func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, certPool *x509.CertPool, insecureSkipVerify bool) *http.Client {
@@ -1091,7 +1091,7 @@ func TestProxy_CertCaching(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			// Create a mock aibridged server for provider-host (MITM) requests.
+			// Create a mock aibridged server for provider-host (MITM'd) requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			}))
@@ -1117,7 +1117,7 @@ func TestProxy_CertCaching(t *testing.T) {
 			// Build the cert pool for the client to trust:
 			//   - For tunneled requests, the client connects directly to the target server
 			//     through a tunnel, so it needs to trust the target's self-signed certificate.
-			//   - For MITM requests, the client connects through the proxy which generates
+			//   - For MITM'd requests, the client connects through the proxy which generates
 			//     certificates signed by the MITM certificate, so it needs to trust the MITM certificate.
 			var certPool *x509.CertPool
 			if tt.tunneled {
@@ -1189,7 +1189,7 @@ func TestProxy_PortValidation(t *testing.T) {
 				_, _ = w.Write([]byte("hello from target"))
 			})
 
-			// Create a mock aibridged server for provider-host (MITM) requests.
+			// Create a mock aibridged server for provider-host (MITM'd) requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
@@ -1265,7 +1265,7 @@ func TestProxy_Authentication(t *testing.T) {
 				_, _ = w.Write([]byte("hello from target"))
 			})
 
-			// Create a mock aibridged server for provider-host (MITM) requests.
+			// Create a mock aibridged server for provider-host (MITM'd) requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
@@ -1483,7 +1483,7 @@ func TestProxy_MITM(t *testing.T) {
 			// Build the cert pool for the client to trust:
 			//   - For tunneled requests, the client connects directly to the target server
 			//     through a tunnel, so it needs to trust the target's self-signed certificate.
-			//   - For MITM requests, the client connects through the proxy which generates
+			//   - For MITM'd requests, the client connects through the proxy which generates
 			//     certificates signed by the MITM certificate, so it needs to trust the MITM certificate.
 			var certPool *x509.CertPool
 			if tt.tunneled {
@@ -1538,7 +1538,7 @@ func TestProxy_MITM(t *testing.T) {
 				require.Equal(t, tt.expectedPath, receivedPath)
 				require.Equal(t, "Bearer user-llm-token", receivedAuthz, "user LLM credentials must be forwarded")
 				require.Equal(t, "coder-token", receivedBYOK, "proxy must inject BYOK header with Coder token")
-				require.NotEmpty(t, receivedRequestID, "MITM requests must include request ID header")
+				require.NotEmpty(t, receivedRequestID, "MITM'd requests must include request ID header")
 				_, err := uuid.Parse(receivedRequestID)
 				require.NoError(t, err, "request ID must be a valid UUID")
 
@@ -1644,7 +1644,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 }
 
 // TestListenerTLS verifies that the proxy works correctly when its listener is wrapped in TLS.
-// It tests both tunneled and MITM requests through an HTTPS proxy listener.
+// It tests both tunneled and MITM'd requests through an HTTPS proxy listener.
 func TestListenerTLS(t *testing.T) {
 	t.Parallel()
 
@@ -1672,7 +1672,7 @@ func TestListenerTLS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Mock aibridged server that receives MITM requests.
+			// Mock aibridged server that receives MITM'd requests.
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
@@ -1728,7 +1728,7 @@ func TestListenerTLS(t *testing.T) {
 }
 
 // TestProxy_AIBridgeTLSVerification verifies the proxy refuses to forward
-// MITM requests to an aibridge endpoint whose TLS certificate is not trusted.
+// MITM'd requests to an aibridge endpoint whose TLS certificate is not trusted.
 func TestProxy_AIBridgeTLSVerification(t *testing.T) {
 	t.Parallel()
 
@@ -1755,7 +1755,7 @@ func TestProxy_AIBridgeTLSVerification(t *testing.T) {
 	if resp != nil {
 		defer resp.Body.Close()
 	}
-	require.Error(t, err, "proxy must refuse to forward MITM requests to an untrusted aibridge cert")
+	require.Error(t, err, "proxy must refuse to forward MITM'd requests to an untrusted aibridge cert")
 }
 
 // TestServeCACert validates that a configured certificate file can be served correctly by the API.
@@ -2162,7 +2162,7 @@ func TestUpstreamProxy(t *testing.T) {
 				require.False(t, upstreamProxyCONNECTReceived,
 					"upstream proxy should NOT receive CONNECT for provider host")
 				require.True(t, aibridgeReceived,
-					"aibridge should receive the MITM request")
+					"aibridge should receive the MITM'd request")
 				require.Equal(t, tt.expectedAIBridgePath, aibridgePath,
 					"aibridge should receive rewritten path")
 				require.Equal(t, "Bearer user-llm-token", aibridgeAuthz,
@@ -2341,7 +2341,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 			connectTarget := fmt.Sprintf("%s:%s", tt.targetHostname, targetURL.Port())
 
 			// Configure provider hosts that exclude the target so CONNECT requests
-			// go through the tunnel path rather than being MITM.
+			// go through the tunnel path rather than being MITM'd.
 			opts := []testProxyOption{
 				withProviderHosts(aibridgeproxyd.HostAnthropic),
 				withAllowedPorts(targetURL.Port()),
@@ -2407,7 +2407,7 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 }
 
 // TestProxy_APIDump verifies that when NewDumper is configured, the proxy
-// calls DumpRequest and DumpResponse for MITM requests.
+// calls DumpRequest and DumpResponse for MITM'd requests.
 func TestProxy_APIDump(t *testing.T) {
 	t.Parallel()
 

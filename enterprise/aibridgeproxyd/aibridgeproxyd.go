@@ -179,7 +179,7 @@ type requestContext struct {
 	// Set in authMiddleware during the CONNECT handshake.
 	Provider string
 	// RequestID is a unique identifier for this request.
-	// Set in handleRequest for MITM requests.
+	// Set in handleRequest for MITM'd requests.
 	// Sent to aibridged via custom header for cross-service correlation.
 	RequestID uuid.UUID
 	// Dumper captures request/response pairs to disk when API dump is
@@ -309,9 +309,9 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 
 	// Override goproxy's default transport, which has InsecureSkipVerify: true.
-	// This applies to all proxy.Tr traffic: MITM requests forwarded to AI Gateway,
+	// This applies to all proxy.Tr traffic: MITM'd requests forwarded to AI Gateway,
 	// passthrough requests, and HTTPS upstream proxy connections. Proxy is
-	// intentionally unset so MITM requests go directly to AI Gateway, never
+	// intentionally unset so MITM'd requests go directly to AI Gateway, never
 	// through an upstream proxy or HTTPS_PROXY env var.
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
@@ -423,7 +423,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Apply MITM with authentication only to provider hosts. The host
 	// list is loaded from the atomic router on every CONNECT so a
 	// Reload while inflight requests are in progress takes effect on
-	// the next CONNECT without touching the already MITM'd ones.
+	// the next CONNECT without touching the already-MITM'd ones.
 	proxy.OnRequest(srv.mitmHostsCondition()).HandleConnectFunc(
 		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
@@ -1041,7 +1041,7 @@ func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
 }
 
 // handleResponse handles responses received from aibridged.
-// This is called for every MITM request, including the pass-through
+// This is called for every MITM'd request, including the pass-through
 // path where handleRequest re-validated the CONNECT-time provider and
 // forwarded the request to the original upstream instead of aibridged.
 // Pass-through responses are identified by reqCtx.RequestID == uuid.Nil
