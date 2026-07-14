@@ -8,38 +8,22 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { linkToAuditing } from "#/modules/navigation";
+import {
+	type AdminSettingsPermissions,
+	canViewAdminSettings,
+	getAdminSettingsItems,
+} from "./adminSettings";
 
-interface DeploymentDropdownProps {
-	canViewDeployment: boolean;
-	canViewOrganizations: boolean;
-	canViewAuditLog: boolean;
-	canViewConnectionLog: boolean;
-	canViewAIBridge: boolean;
-	canViewAISettings: boolean;
-	canViewHealth: boolean;
-}
+type DeploymentDropdownProps = AdminSettingsPermissions;
 
-export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
-	canViewDeployment,
-	canViewOrganizations,
-	canViewAuditLog,
-	canViewConnectionLog,
-	canViewAIBridge,
-	canViewAISettings,
-	canViewHealth,
-}) => {
-	if (
-		!canViewAuditLog &&
-		!canViewConnectionLog &&
-		!canViewDeployment &&
-		!canViewOrganizations &&
-		!canViewAIBridge &&
-		!canViewAISettings &&
-		!canViewHealth
-	) {
+export const DeploymentDropdown: FC<DeploymentDropdownProps> = (
+	permissions,
+) => {
+	if (!canViewAdminSettings(permissions)) {
 		return null;
 	}
+
+	const items = getAdminSettingsItems(permissions);
 
 	return (
 		<DropdownMenu>
@@ -51,63 +35,14 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			</DropdownMenuTrigger>
 
 			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
-				<DeploymentDropdownContent
-					canViewDeployment={canViewDeployment}
-					canViewOrganizations={canViewOrganizations}
-					canViewAuditLog={canViewAuditLog}
-					canViewConnectionLog={canViewConnectionLog}
-					canViewAIBridge={canViewAIBridge}
-					canViewAISettings={canViewAISettings}
-					canViewHealth={canViewHealth}
-				/>
+				<nav>
+					{items.map((item) => (
+						<DropdownMenuItem key={item.to} asChild>
+							<Link to={item.to}>{item.label}</Link>
+						</DropdownMenuItem>
+					))}
+				</nav>
 			</DropdownMenuContent>
 		</DropdownMenu>
-	);
-};
-
-const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
-	canViewDeployment,
-	canViewAuditLog,
-	canViewConnectionLog,
-	canViewAIBridge,
-	canViewAISettings,
-	canViewHealth,
-}) => {
-	return (
-		<nav>
-			{canViewDeployment && (
-				<DropdownMenuItem asChild>
-					<Link to="/deployment">Deployment</Link>
-				</DropdownMenuItem>
-			)}
-			<DropdownMenuItem asChild>
-				<Link to="/organizations">Organizations</Link>
-			</DropdownMenuItem>
-			{canViewAISettings && (
-				<DropdownMenuItem asChild>
-					<Link to="/ai/settings">AI</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewAuditLog && (
-				<DropdownMenuItem asChild>
-					<Link to={linkToAuditing}>Audit logs</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewConnectionLog && (
-				<DropdownMenuItem asChild>
-					<Link to="/connectionlog">Connection logs</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewAIBridge && (
-				<DropdownMenuItem asChild>
-					<Link to="/ai-gateway/sessions">AI sessions</Link>
-				</DropdownMenuItem>
-			)}
-			{canViewHealth && (
-				<DropdownMenuItem asChild>
-					<Link to="/health">Healthcheck</Link>
-				</DropdownMenuItem>
-			)}
-		</nav>
 	);
 };
