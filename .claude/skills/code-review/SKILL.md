@@ -51,12 +51,15 @@ quality problems.
 ### Authorization Context
 
 ```go
-// Public endpoints needing system access
-dbauthz.AsSystemRestricted(ctx)
+// Public OAuth2 endpoints use the scoped OAuth2 system context
+dbauthz.AsSystemOAuth2(ctx)
 
 // Authenticated endpoints with user context - just use ctx
 api.Database.GetResource(ctx, id)
 ```
+
+Flag any new `dbauthz.AsSystemRestricted` call: it is effectively sudo and
+needs strong justification for why a scoped subject cannot work.
 
 ### Error Handling
 

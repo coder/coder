@@ -136,8 +136,11 @@ Common quick checks:
   request context directly.
 - Reproduce: Call the endpoint without an authenticated user.
 - Diagnose: Trace the authorization context passed to the database operation.
+  A temporarily widened context can confirm a missing permission, but it must
+  never ship.
 - Owner: [OAuth2 Development Guide](OAUTH2.md).
-- Prevent: Use the restricted system context defined by the owner guide.
+- Prevent: Use the scoped OAuth2 system context (`dbauthz.AsSystemOAuth2`)
+  defined by the owner guide, not `dbauthz.AsSystemRestricted`.
 
 ## Symptom: New API endpoint is absent from generated documentation
 

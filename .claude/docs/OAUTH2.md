@@ -39,18 +39,26 @@ with application behavior. For example, RFC 7591 defaults
 ## Public Endpoints and Database Authorization
 
 A public endpoint has no user authorization context. When it must read or write
-system-owned OAuth2 state, use `dbauthz.AsSystemRestricted(ctx)`:
+system-owned OAuth2 state, use the scoped `dbauthz.AsSystemOAuth2(ctx)` context.
+Every `dbauthz.As*` call needs a justifying comment plus `//nolint:gocritic`
+(enforced by the ruleguard rule in `scripts/rules.go`):
 
 ```go
+//nolint:gocritic // OAuth2 system context: dynamic registration is a public endpoint
 app, err := api.Database.GetOAuth2ProviderAppByClientID(
-    dbauthz.AsSystemRestricted(ctx),
+    dbauthz.AsSystemOAuth2(ctx),
     clientID,
 )
 ```
 
-Do not use an unrestricted system context. Authenticated endpoints should keep
-the caller context unless an established authorization boundary requires
-otherwise.
+`AsSystemOAuth2` covers OAuth2 app, secret, and token resources, API key read
+and delete for revocation, and user and organization reads. Do not use
+`dbauthz.AsSystemRestricted(ctx)` in OAuth2 paths: it is effectively sudo. If a
+query fails under `AsSystemOAuth2` with a permission error, widening the
+context is a diagnostic step only and must never ship; the real fix extends the
+scoped subject in `coderd/database/dbauthz/dbauthz.go` or the RBAC policy.
+Authenticated endpoints keep the caller context unless an established
+authorization boundary requires otherwise.
 
 ## Protocol Safeguards
 

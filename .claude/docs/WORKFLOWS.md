@@ -100,4 +100,4 @@ matches nearby routes. For experimental or unstable API paths, place
 excluded from the published API reference until it stabilizes.
 
 Follow [OAuth2 Development Guide](OAUTH2.md) for protocol errors and public
-endpoints that require restricted system access.
+endpoints that require scoped system access.
