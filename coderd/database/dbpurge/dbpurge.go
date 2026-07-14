@@ -51,9 +51,10 @@ const (
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
-	// 10k rows take ~800ms; capping at 5 batches bounds per-tick
-	// transaction growth at a few seconds. Larger backlogs drain
-	// across ticks.
+	// Chat search tsvector backfill is capped at 5 batches of 10k
+	// rows per tick. Benchmarks on a dogfood-class machine (EPYC 9454P)
+	// with containerized Postgres were measured to take ~800ms per batch.
+	// This is considered acceptable but may need dialing in later.
 	chatSearchBackfillBatchSize  = 10000
 	chatSearchBackfillMaxBatches = 5
 )
@@ -100,7 +101,6 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
-	// Separate counter: the backfill updates rows, not purges them.
 	chatSearchRowsBackfilled := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: "dbpurge",
@@ -335,9 +335,11 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		// Safe to run incrementally: queue membership is per-row, content is
-		// immutable after insert, and soft-deleted rows leave the index
-		// automatically.
+		// Backfill search_tsv tsvector on chat_messages in batches. Doing this here because it's
+		// potentially too much for a regular migration, especially on larger deployments:
+		// - Each row with search_tsv = NULL is present in idx_chat_messages_search_tsv_pending.
+		// - Content of chat_messages is not changed after insert.
+		// - Rows that are soft-deleted are no longer part of the index.
 		var backfilledChatSearchRows int64
 		for range i.chatSearchBackfillMaxBatches {
 			n, err := tx.BackfillChatMessagesSearchTsv(ctx, i.chatSearchBackfillBatchSize)

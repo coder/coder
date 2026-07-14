@@ -2865,12 +2865,6 @@ func TestDeleteOldChatFiles(t *testing.T) {
 	}
 }
 
-// awaitDoTicks returns a function that blocks until the next purge tick
-// completes. The first call waits for the initial tick fired by
-// dbpurge.New; each subsequent call advances the mock clock by the purge
-// interval and waits for that tick to finish. Unlike awaitDoTick, it does
-// not trigger an extra trailing tick, so database state is stable between
-// calls. tick may be called at most n times.
 func awaitDoTicks(ctx context.Context, t *testing.T, clk *quartz.Mock, n int) func() {
 	t.Helper()
 	completed := make(chan struct{})
@@ -2883,7 +2877,6 @@ func awaitDoTicks(ctx context.Context, t *testing.T, clk *quartz.Mock, n int) fu
 		defer trapReset.Close()
 		defer trapStop.Close()
 		defer trapNow.Close()
-		// Initial tick: Now() trap. Completion: TickerReset trap.
 		trapNow.MustWait(ctx).MustRelease(ctx)
 		trapReset.MustWait(ctx).MustRelease(ctx)
 		select {
@@ -2902,7 +2895,6 @@ func awaitDoTicks(ctx context.Context, t *testing.T, clk *quartz.Mock, n int) fu
 				return
 			}
 			w.MustWait(ctx)
-			// The purge loop stops the ticker, runs doTick, then resets.
 			trapStop.MustWait(ctx).MustRelease(ctx)
 			trapReset.MustWait(ctx).MustRelease(ctx)
 			select {
@@ -2978,7 +2970,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		_, err := rawDB.ExecContext(ctx, "UPDATE chat_messages SET deleted = true WHERE id = $1", id)
 		require.NoError(t, err)
 	}
-	// Repeats the predicate of idx_chat_messages_search_tsv_pending.
+	// The WHERE clause below must match the predicate of idx_chat_messages_search_tsv_pending.
 	countPending := func(ctx context.Context, t *testing.T, rawDB *sql.DB) int {
 		t.Helper()
 		var count int

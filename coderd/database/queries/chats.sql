@@ -680,7 +680,7 @@ WHERE
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN btrim(@search::text, E' \t\n\r') != '' THEN (
+        WHEN @search::text != '' THEN (
             -- Served by idx_chats_title_fts.
             to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', @search)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
@@ -690,8 +690,9 @@ WHERE
                 WHERE cds.chat_id = chats_expanded.id
                     AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', @search)
             )
-            -- The WHERE clause must repeat the partial predicate of
-            -- idx_chat_messages_search_tsv exactly so the planner can use it.
+            -- The WHERE clause must repeat the predicate of the partial index
+            -- idx_chat_messages_search_tsv so the planner can use it. Additional
+			-- filters should still be fine.
             OR EXISTS (
                 SELECT 1
                 FROM chat_messages cm
@@ -702,15 +703,14 @@ WHERE
                     AND cm.role IN ('user', 'assistant')
                     AND cm.search_tsv @@ websearch_to_tsquery('simple', @search)
             )
-            -- CASE forces the digits guard before the ::bigint cast; AND
-            -- operand order is not guaranteed.
+            -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
                 WHEN @search ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number::bigint = @search::bigint
+                        AND cds.pr_number = @search::bigint
                 )
                 ELSE false
             END

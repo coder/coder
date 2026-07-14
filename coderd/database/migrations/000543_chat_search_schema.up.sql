@@ -1,6 +1,3 @@
--- CASE guard: jsonb_array_elements raises on non-array input. Legacy
--- content_version=0 rows store scalar JSON strings; excluded from search
--- by design. IMMUTABLE for expression index use.
 CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     SELECT CASE WHEN jsonb_typeof(content) = 'array' THEN (
@@ -10,26 +7,32 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
     ) END
 $$;
 
+COMMENT ON FUNCTION chat_message_search_text IS 'Extracts searchable content from chat_messages. Returns NULL for scalar JSON strings (content_version=0). Immutable as it is used in indexes.';
+
 -- Populated by a background sweep, not at insert time. NULL means pending.
 ALTER TABLE chat_messages ADD COLUMN search_tsv tsvector;
+
+COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
 CREATE INDEX idx_chat_messages_search_tsv ON chat_messages
 USING GIN (search_tsv)
 WHERE ((search_tsv IS NOT NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
 
--- Sweep uses this to find pending rows. Queries must repeat the full predicate.
+COMMENT ON INDEX idx_chat_messages_search_tsv IS 'Partial index over chat_messages used for full text search. Only defined over ''searchable'' rows of chat_messages.';
+
 CREATE INDEX idx_chat_messages_search_tsv_pending ON chat_messages USING btree (id DESC)
 WHERE ((search_tsv IS NULL) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
 
-CREATE INDEX idx_chats_title_fts ON chats
-    USING GIN (to_tsvector('simple', title));
+COMMENT ON INDEX idx_chat_messages_search_tsv IS 'Partial index over chat_messages used for populating search_tsv in the background. Only defined over ''searchable'' rows of chat_messages where search_tsv is NULL.';
 
-CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses
-    USING GIN (to_tsvector('simple', pull_request_title));
+CREATE INDEX idx_chats_title_fts ON chats USING GIN (to_tsvector('simple', title));
 
--- search_tsv is system-maintained; the backfill must not perturb message
--- revision, chat history_version, generation_attempt, or retry state.
--- Both triggers therefore ignore changes confined to search_tsv.
+COMMENT ON index idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
+
+CREATE INDEX idx_chat_diff_statuses_pr_title_fts ON chat_diff_statuses USING GIN (to_tsvector('simple', pull_request_title));
+
+COMMENT ON index idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
+
 CREATE OR REPLACE FUNCTION set_chat_message_revision_before()
 RETURNS trigger AS $$
 DECLARE
@@ -68,6 +71,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+COMMENT ON FUNCTION set_chat_message_revision_before IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv as it is not relevant to chatd''s processing loop.';
+
 CREATE OR REPLACE FUNCTION update_chat_history_after_message_update()
 RETURNS trigger AS $$
 BEGIN
@@ -78,7 +83,6 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        -- jsonb-minus here: transition-table rows have no composite-copy idiom in pure SQL.
         WHERE (to_jsonb(o) - 'search_tsv') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv')
     ) AS affected
     WHERE c.id = affected.chat_id
@@ -89,3 +93,5 @@ BEGIN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION update_chat_history_after_message_update IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';

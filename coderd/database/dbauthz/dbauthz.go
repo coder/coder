@@ -697,8 +697,8 @@ var (
 					rbac.ResourceApiKey.Type:                      {policy.ActionDelete},
 					rbac.ResourceAibridgeInterception.Type:        {policy.ActionDelete},
 					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionDelete},
-					// Chat auto-archive sets archived=true on inactive chats; the
-					// search_tsv backfill also updates chat messages.
+					// Chat auto-archive sets archived=true on inactive chats and computes
+					// search_tsv tsvector for chat_messages.
 					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
 					// Purge old boundary logs past the retention period.
 					rbac.ResourceBoundaryLog.Type: {policy.ActionDelete},
@@ -1838,7 +1838,6 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 }
 
 func (q *querier) ChatSearchQueryIsEmpty(ctx context.Context, search string) (bool, error) {
-	// Pure function, no rows. Gates on chat read to match the listing caller.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return false, err
 	}
