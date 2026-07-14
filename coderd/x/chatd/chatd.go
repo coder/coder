@@ -4617,13 +4617,13 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 	if chat.ParentChatID.Valid {
 		return
 	}
-	summaryCtx, stopSummaryCtx := p.inflightContext(ctx)
+	ctx, cancel := p.inflightContext(ctx)
 	if err := p.goInflight(func() {
-		defer stopSummaryCtx()
-		p.generateAndStoreChatSummary(summaryCtx, chat, logger)
+		defer cancel()
+		p.generateAndStoreChatSummary(ctx, logger, chat)
 	}); err != nil {
-		stopSummaryCtx()
-		logger.Debug(context.WithoutCancel(ctx), "skipped chat summary generation",
+		cancel()
+		logger.Debug(ctx, "skipped chat summary generation",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 	}
 }
@@ -4632,8 +4632,8 @@ func (p *Server) maybeGenerateChatSummaryAsync(
 // when due. Best-effort; never clears an existing summary on failure.
 func (p *Server) generateAndStoreChatSummary(
 	ctx context.Context,
-	chat database.Chat,
 	logger slog.Logger,
+	chat database.Chat,
 ) {
 	ctx, cancel := context.WithTimeout(ctx, chatSummaryWorkTimeout)
 	defer cancel()
