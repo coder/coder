@@ -482,9 +482,11 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 // response-only; on error the field stays null.
 func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []codersdk.Chat) {
 	missingChats := make([]*codersdk.Chat, 0, len(chats))
+	workspaceIDs []uuid.UUID
 	addMissing := func(chat *codersdk.Chat) {
 		if chat.AgentID == nil && chat.WorkspaceID != nil {
 			missingChats = append(missingChats, chat)
+			workspaceIDs = append(workspaceIDs, *chat.WorkspaceID)
 		}
 	}
 	for i := range chats {
@@ -494,18 +496,8 @@ func (api *API) enrichChatWithWorkspaceAgentIDs(ctx context.Context, chats []cod
 		}
 	}
 
-	workspaceIDs := make(map[uuid.UUID]struct{}, len(missingChats))
-	for _, chat := range missingChats {
-		workspaceIDs[*chat.WorkspaceID] = struct{}{}
-	}
-	if len(workspaceIDs) == 0 {
-		return
-	}
-
-	ids := make([]uuid.UUID, 0, len(workspaceIDs))
-	for id := range workspaceIDs {
-		ids = append(ids, id)
-	}
+	slices.Sort(workspaceIDs)
+	ids := slices.Compact(workspaceIDs)
 	rows, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceIDs(ctx, ids)
 	if err != nil {
 		return
