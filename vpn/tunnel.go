@@ -171,7 +171,7 @@ func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 			t.logger.Debug(t.ctx, "ignoring system wake; tunnel is not running or a rebind happened recently")
 		}
 		resp.Msg = &TunnelMessage_Wake{
-			Wake: &WakeResponse{Success: true},
+			Wake: &WakeResponse{},
 		}
 	default:
 		t.logger.Warn(t.ctx, "unhandled manager request", slog.F("request", msg))
