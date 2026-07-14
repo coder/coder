@@ -7,7 +7,6 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
-import { cn } from "#/utils/cn";
 import { Spinner } from "../Spinner/Spinner";
 
 interface GitDeviceAuthProps {

@@ -24,7 +24,8 @@ const pillRoleVariants = cva("text-content-primary", {
 			inactive: "border-border bg-surface-secondary",
 			danger: "border-border-warning bg-surface-orange",
 			preview: "border-border-purple bg-surface-purple",
-			muted: "border-border-secondary bg-surface-tertiary text-content-secondary",
+			muted:
+				"border-border-secondary bg-surface-tertiary text-content-secondary",
 		},
 	},
 	defaultVariants: {
