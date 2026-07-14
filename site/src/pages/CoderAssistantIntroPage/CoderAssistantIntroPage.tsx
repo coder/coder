@@ -7,9 +7,7 @@ import {
 	useCoderAssistantContext,
 } from "#/components/CoderAssistant/CoderAssistantProvider";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
-import { Loader } from "#/components/Loader/Loader";
-import { useAuthContext } from "#/contexts/auth/AuthProvider";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
 import { CoderAssistantProviderSetup } from "./CoderAssistantProviderSetup";
 
@@ -44,19 +42,19 @@ const CoderAssistantIntroContent: FC<{ providerConfigured: boolean }> = ({
 	// mid-session because the parent captures the flag once on mount.
 	useEffect(() => {
 		if (open) {
-			writeLS("coder_agent_intro_completed", "true");
+			writeLS("coder_assistant_intro_completed", "true");
 		}
 	}, [open]);
 
 	const handleTryCoderAssistant = useCallback(() => {
 		// The user has seen the intro; don't show it again. They stay
 		// on this page to interact with the Coder Assistant until they leave.
-		writeLS("coder_agent_intro_completed", "true");
+		writeLS("coder_assistant_intro_completed", "true");
 		toggle();
 	}, [toggle]);
 
 	const handleSkip = useCallback(() => {
-		writeLS("coder_agent_intro_completed", "true");
+		writeLS("coder_assistant_intro_completed", "true");
 		void navigate("/templates");
 	}, [navigate]);
 
@@ -126,10 +124,10 @@ const CoderAssistantIntroContent: FC<{ providerConfigured: boolean }> = ({
 };
 
 export const CoderAssistantIntroPage: FC = () => {
-	const { isLoading, isSignedIn } = useAuthContext();
-	const { metadata } = useEmbeddedMetadata();
-	const coderAssistantEnabled =
-		metadata.experiments.value?.includes("coder-assistant") ?? false;
+	// This route lives under RequireAuth (like /cli-auth), so
+	// authentication and the dashboard context are already guaranteed.
+	const { experiments } = useDashboard();
+	const coderAssistantEnabled = experiments.includes("coder-assistant");
 
 	// The flow has two steps: configure an AI provider so the Coder Assistant
 	// can actually respond, then meet the Coder Assistant itself.
@@ -140,23 +138,15 @@ export const CoderAssistantIntroPage: FC = () => {
 	// render would yank the user off the page as soon as the flag is
 	// written mid-session (e.g. right after they open the panel).
 	const [introAlreadyCompleted] = useState(
-		() => readLS("coder_agent_intro_completed") === "true",
+		() => readLS("coder_assistant_intro_completed") === "true",
 	);
 
 	if (!coderAssistantEnabled) {
 		return <Navigate to="/templates" replace />;
 	}
 
-	if (!isLoading && !isSignedIn) {
-		return <Navigate to="/login" replace />;
-	}
-
 	if (introAlreadyCompleted) {
 		return <Navigate to="/templates" replace />;
-	}
-
-	if (isLoading) {
-		return <Loader fullscreen />;
 	}
 
 	if (step === "provider") {

@@ -721,10 +721,10 @@ export const infiniteChats = (filters?: InfiniteChatsFilters) => {
  * Assistant chats are excluded from the default browsing list and
  * shown in a dedicated collapsible sidebar section instead.
  */
-export const CODER_AGENT_LABEL_KEY = "coder-agent";
+export const CODER_ASSISTANT_LABEL_KEY = "coder-assistant";
 
-export const isCoderAgentChat = (chat: TypesGen.Chat): boolean =>
-	chat.labels?.[CODER_AGENT_LABEL_KEY] === "true";
+export const isCoderAssistantChat = (chat: TypesGen.Chat): boolean =>
+	chat.labels?.[CODER_ASSISTANT_LABEL_KEY] === "true";
 
 const ASSISTANT_CHATS_LIMIT = 25;
 
@@ -734,7 +734,7 @@ export const assistantChats = () =>
 		queryFn: () =>
 			API.experimental.getChats({
 				limit: ASSISTANT_CHATS_LIMIT,
-				labels: [`${CODER_AGENT_LABEL_KEY}:true`],
+				labels: [`${CODER_ASSISTANT_LABEL_KEY}:true`],
 			}),
 	});
 

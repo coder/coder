@@ -565,7 +565,6 @@ export const router = createBrowserRouter(
 			<Route path="login" element={<LoginPage />} />
 			<Route path="login/device" element={<LoginOAuthDevicePage />} />
 			<Route path="setup" element={<SetupPage />} />
-			<Route path="setup/agent" element={<CoderAssistantIntroPage />} />
 			<Route path="reset-password">
 				<Route index element={<RequestOTPPage />} />
 				<Route path="change" element={<ChangePasswordPage />} />
@@ -840,6 +839,7 @@ export const router = createBrowserRouter(
 					element={<TerminalPage />}
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
+				<Route path="/setup/agent" element={<CoderAssistantIntroPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />

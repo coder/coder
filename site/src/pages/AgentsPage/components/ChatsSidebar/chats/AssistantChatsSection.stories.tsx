@@ -12,7 +12,7 @@ import { AssistantChatsSection } from "./AssistantChatsSection";
 
 const buildAssistantChat = (overrides: Partial<Chat>): Chat => ({
 	...MockChat,
-	labels: { "coder-agent": "true" },
+	labels: { "coder-assistant": "true" },
 	...overrides,
 });
 
@@ -55,7 +55,7 @@ const withChatTree =
 // The component persists its expanded state in localStorage, so reset
 // it before each story to keep the default (collapsed) deterministic.
 const withCollapsedPreferenceReset: Decorator = (Story) => {
-	localStorage.removeItem("coder_agent_history_expanded");
+	localStorage.removeItem("coder_assistant_history_expanded");
 	return <Story />;
 };
 

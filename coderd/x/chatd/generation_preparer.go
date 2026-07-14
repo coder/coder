@@ -356,9 +356,9 @@ func (server *Server) prepareGeneration(
 			isRootChat:           isRootChat,
 		},
 	)
-	if IsCoderAgentChat(chat.Labels) {
-		prompt = chatprompt.InsertSystem(prompt, CoderAgentSystemPrompt)
-		prompt = chatprompt.InsertSystem(prompt, server.coderAgentUserContextBlock(ctx, chat, logger))
+	if IsCoderAssistantChat(chat.Labels) {
+		prompt = chatprompt.InsertSystem(prompt, CoderAssistantSystemPrompt)
+		prompt = chatprompt.InsertSystem(prompt, server.coderAssistantUserContextBlock(ctx, chat, logger))
 	}
 	if advisorRuntime != nil {
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
@@ -631,11 +631,11 @@ func (server *Server) prepareGeneration(
 	}, nil
 }
 
-// coderAgentUserContextBlock loads the chat owner's identity, deployment
-// roles, and organization memberships to build the Coder Agent
+// coderAssistantUserContextBlock loads the chat owner's identity, deployment
+// roles, and organization memberships to build the Coder Assistant
 // user-context system instruction. Best-effort: it logs and returns an
 // empty string when the owner cannot be loaded so the turn still runs.
-func (server *Server) coderAgentUserContextBlock(
+func (server *Server) coderAssistantUserContextBlock(
 	ctx context.Context,
 	chat database.Chat,
 	logger slog.Logger,
@@ -665,7 +665,7 @@ func (server *Server) coderAgentUserContextBlock(
 		}
 	}
 
-	return CoderAgentUserContext(owner, owner.RBACRoles, orgNames, chat.Labels[coderAgentPageLabelKey])
+	return CoderAssistantUserContext(owner, owner.RBACRoles, orgNames, chat.Labels[coderAssistantPageLabelKey])
 }
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {

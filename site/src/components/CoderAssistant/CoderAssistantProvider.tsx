@@ -77,12 +77,12 @@ const CoderAssistantContext = createContext<CoderAssistantContextValue | null>(
 	null,
 );
 
-const CHAT_ID_STORAGE_KEY = "coder_agent_chat_id";
+const CHAT_ID_STORAGE_KEY = "coder_assistant_chat_id";
 
 // Label key the server reads to learn which dashboard page the user is
 // viewing. The value is the raw pathname; label values allow "/" and
 // are capped at 256 bytes server-side.
-const PAGE_LABEL_KEY = "coder-agent-page";
+const PAGE_LABEL_KEY = "coder-assistant-page";
 const MAX_PAGE_LABEL_LENGTH = 256;
 
 function pageLabelValue(pathname: string): string | undefined {
@@ -126,7 +126,7 @@ export const CoderAssistantProvider: FC<
 	const [enabled, setEnabled] = useState(
 		() =>
 			forceEnabled ||
-			readLocalStorage("coder_agent_enabled", "false") === "true",
+			readLocalStorage("coder_assistant_enabled", "false") === "true",
 	);
 	const [open, setOpen] = useState(false);
 	const [chatId, setChatIdState] = useState<string | null>(
@@ -333,7 +333,7 @@ export const CoderAssistantProvider: FC<
 	}, []);
 
 	const disable = useCallback(() => {
-		writeLocalStorage("coder_agent_enabled", "false");
+		writeLocalStorage("coder_assistant_enabled", "false");
 		setEnabled(false);
 		setOpen(false);
 		// Clear the stored chat so re-enabling starts clean and no
@@ -371,7 +371,7 @@ export const CoderAssistantProvider: FC<
 							content,
 							model_config_id: modelConfigId,
 							labels: {
-								"coder-agent": "true",
+								"coder-assistant": "true",
 								...(page ? { [PAGE_LABEL_KEY]: page } : {}),
 							},
 							client_type: "ui",

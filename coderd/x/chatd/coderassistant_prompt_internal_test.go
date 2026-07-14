@@ -8,7 +8,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-func TestIsCoderAgentChat(t *testing.T) {
+func TestIsCoderAssistantChat(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -28,28 +28,28 @@ func TestIsCoderAgentChat(t *testing.T) {
 		},
 		{
 			name:   "WrongValue",
-			labels: map[string]string{"coder-agent": "false"},
+			labels: map[string]string{"coder-assistant": "false"},
 			want:   false,
 		},
 		{
 			name:   "CorrectValue",
-			labels: map[string]string{"coder-agent": "true"},
+			labels: map[string]string{"coder-assistant": "true"},
 			want:   true,
 		},
 		{
 			name: "CorrectValueWithOtherLabels",
 			labels: map[string]string{
-				"coder-agent":      "true",
-				"coder-agent-page": "/workspaces",
-				"unrelated":        "value",
+				"coder-assistant":      "true",
+				"coder-assistant-page": "/workspaces",
+				"unrelated":            "value",
 			},
 			want: true,
 		},
 		{
 			name: "OtherLabelsOnly",
 			labels: map[string]string{
-				"coder-agent-page": "/workspaces",
-				"unrelated":        "true",
+				"coder-assistant-page": "/workspaces",
+				"unrelated":            "true",
 			},
 			want: false,
 		},
@@ -59,12 +59,12 @@ func TestIsCoderAgentChat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, IsCoderAgentChat(tt.labels))
+			require.Equal(t, tt.want, IsCoderAssistantChat(tt.labels))
 		})
 	}
 }
 
-func TestSanitizeCoderAgentPage(t *testing.T) {
+func TestSanitizeCoderAssistantPage(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -153,18 +153,18 @@ func TestSanitizeCoderAgentPage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tt.want, sanitizeCoderAgentPage(tt.page))
+			require.Equal(t, tt.want, sanitizeCoderAssistantPage(tt.page))
 		})
 	}
 }
 
-func TestCoderAgentUserContext(t *testing.T) {
+func TestCoderAssistantUserContext(t *testing.T) {
 	t.Parallel()
 
 	t.Run("FullData", func(t *testing.T) {
 		t.Parallel()
 
-		got := CoderAgentUserContext(
+		got := CoderAssistantUserContext(
 			database.User{Username: "alice", Name: "Alice Smith"},
 			[]string{"owner", "template-admin"},
 			[]string{"acme", "widgets"},
@@ -182,7 +182,7 @@ func TestCoderAgentUserContext(t *testing.T) {
 	t.Run("EmptyNameOmitsNameLine", func(t *testing.T) {
 		t.Parallel()
 
-		got := CoderAgentUserContext(
+		got := CoderAssistantUserContext(
 			database.User{Username: "bob", Name: "   "},
 			[]string{"owner"},
 			nil,
@@ -195,7 +195,7 @@ func TestCoderAgentUserContext(t *testing.T) {
 	t.Run("EmptyRolesRendersMemberFallback", func(t *testing.T) {
 		t.Parallel()
 
-		got := CoderAgentUserContext(
+		got := CoderAssistantUserContext(
 			database.User{Username: "bob"},
 			nil,
 			nil,
@@ -207,7 +207,7 @@ func TestCoderAgentUserContext(t *testing.T) {
 	t.Run("EmptyOrgsOmitsOrgLine", func(t *testing.T) {
 		t.Parallel()
 
-		got := CoderAgentUserContext(
+		got := CoderAssistantUserContext(
 			database.User{Username: "bob"},
 			[]string{"owner"},
 			nil,
@@ -219,7 +219,7 @@ func TestCoderAgentUserContext(t *testing.T) {
 	t.Run("InvalidPageOmitted", func(t *testing.T) {
 		t.Parallel()
 
-		got := CoderAgentUserContext(
+		got := CoderAssistantUserContext(
 			database.User{Username: "bob"},
 			[]string{"owner"},
 			nil,

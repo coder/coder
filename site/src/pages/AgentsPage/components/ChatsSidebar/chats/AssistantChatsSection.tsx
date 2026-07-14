@@ -8,7 +8,7 @@ import { ChatTreeNode } from "../tree/ChatTreeNode";
 import { getSectionToggleTestId } from "./ChatSectionHeader";
 
 const ASSISTANT_SECTION_KEY = "Assistant";
-const EXPANDED_STORAGE_KEY = "coder_agent_history_expanded";
+const EXPANDED_STORAGE_KEY = "coder_assistant_history_expanded";
 
 function readStoredExpanded(): boolean {
 	try {
@@ -31,7 +31,7 @@ function writeStoredExpanded(expanded: boolean): void {
 /**
  * Drawer docked at the bottom of the chats sidebar, directly above
  * the user footer, that holds Coder Assistant conversations (chats
- * labeled coder-agent=true). Those chats are excluded from the main
+ * labeled coder-assistant=true). Those chats are excluded from the main
  * browsing list and only fetched here, on demand, when the drawer is
  * expanded. The drawer opens upward: chat rows render above the
  * toggle row with their own internal scroll, so the drawer never

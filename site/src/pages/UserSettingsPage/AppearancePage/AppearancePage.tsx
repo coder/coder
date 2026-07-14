@@ -51,7 +51,7 @@ export const useQueuedAppearanceSubmit = (mutate: MutateAppearanceSettings) => {
 	};
 };
 
-const CODER_AGENT_ENABLED_KEY = "coder_agent_enabled";
+const CODER_ASSISTANT_ENABLED_KEY = "coder_assistant_enabled";
 
 // The Coder Assistant is a per-browser preference stored in
 // localStorage. The provider reads it once at mount, so changes take
@@ -60,7 +60,7 @@ const CoderAssistantSection: FC = () => {
 	const switchId = useId();
 	const [assistantEnabled, setAssistantEnabled] = useState(() => {
 		try {
-			return localStorage.getItem(CODER_AGENT_ENABLED_KEY) === "true";
+			return localStorage.getItem(CODER_ASSISTANT_ENABLED_KEY) === "true";
 		} catch {
 			return false;
 		}
@@ -69,11 +69,11 @@ const CoderAssistantSection: FC = () => {
 	const handleToggle = (checked: boolean) => {
 		setAssistantEnabled(checked);
 		try {
-			localStorage.setItem(CODER_AGENT_ENABLED_KEY, String(checked));
+			localStorage.setItem(CODER_ASSISTANT_ENABLED_KEY, String(checked));
 			if (checked) {
 				// Enabling from settings implies the user is past the intro,
 				// so skip the onboarding flow on future visits.
-				localStorage.setItem("coder_agent_intro_completed", "true");
+				localStorage.setItem("coder_assistant_intro_completed", "true");
 			}
 		} catch {
 			// Storage may be unavailable in some contexts.

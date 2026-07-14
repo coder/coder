@@ -6,11 +6,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-// CoderAgentSystemPrompt is the system prompt used when a Coder Agent
-// chat session is created. The Coder Agent is the built-in Coder
-// assistant available to both admins and regular users.
-const CoderAgentSystemPrompt = `You are the Coder Agent, a built-in assistant for the Coder platform.
-Introduce yourself as the Coder Agent when starting a conversation.
+// CoderAssistantSystemPrompt is the system prompt used when a Coder
+// Assistant chat session is created. The Coder Assistant is the
+// built-in floating assistant available to both admins and regular
+// users.
+const CoderAssistantSystemPrompt = `You are the Coder Assistant, a built-in assistant for the Coder platform.
+Introduce yourself as the Coder Assistant when starting a conversation.
 
 <role>
 You are a helpful, concise assistant that helps users and administrators manage their Coder deployment.
@@ -34,20 +35,20 @@ Prefer action over explanation: do things for the user when possible.
 If you are unsure about something, say so honestly rather than guessing.
 </communication>`
 
-// coderAgentLabelKey is the chat label key that marks a chat as a
-// Coder Agent conversation.
-const coderAgentLabelKey = "coder-agent"
+// coderAssistantLabelKey is the chat label key that marks a chat as a
+// Coder Assistant conversation.
+const coderAssistantLabelKey = "coder-assistant"
 
-// coderAgentPageLabelKey is the chat label key the dashboard uses to
+// coderAssistantPageLabelKey is the chat label key the dashboard uses to
 // report the path the user is currently viewing. The value is the raw
 // dashboard pathname (for example "/workspaces").
-const coderAgentPageLabelKey = "coder-agent-page"
+const coderAssistantPageLabelKey = "coder-assistant-page"
 
-// CoderAgentUserContext renders a system instruction describing the
+// CoderAssistantUserContext renders a system instruction describing the
 // chat owner so the assistant can tailor its behavior. currentPage is
 // the dashboard path the user is viewing; pass an empty string when it
 // is unknown.
-func CoderAgentUserContext(user database.User, roles []string, orgNames []string, currentPage string) string {
+func CoderAssistantUserContext(user database.User, roles []string, orgNames []string, currentPage string) string {
 	var b strings.Builder
 	_, _ = b.WriteString("<user-context>\n")
 	_, _ = b.WriteString("You are assisting the following Coder user:\n")
@@ -63,7 +64,7 @@ func CoderAgentUserContext(user database.User, roles []string, orgNames []string
 	if len(orgNames) > 0 {
 		_, _ = b.WriteString("- Organizations: " + strings.Join(orgNames, ", ") + "\n")
 	}
-	if page := sanitizeCoderAgentPage(currentPage); page != "" {
+	if page := sanitizeCoderAssistantPage(currentPage); page != "" {
 		_, _ = b.WriteString("They are currently viewing the " + page + " page in the Coder dashboard.\n")
 	}
 	_, _ = b.WriteString("Tailor guidance to their permissions: deployment admins can manage templates, users, and settings; members can manage their own workspaces.\n")
@@ -71,10 +72,10 @@ func CoderAgentUserContext(user database.User, roles []string, orgNames []string
 	return b.String()
 }
 
-// sanitizeCoderAgentPage validates a client-reported dashboard path
+// sanitizeCoderAssistantPage validates a client-reported dashboard path
 // before it is embedded in a system instruction. It returns an empty
 // string unless the value looks like a plain absolute path.
-func sanitizeCoderAgentPage(page string) string {
+func sanitizeCoderAssistantPage(page string) string {
 	page = strings.TrimSpace(page)
 	if page == "" || !strings.HasPrefix(page, "/") {
 		return ""
@@ -85,11 +86,11 @@ func sanitizeCoderAgentPage(page string) string {
 	return page
 }
 
-// IsCoderAgentChat reports whether the given chat labels indicate a
+// IsCoderAssistantChat reports whether the given chat labels indicate a
 // Coder Agent conversation.
-func IsCoderAgentChat(labels map[string]string) bool {
+func IsCoderAssistantChat(labels map[string]string) bool {
 	if labels == nil {
 		return false
 	}
-	return labels[coderAgentLabelKey] == "true"
+	return labels[coderAssistantLabelKey] == "true"
 }

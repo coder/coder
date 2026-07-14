@@ -49,8 +49,8 @@ export const SetupPage: FC = () => {
 		const agentIntroPending = (() => {
 			try {
 				return (
-					localStorage.getItem("coder_agent_enabled") === "true" &&
-					localStorage.getItem("coder_agent_intro_completed") !== "true"
+					localStorage.getItem("coder_assistant_enabled") === "true" &&
+					localStorage.getItem("coder_assistant_intro_completed") !== "true"
 				);
 			} catch {
 				return false;

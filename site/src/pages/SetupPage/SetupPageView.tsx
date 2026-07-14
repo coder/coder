@@ -189,9 +189,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 				// intro, so clear any stale completion flag from a previous
 				// session in this browser.
 				try {
-					localStorage.setItem("coder_agent_enabled", String(agentEnabled));
+					localStorage.setItem("coder_assistant_enabled", String(agentEnabled));
 					if (agentEnabled) {
-						localStorage.removeItem("coder_agent_intro_completed");
+						localStorage.removeItem("coder_assistant_intro_completed");
 					}
 				} catch {
 					// Storage may be unavailable.
@@ -425,14 +425,14 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					{/* Coder Assistant opt-in */}
 					{showAssistantToggle && (
 						<label
-							htmlFor="coder-agent-toggle"
+							htmlFor="coder-assistant-toggle"
 							className="flex cursor-pointer gap-3 items-start p-4 rounded-lg border border-border hover:border-border-secondary transition-colors"
 						>
 							<Switch
-								id="coder-agent-toggle"
+								id="coder-assistant-toggle"
 								checked={agentEnabled}
 								onCheckedChange={(checked) => setAgentEnabled(checked === true)}
-								data-testid="coder-agent-toggle"
+								data-testid="coder-assistant-toggle"
 								className="mt-0.5"
 							/>
 							<div className="flex flex-col gap-0.5">
