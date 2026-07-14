@@ -13515,7 +13515,6 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.NoError(t, err)
 	db := database.New(sqlDB)
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	owner := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
@@ -13528,6 +13527,7 @@ func TestUpdateChatSummary(t *testing.T) {
 		CentralApiKeyEnabled: true,
 	})
 
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, "openai", database.InsertChatModelConfigParams{
 		Model:                "test-model",
 		DisplayName:          "Test Model",
