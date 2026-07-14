@@ -376,10 +376,10 @@ describe("setSubagentStatusOverride", () => {
 	it("overwrites an existing override for the same chatID", () => {
 		const store = createChatStore();
 		store.setSubagentStatusOverride("sub-1", "running");
-		store.setSubagentStatusOverride("sub-1", "completed");
+		store.setSubagentStatusOverride("sub-1", "waiting");
 
 		expect(store.getSnapshot().subagentStatusOverrides.get("sub-1")).toBe(
-			"completed",
+			"waiting",
 		);
 	});
 });
@@ -707,24 +707,13 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 
-	it("returns true during pending status when latest message is from user", () => {
+	it("returns false during waiting status when latest message is from user", () => {
 		const store = createChatStore();
-		store.setChatStatus("pending");
+		store.setChatStatus("waiting");
 		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
 
-		// "pending" with a user message as latest means the user
-		// just submitted and is waiting for the server to start.
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
-	});
-
-	it("returns false during pending status when latest message is from assistant", () => {
-		const store = createChatStore();
-		store.setChatStatus("pending");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
-
-		// "pending" with an assistant message as latest means a
-		// tool-call cycle is in progress, not a fresh user send.
+		// "waiting" means the chat is idle; nothing is generating,
+		// so no Thinking indicator should show.
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 
@@ -745,27 +734,15 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 
-	it("returns false when latest message is a tool result during pending", () => {
-		const store = createChatStore();
-		store.setChatStatus("pending");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
-		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
-
-		// During "pending", the transport cannot deliver parts, so
-		// we should not be in a "starting" state.
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
-	});
-
 	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
 		const store = createChatStore();
-		// Simulate a completed previous turn: assistant replied,
-		// then server transitioned to "pending".
+		// Simulate a settled previous turn: assistant replied,
+		// then server transitioned to "waiting".
 		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
 		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
-		store.setChatStatus("pending");
+		store.setChatStatus("waiting");
 
-		// Verify baseline: not awaiting during pending.
+		// Verify baseline: not awaiting while idle.
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 
 		// Simulate handleSend after POST returns (non-queued).
@@ -777,15 +754,14 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 
-	it("returns true when WS delivers user message + status:pending (fresh send)", () => {
+	it("returns true when WS delivers user message + status:running (fresh send)", () => {
 		const store = createChatStore();
-		// Simulate the WS batch: [message(user), status:pending].
-		// This is the exact event order from the server when the
-		// user sends a message. The Thinking indicator must appear during
-		// the pending phase so there is no visual gap before the
-		// server transitions to running.
+		// Simulate the WS batch: [message(user), status:running].
+		// This is the event order from the server when the user
+		// sends a message. The Thinking indicator must appear
+		// before the first stream chunk arrives.
 		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
-		store.setChatStatus("pending");
+		store.setChatStatus("running");
 		store.clearStreamState();
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);

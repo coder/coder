@@ -71,8 +71,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
-	const isDelegatedExecuting =
-		isDelegated && (chat.status === "pending" || chat.status === "running");
+	const isDelegatedExecuting = isDelegated && chat.status === "running";
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
@@ -83,7 +82,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
-	const isStreaming = chat.status === "running" || chat.status === "pending";
+	const isStreaming = chat.status === "running";
 	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
 	const staleTurnSummaryReleaseMs = 10_000;
 	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(

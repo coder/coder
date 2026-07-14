@@ -117,7 +117,7 @@ func waitForChatTerminalState(
 		if err != nil {
 			return false
 		}
-		return chat.Status != database.ChatStatusPending && chat.Status != database.ChatStatusRunning
+		return chat.Status != database.ChatStatusRunning
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 

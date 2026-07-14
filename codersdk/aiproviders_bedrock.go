@@ -8,6 +8,23 @@ const AIProviderSettingsTypeBedrock = "bedrock"
 // AIProviderBedrockSettings.
 const AIProviderBedrockSettingsVersion = 1
 
+// AIProviderBedrockProtocol selects which AWS Bedrock wire protocol a provider
+// targets.
+type AIProviderBedrockProtocol string
+
+const (
+	// AIProviderBedrockProtocolInvokeModel is the legacy InvokeModel protocol
+	// (bedrock-runtime.{region}.amazonaws.com), which translates the native
+	// Messages request into Bedrock's InvokeModel format. It is the default
+	// for the zero value.
+	AIProviderBedrockProtocolInvokeModel AIProviderBedrockProtocol = "invoke-model"
+	// AIProviderBedrockProtocolMantle is the mantle protocol
+	// (bedrock-mantle.{region}.api.aws/anthropic/v1/messages). It is a
+	// passthrough: the gateway forwards the native Messages request body
+	// unchanged and only applies AWS SigV4 signing (service bedrock-mantle).
+	AIProviderBedrockProtocolMantle AIProviderBedrockProtocol = "mantle"
+)
+
 // AIProviderBedrockSettings configures providers that authenticate
 // against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
 // servers strip them from GET and list responses. Both secret fields
@@ -40,6 +57,19 @@ type AIProviderBedrockSettings struct {
 	// reject any client-supplied value that differs from the stored one (an
 	// update may echo the stored value back).
 	ExternalID string `json:"external_id,omitempty"`
+	// Protocol selects the Bedrock wire protocol. An empty value resolves to
+	// AIProviderBedrockProtocolInvokeModel, so existing rows keep the legacy
+	// behavior.
+	Protocol AIProviderBedrockProtocol `json:"protocol,omitempty"`
+}
+
+// ResolvedProtocol returns the configured protocol, mapping the empty value to
+// the legacy InvokeModel protocol.
+func (b AIProviderBedrockSettings) ResolvedProtocol() AIProviderBedrockProtocol {
+	if b.Protocol == "" {
+		return AIProviderBedrockProtocolInvokeModel
+	}
+	return b.Protocol
 }
 
 // IsConfigured reports whether any load-bearing Bedrock field is set,

@@ -201,6 +201,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 						isAdvisorConfigFetching={isAdvisorConfigFetching}
 						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
 						modelConfigs={modelConfigsData ?? []}
+						providerInfoByID={providerInfoByID}
 						modelConfigsError={modelConfigsError}
 						isLoadingModelConfigs={isLoadingModelConfigs}
 						isFetchingModelConfigs={isFetchingModelConfigs}
