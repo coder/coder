@@ -87,15 +87,16 @@ func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
-func TestUpdateChatSummaryTrimsAndSkipsBlank(t *testing.T) {
+func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 
-	t.Run("TrimsBeforePersisting", func(t *testing.T) {
+	t.Run("TrimsAndPublishes", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
+		ps := newRecordingPubsub(dbpubsub.NewInMemory())
+		server := &Server{db: db, pubsub: ps}
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
@@ -110,6 +111,12 @@ func TestUpdateChatSummaryTrimsAndSkipsBlank(t *testing.T) {
 		})
 
 		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, " \n trimmed summary\t ", logger)
+
+		events := ps.watchEvents(t)
+		require.Len(t, events, 1)
+		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryChange, events[0].Kind)
+		require.NotNil(t, events[0].Chat.Summary)
+		require.Equal(t, "trimmed summary", *events[0].Chat.Summary)
 	})
 
 	t.Run("SkipsBlankSummary", func(t *testing.T) {
@@ -122,6 +129,27 @@ func TestUpdateChatSummaryTrimsAndSkipsBlank(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, " \n\t ", logger)
+	})
+
+	t.Run("SkipsEventOnStaleWrite", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		ps := newRecordingPubsub(dbpubsub.NewInMemory())
+		server := &Server{db: db, pubsub: ps}
+		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		db.EXPECT().UpdateChatSummary(gomock.Any(), database.UpdateChatSummaryParams{
+			ID:                     chat.ID,
+			ExpectedHistoryVersion: chat.HistoryVersion,
+			Summary:                sql.NullString{String: "stale summary", Valid: true},
+		}).Return(int64(0), nil)
+
+		server.updateChatSummary(context.Background(), chat, chat.HistoryVersion, "stale summary", logger)
+
+		require.Empty(t, ps.watchEvents(t))
 	})
 }
 
