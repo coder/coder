@@ -60,7 +60,7 @@ You can create and manage external workspaces using either the **CLI** or the **
 
 <div class="tabs">
 
-## CLI
+### CLI
 
 1. **Create an external workspace**
 
@@ -117,7 +117,7 @@ You can create and manage external workspaces using either the **CLI** or the **
    }
    ```
 
-## UI
+### UI
 
 1. Import the external workspace template (see prerequisites).
 2. In the Coder UI, go to **Workspaces → New workspace** and select the imported template.

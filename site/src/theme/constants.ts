@@ -3,30 +3,30 @@ import type { TerminalFontName } from "#/api/typesGenerated";
 export const borderRadius = 8;
 
 const MONOSPACE_DEFAULT_FONT = "Geist Mono Variable";
+const TERMINAL_SYMBOL_FONT = "'Coder Terminal Symbols'";
 export const MONOSPACE_FONT_FAMILY =
 	"'Geist Mono Variable', 'IBM Plex Mono', 'Lucida Console', 'Lucida Sans Typewriter', 'Liberation Mono', 'Monaco', 'Courier New', Courier, monospace";
 export const BODY_FONT_FAMILY = `"Geist Variable", system-ui, sans-serif`;
 
-export const terminalFonts: Record<TerminalFontName, string> = {
-	"fira-code": MONOSPACE_FONT_FAMILY.replace(
-		MONOSPACE_DEFAULT_FONT,
-		"Fira Code",
-	),
-	"jetbrains-mono": MONOSPACE_FONT_FAMILY.replace(
-		MONOSPACE_DEFAULT_FONT,
-		"JetBrains Mono",
-	),
-	"source-code-pro": MONOSPACE_FONT_FAMILY.replace(
-		MONOSPACE_DEFAULT_FONT,
-		"Source Code Pro",
-	),
-	"ibm-plex-mono": MONOSPACE_FONT_FAMILY.replace(
-		MONOSPACE_DEFAULT_FONT,
-		"IBM Plex Mono",
-	),
-	"geist-mono": MONOSPACE_FONT_FAMILY,
+const withTerminalSymbolFallback = (fontFamily: string) =>
+	fontFamily.replace(", monospace", `, ${TERMINAL_SYMBOL_FONT}, monospace`);
 
-	"": MONOSPACE_FONT_FAMILY,
+export const terminalFonts: Record<TerminalFontName, string> = {
+	"fira-code": withTerminalSymbolFallback(
+		MONOSPACE_FONT_FAMILY.replace(MONOSPACE_DEFAULT_FONT, "Fira Code"),
+	),
+	"jetbrains-mono": withTerminalSymbolFallback(
+		MONOSPACE_FONT_FAMILY.replace(MONOSPACE_DEFAULT_FONT, "JetBrains Mono"),
+	),
+	"source-code-pro": withTerminalSymbolFallback(
+		MONOSPACE_FONT_FAMILY.replace(MONOSPACE_DEFAULT_FONT, "Source Code Pro"),
+	),
+	"ibm-plex-mono": withTerminalSymbolFallback(
+		MONOSPACE_FONT_FAMILY.replace(MONOSPACE_DEFAULT_FONT, "IBM Plex Mono"),
+	),
+	"geist-mono": withTerminalSymbolFallback(MONOSPACE_FONT_FAMILY),
+
+	"": withTerminalSymbolFallback(MONOSPACE_FONT_FAMILY),
 };
 export const terminalFontLabels: Record<TerminalFontName, string> = {
 	"geist-mono": "Geist Mono",

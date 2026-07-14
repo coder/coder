@@ -162,7 +162,7 @@ This can also be done in the UI when building a template:
 ![template tags](../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via
-[workspace tags](https://github.com/coder/coder/tree/main/examples/workspace-tags)
+[workspace tags](../../../examples/workspace-tags)
 inside the Terraform. See the
 [workspace tags documentation](../../admin/templates/extending-templates/workspace-tags.md)
 for more information.
@@ -332,7 +332,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    created. The set of tags is inferred automatically from the provisioner key.
 
    > Refer to the
-   > [values.yaml](https://github.com/coder/coder/blob/main/helm/provisioner/values.yaml)
+   > [values.yaml](../../../helm/provisioner/values.yaml)
    > file for the coder-provisioner chart for information on what values can be
    > specified.
 

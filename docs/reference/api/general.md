@@ -185,6 +185,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -193,6 +194,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -211,7 +214,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
-            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -231,6 +233,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",
@@ -273,6 +278,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
@@ -421,6 +427,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -428,6 +435,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "email_domain": [
         "string"
       ],
+      "email_fallback": true,
       "email_field": "string",
       "group_allow_list": [
         "string"
@@ -456,6 +464,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_allowed_hosts": [
+        "string"
+      ],
       "redirect_url": {
         "forceQuery": true,
         "fragment": "string",
@@ -531,10 +542,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
+    "scim_use_legacy": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,

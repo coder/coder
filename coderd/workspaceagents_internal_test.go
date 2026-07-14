@@ -13,9 +13,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -26,17 +28,20 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -132,6 +137,7 @@ func runWatchChatGitWorkspaceLookupTest(t *testing.T, workspaceErr error, wantSt
 				Authorizer: &mockAuthorizer{},
 				Logger:     logger,
 			},
+			wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 		}
 	)
 
@@ -188,6 +194,7 @@ func TestWatchChatGit(t *testing.T) {
 					Logger:                         logger,
 					DeploymentValues:               &codersdk.DeploymentValues{},
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -262,6 +269,7 @@ func TestWatchChatGit(t *testing.T) {
 					Logger:                         logger,
 					DeploymentValues:               &codersdk.DeploymentValues{},
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -422,6 +430,7 @@ func TestWatchChatGit(t *testing.T) {
 					Authorizer: &mockAuthorizer{},
 					Logger:     logger,
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -600,6 +609,7 @@ func TestWatchChatGit(t *testing.T) {
 					Authorizer: &mockAuthorizer{},
 					Logger:     logger,
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -738,8 +748,9 @@ func TestWatchAgentContainers(t *testing.T) {
 		// response to this issue: https://github.com/coder/coder/issues/19449
 
 		var (
-			ctx    = testutil.Context(t, testutil.WaitLong)
+			ctx    = testutil.Context(t, testutil.WaitShort)
 			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			mClock = quartz.NewMock(t)
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)
@@ -766,11 +777,17 @@ func TestWatchAgentContainers(t *testing.T) {
 					AgentInactiveDisconnectTimeout: testutil.WaitShort,
 					Database:                       mDB,
 					Logger:                         logger,
+					Clock:                          mClock,
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				wsWatcher: httpapi.NewWSWatcher(mClock, nil),
 			}
 		)
+
+		trap := mClock.Trap().NewTicker("WSWatcher")
+
+		defer trap.Close()
 
 		var tailnetCoordinator tailnet.Coordinator = mCoordinator
 		api.TailnetCoordinator.Store(&tailnetCoordinator)
@@ -817,6 +834,8 @@ func TestWatchAgentContainers(t *testing.T) {
 			defer resp.Body.Close()
 		}
 
+		trap.MustWait(ctx).MustRelease(ctx)
+
 		// And: Create a streaming decoder
 		decoder := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 		defer decoder.Close()
@@ -836,6 +855,7 @@ func TestWatchAgentContainers(t *testing.T) {
 
 		// When: We close the WebSocket
 		conn.Close(websocket.StatusNormalClosure, "test closing connection")
+		mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
 
 		// Then: We expect `containersCh` to be closed.
 		select {
@@ -883,9 +903,11 @@ func TestWatchAgentContainers(t *testing.T) {
 					AgentInactiveDisconnectTimeout: testutil.WaitShort,
 					Database:                       mDB,
 					Logger:                         logger,
+					Clock:                          quartz.NewReal(),
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -958,5 +980,114 @@ func TestWatchAgentContainers(t *testing.T) {
 		case _, ok := <-decodeCh:
 			require.False(t, ok, "channel is expected to be closed")
 		}
+	})
+}
+
+func TestCreateExternalAuthResponse(t *testing.T) {
+	t.Parallel()
+
+	// Use a fixed future time.
+	expiry := dbtime.Now().Add(8 * time.Hour).UTC()
+
+	assertExpiry := func(t *testing.T, resp agentsdk.ExternalAuthResponse, want time.Time) {
+		t.Helper()
+		require.Equal(t, want.UTC(), resp.ExpiresAt.UTC(),
+			"ExpiresAt should match the expiry passed to createExternalAuthResponse")
+	}
+
+	t.Run("WithExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		resp, err := createExternalAuthResponse("github", "tok", pqtype.NullRawMessage{}, expiry)
+		require.NoError(t, err)
+		assertExpiry(t, resp, expiry)
+		require.Equal(t, "tok", resp.AccessToken)
+	})
+
+	t.Run("ZeroExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		// A zero expiry means the token never expires. ExpiresAt should stay zero.
+		resp, err := createExternalAuthResponse("github", "tok", pqtype.NullRawMessage{}, time.Time{})
+		require.NoError(t, err)
+		require.True(t, resp.ExpiresAt.IsZero(), "ExpiresAt should be zero when no expiry is set")
+	})
+
+	// Each provider type maps the token into a different Username/Password pair.
+	// All of them must also carry ExpiresAt through unchanged.
+	providerTests := []struct {
+		name         string
+		typ          string
+		token        string
+		wantUsername string
+		wantPassword string
+	}{
+		{
+			name:         "GitHub",
+			typ:          codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			token:        "ghtoken",
+			wantUsername: "ghtoken",
+			wantPassword: "",
+		},
+		{
+			name:         "GitLab",
+			typ:          codersdk.EnhancedExternalAuthProviderGitLab.String(),
+			token:        "gltoken",
+			wantUsername: "oauth2",
+			wantPassword: "gltoken",
+		},
+		{
+			name:         "BitbucketCloud",
+			typ:          codersdk.EnhancedExternalAuthProviderBitBucketCloud.String(),
+			token:        "bbtoken",
+			wantUsername: "x-token-auth",
+			wantPassword: "bbtoken",
+		},
+		{
+			name:         "BitbucketServer",
+			typ:          codersdk.EnhancedExternalAuthProviderBitBucketServer.String(),
+			token:        "bbtoken",
+			wantUsername: "x-token-auth",
+			wantPassword: "bbtoken",
+		},
+	}
+	for _, tt := range providerTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp, err := createExternalAuthResponse(tt.typ, tt.token, pqtype.NullRawMessage{}, expiry)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantUsername, resp.Username)
+			require.Equal(t, tt.wantPassword, resp.Password)
+			require.Equal(t, tt.token, resp.AccessToken)
+			assertExpiry(t, resp, expiry)
+		})
+	}
+
+	t.Run("WithTokenExtra", func(t *testing.T) {
+		t.Parallel()
+
+		extra := pqtype.NullRawMessage{
+			RawMessage: []byte(`{"user_id":"u_42","scope":"repo"}`),
+			Valid:      true,
+		}
+		resp, err := createExternalAuthResponse("slack", "slacktoken", extra, expiry)
+		require.NoError(t, err)
+		require.Equal(t, "u_42", resp.TokenExtra["user_id"])
+		require.Equal(t, "repo", resp.TokenExtra["scope"])
+		assertExpiry(t, resp, expiry)
+	})
+
+	t.Run("InvalidExtraJSON", func(t *testing.T) {
+		t.Parallel()
+
+		// Malformed JSON in the extra field should produce an error but
+		// ExpiresAt should still reflect the expiry that was passed in.
+		extra := pqtype.NullRawMessage{
+			RawMessage: []byte(`not-valid-json`),
+			Valid:      true,
+		}
+		_, err := createExternalAuthResponse("github", "tok", extra, expiry)
+		require.Error(t, err, "malformed extra JSON should produce an error")
 	})
 }

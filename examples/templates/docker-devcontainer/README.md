@@ -9,7 +9,7 @@ tags: [docker, container, devcontainer]
 
 # Remote Development on Dev Containers
 
-Provision Docker containers as [Coder workspaces](https://coder.com/docs/workspaces) running [Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) via Docker-in-Docker.
+Provision Docker containers as [Coder workspaces](https://coder.com/docs/user-guides/workspace-management) running [Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers) via Docker-in-Docker.
 
 <!-- TODO: Add screenshot -->
 

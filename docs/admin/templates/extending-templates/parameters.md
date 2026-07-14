@@ -232,8 +232,8 @@ parameters, the **Create workspace** button is disabled until the issues are res
 Ephemeral parameters are introduced to users in order to model specific
 behaviors in a Coder workspace, such as reverting to a previous image, restoring
 from a volume snapshot, or building a project without using cache. These
-parameters are only settable when starting, updating, or restarting a workspace
-and do not persist after the workspace is stopped.
+parameters are settable when creating, starting, updating, or restarting a workspace
+but do not persist after the workspace is stopped.
 
 Since these parameters are ephemeral in nature, subsequent builds proceed in the
 standard manner:

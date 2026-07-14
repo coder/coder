@@ -44,12 +44,14 @@ Users can view their public key in their account settings:
 > SSH keys are never stored in Coder workspaces, and are fetched only when
 > SSH is invoked. The keys are held in-memory and never written to disk.
 
-## User secrets (Early Access)
+## User secrets (Beta)
 
 User secrets are developer-managed values that Coder injects at workspace start.
 If a user secret targets the same environment variable name or file path as a
 template-provided variable or file, Coder injects the user secret into that
-workspace. See the [User secrets guide](../../user-guides/user-secrets.md).
+workspace. User secret values are covered by
+[Database Encryption](./database-encryption.md) when it is enabled. See the
+[User secrets guide](../../user-guides/user-secrets.md).
 
 ## Dynamic Secrets
 

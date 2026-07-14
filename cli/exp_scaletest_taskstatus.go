@@ -67,7 +67,7 @@ After all runners connect, it waits for the baseline duration before triggering 
 				return err
 			}
 
-			_, err = requireAdmin(ctx, client)
+			_, err = RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}

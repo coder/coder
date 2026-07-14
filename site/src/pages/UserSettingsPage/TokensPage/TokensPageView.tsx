@@ -114,7 +114,7 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 					<TableCell>
 						<span
 							style={{ color: theme.palette.text.secondary }}
-							data-chromatic="ignore"
+							data-pixel="ignore"
 						>
 							{dayjs(token.expires_at).fromNow()}
 						</span>

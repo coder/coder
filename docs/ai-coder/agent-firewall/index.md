@@ -30,9 +30,8 @@ monitoring of HTTP requests.
 
 ## Getting Started with Agent Firewall
 
-The easiest way to use Agent Firewall is through existing Coder modules, such
-as the
-[Claude Code module](https://registry.coder.com/modules/coder/claude-code). It
+The easiest way to use Agent Firewall is through the
+[agent-firewall module](https://registry.coder.com/modules/coder/agent-firewall). It
 can also be ran directly in the terminal by installing the
 [CLI](https://github.com/coder/boundary).
 
@@ -44,61 +43,65 @@ can also be ran directly in the terminal by installing the
 Agent Firewall is configured using a `config.yaml` file. This allows you to
 maintain allow lists and share detailed policies with teammates.
 
-In your Terraform module, enable Agent Firewall with minimal configuration:
+In your Terraform module, install Agent Firewall with minimal configuration:
 
 ```tf
-module "claude-code" {
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.7.0"
-  enable_boundary     = true
+module "agent-firewall" {
+  source   = "registry.coder.com/coder/agent-firewall/coder"
+  version  = "0.0.1"
+  agent_id = coder_agent.main.id
 }
 ```
 
-Create a `config.yaml` file in your template directory with your policy. For the
-Claude Code module, use the following minimal configuration:
+To use a custom policy, pass it inline via `agent_firewall_config`, below is an example of minimal configuration for Claude Code module:
 
-```yaml
-allowlist:
-  - "domain=dev.coder.com" # Required - use your Coder deployment domain
-  - "domain=api.anthropic.com" # Required - API endpoint for Claude
-  - "domain=statsig.anthropic.com" # Required - Feature flags and analytics
-  - "domain=claude.ai" # Recommended - WebFetch/WebSearch features
-  - "domain=*.sentry.io" # Recommended - Error tracking (helps Anthropic fix bugs)
-jail_type: nsjail
-log_dir: /tmp/boundary_logs
-proxy_port: 8087
-log_level: warn
+```tf
+module "agent-firewall" {
+  source   = "registry.coder.com/coder/agent-firewall/coder"
+  version  = "0.0.1"
+  agent_id = coder_agent.main.id
+
+  agent_firewall_config = <<-YAML
+    allowlist:
+      - "domain=coder.example.com" # Required - use your Coder deployment domain
+      - "domain=api.anthropic.com" # Required - API endpoint for Claude
+      - "domain=statsig.anthropic.com" # Required - Feature flags and analytics
+      - "domain=claude.ai" # Recommended - WebFetch/WebSearch features
+      - "domain=*.sentry.io" # Recommended - Error tracking (helps Anthropic fix bugs)
+    jail_type: nsjail
+    log_dir: /tmp/boundary_logs
+    proxy_port: 8087
+    log_level: warn
+  YAML
+}
 ```
+
+For examples of wrapping an agent or process such as Claude Code with Agent
+Firewall, see the
+[agent-firewall module README](https://registry.coder.com/modules/coder/agent-firewall#with-claude-code).
 
 For a basic recommendation of what to allow for agents, see the
 [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
 For a comprehensive example of a production Agent Firewall configuration, see
 the
-[Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
+[Coder dogfood policy example](../../../dogfood/coder/boundary-config.yaml).
 
-Add a `coder_script` resource to mount the configuration file into the workspace
-filesystem:
+To load the policy from a `config.yaml` file in your template directory instead,
+pass it via `agent_firewall_config`. The module writes the config to the workspace
+and exposes the resolved path via `agent_firewall_config_path`, so everyone who
+launches Agent Firewall manually inside the workspace picks up the same
+configuration without extra flags. This is especially convenient for managing
+extensive allow lists in version control.
 
 ```tf
-resource "coder_script" "boundary_config_setup" {
-  agent_id     = coder_agent.dev.id
-  display_name = "Boundary Setup Configuration"
-  run_on_start = true
+module "agent-firewall" {
+  source   = "registry.coder.com/coder/agent-firewall/coder"
+  version  = "0.0.1"
+  agent_id = coder_agent.main.id
 
-  script = <<-EOF
-    #!/bin/sh
-    mkdir -p ~/.config/coder_boundary
-    echo '${base64encode(file("${path.module}/config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
-    chmod 600 ~/.config/coder_boundary/config.yaml
-  EOF
+  agent_firewall_config = file("${path.module}/config.yaml")
 }
 ```
-
-Agent Firewall automatically reads `config.yaml` from
-`~/.config/coder_boundary/` when it starts, so everyone who launches Agent
-Firewall manually inside the workspace picks up the same configuration without
-extra flags. This is especially convenient for managing extensive allow lists in
-version control.
 
 ### Configuration Parameters
 
@@ -141,6 +144,9 @@ start-up. You can do so with the following command:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
 ```
+
+When running the binary directly, Agent Firewall reads `config.yaml` from
+`~/.config/coder_boundary/` automatically.
 
 ## Jail Types
 
@@ -225,5 +231,5 @@ such as Grafana Loki.
 Example of an allowed request (assuming stderr):
 
 ```console
-2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://dev.coder.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=dev.coder.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
+2026-01-16 00:11:40.564 [info]  coderd.agentrpc: boundary_request owner=joe  workspace_name=some-task-c88d agent_name=dev  decision=allow  workspace_id=f2bd4e9f-7e27-49fc-961e-be4d1c2aa987  http_method=GET http_url=https://coder.example.com  event_time=2026-01-16T00:11:39.388607657Z  matched_rule=domain=coder.example.com request_id=9f30d667-1fc9-47ba-b9e5-8eac46e0abef trace=478b2b45577307c4fd1bcfc64fad6ffb span=9ece4bc70c311edb
 ```

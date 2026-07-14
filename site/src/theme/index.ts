@@ -53,6 +53,35 @@ export const isConcreteThemeName = (
 	return typeof value === "string" && concreteThemeSet.has(value);
 };
 
+type LegacyAutoSync = {
+	mode: "sync";
+	light: ConcreteThemeName;
+	dark: ConcreteThemeName;
+};
+
+const LEGACY_AUTO_SYNC: Record<string, LegacyAutoSync> = {
+	auto: { mode: "sync", light: "light", dark: "dark" },
+	"auto-protan-deuter": {
+		mode: "sync",
+		light: "light-protan-deuter",
+		dark: "dark-protan-deuter",
+	},
+	"auto-tritan": {
+		mode: "sync",
+		light: "light-tritan",
+		dark: "dark-tritan",
+	},
+};
+
+export const legacyAutoToSync = (
+	preference: string | undefined,
+): LegacyAutoSync | null => {
+	if (!preference) {
+		return null;
+	}
+	return LEGACY_AUTO_SYNC[preference] ?? null;
+};
+
 export const resolveThemeName = (
 	preference: string | undefined,
 	osScheme: "dark" | "light",

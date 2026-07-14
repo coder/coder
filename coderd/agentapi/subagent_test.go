@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -802,6 +804,81 @@ func TestSubAgentAPI(t *testing.T) {
 			require.Equal(t, "k5jd7a99-duplicate-slug", apps[0].Slug)
 			require.Equal(t, "First Duplicate", apps[0].DisplayName)
 		})
+	})
+
+	t.Run("CreateSubAgentWithAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+
+		clock := quartz.NewMock(t)
+		createdAt := clock.Now()
+		parentAgent := database.WorkspaceAgent{
+			ID:                       uuid.New(),
+			ResourceID:               uuid.New(),
+			ConnectionTimeoutSeconds: 30,
+			TroubleshootingURL:       "https://example.com/troubleshoot",
+			APIKeyScope:              database.AgentKeyScopeEnumAll,
+		}
+		workspace := database.Workspace{
+			ID:         uuid.New(),
+			TemplateID: uuid.New(),
+		}
+		template := database.Template{
+			ID:                  workspace.TemplateID,
+			MaxPortSharingLevel: database.AppSharingLevelPublic,
+		}
+		insertedSubAgent := database.WorkspaceAgent{
+			ID:         uuid.New(),
+			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
+			ResourceID: parentAgent.ResourceID,
+			Name:       "child-agent",
+			AuthToken:  uuid.New(),
+		}
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentAgent.ID).Return(workspace, nil)
+		dbM.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
+		dbM.EXPECT().InsertWorkspaceAgent(gomock.Any(), gomock.Cond(func(params database.InsertWorkspaceAgentParams) bool {
+			return params.ParentID.Valid && params.ParentID.UUID == parentAgent.ID &&
+				params.ResourceID == parentAgent.ResourceID &&
+				params.Name == insertedSubAgent.Name
+		})).Return(insertedSubAgent, nil)
+		dbM.EXPECT().UpsertWorkspaceApp(gomock.Any(), gomock.Cond(func(params database.UpsertWorkspaceAppParams) bool {
+			return params.ID != uuid.Nil &&
+				params.AgentID == insertedSubAgent.ID &&
+				params.CreatedAt.Equal(createdAt) &&
+				params.Slug == "fdqf0lpd-code-server" &&
+				params.DisplayName == "VS Code"
+		})).Return(database.WorkspaceApp{}, sql.ErrNoRows)
+
+		api := &agentapi.SubAgentAPI{
+			OwnerID:        uuid.New(),
+			OrganizationID: uuid.New(),
+			AgentFn:        func(context.Context) (database.WorkspaceAgent, error) { return parentAgent, nil },
+			Clock:          clock,
+			Database:       dbM,
+			Log:            testutil.Logger(t),
+		}
+
+		createResp, err := api.CreateSubAgent(context.Background(), &proto.CreateSubAgentRequest{
+			Name:            insertedSubAgent.Name,
+			Directory:       "/workspaces/coder",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+			Apps: []*proto.CreateSubAgentRequest_App{
+				{
+					Slug:        "code-server",
+					DisplayName: ptr.Ref("VS Code"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, createResp.AppCreationErrors, 1)
+		require.Equal(t, int32(0), createResp.AppCreationErrors[0].Index)
+		require.Nil(t, createResp.AppCreationErrors[0].Field)
+		require.Contains(t, createResp.AppCreationErrors[0].Error, "workspace app slug \"fdqf0lpd-code-server\"")
+		require.Contains(t, createResp.AppCreationErrors[0].Error, "already bound to a workspace-owned agent")
+		require.Contains(t, createResp.AppCreationErrors[0].Error, "cannot be rebound to an agent in another workspace or to an agent without a workspace")
+		require.NotContains(t, createResp.AppCreationErrors[0].Error, "sql: no rows in result set")
 	})
 
 	t.Run("DeleteSubAgent", func(t *testing.T) {

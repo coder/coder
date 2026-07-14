@@ -17,6 +17,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockNoPermissions,
 	MockPermissions,
@@ -26,29 +27,35 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
-import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
-import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
-import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
-import { ChatTopBar } from "./components/ChatTopBar";
 import {
+	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
-} from "./components/Sidebar/sidebarWidth";
+} from "./components/ChatsSidebar/sidebarWidth";
+import { ChatTopBar } from "./components/ChatTopBar";
+import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 
 const defaultModelConfigID = "model-config-1";
+
+const defaultSidebarFilters: AgentSidebarFilters = {
+	archiveStatus: "active",
+	groupBy: "date",
+	prStatuses: [],
+	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
+};
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -62,7 +69,7 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
 		id: defaultModelConfigID,
-		provider: "openai",
+		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
@@ -141,22 +148,14 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
 	id: "chat-default",
-	organization_id: "test-org-id",
 	owner_id: "owner-1",
-	title: "Agent",
-	status: "completed",
+	owner_username: "owner",
+	owner_name: undefined,
 	last_model_config_id: defaultModelConfigs[0].id,
-	mcp_server_ids: [],
-	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
 	...overrides,
 });
 
@@ -165,7 +164,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
-	<AgentSettingsAgentsPageView
+	<CoderAgentsPageView
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
@@ -181,14 +180,31 @@ const AgentsRouteElement = () => (
 			is_malformed: false,
 		}}
 		modelConfigsData={[]}
+		providerInfoByID={new Map()}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		isFetchingModelConfigs={false}
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
+		showAdvisorSettings={false}
+		advisorConfigData={undefined}
+		isAdvisorConfigLoading={false}
+		isAdvisorConfigFetching={false}
+		isAdvisorConfigLoadError={false}
+		onSaveAdvisorConfig={fn()}
+		isSavingAdvisorConfig={false}
+		isSaveAdvisorConfigError={false}
+		saveAdvisorConfigError={undefined}
+		showVirtualDesktopSettings={false}
+		computerUseProviderData={undefined}
+		isLoadingComputerUseProvider={false}
+		onSaveComputerUseProvider={fn()}
+		isSavingComputerUseProvider={false}
+		computerUseProviderSaveError={null}
 	/>
 );
 
@@ -205,16 +221,31 @@ const agentsRouting = {
 				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
 				{
 					path: "instructions",
-					element: <AgentSettingsInstructionsPage />,
+					element: <Navigate to="/ai/settings/instructions" replace />,
 				},
-				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
-				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },
-				{ path: "admin", element: <AgentsRouteElement /> },
-				{ path: "agents", element: <AgentsRouteElement /> },
-				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
+				{
+					path: "lifecycle",
+					element: <Navigate to="/ai/settings/lifecycle" replace />,
+				},
+				{
+					path: "admin",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "agents",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "coder-agents",
+					element: <Navigate to="/ai/settings/coder-agents" replace />,
+				},
+				{
+					path: "spend",
+					element: <Navigate to="/ai/settings/spend" replace />,
+				},
 				{
 					path: "usage",
-					element: <Navigate to="/agents/settings/spend" replace />,
+					element: <Navigate to="/ai/settings/spend" replace />,
 				},
 			],
 		},
@@ -222,6 +253,31 @@ const agentsRouting = {
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const aiSettingsRouting = {
+	path: "/ai/settings",
+	children: [
+		{ path: "coder-agents", element: <AgentsRouteElement /> },
+		{ path: "spend", element: <div>Spend limits and usage</div> },
+	],
+};
+
+const setInnerWidthForStory = (width: number) => {
+	const descriptor = Object.getOwnPropertyDescriptor(globalThis, "innerWidth");
+	Object.defineProperty(globalThis, "innerWidth", {
+		configurable: true,
+		value: width,
+	});
+
+	return () => {
+		if (descriptor) {
+			Object.defineProperty(globalThis, "innerWidth", descriptor);
+			return;
+		}
+
+		Reflect.deleteProperty(globalThis, "innerWidth");
+	};
 };
 
 const AgentTopBarRouteElement = () => {
@@ -233,12 +289,45 @@ const AgentTopBarRouteElement = () => {
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
 			onArchiveAgent={fn()}
 			onArchiveAndDeleteWorkspace={fn()}
-			onRegenerateTitle={fn()}
 			onUnarchiveAgent={fn()}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 		/>
 	);
+};
+
+const ChatPaneMinimumRouteElement = () => (
+	<div
+		data-testid="agents-chat-panel"
+		className="flex h-full min-h-0 flex-1 flex-col bg-surface-primary"
+		style={{ minWidth: AGENTS_MAIN_PANEL_MIN_WIDTH }}
+	>
+		<div className="mt-auto px-4 pb-3">
+			<div
+				data-testid="chat-composer"
+				className="flex items-center justify-between rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-2"
+			>
+				<span className="truncate text-xs text-content-secondary">
+					Chat message
+				</span>
+				<button
+					type="button"
+					className="size-7 shrink-0 rounded-full border-0 bg-content-link text-content-invert"
+				>
+					Send
+				</button>
+			</div>
+		</div>
+	</div>
+);
+
+const agentsWithChatPaneMinimumRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <ChatPaneMinimumRouteElement /> }
+			: route,
+	),
 };
 
 const agentsWithChatTopBarRouting = {
@@ -253,9 +342,12 @@ const agentsWithChatTopBarRouting = {
 const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	agentId: undefined,
 	chatList: [],
+	currentUserId: MockUserOwner.id,
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
 	handleNewAgent: fn(),
+	isSearchDialogOpen: false,
+	onSearchDialogOpenChange: fn(),
 	isCreating: false,
 	isArchiving: false,
 	archivingChatId: undefined,
@@ -273,14 +365,12 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	requestArchiveAndDeleteWorkspace: fn(),
 	requestPinAgent: fn(),
 	requestUnpinAgent: fn(),
-	onRegenerateTitle: fn(async () => "Generated title"),
 	onProposeTitle: fn(async () => "Proposed title"),
 	onRenameTitle: fn(async () => {}),
-	regeneratingTitleChatIds: [],
 	onToggleSidebarCollapsed: fn(),
 	isAgentsAdmin: false,
-	archivedFilter: "active",
-	onArchivedFilterChange: fn(),
+	sidebarFilters: defaultSidebarFilters,
+	onSidebarFiltersChange: fn(),
 	hasNextPage: false,
 	onLoadMore: fn(),
 	isFetchingNextPage: false,
@@ -296,7 +386,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	args: defaultArgs,
@@ -340,11 +430,12 @@ const meta: Meta<typeof AgentsPageView> = {
 					],
 				},
 			],
+			unsupported_providers: [],
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
 				id: defaultModelConfigID,
-				provider: "openai",
+				ai_provider_id: "provider-openai",
 				model: "gpt-4o",
 				display_name: "GPT-4o",
 				enabled: true,
@@ -355,11 +446,23 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
+		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
+			{
+				provider: {
+					id: "provider-openai",
+					type: "openai",
+					name: "openai",
+					display_name: "OpenAI",
+					icon: "",
+					enabled: true,
+					deleted: false,
+				},
+				has_user_api_key: false,
+				has_provider_api_key: true,
+				byok_enabled: true,
+			},
+		]);
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
-		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
-			enable_desktop: false,
-		});
-		spyOn(API.experimental, "updateChatDesktopEnabled").mockResolvedValue();
 		spyOn(API.experimental, "getChatDebugLogging").mockResolvedValue({
 			allow_users: false,
 			forced_by_deployment: false,
@@ -426,35 +529,13 @@ type Story = StoryObj<typeof AgentsPageView>;
 
 export const EmptyState: Story = {};
 
-export const ArchivedEmptyState: Story = {
-	args: {
-		archivedFilter: "archived",
-		chatList: [],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents",
-				searchParams: { archived: "archived" },
-			},
-			routing: agentsRouting,
-		}),
-	},
-	play: async () => {
-		await expect(await screen.findByText("No archived agents")).toBeVisible();
-		await expect(
-			screen.getByRole("button", { name: /back to active/i }),
-		).toBeVisible();
-	},
-};
-
 export const WithChatList: Story = {
 	args: {
 		chatList: [
 			buildChat({
 				id: "chat-1",
 				title: "Refactor authentication module",
-				status: "completed",
+				status: "waiting",
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
@@ -483,13 +564,13 @@ export const WithChatList: Story = {
 			buildChat({
 				id: "chat-5",
 				title: "Implement WebSocket handler",
-				status: "completed",
+				status: "requires_action",
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
 				id: "chat-6",
 				title: "Debug memory leak in worker",
-				status: "paused",
+				status: "interrupting",
 				updated_at: todayTimestamp,
 			}),
 		],
@@ -596,6 +677,76 @@ export const PersistedResizableSidebarWidth: Story = {
 			String(persistedLeftSidebarWidth),
 		);
 		await expect(sidebarWidth()).toBe(`${persistedLeftSidebarWidth}px`);
+	},
+};
+
+const narrowAgentsLayoutWidth = 720;
+
+export const WideSidebarPreservesChatPaneWidth: Story = {
+	args: {
+		agentId: "chat-wide-sidebar",
+		chatList: [
+			buildChat({
+				id: "chat-wide-sidebar",
+				title: "Wide sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	beforeEach: () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "660");
+		return setInnerWidthForStory(narrowAgentsLayoutWidth);
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{
+					height: "100vh",
+					overflow: "hidden",
+					width: narrowAgentsLayoutWidth,
+				}}
+			>
+				<Story />
+			</div>
+		),
+	],
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-wide-sidebar" },
+			routing: agentsWithChatPaneMinimumRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = within(composer).getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const layoutRect = layout.getBoundingClientRect();
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+			const maxSidebarWidth = layoutRect.width - AGENTS_MAIN_PANEL_MIN_WIDTH;
+
+			expect(layoutRect.width).toBe(narrowAgentsLayoutWidth);
+			expect(sidebarRect.width).toBeLessThanOrEqual(maxSidebarWidth + 1);
+			expect(mainRect.width).toBeGreaterThanOrEqual(
+				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
+			);
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(
+				AGENTS_MAIN_PANEL_MIN_WIDTH - 1,
+			);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+			expect(composerRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
+		});
 	},
 };
 
@@ -737,7 +888,7 @@ export const EmptyStateZoom200Desktop: Story = {
 		});
 
 		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New chat" })).toBeVisible();
 		await expect(
 			canvas.getByRole("button", { name: "Collapse sidebar" }),
 		).toBeVisible();
@@ -905,7 +1056,7 @@ export const WithAgentSelected: Story = {
 				path: "/agents/chat-1",
 				pathParams: { agentId: "chat-1" },
 			},
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 };
@@ -947,23 +1098,7 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
-	if (settingsLink) {
-		await userEvent.click(settingsLink);
-		return;
-	}
-
-	const mobileMoreOptionsButton = canvas
-		.getAllByRole("button", { name: "More options" })
-		.find((button) => button.getAttribute("aria-haspopup") === "menu");
-	if (!mobileMoreOptionsButton) {
-		throw new Error("Expected a mobile More options menu button.");
-	}
-	await userEvent.click(mobileMoreOptionsButton);
-	const body = within(canvasElement.ownerDocument.body);
-	await userEvent.click(
-		await body.findByRole("menuitem", { name: "Settings" }),
-	);
+	await userEvent.click(await canvas.findByRole("link", { name: "Settings" }));
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -973,7 +1108,7 @@ export const OpensAnalyticsForAdmins: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -995,7 +1130,7 @@ export const OpensAnalyticsForNonAdmins: Story = {
 		permissions: MockNoPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1041,12 +1176,12 @@ export const OpensSettingsForNonAdmins: Story = {
 		});
 
 		expect(
-			screen.queryByRole("link", { name: "Manage Agents" }),
+			screen.queryByRole("link", { name: "Manage agents" }),
 		).not.toBeInTheDocument();
 	},
 };
 
-export const OpensAdminSubPanelOnMobile: Story = {
+export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1054,24 +1189,27 @@ export const OpensAdminSubPanelOnMobile: Story = {
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/settings" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
-		await userEvent.click(
-			await screen.findByRole("link", { name: "Manage Agents" }),
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
 		);
 
+		await userEvent.click(manageAgentsLink);
+
 		await expect(
-			await screen.findByRole("link", { name: "Providers" }),
-		).toBeInTheDocument();
-		await expect(
-			await screen.findByRole("link", { name: "Spend" }),
+			await screen.findByRole("heading", { name: "Coder Agents" }),
 		).toBeInTheDocument();
 	},
 };
 
-export const SettingsViewResets: Story = {
+export const SettingsViewCoderAgentsLink: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
@@ -1085,32 +1223,21 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
-		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+
+		await userEvent.click(manageAgentsLink);
+
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Configure spend limits and monitor usage across your deployment.",
+					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
 				),
-			).toBeInTheDocument();
-		});
-
-		// Step back to the top-level settings panel, then back to conversations.
-		const backToSettingsButton = await screen.findByRole("link", {
-			name: "Back to Settings",
-		});
-		await userEvent.click(backToSettingsButton);
-		const backToAgentsButton = await screen.findByRole("link", {
-			name: "Back to Agents",
-		});
-		await userEvent.click(backToAgentsButton);
-
-		// Re-open settings, should reset to General
-		await openSettingsView(canvasElement);
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
 			).toBeInTheDocument();
 		});
 	},

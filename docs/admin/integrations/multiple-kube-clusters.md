@@ -57,7 +57,7 @@ If you deployed Coder on a VM, copy the kubeconfig file to
 ### Create a Coder template
 
 You can start from our
-[example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
+[example template](../../../examples/templates/kubernetes).
 From there, add
 [template parameters](../templates/extending-templates/parameters.md) to allow
 developers to pick their desired cluster.
@@ -94,8 +94,7 @@ Alternatively, you can authenticate with remote clusters with ServiceAccount
 tokens. Coder can store these secrets on your behalf with
 [managed Terraform variables](../templates/extending-templates/variables.md).
 
-Alternatively, these could also be fetched from Kubernetes secrets or even
-[Hashicorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
+Alternatively, these could also be fetched from Kubernetes secrets or even [HashiCorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
 
 This guide assumes you have a `coder-workspaces` namespace on your remote
 cluster. Change the namespace accordingly.
@@ -158,7 +157,7 @@ rolebinding.rbac.authorization.k8s.io/coder-v2 created
 ### 2. Modify the Kubernetes template
 
 You can start from our
-[example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
+[example template](../../../examples/templates/kubernetes).
 
 ```tf
 variable "host" {

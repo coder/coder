@@ -20,8 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/serpent"
 )
 
@@ -37,41 +37,42 @@ func TestLicensesAddFake(t *testing.T) {
 	t.Run("LFlag", func(t *testing.T) {
 		t.Parallel()
 		inv := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT)
-		pty := attachPty(t, inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		pty.ExpectMatch("License with ID 1 added")
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		stdout.ExpectMatch(ctx, "License with ID 1 added")
 	})
 	t.Run("Prompt", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv := setupFakeLicenseServerTest(t, "license", "add")
-		pty := attachPty(t, inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("Paste license:")
-		pty.WriteLine(fakeLicenseJWT)
+		stdout.ExpectMatch(ctx, "Paste license:")
+		stdin.WriteLine(fakeLicenseJWT)
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("License with ID 1 added")
+		stdout.ExpectMatch(ctx, "License with ID 1 added")
 	})
 	t.Run("File", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		dir := t.TempDir()
 		filename := filepath.Join(dir, "license.jwt")
 		err := os.WriteFile(filename, []byte(fakeLicenseJWT), 0o600)
 		require.NoError(t, err)
 		inv := setupFakeLicenseServerTest(t, "license", "add", "-f", filename)
-		pty := attachPty(t, inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("License with ID 1 added")
+		stdout.ExpectMatch(ctx, "License with ID 1 added")
 	})
 	t.Run("StdIn", func(t *testing.T) {
 		t.Parallel()
@@ -100,16 +101,15 @@ func TestLicensesAddFake(t *testing.T) {
 	})
 	t.Run("DebugOutput", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv := setupFakeLicenseServerTest(t, "licenses", "add", "-l", fakeLicenseJWT, "--debug")
-		pty := attachPty(t, inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch("\"f2\": 2")
+		stdout.ExpectMatch(ctx, "\"f2\": 2")
 	})
 }
 
@@ -201,10 +201,11 @@ func TestLicensesDeleteFake(t *testing.T) {
 		t.Parallel()
 
 		inv := setupFakeLicenseServerTest(t, "licenses", "delete", "55")
-		pty := attachPty(t, inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		clitest.Start(t, inv)
-		pty.ExpectMatch("License with ID 55 deleted")
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		stdout.ExpectMatch(ctx, "License with ID 55 deleted")
 	})
 }
 
@@ -238,13 +239,6 @@ func setupFakeLicenseServerTest(t *testing.T, args ...string) *serpent.Invocatio
 	require.NoError(t, err)
 
 	return inv
-}
-
-func attachPty(t *testing.T, inv *serpent.Invocation) *ptytest.PTY {
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stdout = pty.Output()
-	return pty
 }
 
 func newFakeLicenseAPI(t *testing.T) http.Handler {

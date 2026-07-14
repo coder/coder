@@ -12,7 +12,7 @@ For upgrade recommendations and troubleshooting, see
 ## Reinstall Coder to upgrade
 
 To upgrade your Coder server, reinstall Coder using your original method
-of [install](../install).
+of [install](../install/index.md).
 
 ### Coder install script
 

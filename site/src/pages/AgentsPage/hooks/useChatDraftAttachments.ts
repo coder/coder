@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	getChatFileURL,
+	renameChatFileForUpload,
+} from "../utils/chatAttachments";
 import {
 	clearChatDraftAttachmentRecords,
 	fileToDataURL,
@@ -715,7 +718,12 @@ export function useChatDraftAttachments(
 		beginUpload(entry);
 	};
 
-	const handleAttach = (files: File[]) => {
+	const handleAttach = (incomingFiles: File[]) => {
+		// Sanitize filenames at the boundary so chip labels, the
+		// chat-draft localStorage record, the upload header, and any
+		// downstream LLM prompt all see safe names. Already-safe
+		// names return the same File by reference.
+		const files = incomingFiles.map(renameChatFileForUpload);
 		const scopeKey = getDraftScopeKey(organizationId, chatId);
 		// Snapshot provider + budget so a mid-resize switch
 		// can't relabel the error with the new provider.

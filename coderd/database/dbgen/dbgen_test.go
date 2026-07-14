@@ -296,7 +296,9 @@ func TestGenerator(t *testing.T) {
 		// Defaults.
 		cfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
 		require.NotEqual(t, uuid.Nil, cfg.ID)
-		require.Equal(t, "openai", cfg.Provider)
+		prov, err := db.GetAIProviderByID(context.Background(), cfg.AIProviderID.UUID)
+		require.NoError(t, err)
+		require.Equal(t, "openai", string(prov.Type))
 		require.Equal(t, "gpt-4o-mini", cfg.Model)
 		require.Equal(t, "Test Model", cfg.DisplayName)
 		require.True(t, cfg.Enabled)
@@ -304,13 +306,15 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, int32(70), cfg.CompressionThreshold)
 
 		// Overrides.
-		_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "anthropic"})
+		anthropicProvider := dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "anthropic"})
 		cfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     "anthropic",
+			AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 			Model:        "claude-4",
 			ContextLimit: 200000,
 		})
-		require.Equal(t, "anthropic", cfg2.Provider)
+		prov2, err := db.GetAIProviderByID(context.Background(), cfg2.AIProviderID.UUID)
+		require.NoError(t, err)
+		require.Equal(t, "anthropic", string(prov2.Type))
 		require.Equal(t, "claude-4", cfg2.Model)
 		require.Equal(t, int64(200000), cfg2.ContextLimit)
 	})
@@ -325,7 +329,7 @@ func TestGenerator(t *testing.T) {
 			OrganizationID: o.ID,
 		})
 		p := dbgen.ChatProvider(t, db, database.ChatProvider{})
-		m := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: p.Provider})
+		m := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{AIProviderID: uuid.NullUUID{UUID: p.ID, Valid: true}})
 
 		// Defaults.
 		chat := dbgen.Chat(t, db, database.Chat{
@@ -360,7 +364,7 @@ func TestGenerator(t *testing.T) {
 			OrganizationID: o.ID,
 		})
 		p := dbgen.ChatProvider(t, db, database.ChatProvider{})
-		m := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: p.Provider})
+		m := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{AIProviderID: uuid.NullUUID{UUID: p.ID, Valid: true}})
 		chat := dbgen.Chat(t, db, database.Chat{
 			OwnerID:           u.ID,
 			OrganizationID:    o.ID,
@@ -394,7 +398,6 @@ func TestGenerator(t *testing.T) {
 			ContextLimit:        sql.NullInt64{Int64: 77, Valid: true},
 			Compressed:          true,
 			TotalCostMicros:     sql.NullInt64{Int64: 88, Valid: true},
-			ProviderResponseID:  sql.NullString{String: "resp-123", Valid: true},
 		})
 		require.Equal(t, database.ChatMessageRoleAssistant, msg2.Role)
 		require.True(t, msg2.Content.Valid)
@@ -408,7 +411,6 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, sql.NullInt64{Int64: 77, Valid: true}, msg2.ContextLimit)
 		require.True(t, msg2.Compressed)
 		require.Equal(t, sql.NullInt64{Int64: 88, Valid: true}, msg2.TotalCostMicros)
-		require.Equal(t, sql.NullString{String: "resp-123", Valid: true}, msg2.ProviderResponseID)
 	})
 
 	t.Run("MCPServerConfig", func(t *testing.T) {

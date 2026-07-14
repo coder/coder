@@ -9,7 +9,10 @@ import {
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	getChatFileURL,
+	renameChatFileForUpload,
+} from "../utils/chatAttachments";
 import {
 	formatAgentAttachmentTooLargeError,
 	formatAgentAttachmentUploadError,
@@ -362,7 +365,14 @@ export function useFileAttachments(
 		}
 	};
 
-	const handleAttach = (files: File[]) => {
+	const handleAttach = (incomingFiles: File[]) => {
+		// Sanitize filenames at the boundary so chip labels, the
+		// persisted-attachment localStorage record, the upload
+		// header, and any downstream LLM prompt all see safe names.
+		// Already-safe names return the same File by reference; the
+		// File identity is used as a Map key below (previewUrls,
+		// uploadStates, textContents).
+		const files = incomingFiles.map(renameChatFileForUpload);
 		// Originals enter state with a "processing" status so the
 		// send gate blocks dispatch until processResizes finishes.
 		// Snapshot provider + budget so a mid-resize switch can't

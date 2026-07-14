@@ -127,14 +127,14 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 				<div className="mb-1 text-center">
 					<div
 						className="block text-xs font-semibold text-content-secondary"
-						data-chromatic="ignore"
+						data-pixel="ignore"
 					>
 						{progressText}
 					</div>
 				</div>
 			)}
 			<LinearProgress
-				data-chromatic="ignore"
+				data-pixel="ignore"
 				value={progressValue !== undefined ? progressValue : 0}
 				variant={
 					// There is an initial state where progressValue may be undefined
@@ -153,7 +153,7 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 					</div>
 					<div
 						className="block text-xs font-semibold text-content-secondary"
-						data-chromatic="ignore"
+						data-pixel="ignore"
 					>
 						{progressText}
 					</div>

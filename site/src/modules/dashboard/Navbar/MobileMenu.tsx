@@ -22,6 +22,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
@@ -38,6 +39,8 @@ type MobileMenuPermissions = {
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
+	canViewAIBridge: boolean;
+	canViewAISettings: boolean;
 	canViewHealth: boolean;
 };
 
@@ -134,8 +137,8 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				>
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
-						<img
-							className="w-4 h-4"
+						<ExternalImage
+							className="size-4"
 							src={selectedProxy.icon_url}
 							alt={selectedProxy.name}
 						/>
@@ -171,7 +174,11 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 									setOpen(false);
 								}}
 							>
-								<img className="w-4 h-4" src={p.icon_url} alt={p.name} />
+								<ExternalImage
+									className="size-4"
+									src={p.icon_url}
+									alt={p.name}
+								/>
 								{p.display_name || p.name}
 								{latency ? (
 									<Latency className="ml-auto" latency={latency.latencyMS} />
@@ -203,9 +210,10 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 
 const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewDeployment,
-	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
+	canViewAIBridge,
+	canViewAISettings,
 	canViewHealth,
 }) => {
 	const [open, setOpen] = useState(false);
@@ -235,12 +243,18 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
-				{canViewOrganizations && (
+				<DropdownMenuItem
+					asChild
+					className={cn(itemStyles.default, itemStyles.sub)}
+				>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
+				{canViewAISettings && (
 					<DropdownMenuItem
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/organizations">Organizations</Link>
+						<Link to="/ai/settings">AI</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewAuditLog && (
@@ -257,6 +271,14 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
 						<Link to="/connectionlog">Connection logs</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewAIBridge && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/ai-gateway/sessions">AI sessions</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewHealth && (

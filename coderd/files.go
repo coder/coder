@@ -80,11 +80,24 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 
 		data, err = archive.CreateTarFromZip(zipReader, HTTPFileMaxBytes)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error processing .zip archive.",
-				Detail:  err.Error(),
-			})
-			return
+			switch {
+			case errors.Is(err, archive.ErrArchiveTooLarge):
+				httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+					Message: "Expanded .zip archive exceeds maximum size.",
+				})
+				return
+			case errors.Is(err, archive.ErrInvalidZipContent):
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid .zip archive contents.",
+				})
+				return
+			default:
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error processing .zip archive.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
 		contentType = tarMimeType
 	}

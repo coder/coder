@@ -186,12 +186,36 @@ describe("useDesktopConnection", () => {
 
 	it("sets scaleViewport and resizeSession on the RFB instance", () => {
 		renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1", activated: true }),
+			useDesktopConnection({
+				chatId: "chat-1",
+				activated: true,
+				scaleViewport: true,
+			}),
 		);
 		const rfb = getLastRFBInstance();
 
 		expect(rfb.scaleViewport).toBe(true);
 		expect(rfb.resizeSession).toBe(false);
+	});
+
+	it("syncs scaleViewport changes to the RFB instance", () => {
+		const { rerender } = renderHook(
+			({ scaleViewport }) =>
+				useDesktopConnection({
+					chatId: "chat-1",
+					activated: true,
+					scaleViewport,
+				}),
+			{ initialProps: { scaleViewport: true } },
+		);
+		const rfb = getLastRFBInstance();
+		expect(rfb.scaleViewport).toBe(true);
+
+		rerender({ scaleViewport: false });
+		expect(rfb.scaleViewport).toBe(false);
+
+		rerender({ scaleViewport: true });
+		expect(rfb.scaleViewport).toBe(true);
 	});
 
 	it("transitions to error on securityfailure", () => {
@@ -906,7 +930,11 @@ describe("useDesktopConnection", () => {
 
 	it("forces scaleViewport on hidden→visible transition", () => {
 		renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1", activated: true }),
+			useDesktopConnection({
+				chatId: "chat-1",
+				activated: true,
+				scaleViewport: true,
+			}),
 		);
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
@@ -920,12 +948,12 @@ describe("useDesktopConnection", () => {
 		act(() => observer.simulateResize(0, 0));
 
 		// Reset so we can detect re-assignment.
-		rfb.scaleViewport = false;
+		const spy = vi.spyOn(rfb, "scaleViewport", "set");
 
 		// Container visible again — should force rescale.
 		act(() => observer.simulateResize(800, 600));
 
-		expect(rfb.scaleViewport).toBe(true);
+		expect(spy).toHaveBeenCalled();
 	});
 
 	it("does not force scaleViewport on normal nonzero→nonzero resize", () => {

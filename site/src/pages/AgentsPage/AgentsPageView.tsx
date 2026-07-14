@@ -1,15 +1,16 @@
-import { type FC, type RefObject, useRef } from "react";
+import { type FC, type RefObject, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
-	AgentsSidebar,
+	ChatsSidebar,
 	isSettingsView,
 	sidebarViewFromPath,
-} from "./components/Sidebar/AgentsSidebar";
-import { ResizableAgentsSidebarFrame } from "./components/Sidebar/ResizableAgentsSidebarFrame";
+} from "./components/ChatsSidebar/ChatsSidebar";
+import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import type { AgentSidebarFilters } from "./utils/agentSidebarFilters";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -25,9 +26,11 @@ export interface AgentsOutletContext {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle?: (chatId: string) => void;
+	isArchiving: boolean;
+	archivingChatId: string | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
-	regeneratingTitleChatIds: readonly string[];
+	/** Opens the shared rename dialog so both menus drive the same instance. */
+	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
@@ -39,9 +42,12 @@ export interface AgentsOutletContext {
 interface AgentsPageViewProps {
 	agentId: string | undefined;
 	chatList: TypesGen.Chat[];
+	currentUserId: string;
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	handleNewAgent: () => void;
+	isSearchDialogOpen: boolean;
+	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
@@ -63,26 +69,27 @@ interface AgentsPageViewProps {
 	requestPinAgent: (chatId: string) => void;
 	requestUnpinAgent: (chatId: string) => void;
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
-	onRegenerateTitle: (chatId: string) => Promise<string>;
 	onProposeTitle: (chatId: string) => Promise<string>;
 	onRenameTitle: (chatId: string, title: string) => Promise<void>;
-	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
 	isFetchingNextPage: boolean;
-	archivedFilter: "active" | "archived";
-	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	sidebarFilters: AgentSidebarFilters;
+	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	agentId,
 	chatList,
+	currentUserId,
 	catalogModelOptions,
 	modelConfigs,
 	handleNewAgent,
+	isSearchDialogOpen,
+	onSearchDialogOpenChange,
 	isCreating,
 	isArchiving,
 	archivingChatId,
@@ -101,18 +108,16 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestPinAgent,
 	requestUnpinAgent,
 	requestReorderPinnedAgent,
-	onRegenerateTitle,
 	onProposeTitle,
 	onRenameTitle,
-	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
 	isPersonalModelOverridesEnabled,
 	isAgentsAdmin,
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
-	archivedFilter,
-	onArchivedFilterChange,
+	sidebarFilters,
+	onSidebarFiltersChange,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -135,6 +140,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+	// State for the shared rename-chat dialog. Lifted here so both the
+	// sidebar menu and the chat top bar open the same dialog instance.
+	const [chatPendingRename, setChatPendingRename] =
+		useState<TypesGen.Chat | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -145,10 +155,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		requestReorderPinnedAgent,
-		onRegenerateTitle: (chatId: string) => {
-			onRegenerateTitle(chatId).catch(() => {});
-		},
-		regeneratingTitleChatIds,
+		isArchiving,
+		archivingChatId,
+		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar,
@@ -162,7 +171,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 		>
 			<title>{pageTitle("Agents")}</title>
-			<ResizableAgentsSidebarFrame
+			<ResizableChatsSidebarFrame
 				className={cn(
 					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
@@ -173,8 +182,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isSidebarCollapsed && "sm:hidden",
 				)}
 			>
-				<AgentsSidebar
+				<ChatsSidebar
 					chats={chatList}
+					currentUserId={currentUserId}
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
@@ -186,8 +196,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onRenameTitle={onRenameTitle}
 					onProposeTitle={onProposeTitle}
-					regeneratingTitleChatIds={regeneratingTitleChatIds}
+					chatPendingRename={chatPendingRename}
+					onChatPendingRenameChange={setChatPendingRename}
 					onBeforeNewAgent={handleNewAgent}
+					isSearchDialogOpen={isSearchDialogOpen}
+					onSearchDialogOpenChange={onSearchDialogOpenChange}
 					isCreating={isCreating}
 					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}
@@ -197,13 +210,13 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					hasNextPage={hasNextPage}
 					onLoadMore={onLoadMore}
 					isFetchingNextPage={isFetchingNextPage}
-					archivedFilter={archivedFilter}
-					onArchivedFilterChange={onArchivedFilterChange}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
 					onCollapse={onCollapseSidebar}
 					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}
 				/>
-			</ResizableAgentsSidebarFrame>
+			</ResizableChatsSidebarFrame>
 			<div
 				data-testid="agents-main-panel"
 				className={cn(

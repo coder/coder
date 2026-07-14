@@ -194,5 +194,5 @@ Ensure the remote repository URL is set to `https://registry.coder.com` and not 
 ## Next Steps
 
 - [Coder Module Registry](https://registry.coder.com/modules)
-- [JFrog Terraform Registry Documentation](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry)
+- [JFrog Terraform Registry Documentation](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-opentofu-and-terraform-backend-repositories)
 - [Air-gapped Deployments](./airgap.md)

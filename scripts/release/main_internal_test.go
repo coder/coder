@@ -35,7 +35,7 @@ Compare: [` + "`" + `v2.10.1...v2.10.2` + "`" + `](https://github.com/coder/code
 
 ## Install/upgrade
 
-Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.
+Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.
 `,
 			want: `## Changelog
 
@@ -51,7 +51,7 @@ Compare: [` + "`" + `v2.10.1...v2.10.2` + "`" + `](https://github.com/coder/code
 
 ## Install/upgrade
 
-Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.
+Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.
 `,
 		},
 		{
@@ -73,7 +73,7 @@ Compare: [` + "`" + `v2.10.1...v2.10.2` + "`" + `](https://github.com/coder/code
 
 ## Install/upgrade
 
-Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.
+Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.
 `,
 			want: `## Changelog
 
@@ -89,7 +89,7 @@ Compare: [` + "`" + `v2.10.1...v2.10.2` + "`" + `](https://github.com/coder/code
 
 ## Install/upgrade
 
-Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/admin/upgrade) Coder, or use a release asset below.
+Refer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.
 `,
 		},
 		{

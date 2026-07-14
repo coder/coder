@@ -32,7 +32,7 @@ export const Indeterminate: Story = {
 		value: 0,
 	},
 	parameters: {
-		chromatic: { disable: true },
+		pixel: { exclude: true },
 	},
 };
 
@@ -75,6 +75,6 @@ export const ControlledDeterminate: Story = {
 		);
 	},
 	parameters: {
-		chromatic: { disable: true },
+		pixel: { exclude: true },
 	},
 };

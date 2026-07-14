@@ -1,5 +1,5 @@
 # This workflow posts a docs preview link as a PR comment whenever a
-# pull request that touches files under docs/ is opened.  The preview
+# pull request that touches docs/ is opened or updated.  The preview
 # is served by coder.com's branch-preview feature at /docs/@<branch>.
 #
 # The link deep-links to the first added/modified/renamed Markdown file
@@ -7,8 +7,12 @@
 # Branch names are URL-encoded so that names containing slashes or
 # other special characters produce working links.
 #
-# If the PR only deletes Markdown files (or only changes non-Markdown
-# files such as images or manifest.json), no comment is posted.
+# On subsequent pushes (synchronize) the existing comment is updated
+# rather than creating a duplicate.  If a previous push had a Markdown
+# file but the current push has none, the stale comment is deleted so
+# readers don't follow a dead deep-link.  If the PR only deletes
+# Markdown files (or only changes non-Markdown files such as images or
+# manifest.json), no comment is posted.
 
 name: docs-preview
 
@@ -16,8 +20,20 @@ on:
   pull_request:
     types:
       - opened
+      - synchronize
+      - reopened
     paths:
       - "docs/**"
+      # docs/.style/** is contributor tooling and never deploys to coder.com.
+      # Skipping the workflow on .style-only PRs avoids posting a preview
+      # link that 404s, since manifest-driven coder.com routing rejects
+      # paths under .style. Mixed PRs still trigger; the selection logic
+      # below filters .style files out of the preview-target pick.
+      - "!docs/.style/**"
+
+concurrency:
+  group: docs-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -35,6 +51,22 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
+          # Marker embedded in the comment body so we can find this
+          # workflow's own comments later. Keep this in one place so
+          # later refactors don't drift between the body construction
+          # and the jq selectors used to find existing comments.
+          DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
+
+          # Returns IDs of github-actions[bot] comments on the PR whose
+          # body contains DOCS_PREVIEW_MARKER. Used by both the stale-
+          # comment-cleanup branch (when this push has no Markdown
+          # changes) and the upsert branch below.
+          list_docs_preview_comments() {
+            gh api --paginate \
+              "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+              --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${DOCS_PREVIEW_MARKER}\")) | .id"
+          }
+
           # Fetch the list of non-deleted files from the PR.  This is
           # intentionally not piped into grep so that a gh-api failure
           # (network, auth, rate-limit) propagates immediately instead
@@ -43,15 +75,53 @@ jobs:
             "repos/${REPO}/pulls/${PR_NUMBER}/files" \
             --jq '.[] | select(.status != "removed") | .filename')
 
-          # Pick the first Markdown file under docs/.  `|| true` keeps
-          # the pipeline from failing when grep finds no matches or
-          # head triggers SIGPIPE under `set -o pipefail`.
+          # Pick the first Markdown file under docs/, excluding the
+          # contributor-tooling subtree at docs/.style/**. Mixed PRs that
+          # touch both .style and a public docs page should land the
+          # preview link on the public page; .style-only PRs already get
+          # short-circuited by the trigger filter above and never reach
+          # this code path.
+          #
+          # `|| true` keeps the pipeline from failing when grep finds no
+          # matches or head triggers SIGPIPE under `set -o pipefail`.
           first_doc=$(printf '%s\n' "$all_files" \
             | grep -E '^docs/.*\.md$' \
+            | grep -v '^docs/\.style/' \
             | head -n 1) || true
 
           if [ -z "$first_doc" ]; then
-            echo "No added/modified Markdown files under docs/, skipping preview comment."
+            echo "No added/modified Markdown files under docs/ on this push."
+
+            # Now that the workflow fires on synchronize, this branch
+            # is reachable on pushes that drop all Markdown while still
+            # touching docs/ (e.g. a push that removes the file an
+            # earlier push had previewed but adds a new image). The
+            # previous preview comment now points at a deleted page;
+            # delete it so readers don't follow a dead deep-link.
+            #
+            # Intentionally decoupled from head so that a gh-api failure
+            # propagates here instead of being swallowed by `|| true`. In
+            # this branch the workflow has no preview link to post anyway
+            # (no Markdown in the push), so a transient list failure is a
+            # cosmetic miss; log and exit cleanly rather than red-checking
+            # every docs-touching PR during a comments-endpoint hiccup.
+            # The next push will retry the cleanup. The upsert path below
+            # uses strict propagation by contrast, because silent failure
+            # there would create duplicate comments.
+            stale_comment_ids=$(list_docs_preview_comments) || {
+              echo "Could not list preview comments; skipping cleanup."
+              exit 0
+            }
+            stale_id=$(printf '%s\n' "$stale_comment_ids" | head -n 1) || true
+
+            if [ -n "$stale_id" ]; then
+              if gh api --method DELETE \
+                "repos/${REPO}/issues/comments/${stale_id}"; then
+                echo "Deleted stale docs preview comment (id=${stale_id})."
+              else
+                echo "Failed to delete stale docs preview comment (id=${stale_id}); leaving in place."
+              fi
+            fi
             exit 0
           fi
 
@@ -97,9 +167,37 @@ jobs:
             url="${url}/${page_path}"
           fi
 
-          gh pr comment "${PR_NUMBER}" \
-            --repo "${REPO}" \
-            --body "## Docs preview
+          # The literal backticks around ${first_doc} are escaped so
+          # they survive the double-quoted string as Markdown inline
+          # code; ${url} and ${first_doc} expand normally.
+          comment_body="## Docs preview
           [:book: View docs preview](${url}) for \`${first_doc}\`
 
-          <!-- docs-preview -->"
+          ${DOCS_PREVIEW_MARKER}"
+
+          # Upsert: update the existing docs-preview comment if one
+          # exists, otherwise create a new one.  This prevents duplicate
+          # preview comments on every push to the PR.
+          #
+          # Intentionally not piped into head so that a gh-api failure
+          # (network, auth, rate-limit) propagates immediately instead
+          # of being swallowed by `|| true`.
+          all_comment_ids=$(list_docs_preview_comments)
+          existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
+
+          if [ -n "$existing_id" ]; then
+            if ! gh api --method PATCH \
+              "repos/${REPO}/issues/comments/${existing_id}" \
+              --field body="$comment_body"; then
+              echo "PATCH failed (comment may have been deleted); creating a new comment."
+              existing_id=""
+            else
+              echo "Updated existing docs preview comment (id=${existing_id})."
+            fi
+          fi
+          if [ -z "$existing_id" ]; then
+            gh pr comment "${PR_NUMBER}" \
+              --repo "${REPO}" \
+              --body "$comment_body"
+            echo "Created new docs preview comment."
+          fi

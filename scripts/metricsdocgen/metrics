@@ -147,64 +147,105 @@ promhttp_metric_handler_requests_in_flight 1
 promhttp_metric_handler_requests_total{code="200"} 2
 promhttp_metric_handler_requests_total{code="500"} 0
 promhttp_metric_handler_requests_total{code="503"} 0
-# HELP coder_aibridged_injected_tool_invocations_total The number of times an injected MCP tool was invoked by aibridge.
-# TYPE coder_aibridged_injected_tool_invocations_total counter
-coder_aibridged_injected_tool_invocations_total{model="gpt-5-nano",name="coder_list_templates",provider="openai",server="https://xxx.pit-1.try.coder.app/api/experimental/mcp/http"} 1
-# HELP coder_aibridged_interceptions_duration_seconds The total duration of intercepted requests, in seconds. The majority of this time will be the upstream processing of the request. aibridge has no control over upstream processing time, so it's just an illustrative metric.
-# TYPE coder_aibridged_interceptions_duration_seconds histogram
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="0.5"} 0
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="2"} 0
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="5"} 3
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="15"} 6
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="30"} 6
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="60"} 6
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="120"} 6
-coder_aibridged_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="+Inf"} 6
-coder_aibridged_interceptions_duration_seconds_sum{model="gpt-5-nano",provider="openai"} 34.120188692
-coder_aibridged_interceptions_duration_seconds_count{model="gpt-5-nano",provider="openai"} 6
-# HELP coder_aibridged_interceptions_inflight The number of intercepted requests which are being processed.
-# TYPE coder_aibridged_interceptions_inflight gauge
-coder_aibridged_interceptions_inflight{model="gpt-5-nano",provider="openai",route="/v1/chat/completions"} 0
-# HELP coder_aibridged_interceptions_total The count of intercepted requests.
-# TYPE coder_aibridged_interceptions_total counter
-coder_aibridged_interceptions_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",method="POST",model="gpt-5-nano",provider="openai",route="/v1/chat/completions",status="completed"} 6
-# HELP coder_aibridged_non_injected_tool_selections_total The number of times an AI model selected a tool to be invoked by the client.
-# TYPE coder_aibridged_non_injected_tool_selections_total counter
-coder_aibridged_non_injected_tool_selections_total{model="gpt-5-nano",name="read_file",provider="openai"} 2
-# HELP coder_aibridged_prompts_total The number of prompts issued by users (initiators).
-# TYPE coder_aibridged_prompts_total counter
-coder_aibridged_prompts_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai"} 4
-# HELP coder_aibridged_tokens_total The number of tokens used by intercepted requests.
-# TYPE coder_aibridged_tokens_total counter
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_accepted_prediction"} 0
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_audio"} 0
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_reasoning"} 1664
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_rejected_prediction"} 0
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="input"} 13823
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="output"} 2014
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_audio"} 0
-coder_aibridged_tokens_total{initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_cached"} 31872
-# HELP coder_aibridged_circuit_breaker_rejects_total Total number of requests rejected due to open circuit breaker.
-# TYPE coder_aibridged_circuit_breaker_rejects_total counter
-coder_aibridged_circuit_breaker_rejects_total{provider="",endpoint="",model=""} 0
-# HELP coder_aibridged_circuit_breaker_state Current state of the circuit breaker (0=closed, 0.5=half-open, 1=open).
-# TYPE coder_aibridged_circuit_breaker_state gauge
-coder_aibridged_circuit_breaker_state{provider="",endpoint="",model=""} 0
-# HELP coder_aibridged_circuit_breaker_trips_total Total number of times the circuit breaker transitioned to open state.
-# TYPE coder_aibridged_circuit_breaker_trips_total counter
-coder_aibridged_circuit_breaker_trips_total{provider="",endpoint="",model=""} 0
-# HELP coder_aibridged_passthrough_total The count of requests which were not intercepted but passed through to the upstream.
-# TYPE coder_aibridged_passthrough_total counter
-coder_aibridged_passthrough_total{provider="",route="",method=""} 0
-# HELP coder_aibridgeproxyd_connect_sessions_total Total number of CONNECT sessions established.
-# TYPE coder_aibridgeproxyd_connect_sessions_total counter
-coder_aibridgeproxyd_connect_sessions_total{type=""} 0
-# HELP coder_aibridgeproxyd_inflight_mitm_requests Number of MITM requests currently being processed.
-# TYPE coder_aibridgeproxyd_inflight_mitm_requests gauge
-coder_aibridgeproxyd_inflight_mitm_requests{provider=""} 0
-# HELP coder_aibridgeproxyd_mitm_requests_total Total number of MITM requests handled by the proxy.
-# TYPE coder_aibridgeproxyd_mitm_requests_total counter
-coder_aibridgeproxyd_mitm_requests_total{provider=""} 0
-# HELP coder_aibridgeproxyd_mitm_responses_total Total number of MITM responses by HTTP status code class.
-# TYPE coder_aibridgeproxyd_mitm_responses_total counter
-coder_aibridgeproxyd_mitm_responses_total{code="",provider=""} 0
+# HELP coder_ai_gateway_injected_tool_invocations_total The number of times an injected MCP tool was invoked by AI Gateway.
+# TYPE coder_ai_gateway_injected_tool_invocations_total counter
+coder_ai_gateway_injected_tool_invocations_total{model="gpt-5-nano",name="coder_list_templates",provider="openai",server="https://xxx.pit-1.try.coder.app/api/experimental/mcp/http"} 1
+# HELP coder_ai_gateway_interceptions_duration_seconds The total duration of intercepted requests, in seconds. The majority of this time will be the upstream processing of the request. AI Gateway has no control over upstream processing time, so it's just an illustrative metric.
+# TYPE coder_ai_gateway_interceptions_duration_seconds histogram
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="0.5"} 0
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="2"} 0
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="5"} 3
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="15"} 6
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="30"} 6
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="60"} 6
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="120"} 6
+coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="+Inf"} 6
+coder_ai_gateway_interceptions_duration_seconds_sum{model="gpt-5-nano",provider="openai"} 34.120188692
+coder_ai_gateway_interceptions_duration_seconds_count{model="gpt-5-nano",provider="openai"} 6
+# HELP coder_ai_gateway_interceptions_inflight The number of intercepted requests which are being processed.
+# TYPE coder_ai_gateway_interceptions_inflight gauge
+coder_ai_gateway_interceptions_inflight{model="gpt-5-nano",provider="openai",route="/v1/chat/completions"} 0
+# HELP coder_ai_gateway_interceptions_total The count of intercepted requests.
+# TYPE coder_ai_gateway_interceptions_total counter
+coder_ai_gateway_interceptions_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",method="POST",model="gpt-5-nano",provider="openai",route="/v1/chat/completions",status="completed"} 6
+# HELP coder_ai_gateway_key_pool_state The number of keys currently in each state (state: valid, temporary, permanent).
+# TYPE coder_ai_gateway_key_pool_state gauge
+coder_ai_gateway_key_pool_state{provider="openai",state="valid"} 2
+coder_ai_gateway_key_pool_state{provider="openai",state="temporary"} 0
+coder_ai_gateway_key_pool_state{provider="openai",state="permanent"} 0
+# HELP coder_ai_gateway_key_pool_state_transitions_total The number of API key state transitions during failover (reason: rate_limited, unauthorized, forbidden).
+# TYPE coder_ai_gateway_key_pool_state_transitions_total counter
+coder_ai_gateway_key_pool_state_transitions_total{provider="openai",reason="rate_limited"} 1
+# HELP coder_ai_gateway_key_pool_exhaustions_total The number of times the key pool was exhausted with no usable key (outcome: rate_limited, auth_failed).
+# TYPE coder_ai_gateway_key_pool_exhaustions_total counter
+coder_ai_gateway_key_pool_exhaustions_total{provider="openai",outcome="rate_limited"} 1
+# HELP coder_ai_gateway_key_pool_failover_attempts The number of keys attempted before success or exhaustion, per interception for bridged requests and per request for passthrough requests.
+# TYPE coder_ai_gateway_key_pool_failover_attempts histogram
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="1"} 0
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="2"} 1
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="3"} 1
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="4"} 1
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="5"} 1
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="10"} 1
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="25"} 1
+coder_ai_gateway_key_pool_failover_attempts_bucket{provider="openai",le="+Inf"} 1
+coder_ai_gateway_key_pool_failover_attempts_sum{provider="openai"} 2
+coder_ai_gateway_key_pool_failover_attempts_count{provider="openai"} 1
+# HELP coder_ai_gateway_non_injected_tool_selections_total The number of times an AI model selected a tool to be invoked by the client.
+# TYPE coder_ai_gateway_non_injected_tool_selections_total counter
+coder_ai_gateway_non_injected_tool_selections_total{model="gpt-5-nano",name="read_file",provider="openai"} 2
+# HELP coder_ai_gateway_prompts_total The number of prompts issued by users (initiators).
+# TYPE coder_ai_gateway_prompts_total counter
+coder_ai_gateway_prompts_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai"} 4
+# HELP coder_ai_gateway_tokens_total The number of tokens used by intercepted requests.
+# TYPE coder_ai_gateway_tokens_total counter
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_accepted_prediction"} 0
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_audio"} 0
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_reasoning"} 1664
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="completion_rejected_prediction"} 0
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="input"} 13823
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="output"} 2014
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_audio"} 0
+coder_ai_gateway_tokens_total{client="Codex",initiator_id="95f6752b-08cc-4cf1-97f7-c2165e3519c5",model="gpt-5-nano",provider="openai",type="prompt_cached"} 31872
+# HELP coder_ai_gateway_circuit_breaker_rejects_total Total number of requests rejected due to open circuit breaker.
+# TYPE coder_ai_gateway_circuit_breaker_rejects_total counter
+coder_ai_gateway_circuit_breaker_rejects_total{provider="",endpoint="",model=""} 0
+# HELP coder_ai_gateway_circuit_breaker_state Current state of the circuit breaker (0=closed, 0.5=half-open, 1=open).
+# TYPE coder_ai_gateway_circuit_breaker_state gauge
+coder_ai_gateway_circuit_breaker_state{provider="",endpoint="",model=""} 0
+# HELP coder_ai_gateway_circuit_breaker_trips_total Total number of times the circuit breaker transitioned to open state.
+# TYPE coder_ai_gateway_circuit_breaker_trips_total counter
+coder_ai_gateway_circuit_breaker_trips_total{provider="",endpoint="",model=""} 0
+# HELP coder_ai_gateway_passthrough_total The count of requests which were not intercepted but passed through to the upstream.
+# TYPE coder_ai_gateway_passthrough_total counter
+coder_ai_gateway_passthrough_total{provider="",route="",method=""} 0
+# HELP coder_ai_gateway_proxy_connect_sessions_total Total number of CONNECT sessions established.
+# TYPE coder_ai_gateway_proxy_connect_sessions_total counter
+coder_ai_gateway_proxy_connect_sessions_total{type=""} 0
+# HELP coder_ai_gateway_proxy_inflight_mitm_requests Number of MITM requests currently being processed.
+# TYPE coder_ai_gateway_proxy_inflight_mitm_requests gauge
+coder_ai_gateway_proxy_inflight_mitm_requests{provider=""} 0
+# HELP coder_ai_gateway_proxy_mitm_requests_total Total number of MITM requests handled by the proxy.
+# TYPE coder_ai_gateway_proxy_mitm_requests_total counter
+coder_ai_gateway_proxy_mitm_requests_total{provider=""} 0
+# HELP coder_ai_gateway_proxy_mitm_responses_total Total number of MITM responses by HTTP status code class.
+# TYPE coder_ai_gateway_proxy_mitm_responses_total counter
+coder_ai_gateway_proxy_mitm_responses_total{code="",provider=""} 0
+# HELP coder_ai_gateway_provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.
+# TYPE coder_ai_gateway_provider_info gauge
+coder_ai_gateway_provider_info{provider_name="",provider_type="",status=""} 0
+# HELP coder_ai_gateway_providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
+# TYPE coder_ai_gateway_providers_last_reload_timestamp_seconds gauge
+coder_ai_gateway_providers_last_reload_timestamp_seconds 0
+# HELP coder_ai_gateway_providers_last_reload_success_timestamp_seconds Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.
+# TYPE coder_ai_gateway_providers_last_reload_success_timestamp_seconds gauge
+coder_ai_gateway_providers_last_reload_success_timestamp_seconds 0
+# HELP coder_ai_gateway_proxy_provider_info One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.
+# TYPE coder_ai_gateway_proxy_provider_info gauge
+coder_ai_gateway_proxy_provider_info{provider_name="",provider_type="",status=""} 0
+# HELP coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds Unix timestamp of the last provider reload attempt, success or failure.
+# TYPE coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds gauge
+coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds 0
+# HELP coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds Unix timestamp of the last provider reload that successfully refreshed the router. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.
+# TYPE coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds gauge
+coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds 0

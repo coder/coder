@@ -218,17 +218,8 @@ func Test_ResolveRequest(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentAuthToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID, agentName)
-
-	agentID := uuid.Nil
-	for _, resource := range resources {
-		for _, agnt := range resource.Agents {
-			if agnt.Name == agentName {
-				agentID = agnt.ID
-				break
-			}
-		}
-	}
-	require.NotEqual(t, uuid.Nil, agentID)
+	agent := coderdtest.RequireWorkspaceAgentByName(t, resources, agentName)
+	agentID := agent.ID
 
 	// Reset audit logs so cleanup check can pass.
 	connLogger.Reset()
@@ -914,6 +905,50 @@ func Test_ResolveRequest(t *testing.T) {
 		})
 		require.False(t, ok)
 		require.Nil(t, token)
+		require.Len(t, connLogger.ConnectionLogs(), 0)
+	})
+
+	// Security (PLAT-260): a UUID workspace lookup must reject when
+	// the URL's username segment names a different owner. Otherwise a
+	// same-owner origin can be spoofed for credentialed cross-origin
+	// reads.
+	t.Run("WorkspaceUUIDOwnerMismatch", func(t *testing.T) {
+		t.Parallel()
+
+		req := (workspaceapps.Request{
+			AccessMethod:      workspaceapps.AccessMethodPath,
+			BasePath:          "/app",
+			UsernameOrID:      secondUser.Username,
+			WorkspaceNameOrID: workspace.ID.String(),
+			AgentNameOrID:     agentName,
+			AppSlugOrPort:     appNamePublic,
+		}).Normalize()
+
+		connLogger := connectionlog.NewFake()
+		auditableIP := testutil.RandomIPv6(t)
+
+		rw := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/app", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
+		r.RemoteAddr = auditableIP
+
+		token, ok := workspaceappsResolveRequest(t, connLogger, rw, r, workspaceapps.ResolveRequestOptions{
+			Logger:              api.Logger,
+			SignedTokenProvider: api.WorkspaceAppsProvider,
+			DashboardURL:        api.AccessURL,
+			PathAppBaseURL:      api.AccessURL,
+			AppHostname:         api.AppHostname,
+			AppRequest:          req,
+		})
+		require.False(t, ok)
+		require.Nil(t, token)
+
+		w := rw.Result()
+		defer w.Body.Close()
+		b, err := io.ReadAll(w.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "404 - Application Not Found")
+		require.Equal(t, http.StatusNotFound, w.StatusCode)
 		require.Len(t, connLogger.ConnectionLogs(), 0)
 	})
 

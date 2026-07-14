@@ -15,8 +15,8 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestExpRpty(t *testing.T) {
@@ -28,7 +28,7 @@ func TestExpRpty(t *testing.T) {
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
 		inv, root := clitest.New(t, "exp", "rpty", workspace.Name)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t), inv)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -40,7 +40,7 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.WriteLine("exit")
+		stdin.WriteLine("exit")
 		<-cmdDone
 	})
 
@@ -51,7 +51,7 @@ func TestExpRpty(t *testing.T) {
 		randStr := uuid.NewString()
 		inv, root := clitest.New(t, "exp", "rpty", workspace.Name, "echo", randStr)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -63,7 +63,7 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatch(randStr)
+		stdout.ExpectMatch(ctx, randStr)
 		<-cmdDone
 	})
 
@@ -86,6 +86,7 @@ func TestExpRpty(t *testing.T) {
 			t.Skip("Skipping test on non-Linux platform")
 		}
 
+		logger := testutil.Logger(t)
 		wantLabel := "coder.devcontainers.TestExpRpty.Container"
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
@@ -124,7 +125,8 @@ func TestExpRpty(t *testing.T) {
 
 		inv, root := clitest.New(t, "exp", "rpty", workspace.Name, "-c", ct.Container.ID)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		cmdDone := tGo(t, func() {
@@ -132,10 +134,10 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		pty.ExpectMatchContext(ctx, " #")
-		pty.WriteLine("hostname")
-		pty.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
-		pty.WriteLine("exit")
+		stdout.ExpectMatch(ctx, " #")
+		stdin.WriteLine("hostname")
+		stdout.ExpectMatch(ctx, ct.Container.Config.Hostname)
+		stdin.WriteLine("exit")
 		<-cmdDone
 	})
 }

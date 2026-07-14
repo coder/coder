@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { updateOrganization } from "#/api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "#/api/queries/roles";
 import type { Role } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
@@ -12,6 +13,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -25,6 +27,10 @@ const CustomRolesPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { experiments, entitlements } = useDashboard();
+	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
+	const defaultRolesEntitled =
+		entitlements.features.multiple_organizations.enabled;
 
 	const [roleToDelete, setRoleToDelete] = useState<Role>();
 
@@ -38,6 +44,9 @@ const CustomRolesPage: FC = () => {
 
 	const deleteRoleMutation = useMutation(
 		deleteOrganizationRole(queryClient, organizationName),
+	);
+	const updateOrganizationMutation = useMutation(
+		updateOrganization(queryClient),
 	);
 
 	useEffect(() => {
@@ -80,13 +89,33 @@ const CustomRolesPage: FC = () => {
 				</div>
 
 				<CustomRolesPageView
+					organization={organization}
 					builtInRoles={builtInRoles}
 					customRoles={customRoles}
 					onDeleteRole={setRoleToDelete}
 					canCreateOrgRole={organizationPermissions?.createOrgRoles ?? false}
 					canUpdateOrgRole={organizationPermissions?.updateOrgRoles ?? false}
 					canDeleteOrgRole={organizationPermissions?.deleteOrgRoles ?? false}
+					canEditDefaultRoles={organizationPermissions?.editSettings ?? false}
 					isCustomRolesEnabled={isCustomRolesEnabled}
+					defaultRolesEnabled={defaultRolesEnabled}
+					defaultRolesEntitled={defaultRolesEntitled}
+					availableOrgRoles={organizationRolesQuery.data}
+					isUpdatingDefaultRoles={updateOrganizationMutation.isPending}
+					onUpdateDefaultRoles={async (roles) => {
+						try {
+							await updateOrganizationMutation.mutateAsync({
+								organizationId: organization.id,
+								req: { default_org_member_roles: roles },
+							});
+							toast.success("Default roles updated.");
+						} catch (error) {
+							toast.error(
+								getErrorMessage(error, "Failed to update default roles."),
+								{ description: getErrorDetail(error) },
+							);
+						}
+					}}
 				/>
 
 				<DeleteDialog

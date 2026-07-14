@@ -98,3 +98,50 @@ export const isChatAttachmentFile = (file: File): boolean => {
 	}
 	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
 };
+
+// Matches characters that commonly cause trouble downstream: bracketing
+// punctuation, quotes, shell or URL or path metacharacters, path
+// separators, any whitespace, and control characters. ASCII alphanumerics,
+// `.`, `-`, `_`, and all other Unicode letters and symbols (CJK, emoji,
+// accented Latin) are preserved so localized filenames remain readable.
+const unsafeChatFileNameChars = /[()[\]{}<>'"`;,:*?|&#$\\/\s\p{Cc}]/gu;
+
+/**
+ * Replaces characters that commonly cause trouble downstream (shells,
+ * LLM prompts, audit logs, path interpolation) with underscores. Keeps
+ * dots, dashes, underscores, ASCII alphanumerics, and non-ASCII letters
+ * so localized names remain readable. The server still applies its own
+ * normalization (control-char strip plus 255-byte truncate) on top of this.
+ *
+ * If the sanitized name is empty after trimming leading or trailing `_`,
+ * `.`, or whitespace, falls back to `"file"` so the server's
+ * "filename required" contract still holds.
+ */
+export const sanitizeChatFileName = (name: string): string => {
+	const replaced = name.replace(unsafeChatFileNameChars, "_");
+	// Collapse runs of underscores introduced by replacement into a single
+	// underscore so `foo (final).pdf` becomes `foo_final_.pdf` rather than
+	// `foo__final_.pdf`. Pre-existing `__` in the original name is also
+	// collapsed; acceptable tradeoff for tidier names.
+	const collapsed = replaced.replace(/_+/g, "_");
+	const trimmed = collapsed.replace(/^[_.\s]+|[_.\s]+$/g, "");
+	return trimmed === "" ? "file" : trimmed;
+};
+
+/**
+ * Returns a new File whose `name` is sanitized via `sanitizeChatFileName`.
+ * If the sanitized name is identical to the original, returns the input
+ * File unchanged to preserve referential equality. The chat UI keys
+ * preview-URL, upload-state, and text-content Maps on the File object,
+ * so identity must be stable for already-safe names.
+ */
+export const renameChatFileForUpload = (file: File): File => {
+	const sanitized = sanitizeChatFileName(file.name);
+	if (sanitized === file.name) {
+		return file;
+	}
+	return new File([file], sanitized, {
+		type: file.type,
+		lastModified: file.lastModified,
+	});
+};

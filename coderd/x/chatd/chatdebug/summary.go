@@ -41,28 +41,6 @@ func SeedSummary(label string) map[string]any {
 	return map[string]any{"first_message": label}
 }
 
-// ExtractFirstUserText extracts the plain text content from a
-// fantasy.Prompt for the first user message. Used to derive
-// first_message labels at run creation time.
-func ExtractFirstUserText(prompt fantasy.Prompt) string {
-	for _, msg := range prompt {
-		if msg.Role != fantasy.MessageRoleUser {
-			continue
-		}
-
-		var sb strings.Builder
-		for _, part := range msg.Content {
-			tp, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
-			if !ok {
-				continue
-			}
-			_, _ = sb.WriteString(tp.Text)
-		}
-		return sb.String()
-	}
-	return ""
-}
-
 // AggregateRunSummary reads all steps for the given run, computes token
 // totals, and merges them with the run's existing summary (preserving any
 // seeded first_message label). The baseSummary parameter should be the

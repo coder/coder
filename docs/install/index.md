@@ -8,7 +8,10 @@ We support two release channels: mainline and stable - read the
 There are several ways to install Coder. Follow the steps on this page for a
 minimal installation of Coder, or for a step-by-step guide on how to install and
 configure your first Coder deployment, follow the
-[quickstart guide](../tutorials/quickstart.md).
+[quickstart guide](../get-started/index.md).
+
+> [!TIP]
+> If you're installing Coder for the first time, the [Quickstart](../get-started/index.md) guides you through installing Coder and launching your first workspace.
 
 ## Local/Individual Installs
 

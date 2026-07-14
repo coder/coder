@@ -16,8 +16,8 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // completeWithExternalAgent creates a template version with an external agent resource
@@ -82,6 +82,7 @@ func TestExternalWorkspaces(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -106,7 +107,9 @@ func TestExternalWorkspaces(t *testing.T) {
 		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -114,16 +117,15 @@ func TestExternalWorkspaces(t *testing.T) {
 		}()
 
 		// Expect the workspace creation confirmation
-		pty.ExpectMatch("coder_external_agent.main")
-		pty.ExpectMatch("external-agent (linux, amd64)")
-		pty.ExpectMatch("Confirm create")
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "coder_external_agent.main")
+		stdout.ExpectMatch(ctx, "external-agent (linux, amd64)")
+		stdout.ExpectMatch(ctx, "Confirm create")
+		stdin.WriteLine("yes")
 
 		// Expect the external agent instructions
-		pty.ExpectMatch("Please run the following command to attach external agent")
-		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the workspace was created
@@ -217,7 +219,7 @@ func TestExternalWorkspaces(t *testing.T) {
 		}
 		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
@@ -227,8 +229,8 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch(ws.Name)
-		pty.ExpectMatch(template.Name)
+		stdout.ExpectMatch(ctx, ws.Name)
+		stdout.ExpectMatch(ctx, template.Name)
 		cancelFunc()
 		<-done
 	})
@@ -296,7 +298,7 @@ func TestExternalWorkspaces(t *testing.T) {
 		}
 		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
@@ -306,8 +308,8 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch("No workspaces found!")
-		pty.ExpectMatch("coder external-workspaces create")
+		stdout.ExpectMatch(ctx, "No workspaces found!")
+		stdout.ExpectMatch(ctx, "coder external-workspaces create")
 		cancelFunc()
 		<-done
 	})
@@ -340,7 +342,7 @@ func TestExternalWorkspaces(t *testing.T) {
 		}
 		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
@@ -350,8 +352,8 @@ func TestExternalWorkspaces(t *testing.T) {
 			assert.NoError(t, errC)
 			close(done)
 		}()
-		pty.ExpectMatch("Please run the following command to attach external agent to the workspace")
-		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent to the workspace")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 		cancelFunc()
 
 		ctx = testutil.Context(t, testutil.WaitLong)
@@ -492,7 +494,8 @@ func TestExternalWorkspaces(t *testing.T) {
 		inv, root := newCLI(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -500,14 +503,13 @@ func TestExternalWorkspaces(t *testing.T) {
 		}()
 
 		// Expect the workspace creation confirmation
-		pty.ExpectMatch("coder_external_agent.main")
-		pty.ExpectMatch("external-agent (linux, amd64)")
+		stdout.ExpectMatch(ctx, "coder_external_agent.main")
+		stdout.ExpectMatch(ctx, "external-agent (linux, amd64)")
 
 		// Expect the external agent instructions
-		pty.ExpectMatch("Please run the following command to attach external agent")
-		pty.ExpectRegexMatch("curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify the workspace was created

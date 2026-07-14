@@ -9,17 +9,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/shared"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
@@ -27,61 +24,51 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
 type interceptionBase struct {
-	id           uuid.UUID
-	providerName string
-	req          *ChatCompletionNewParamsWrapper
-	cfg          config.OpenAI
+	id  uuid.UUID
+	req *ChatCompletionNewParamsWrapper
+
+	cfg  intercept.Config
+	cred intercept.Credential
 
 	// clientHeaders are the original HTTP headers from the client request.
-	clientHeaders  http.Header
-	authHeaderName string
+	clientHeaders http.Header
 
 	logger slog.Logger
 	tracer trace.Tracer
 
-	recorder   recorder.Recorder
-	mcpProxy   mcp.ServerProxier
-	credential intercept.CredentialInfo
+	recorder recorder.Recorder
+	mcpProxy mcp.ServerProxier
 }
 
-// newCompletionsService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
-func (i *interceptionBase) newCompletionsService() openai.ChatCompletionService {
-	// TODO(ssncferreira): validate auth is configured per
-	// https://github.com/coder/aibridge/issues/266.
-
+// newCompletionsService builds the SDK service used for upstream calls.
+func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.ChatCompletionService {
 	var opts []option.RequestOption
-	// BYOK auth.
-	if i.cfg.KeyPool == nil {
-		opts = append(opts, option.WithAPIKey(i.cfg.Key))
+	// Only BYOK sets its credential here. Centralized keys are injected
+	// per-attempt in the failover loop.
+	if byok, ok := intercept.AsBYOK(i.cred); ok {
+		i.logger.Debug(ctx, "using byok auth",
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+		)
+		opts = append(opts, option.WithAPIKey(byok.Secret))
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
-
-	// Add extra headers if configured.
-	// Some providers require additional headers that are not added by the SDK.
-	// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-	for key, value := range i.cfg.ExtraHeaders {
-		opts = append(opts, option.WithHeader(key, value))
-	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.authHeaderName)
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
 			return next(req)
 		}))
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.providerName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
@@ -92,8 +79,8 @@ func (i *interceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *interceptionBase) Credential() intercept.CredentialInfo {
-	return i.credential
+func (i *interceptionBase) Credential() intercept.Credential {
+	return i.cred
 }
 
 func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
@@ -120,7 +107,7 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.RequestPath, r.URL.Path),
 		attribute.String(tracing.InterceptionID, i.id.String()),
 		attribute.String(tracing.InitiatorID, aibcontext.ActorIDFromContext(r.Context())),
-		attribute.String(tracing.Provider, i.providerName),
+		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
 	}
@@ -189,7 +176,7 @@ func (i *interceptionBase) unmarshalArgs(in string) (args recorder.ToolArgs) {
 }
 
 // writeUpstreamError marshals and writes a given error.
-func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *ResponseError) {
+func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *intercept.ResponseError) {
 	if oaiErr == nil {
 		return
 	}
@@ -222,48 +209,40 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *Res
 // code. Returns true if the status was a key-specific failover
 // trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	if i.cfg.KeyPool == nil {
+	cp, ok := intercept.AsCentralizedPool(i.cred)
+	if !ok {
 		return false
 	}
 	var apiErr *openai.Error
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return cp.Pool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
-}
-
-// ProcessKeyPoolError translates a keypool exhaustion error
-// into a developer-facing responseError shaped for the OpenAI
-// API. Returns nil if err is not an exhaustion error.
-func ProcessKeyPoolError(err error) *ResponseError {
-	var transient *keypool.TransientKeyPoolError
-	switch {
-	case errors.As(err, &transient):
-		return newErrorResponse(
-			"all configured keys are rate-limited",
-			intercept.OpenAIErrTypeRateLimit,
-			intercept.OpenAIErrCodeRateLimit,
-			http.StatusTooManyRequests,
-			transient.RetryAfter,
-		)
-	case errors.Is(err, keypool.ErrPermanentKeyPool):
-		return newErrorResponse(
-			"all configured keys failed authentication",
-			intercept.OpenAIErrTypeAPI,
-			intercept.OpenAIErrCodeServer,
-			http.StatusBadGateway,
-			0,
-		)
-	default:
-		return nil
-	}
 }
 
 func (i *interceptionBase) hasInjectableTools() bool {
 	return i.mcpProxy != nil && len(i.mcpProxy.ListTools()) > 0
+}
+
+// recordTokenUsage records the token usage for a single completion, accounting
+// for cached tokens included in the prompt token count.
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage) {
+	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		InterceptionID:       i.ID().String(),
+		MsgID:                msgID,
+		Input:                calculateActualInputTokenUsage(usage),
+		Output:               usage.CompletionTokens,
+		CacheReadInputTokens: usage.PromptTokensDetails.CachedTokens,
+		ExtraTokenTypes: map[string]int64{
+			"prompt_audio":                   usage.PromptTokensDetails.AudioTokens,
+			"completion_accepted_prediction": usage.CompletionTokensDetails.AcceptedPredictionTokens,
+			"completion_rejected_prediction": usage.CompletionTokensDetails.RejectedPredictionTokens,
+			"completion_audio":               usage.CompletionTokensDetails.AudioTokens,
+			"completion_reasoning":           usage.CompletionTokensDetails.ReasoningTokens,
+		},
+	})
 }
 
 func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
@@ -289,51 +268,6 @@ func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
 	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
 	// The original value can be reconstructed by adding CachedTokens back to Input.
 	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
-	return in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
-		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */
-}
-
-func getErrorResponse(err error) *ResponseError {
-	var apiErr *openai.Error
-	if !errors.As(err, &apiErr) {
-		return nil
-	}
-	return newErrorResponse(apiErr.Message, apiErr.Type, apiErr.Code, apiErr.StatusCode, keypool.ParseRetryAfter(apiErr.Response))
-}
-
-var _ error = &ResponseError{}
-
-type ResponseError struct {
-	ErrorObject *shared.ErrorObject `json:"error"`
-	StatusCode  int                 `json:"-"`
-	RetryAfter  time.Duration       `json:"-"`
-}
-
-func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *ResponseError {
-	return &ResponseError{
-		ErrorObject: &shared.ErrorObject{
-			Code:    code,
-			Message: msg,
-			Type:    errType,
-		},
-		StatusCode: status,
-		RetryAfter: retryAfter,
-	}
-}
-
-func (e *ResponseError) Error() string {
-	if e.ErrorObject == nil {
-		return ""
-	}
-	return e.ErrorObject.Message
-}
-
-// ToResponse marshals e into an *http.Response shaped for the
-// OpenAI API.
-func (e *ResponseError) ToResponse() *http.Response {
-	body, err := json.Marshal(e)
-	if err != nil {
-		body = []byte(`{"error":{"type":"error","message":"error marshaling upstream error","code":"server_error"}}`)
-	}
-	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
+	return max(0, in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
+		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */)
 }

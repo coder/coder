@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -47,7 +48,7 @@ type RoundTripDumper interface {
 const (
 	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
 	// The realm helps clients identify which credentials to use.
-	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
+	ProxyAuthRealm = `"Coder AI Gateway Proxy"`
 )
 
 // proxyAuthRequiredMsg is the response body for 407 responses.
@@ -119,14 +120,23 @@ var blockedIPRanges = func() []net.IPNet {
 //   - decrypting requests using the configured MITM CA certificate
 //   - forwarding requests to aibridged for processing
 type Server struct {
-	ctx                      context.Context
-	logger                   slog.Logger
-	proxy                    *goproxy.ProxyHttpServer
-	httpServer               *http.Server
-	listener                 net.Listener
-	tlsEnabled               bool
-	coderAccessURL           *url.URL
-	aibridgeProviderFromHost func(host string) string
+	ctx            context.Context
+	logger         slog.Logger
+	proxy          *goproxy.ProxyHttpServer
+	httpServer     *http.Server
+	listener       net.Listener
+	tlsEnabled     bool
+	coderAccessURL *url.URL
+	// coderAccessPort is the resolved port for the Coder access URL.
+	coderAccessPort string
+	// refreshProviders fetches the live provider snapshot on Reload.
+	// Nil disables hot-reload.
+	refreshProviders RefreshProvidersFunc
+	// providerRouter holds the live (mitmHosts, nameByHost) pair.
+	providerRouter atomic.Pointer[providerRouter]
+	// allowedPorts is the port allowlist for CONNECT requests. Fixed at
+	// construction; not reloadable.
+	allowedPorts []string
 	// caCert is the PEM-encoded MITM CA certificate loaded during initialization.
 	// This is served to clients who need to trust the proxy's generated certificates.
 	caCert []byte
@@ -137,6 +147,21 @@ type Server struct {
 	newDumper func(provider, requestID string) RoundTripDumper
 	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
 	metrics *Metrics
+}
+
+// providerRouter keeps CONNECT matching and provider lookup in sync.
+type providerRouter struct {
+	mitmHosts  []string          // host:port set the goproxy condition matches against.
+	nameByHost map[string]string // lowercase hostname -> provider name.
+}
+
+// emptyProviderRouter is used before the first Reload (or when the
+// operator deconfigures every provider) so handlers can safely call
+// loadProviderRouter without a nil check.
+var emptyProviderRouter = &providerRouter{nameByHost: map[string]string{}}
+
+func (r *providerRouter) providerFromHost(host string) string {
+	return r.nameByHost[strings.ToLower(host)]
 }
 
 // requestContext holds metadata propagated through the proxy request/response chain.
@@ -183,16 +208,8 @@ type Options struct {
 	// CertStore is an optional certificate cache for MITM. If nil, a default
 	// cache is created. Exposed for testing.
 	CertStore goproxy.CertStorage
-	// DomainAllowlist is the list of domains to intercept and route through AI Bridge.
-	// Only requests to these domains will be MITM'd and forwarded to aibridged.
-	// Requests to other domains will be tunneled directly without decryption.
-	DomainAllowlist []string
-	// AIBridgeProviderFromHost maps a hostname to a known aibridge provider
-	// name. Must be non-nil; the caller derives it from the configured
-	// provider list.
-	AIBridgeProviderFromHost func(host string) string
 	// UpstreamProxy is the URL of an upstream HTTP proxy to chain tunneled
-	// (non-allowlisted) requests through. If empty, tunneled requests connect
+	// (non-provider-host) requests through. If empty, tunneled requests connect
 	// directly to their destinations.
 	// Format: http://[user:pass@]host:port or https://[user:pass@]host:port
 	UpstreamProxy string
@@ -214,6 +231,10 @@ type Options struct {
 	// Metrics is the prometheus metrics instance for recording proxy metrics.
 	// If nil, metrics will not be recorded.
 	Metrics *Metrics
+	// RefreshProviders, when set, is invoked by Server.Reload to fetch
+	// the live provider snapshot used to derive the MITM host set and
+	// host -> provider-name routing. Nil disables hot-reload.
+	RefreshProviders RefreshProvidersFunc
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -246,7 +267,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			coderAccessPort = "80"
 		}
 	}
-	coderAccessURL.Host = net.JoinHostPort(coderAccessURL.Hostname(), coderAccessPort)
 
 	// MITM cert and key are required to intercept and decrypt HTTPS traffic.
 	if opts.MITMCertFile == "" || opts.MITMKeyFile == "" {
@@ -256,29 +276,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	allowedPorts := opts.AllowedPorts
 	if len(allowedPorts) == 0 {
 		allowedPorts = []string{"80", "443"}
-	}
-
-	if len(opts.DomainAllowlist) == 0 {
-		return nil, xerrors.New("domain allow list is required")
-	}
-	mitmHosts, err := convertDomainsToHosts(opts.DomainAllowlist, allowedPorts)
-	if err != nil {
-		return nil, xerrors.Errorf("invalid domain allowlist: %w", err)
-	}
-	if len(mitmHosts) == 0 {
-		return nil, xerrors.New("domain allowlist is empty, at least one domain is required")
-	}
-
-	if opts.AIBridgeProviderFromHost == nil {
-		return nil, xerrors.New("AIBridgeProviderFromHost is required")
-	}
-	aibridgeProviderFromHost := opts.AIBridgeProviderFromHost
-
-	// Validate that all allowlisted domains have correct aibridge provider mappings.
-	for _, domain := range opts.DomainAllowlist {
-		if aibridgeProviderFromHost(domain) == "" {
-			return nil, xerrors.Errorf("domain %q is in allowlist but has no provider mapping", domain)
-		}
 	}
 
 	// Parse configured exceptions to the blocked IP ranges.
@@ -307,30 +304,43 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.CertStore = NewCertCache()
 	}
 
-	// Always set secure TLS defaults, overriding goproxy's default.
-	// This ensures secure TLS connections for:
-	// - HTTPS upstream proxy connections
-	// - MITM'd requests if aibridge uses HTTPS
+	// Override goproxy's default transport, which has InsecureSkipVerify: true.
+	// This applies to all proxy.Tr traffic: MITM'd requests forwarded to aibridge,
+	// passthrough requests, and HTTPS upstream proxy connections. Proxy is
+	// intentionally unset so MITM'd requests go directly to aibridge, never
+	// through an upstream proxy or HTTPS_PROXY env var.
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
 	}
-
-	srv := &Server{
-		ctx:                      ctx,
-		logger:                   logger,
-		proxy:                    proxy,
-		tlsEnabled:               opts.TLSCertFile != "",
-		coderAccessURL:           coderAccessURL,
-		aibridgeProviderFromHost: aibridgeProviderFromHost,
-		caCert:                   certPEM,
-		allowedPrivateRanges:     allowedPrivateRanges,
-		newDumper:                opts.NewDumper,
-		metrics:                  opts.Metrics,
+	proxy.Tr = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    rootCAs,
+		},
 	}
 
-	// Configure upstream proxy for tunneled (non-allowlisted) CONNECT requests.
-	// Allowlisted domains are MITM'd and forwarded to aibridge directly,
+	srv := &Server{
+		ctx:                  ctx,
+		logger:               logger,
+		proxy:                proxy,
+		tlsEnabled:           opts.TLSCertFile != "",
+		coderAccessURL:       coderAccessURL,
+		coderAccessPort:      coderAccessPort,
+		refreshProviders:     opts.RefreshProviders,
+		allowedPorts:         allowedPorts,
+		caCert:               certPEM,
+		allowedPrivateRanges: allowedPrivateRanges,
+		newDumper:            opts.NewDumper,
+		metrics:              opts.Metrics,
+	}
+	// Start with an empty router; the first Reload populates it from
+	// the configured provider source. The proxy fails closed (no MITM)
+	// until that happens.
+	srv.providerRouter.Store(emptyProviderRouter)
+
+	// Configure upstream proxy for tunneled (non-provider-host) CONNECT requests.
+	// Provider-host domains are MITM'd and forwarded to aibridge directly,
 	// bypassing the upstream proxy.
 	if opts.UpstreamProxy != "" {
 		upstreamURL, err := url.Parse(opts.UpstreamProxy)
@@ -350,15 +360,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			connectReqHandler = func(req *http.Request) {
 				req.Header.Set("Proxy-Authorization", proxyAuth)
 			}
-		}
-
-		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
-		// not through any upstream proxy.
-		proxy.Tr = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    rootCAs,
-			},
 		}
 
 		// Add custom CA certificate if provided (for corporate proxies with private CAs).
@@ -415,19 +416,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Reject CONNECT requests to non-standard ports.
 	proxy.OnRequest().HandleConnectFunc(srv.portMiddleware(allowedPorts))
 
-	// Apply MITM with authentication only to allowlisted hosts.
-	proxy.OnRequest(
-		// Only CONNECT requests to these hosts will be intercepted and decrypted.
-		// All other requests will be tunneled directly to their destination.
-		goproxy.ReqHostIs(mitmHosts...),
-	).HandleConnectFunc(
+	// Apply MITM with authentication only to provider hosts. The host
+	// list is loaded from the atomic router on every CONNECT so a
+	// Reload while inflight requests are in progress takes effect on
+	// the next CONNECT without touching the already-MITM'd ones.
+	proxy.OnRequest(srv.mitmHostsCondition()).HandleConnectFunc(
 		// Extract Coder token from proxy authentication to forward to aibridged.
 		srv.authMiddleware,
 	)
 
-	// Tunnel CONNECT requests for non-allowlisted domains directly to their destination.
+	// Tunnel CONNECT requests for non-provider-host domains directly to their destination.
 	// goproxy calls handlers in registration order: this must come after the MITM handler
-	// so it only handles requests that weren't matched by the allowlist.
+	// so it only handles requests that weren't matched as provider hosts.
 	proxy.OnRequest().HandleConnectFunc(srv.tunneledMiddleware)
 
 	// Handle decrypted requests: route to aibridged for known AI providers, or tunnel to original destination.
@@ -468,7 +468,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		slog.F("listen_addr", listener.Addr().String()),
 		slog.F("tls_listener_enabled", srv.tlsEnabled),
 		slog.F("coder_access_url", coderAccessURL.String()),
-		slog.F("domain_allowlist", mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
 		slog.F("allowed_private_cidrs", opts.AllowedPrivateCIDRs),
 		slog.F("api_dump_enabled", opts.NewDumper != nil),
@@ -649,11 +648,11 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	)
 
 	// Determine the provider from the request hostname.
-	provider := s.aibridgeProviderFromHost(ctx.Req.URL.Hostname())
-	// This should never happen: startup validation ensures all allowlisted
-	// domains have known aibridge provider mappings.
+	provider := s.loadProviderRouter().providerFromHost(ctx.Req.URL.Hostname())
+	// A concurrent Reload can swap the router between CONNECT matching
+	// and provider lookup, so treat a missing mapping as a runtime miss.
 	if provider == "" {
-		logger.Error(s.ctx, "rejecting CONNECT request with no provider mapping")
+		logger.Warn(s.ctx, "rejecting CONNECT request with no provider mapping")
 		return goproxy.RejectConnect, host
 	}
 
@@ -783,7 +782,7 @@ func newProxyAuthRequiredResponse(req *http.Request) *http.Response {
 	}
 }
 
-// tunneledMiddleware is a CONNECT middleware that handles tunneled (non-allowlisted)
+// tunneledMiddleware is a CONNECT middleware that handles tunneled (non-provider-host)
 // connections. These connections are not MITM'd and are tunneled directly to their
 // destination. This middleware records metrics for tunneled CONNECT sessions.
 func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
@@ -804,7 +803,7 @@ func (s *Server) isBlockedIP(ip net.IP, hostname string, port string) bool {
 	// block connections to its own deployment. Hostname-based (not IP-based)
 	// to handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
 	// The port is normalized at startup to handle URLs without explicit ports.
-	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessURL.Port() {
+	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessPort {
 		return false
 	}
 
@@ -915,21 +914,32 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		)
 
 		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
-		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
+		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Gateway Proxy"`)
 		return req, resp
 	}
 
-	if reqCtx.Provider == "" {
-		// This should never happen: startup validation ensures all allowlisted
-		// domains have known aibridge provider mappings.
-		// The request is MITM'd (decrypted) but since there is no mapping,
-		// there is no known route to aibridge.
-		// Log error and forward to the original destination as a fallback.
-		s.logger.Error(s.ctx, "decrypted request has no provider mapping, passing through",
+	// Re-validate the CONNECT-time provider against the live router.
+	// A long-lived CONNECT tunnel can outlive a provider being disabled,
+	// removed, or renamed: the captured reqCtx.Provider is stale, but
+	// subsequent decrypted requests would still route to aibridged if we
+	// trusted it. Look up the provider for the current request's host
+	// and pass through if the mapping is gone or has changed.
+	host := req.URL.Hostname()
+	if host == "" {
+		host = req.Host
+		if h, _, splitErr := net.SplitHostPort(host); splitErr == nil {
+			host = h
+		}
+	}
+	liveProvider := s.loadProviderRouter().providerFromHost(host)
+	if liveProvider == "" || liveProvider != reqCtx.Provider {
+		s.logger.Warn(s.ctx, "provider mapping changed or removed since CONNECT, passing through",
 			slog.F("connect_id", reqCtx.ConnectSessionID.String()),
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
+			slog.F("connect_provider", reqCtx.Provider),
+			slog.F("live_provider", liveProvider),
 		)
 		return req, nil
 	}
@@ -960,16 +970,16 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
-	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/aibridge", reqCtx.Provider, originalPath)
+	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), agplaibridge.AIGatewayRootPath, reqCtx.Provider, originalPath)
 	if err != nil {
 		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Bridge URL")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Gateway URL")
 	}
 
 	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
 	if err != nil {
 		logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Bridge URL")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Gateway URL")
 	}
 
 	// Preserve query parameters from the original request.
@@ -1027,8 +1037,13 @@ func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
 }
 
 // handleResponse handles responses received from aibridged.
-// This is only called for MITM'd requests (allowlisted domains routed through aibridged).
-// Tunneled requests (non-allowlisted domains) bypass this handler entirely.
+// This is called for every MITM'd request, including the pass-through
+// path where handleRequest re-validated the CONNECT-time provider and
+// forwarded the request to the original upstream instead of aibridged.
+// Pass-through responses are identified by reqCtx.RequestID == uuid.Nil
+// (set only when handleRequest routes to aibridged) and are skipped here
+// to avoid mislabeled logs and corrupting MITM metrics.
+// Tunneled requests (non-provider-host domains) bypass this handler entirely.
 func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
 	if resp == nil {
 		return nil
@@ -1051,11 +1066,21 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 		slog.F("status", resp.StatusCode),
 	)
 
+	// Pass-through responses (handleRequest returned without routing to
+	// aibridged) come from the real upstream. The aibridged-specific log
+	// and metrics do not apply; the pass-through itself is already logged
+	// in handleRequest.
+	if requestID == uuid.Nil {
+		return resp
+	}
+
 	switch {
 	case resp.StatusCode >= http.StatusInternalServerError:
-		logger.Error(s.ctx, "received error response from aibridged")
+		logger.Error(s.ctx, "received error response from aibridged",
+			slog.F("response_body", s.readErrorBodyForLog(resp, logger)))
 	case resp.StatusCode >= http.StatusBadRequest:
-		logger.Warn(s.ctx, "received error response from aibridged")
+		logger.Warn(s.ctx, "received error response from aibridged",
+			slog.F("response_body", s.readErrorBodyForLog(resp, logger)))
 	default:
 		logger.Debug(s.ctx, "received response from aibridged")
 	}
@@ -1076,6 +1101,35 @@ func (s *Server) handleResponse(resp *http.Response, ctx *goproxy.ProxyCtx) *htt
 	}
 
 	return resp
+}
+
+// maxLoggedErrorBodyBytes bounds how much of an aibridged error response
+// body is rendered into a log line, so a large upstream error payload
+// cannot blow up log volume.
+const maxLoggedErrorBodyBytes = 16 << 10 // 16 KiB
+
+// readErrorBodyForLog reads resp.Body for diagnostic logging and restores
+// it with an equivalent reader, so the proxy still forwards the body
+// downstream and the response dumper can read it again. The returned
+// string is truncated to maxLoggedErrorBodyBytes; the restored body is
+// always complete.
+func (s *Server) readErrorBodyForLog(resp *http.Response, logger slog.Logger) string {
+	if resp.Body == nil {
+		return ""
+	}
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	// Restore the full body even on a read error: the proxy and dumper
+	// downstream still expect a readable body, and a partial body is
+	// better than a nil one.
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		logger.Warn(s.ctx, "failed to read aibridged error response body", slog.Error(err))
+	}
+	if len(body) > maxLoggedErrorBodyBytes {
+		return string(body[:maxLoggedErrorBodyBytes]) + "...(truncated)"
+	}
+	return string(body)
 }
 
 // Handler returns an HTTP handler for the AI Bridge Proxy's HTTP endpoints.

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -76,8 +77,8 @@ type CreateWorkspaceOptions struct {
 type createWorkspaceArgs struct {
 	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
-	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template."`
-	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
+	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template when needed."`
+	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template when needed. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
 }
 
 // CreateWorkspace returns a tool that creates a new workspace from a
@@ -89,16 +90,17 @@ type createWorkspaceArgs struct {
 func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"create_workspace",
-		"Create a new workspace from a template. Requires a "+
-			"template_id (from list_templates). Optionally provide "+
-			"a name and parameter values (from read_template). "+
-			"If no name is given, one will be generated. "+
-			"Provide a preset_id (from read_template) to apply "+
-			"preset parameters and potentially claim a prebuilt "+
-			"workspace for faster startup. "+
-			"This tool is idempotent. If the chat already has a "+
-			"workspace that is building or running, the existing "+
-			"workspace is returned.",
+		"Create a new workspace from a template only when workspace-backed "+
+			"file inspection, command execution, or file editing is required, "+
+			"or when the user explicitly asks for one. Do not use this as a "+
+			"default first step for requests answerable from conversation "+
+			"context, provider tools, or external MCP tools. Requires a "+
+			"template_id from list_templates; follow its "+NextStepField+" "+
+			"before calling. Optionally provide a name (one is generated if "+
+			"omitted), parameter values, and a preset_id from read_template "+
+			"to apply preset parameters and potentially claim a prebuilt "+
+			"workspace for faster startup. Idempotent: if the chat already "+
+			"has a workspace building or running, it is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.CreateFn == nil {
 				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil
@@ -234,7 +236,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				)
 			}
 
-			workspace, err := options.CreateFn(ctx, ownerID, createReq)
+			workspace, err := createWorkspaceWithNameRetry(ctx, ownerID, createReq, options.CreateFn)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
@@ -632,11 +634,10 @@ func waitForAgentReady(
 		var lastErr error
 		for {
 			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
-			conn, release, err := agentConnFn(attemptCtx, agentID)
+			_, release, err := agentConnFn(attemptCtx, agentID)
 			attemptCancel()
 			if err == nil {
 				release()
-				_ = conn
 				break
 			}
 			lastErr = err
@@ -697,6 +698,41 @@ func waitForAgentReady(
 		case <-ticker.C:
 		}
 	}
+}
+
+func createWorkspaceWithNameRetry(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	req codersdk.CreateWorkspaceRequest,
+	createFn CreateWorkspaceFn,
+) (codersdk.Workspace, error) {
+	workspace, err := createFn(ctx, ownerID, req)
+	if err == nil {
+		return workspace, nil
+	}
+	if !isWorkspaceNameConflict(err) {
+		return codersdk.Workspace{}, err
+	}
+
+	req.Name = generatedWorkspaceName(req.Name)
+	return createFn(ctx, ownerID, req)
+}
+
+func isWorkspaceNameConflict(err error) bool {
+	responseErr, ok := httperror.IsResponder(err)
+	if !ok {
+		return false
+	}
+	status, resp := responseErr.Response()
+	if status != http.StatusConflict {
+		return false
+	}
+	for _, validation := range resp.Validations {
+		if validation.Field == "name" {
+			return true
+		}
+	}
+	return false
 }
 
 func generatedWorkspaceName(seed string) string {

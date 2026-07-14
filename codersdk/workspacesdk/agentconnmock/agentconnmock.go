@@ -56,6 +56,20 @@ func (m *MockAgentConn) EXPECT() *MockAgentConnMockRecorder {
 	return m.recorder
 }
 
+// AppHTTPClient mocks base method.
+func (m *MockAgentConn) AppHTTPClient() *http.Client {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AppHTTPClient")
+	ret0, _ := ret[0].(*http.Client)
+	return ret0
+}
+
+// AppHTTPClient indicates an expected call of AppHTTPClient.
+func (mr *MockAgentConnMockRecorder) AppHTTPClient() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AppHTTPClient", reflect.TypeOf((*MockAgentConn)(nil).AppHTTPClient))
+}
+
 // AwaitReachable mocks base method.
 func (m *MockAgentConn) AwaitReachable(ctx context.Context) bool {
 	m.ctrl.T.Helper()
@@ -130,18 +144,23 @@ func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
 }
 
 // DebugLogs mocks base method.
-func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+func (m *MockAgentConn) DebugLogs(ctx context.Context, opts ...workspacesdk.DebugLogsOption) ([]byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DebugLogs", ctx)
+	varargs := []any{ctx}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DebugLogs", varargs...)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DebugLogs indicates an expected call of DebugLogs.
-func (mr *MockAgentConnMockRecorder) DebugLogs(ctx any) *gomock.Call {
+func (mr *MockAgentConnMockRecorder) DebugLogs(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogs", reflect.TypeOf((*MockAgentConn)(nil).DebugLogs), ctx)
+	varargs := append([]any{ctx}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogs", reflect.TypeOf((*MockAgentConn)(nil).DebugLogs), varargs...)
 }
 
 // DebugMagicsock mocks base method.
@@ -275,21 +294,6 @@ func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceA
 func (mr *MockAgentConnMockRecorder) ListContainers(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListContainers", reflect.TypeOf((*MockAgentConn)(nil).ListContainers), ctx)
-}
-
-// ListMCPTools mocks base method.
-func (m *MockAgentConn) ListMCPTools(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListMCPTools", ctx)
-	ret0, _ := ret[0].(workspacesdk.ListMCPToolsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListMCPTools indicates an expected call of ListMCPTools.
-func (mr *MockAgentConnMockRecorder) ListMCPTools(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPTools", reflect.TypeOf((*MockAgentConn)(nil).ListMCPTools), ctx)
 }
 
 // ListProcesses mocks base method.

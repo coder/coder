@@ -1,0 +1,30 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Authorization:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-subgroup%2Fanother-test-project/merge_requests/1/raw_diffs
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: 'diff --git a/README.md b/README.md\nindex c1dc7b34c381ad6f417bb3f11dba4b1e8f076ff4..b48d45443e349c6dd113da4bb7546504a07a5cce 100644\n--- a/README.md\n+++ b/README.md\n@@ -1,6 +1,6 @@\n # another-test-project\n \n-\n+This is another test project for testing stuff.\n \n ## Getting started\n \n'
+        headers:
+            Content-Type:
+                - text/plain
+        status: 200 OK
+        code: 200
+        duration: 100.000000ms

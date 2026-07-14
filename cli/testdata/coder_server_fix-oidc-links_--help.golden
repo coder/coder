@@ -1,0 +1,33 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder server fix-oidc-links [flags]
+
+  Reset OIDC linked IDs that do not match the expected issuer, allowing users to
+  re-authenticate.
+
+OPTIONS:
+      --postgres-connection-auth password|awsiamrds, $CODER_PG_CONNECTION_AUTH (default: password)
+          Type of auth to use when connecting to postgres.
+
+  -n, --dry-run bool, $CODER_FIX_OIDC_LINKS_DRY_RUN
+          Print analysis only, do not modify the database.
+
+      --force-reset-all bool, $CODER_FIX_OIDC_LINKS_FORCE_RESET_ALL
+          Reset all OIDC linked IDs, not just those with a mismatched issuer.
+          Mutually exclusive with --issuer-url.
+
+      --issuer-url string, $CODER_OIDC_ISSUER_URL
+          The OIDC issuer URL. The canonical issuer is resolved via OIDC
+          discovery.
+
+      --postgres-url string, $CODER_PG_CONNECTION_URL
+          URL of a PostgreSQL database. If empty, the built-in PostgreSQL
+          deployment will be used (Coder must not be already running in this
+          case).
+
+  -y, --yes bool
+          Bypass confirmation prompts.
+
+———
+Run `coder --help` for a list of global options.

@@ -313,15 +313,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
-
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over
 	// the same connection.
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 	defer wsNetConn.Close()
 	session, err := yamux.Server(wsNetConn, config)
 	if err != nil {

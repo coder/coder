@@ -18,7 +18,9 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 		agplcli.ExperimentalCommand(append(r.AGPLExperimental(), r.enterpriseExperimental()...)),
 
 		// New commands that don't exist in AGPL:
-		r.boundary(),
+		r.aiGateway(),
+		r.agentFirewall(),
+		r.boundaryAlias(),
 		r.workspaceProxy(),
 		r.features(),
 		r.licenses(),
@@ -26,7 +28,6 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 		r.prebuilds(),
 		r.provisionerd(),
 		r.externalWorkspaces(),
-		r.aibridge(),
 	}
 }
 

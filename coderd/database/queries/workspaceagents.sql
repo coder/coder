@@ -22,6 +22,38 @@ WHERE
 ORDER BY
 	created_at DESC;
 
+-- name: GetWorkspaceBuildAgentsByInstanceID :many
+SELECT
+	sqlc.embed(workspace_agents),
+	workspace_builds.id AS workspace_build_id,
+	sqlc.embed(workspaces)
+FROM
+	workspace_agents
+JOIN
+	workspace_resources
+ON
+	workspace_resources.id = workspace_agents.resource_id
+JOIN
+	workspace_builds
+ON
+	workspace_builds.job_id = workspace_resources.job_id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = workspace_builds.job_id
+JOIN
+	workspaces
+ON
+	workspaces.id = workspace_builds.workspace_id
+WHERE
+	workspace_agents.auth_instance_id = @auth_instance_id :: TEXT
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.parent_id IS NULL
+	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
+	AND workspaces.deleted = FALSE
+ORDER BY
+	workspace_agents.created_at DESC;
+
 -- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	*
@@ -320,6 +352,59 @@ WHERE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE;
 
+-- name: GetExternalAgentTokensByTemplateID :many
+-- GetExternalAgentTokensByTemplateID returns the auth tokens for all
+-- non-deleted external agents on the latest build of every running workspace
+-- of the given template. "Running" means the latest build has
+-- transition=start and job_status=succeeded (matches the workspace-status
+-- definition used by coderd/database/queries/workspaces.sql).
+-- An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+-- "all owners"; any other value restricts results to workspaces owned by
+-- that user.
+SELECT
+	workspaces.id               AS workspace_id,
+	workspaces.name             AS workspace_name,
+	workspace_agents.id         AS agent_id,
+	workspace_agents.name       AS agent_name,
+	workspace_agents.auth_token AS agent_token
+FROM
+	workspaces
+JOIN (
+	-- latest build per workspace
+	SELECT DISTINCT ON (workspace_id)
+		id, workspace_id, job_id, transition, has_external_agent
+	FROM
+		workspace_builds
+	ORDER BY
+		workspace_id, build_number DESC
+) AS latest_builds
+ON
+	latest_builds.workspace_id = workspaces.id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = latest_builds.job_id
+JOIN
+	workspace_resources
+ON
+	workspace_resources.job_id = latest_builds.job_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.resource_id = workspace_resources.id
+WHERE
+	workspaces.template_id = @template_id
+	AND (
+		@owner_id :: uuid = '00000000-0000-0000-0000-000000000000' :: uuid
+		OR workspaces.owner_id = @owner_id
+	)
+	AND workspaces.deleted = FALSE
+	AND latest_builds.has_external_agent = TRUE
+	AND latest_builds.transition = 'start' :: workspace_transition
+	AND provisioner_jobs.job_status = 'succeeded' :: provisioner_job_status
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.auth_instance_id IS NULL;
+
 -- GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 -- workspace agent and its associated build. During normal operation, this is
 -- the latest build. During shutdown, this may be the previous START build while
@@ -429,14 +514,28 @@ WHERE
 	AND deleted = FALSE;
 
 -- name: DeleteWorkspaceSubAgentByID :exec
-UPDATE
-	workspace_agents
-SET
-	deleted = TRUE
-WHERE
-	id = $1
-	AND parent_id IS NOT NULL
-	AND deleted = FALSE;
+-- Soft-deletes a single sub-agent (a child agent such as a devcontainer
+-- agent). Called from the DeleteSubAgent RPC when a sub-agent is torn
+-- down, which can happen mid-build without a full workspace rebuild.
+--
+-- Agent context rows are hard-deleted for the same reason as in
+-- SoftDeletePriorWorkspaceAgents: they only describe live agents, the
+-- rebuild-time soft-delete queries skip already-deleted agents, and
+-- agents are never hard-deleted, so the rows would otherwise orphan
+-- forever.
+WITH soft_deleted_agents AS (
+    UPDATE workspace_agents
+    SET deleted = TRUE
+    WHERE id = @id
+        AND parent_id IS NOT NULL
+        AND deleted = FALSE
+    RETURNING id
+), purged_context_resources AS (
+    DELETE FROM workspace_agent_context_resources
+    WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents)
+)
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents);
 
 -- name: GetWorkspaceAgentsForMetrics :many
 SELECT
@@ -485,3 +584,62 @@ WHERE
 	AND workspaces.deleted = FALSE
 	AND users.deleted = FALSE
 LIMIT 1;
+
+-- name: SoftDeletePriorWorkspaceAgents :exec
+-- Marks agents from all prior builds of this workspace as deleted,
+-- preserving only agents belonging to @current_build_id. Called from
+-- provisionerdserver when a workspace build completes, after the new
+-- build's agents have been inserted, so running agents are not
+-- deleted while a build is still queued or provisioning.
+--
+-- Agent context rows (workspace_agent_context_snapshots and
+-- workspace_agent_context_resources) only describe live agents, and
+-- agents are never un-deleted, so they are hard-deleted here instead
+-- of accumulating alongside the soft-deleted agent rows.
+WITH soft_deleted_agents AS (
+    UPDATE workspace_agents
+    SET deleted = TRUE
+    WHERE id IN (
+        SELECT wa.id
+        FROM workspace_agents wa
+        JOIN workspace_resources wr ON wr.id = wa.resource_id
+        JOIN workspace_builds wb ON wb.job_id = wr.job_id
+        WHERE wb.workspace_id = @workspace_id
+          AND wb.id <> @current_build_id
+          AND wa.deleted = FALSE
+    )
+    RETURNING id
+), purged_context_resources AS (
+    DELETE FROM workspace_agent_context_resources
+    WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents)
+)
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents);
+
+-- name: SoftDeleteWorkspaceAgentsByWorkspaceID :exec
+-- Marks every non-deleted agent belonging to the given workspace as
+-- deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
+-- itself is soft-deleted, so the agent instance-identity auth path
+-- (which filters on workspace_agents.deleted) doesn't keep seeing
+-- orphaned rows.
+--
+-- Agent context rows are hard-deleted for the same reason as in
+-- SoftDeletePriorWorkspaceAgents.
+WITH soft_deleted_agents AS (
+    UPDATE workspace_agents
+    SET deleted = TRUE
+    WHERE id IN (
+        SELECT wa.id
+        FROM workspace_agents wa
+        JOIN workspace_resources wr ON wr.id = wa.resource_id
+        JOIN workspace_builds wb ON wb.job_id = wr.job_id
+        WHERE wb.workspace_id = @workspace_id
+          AND wa.deleted = FALSE
+    )
+    RETURNING id
+), purged_context_resources AS (
+    DELETE FROM workspace_agent_context_resources
+    WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents)
+)
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents);

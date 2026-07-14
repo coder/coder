@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -53,10 +54,11 @@ func (api *API) regenerateGitSSHKey(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	newKey, err := api.Database.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
-		UserID:     user.ID,
-		UpdatedAt:  dbtime.Now(),
-		PrivateKey: privateKey,
-		PublicKey:  publicKey,
+		UserID:          user.ID,
+		UpdatedAt:       dbtime.Now(),
+		PrivateKey:      privateKey,
+		PrivateKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+		PublicKey:       publicKey,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

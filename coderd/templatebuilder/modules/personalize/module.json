@@ -1,0 +1,35 @@
+{
+  "id": "personalize",
+  "display_name": "Personalize",
+  "description": "Allow developers to customize their workspace on start",
+  "icon": "/icon/personalize.svg",
+  "category": "Utility",
+  "tags": [
+    "helper",
+    "personalize"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.0.32",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "path",
+      "type": "string",
+      "description": "The path to a script that will be ran on start enabling a user to personalize their workspace.",
+      "default": "~/personalize",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

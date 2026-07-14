@@ -6,15 +6,11 @@ page describes possible deployments, challenges, and risks associated with them.
 
 <div class="tabs">
 
-## Community Edition
+## Community and Premium editions
 
-![Architecture Diagram](../../images/architecture-diagram.png)
+![Single Region Architecture Diagram](../../images/single-region-architecture.png)
 
-## Premium
-
-![Single Region Architecture Diagram](../../images/architecture-single-region.png)
-
-## Multi-Region Premium
+## Multi-Region Premium edition
 
 ![Multi Region Architecture Diagram](../../images/architecture-multi-region.png)
 
@@ -142,7 +138,7 @@ as OpenAI and Anthropic. Users authenticate through Coder instead of managing se
 provider API keys. All prompts, token usage, and tool invocations are recorded
 for compliance and cost tracking.
 
-Learn more: [AI Gateway](../../ai-coder/ai-gateway)
+Learn more: [AI Gateway](../../ai-coder/ai-gateway/index.md)
 
 ### Agent Firewall
 

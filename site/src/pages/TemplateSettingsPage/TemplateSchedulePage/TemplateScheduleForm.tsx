@@ -37,6 +37,7 @@ import { ScheduleDialog } from "./ScheduleDialog";
 import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
 	ActivityBumpHelperText,
+	AutostopReminderHelperText,
 	DefaultTTLHelperText,
 	DormancyAutoDeletionTTLHelperText,
 	DormancyTTLHelperText,
@@ -84,6 +85,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			// on display, convert from ms => hours
 			default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
 			activity_bump_ms: template.activity_bump_ms / MS_HOUR_CONVERSION,
+			time_til_autostop_notify_ms:
+				template.time_til_autostop_notify_ms / MS_HOUR_CONVERSION,
 			failure_ttl_ms: template.failure_ttl_ms,
 			time_til_dormant_ms: template.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms: template.time_til_dormant_autodelete_ms,
@@ -201,12 +204,18 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			default_ttl_ms: form.values.default_ttl_ms
 				? form.values.default_ttl_ms * MS_HOUR_CONVERSION
 				: undefined,
-			// Activity bump has no effect without a default TTL, so
-			// discard any stale value when default autostop is off.
+			// Activity bump has no effect without a scheduled stop time, so
+			// discard any stale value when there is no default TTL AND users
+			// cannot customize autostop on their workspaces.
 			activity_bump_ms:
-				form.values.default_ttl_ms && form.values.activity_bump_ms
+				(form.values.default_ttl_ms || form.values.allow_user_autostop) &&
+				form.values.activity_bump_ms
 					? form.values.activity_bump_ms * MS_HOUR_CONVERSION
 					: undefined,
+			// 0 disables the reminder, so always send an explicit value.
+			time_til_autostop_notify_ms: form.values.time_til_autostop_notify_ms
+				? form.values.time_til_autostop_notify_ms * MS_HOUR_CONVERSION
+				: 0,
 			failure_ttl_ms: form.values.failure_ttl_ms,
 			time_til_dormant_ms: form.values.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms:
@@ -307,13 +316,37 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								<ActivityBumpHelperText
 									bump={form.values.activity_bump_ms}
 									defaultTTL={form.values.default_ttl_ms}
+									allowUserAutostop={form.values.allow_user_autostop}
 								/>
 							),
 						})}
-						disabled={isSubmitting || !form.values.default_ttl_ms}
+						disabled={
+							isSubmitting ||
+							(!form.values.default_ttl_ms && !form.values.allow_user_autostop)
+						}
 						fullWidth
 						inputProps={{ min: 0, step: 1 }}
 						label="Activity bump (hours)"
+						type="number"
+					/>
+
+					<TextField
+						{...getFieldHelpers("time_til_autostop_notify_ms", {
+							helperText: (
+								<AutostopReminderHelperText
+									lead={form.values.time_til_autostop_notify_ms}
+									defaultTTL={form.values.default_ttl_ms}
+									autostopRequirementDaysOfWeek={
+										form.values.autostop_requirement_days_of_week
+									}
+									allowUserAutostop={form.values.allow_user_autostop}
+								/>
+							),
+						})}
+						disabled={isSubmitting}
+						fullWidth
+						inputProps={{ min: 0, step: 1 }}
+						label="Autostop reminder (hours)"
 						type="number"
 					/>
 

@@ -6,9 +6,6 @@ to power the in-chat diff viewer.
 Self-hosted GitHub Enterprise deployments require one additional setting
 (`API_BASE_URL`) for this feature to work.
 
-> [!NOTE]
-> Only `github` type external auth providers are supported today.
-
 ## GitHub Enterprise configuration
 
 For public `github.com`, no additional configuration is needed.
@@ -36,6 +33,66 @@ patterns from the API base URL.
 > [!NOTE]
 > If you have both a `github.com` and a GHE external auth config, only the
 > GHE config needs `API_BASE_URL`.
+
+## GitLab configuration
+
+For `gitlab.com`, no additional `API_BASE_URL` is needed. Coder
+automatically derives it from your `AUTH_URL` for self-hosted instances.
+
+### Required scopes
+
+The default GitLab scopes (`read_user`) are sufficient for basic
+authentication. To use merge request features (diffs, status checks) with
+Coder Agents, configure:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
+CODER_EXTERNAL_AUTH_0_TYPE=gitlab
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_SCOPES="write_repository read_api"
+```
+
+The `read_api` scope grants read access to the API (needed for fetching
+merge request metadata and diffs). The `write_repository` scope allows
+pushing commits and creating merge requests.
+
+### Self-hosted GitLab
+
+For self-hosted GitLab, set `AUTH_URL` and `TOKEN_URL` to your instance.
+Coder derives `API_BASE_URL` automatically from `AUTH_URL`:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-gitlab"
+CODER_EXTERNAL_AUTH_0_TYPE=gitlab
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitlab.example.com/oauth/authorize"
+CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.example.com/oauth/token"
+CODER_EXTERNAL_AUTH_0_SCOPES="write_repository read_api"
+CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.example\.com
+```
+
+> [!NOTE]
+> You may also set `API_BASE_URL` explicitly if needed (e.g.,
+> `https://gitlab.example.com/api/v4`), but this is usually unnecessary.
+
+## Known limitations
+
+### GitLab
+
+The GitLab provider has some semantic differences compared to the GitHub
+provider:
+
+- **Approved** uses GitLab's threshold-based approval (e.g., "all required
+  approvals met") rather than GitHub's "at least one approval and no changes
+  requested" model.
+- **Changes requested** has no GitLab equivalent. This field is always
+  reported as `false`.
+- **Reviewer count** only counts users who have approved, not all assigned
+  reviewers.
+
+These gaps are tracked internally and may be refined in future releases.
 
 ## Troubleshooting
 

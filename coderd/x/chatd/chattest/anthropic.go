@@ -26,7 +26,9 @@ type AnthropicResponse struct {
 type AnthropicRequest struct {
 	*http.Request                           // Embed http.Request
 	Model         string                    `json:"model"`
+	System        json.RawMessage           `json:"system,omitempty"`
 	Messages      []AnthropicRequestMessage `json:"messages"`
+	Tools         []AnthropicRequestTool    `json:"tools,omitempty"`
 	Stream        bool                      `json:"stream,omitempty"`
 	MaxTokens     int                       `json:"max_tokens,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
@@ -38,6 +40,11 @@ type AnthropicRequest struct {
 type AnthropicRequestMessage struct {
 	Role    string          `json:"role"`
 	Content json.RawMessage `json:"content"`
+}
+
+// AnthropicRequestTool represents a tool in an Anthropic request.
+type AnthropicRequestTool struct {
+	Name string `json:"name"`
 }
 
 // AnthropicMessage represents a message in an Anthropic response.
@@ -57,6 +64,13 @@ type AnthropicUsage struct {
 	OutputTokens             int `json:"output_tokens"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+}
+
+// AnthropicReasoningBlock describes one Anthropic thinking block for a
+// streaming test response.
+type AnthropicReasoningBlock struct {
+	Text      string
+	Signature string
 }
 
 // AnthropicChunk represents a streaming chunk from Anthropic.
@@ -83,17 +97,22 @@ type AnthropicChunkMessage struct {
 
 // AnthropicContentBlock represents a content block in a chunk.
 type AnthropicContentBlock struct {
-	Type  string          `json:"type"`
-	Text  string          `json:"text,omitempty"`
-	ID    string          `json:"id,omitempty"`
-	Name  string          `json:"name,omitempty"`
-	Input json.RawMessage `json:"input,omitempty"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text,omitempty"`
+	Thinking  string          `json:"thinking,omitempty"`
+	ID        string          `json:"id,omitempty"`
+	Name      string          `json:"name,omitempty"`
+	Input     json.RawMessage `json:"input,omitempty"`
+	ToolUseID string          `json:"tool_use_id,omitempty"`
+	Content   any             `json:"content,omitempty"`
 }
 
 // AnthropicDeltaBlock represents a delta block in a chunk.
 type AnthropicDeltaBlock struct {
 	Type        string `json:"type"`
 	Text        string `json:"text,omitempty"`
+	Thinking    string `json:"thinking,omitempty"`
+	Signature   string `json:"signature,omitempty"`
 	PartialJSON string `json:"partial_json,omitempty"`
 }
 
@@ -176,8 +195,7 @@ func (s *anthropicServer) writeResponse(w http.ResponseWriter, req *AnthropicReq
 	}
 }
 
-func (s *anthropicServer) writeStreamingResponse(w http.ResponseWriter, chunks <-chan AnthropicChunk) {
-	_ = s // receiver unused but kept for consistency
+func (*anthropicServer) writeStreamingResponse(w http.ResponseWriter, chunks <-chan AnthropicChunk) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -419,6 +437,95 @@ func AnthropicTextChunksWithCacheUsage(usage AnthropicUsage, deltas ...string) [
 		AnthropicChunk{
 			Type: "message_stop",
 		},
+	)
+
+	return chunks
+}
+
+// AnthropicReasoningTextChunks creates a streaming response with one or more
+// thinking blocks followed by one text block.
+func AnthropicReasoningTextChunks(reasoning []AnthropicReasoningBlock, text string) []AnthropicChunk {
+	messageID := fmt.Sprintf("msg-%s", uuid.New().String()[:8])
+	model := "claude-3-opus-20240229"
+
+	chunks := []AnthropicChunk{
+		{
+			Type: "message_start",
+			Message: AnthropicChunkMessage{
+				ID:    messageID,
+				Type:  "message",
+				Role:  "assistant",
+				Model: model,
+			},
+		},
+	}
+
+	for i, block := range reasoning {
+		chunks = append(chunks,
+			AnthropicChunk{
+				Type:  "content_block_start",
+				Index: i,
+				ContentBlock: AnthropicContentBlock{
+					Type:     "thinking",
+					Thinking: "",
+				},
+			},
+			AnthropicChunk{
+				Type:  "content_block_delta",
+				Index: i,
+				Delta: AnthropicDeltaBlock{
+					Type:     "thinking_delta",
+					Thinking: block.Text,
+				},
+			},
+		)
+		if block.Signature != "" {
+			chunks = append(chunks, AnthropicChunk{
+				Type:  "content_block_delta",
+				Index: i,
+				Delta: AnthropicDeltaBlock{
+					Type:      "signature_delta",
+					Signature: block.Signature,
+				},
+			})
+		}
+		chunks = append(chunks, AnthropicChunk{
+			Type:  "content_block_stop",
+			Index: i,
+		})
+	}
+
+	textIndex := len(reasoning)
+	chunks = append(chunks,
+		AnthropicChunk{
+			Type:  "content_block_start",
+			Index: textIndex,
+			ContentBlock: AnthropicContentBlock{
+				Type: "text",
+				Text: "",
+			},
+		},
+		AnthropicChunk{
+			Type:  "content_block_delta",
+			Index: textIndex,
+			Delta: AnthropicDeltaBlock{
+				Type: "text_delta",
+				Text: text,
+			},
+		},
+		AnthropicChunk{
+			Type:  "content_block_stop",
+			Index: textIndex,
+		},
+		AnthropicChunk{
+			Type:       "message_delta",
+			StopReason: "end_turn",
+			Usage: AnthropicUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			},
+		},
+		AnthropicChunk{Type: "message_stop"},
 	)
 
 	return chunks

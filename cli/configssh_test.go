@@ -14,6 +14,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -24,8 +25,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/pty/ptytest"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func sshConfigFileName(t *testing.T) (sshConfig string) {
@@ -64,6 +66,8 @@ func TestConfigSSH(t *testing.T) {
 		t.Skip("See coder/internal#117")
 	}
 
+	logger := testutil.Logger(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
 	const removeKey = "ConnectTimeout"
@@ -131,9 +135,8 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-config-file", sshConfigFile,
 		"--skip-proxy-command")
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stdout = pty.Output()
+	stdout := expecter.NewAttachedToInvocation(t, inv)
+	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 	waiter := clitest.StartWithWaiter(t, inv)
 
@@ -143,8 +146,8 @@ func TestConfigSSH(t *testing.T) {
 		{match: "Continue?", write: "yes"},
 	}
 	for _, m := range matches {
-		pty.ExpectMatch(m.match)
-		pty.WriteLine(m.write)
+		stdout.ExpectMatch(ctx, m.match)
+		stdin.WriteLine(m.write)
 	}
 
 	waiter.RequireSuccess()
@@ -157,16 +160,71 @@ func TestConfigSSH(t *testing.T) {
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
 	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+r.Workspace.Name, "echo", "test")
-	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
-	inv.Stderr = pty.Output()
 	data, err := sshCmd.Output()
 	require.NoError(t, err)
 	require.Equal(t, "test", strings.TrimSpace(string(data)))
 
 	_ = listener.Close()
 	<-copyDone
+}
+
+func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
+	testCases := []struct {
+		name      string
+		configSSH codersdk.SSHConfigResponse
+		wantErr   string
+	}{
+		{
+			name:      "HostnameSuffix",
+			configSSH: codersdk.SSHConfigResponse{HostnameSuffix: "coder\nHost *"},
+			wantErr:   "workspace hostname suffix",
+		},
+		{
+			name:      "HostnamePrefix",
+			configSSH: codersdk.SSHConfigResponse{HostnamePrefix: "coder.\nHost *"},
+			wantErr:   "workspace hostname prefix",
+		},
+		{
+			name:      "HostnameSuffixGlob",
+			configSSH: codersdk.SSHConfigResponse{HostnameSuffix: "*"},
+			wantErr:   "glob",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			const existingConfig = "Host safe\n\tHostName safe.example.com\n"
+			client := coderdtest.New(t, &coderdtest.Options{
+				ConfigSSH: tc.configSSH,
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			sshConfigPath := sshConfigFileName(t)
+			sshConfigFileCreate(t, sshConfigPath, strings.NewReader(existingConfig))
+
+			inv, root := clitest.New(t,
+				"config-ssh",
+				"--ssh-config-file", sshConfigPath,
+				"--yes",
+			)
+			clitest.SetupConfig(t, client, root)
+
+			err := inv.Run()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+			require.Equal(t, existingConfig, sshConfigFileRead(t, sshConfigPath))
+		})
+	}
 }
 
 func TestConfigSSH_MissingDirectory(t *testing.T) {
@@ -233,6 +291,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	}
 	type wantConfig struct {
 		ssh        []string
+		notWant    []string
 		regexMatch string
 	}
 	type match struct {
@@ -241,6 +300,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 	tests := []struct {
 		name        string
 		args        []string
+		env         map[string]string
 		matches     []match
 		writeConfig writeConfig
 		wantConfig  wantConfig
@@ -499,6 +559,45 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			},
 		},
 		{
+			name: "Serialize no-wildcard flag",
+			wantConfig: wantConfig{
+				ssh: []string{
+					strings.Join([]string{
+						headerStart,
+						"# Last config-ssh options:",
+						"# :hostname-suffix=coder-suffix",
+						"# :no-wildcard=true",
+						"#",
+					}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
+			},
+			args: []string{
+				"--yes",
+				"--hostname-suffix", "coder-suffix",
+				"--no-wildcard",
+			},
+		},
+		{
+			name: "No wildcard generates per-workspace entries",
+			args: []string{
+				"--yes",
+				"--hostname-suffix", "coder",
+				"--no-wildcard",
+			},
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :hostname-suffix=coder",
+					"# :no-wildcard=true",
+				},
+				regexMatch: `Host [a-z0-9_-]+\.coder`,
+			},
+		},
+		{
 			name: "Do not prompt for new options when prev opts flag is set",
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{
@@ -689,10 +788,123 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: []string{"Host presto.*", "Match host *.testy !exec"},
 			},
 		},
+		{
+			// Regression test for https://github.com/coder/internal/issues/1208:
+			// an explicitly empty --ssh-host-prefix must not fall back to the
+			// server's default prefix.
+			name: "Explicit empty ssh-host-prefix omits legacy block",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "",
+			},
+			wantErr: false,
+			wantConfig: wantConfig{
+				ssh: []string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=\n",
+					headerEnd,
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// Same as above, but via the env var instead of the flag.
+			name: "Explicit empty ssh-host-prefix env var omits legacy block",
+			args: []string{"--yes"},
+			env: map[string]string{
+				"CODER_CONFIGSSH_SSH_HOST_PREFIX": "",
+			},
+			wantErr: false,
+			wantConfig: wantConfig{
+				ssh: []string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=\n",
+					headerEnd,
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// An explicit empty prefix alongside an explicit suffix should
+			// produce only the suffix block, not both.
+			name: "Explicit empty ssh-host-prefix with hostname-suffix set",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :ssh-host-prefix=\n",
+					"# :hostname-suffix=testy\n",
+					"Host *.testy",
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// Regression test: the "omit this block" choice must survive a
+			// later --use-previous-options run that doesn't repeat the flag,
+			// not just the invocation where the flag was passed.
+			name: "use-previous-options preserves an explicitly empty prefix across runs",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--use-previous-options",
+				"--yes",
+			},
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :ssh-host-prefix=\n",
+				},
+				notWant: []string{"Host coder.*", "--ssh-host-prefix coder."},
+			},
+		},
+		{
+			// Regression test: --use-previous-options should still win over
+			// this run's explicit empty flag, since that's what "use previous
+			// options" means. The empty-prefix fix must not change this.
+			name: "use-previous-options keeps prior prefix despite this run's explicit empty flag",
+			writeConfig: writeConfig{
+				ssh: strings.Join([]string{
+					headerStart,
+					"# Last config-ssh options:",
+					"# :ssh-host-prefix=coder-test.",
+					"#",
+					headerEnd,
+					"",
+				}, "\n"),
+			},
+			args: []string{
+				"--use-previous-options",
+				"--yes",
+				"--ssh-host-prefix", "",
+			},
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :ssh-host-prefix=coder-test.",
+					"Host coder-test.*",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			client, db := coderdtest.NewWithDatabase(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
@@ -717,9 +929,12 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			inv, root := clitest.New(t, args...)
 			//nolint:gocritic // This has always ran with the admin user.
 			clitest.SetupConfig(t, client, root)
+			for k, v := range tt.env {
+				inv.Environ.Set(k, v)
+			}
 
-			pty := ptytest.New(t)
-			pty.Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 			done := tGo(t, func() {
 				err := inv.Run()
 				if !tt.wantErr {
@@ -730,14 +945,15 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			})
 
 			for _, m := range tt.matches {
-				pty.ExpectMatch(m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			<-done
 
-			if len(tt.wantConfig.ssh) != 0 || tt.wantConfig.regexMatch != "" {
-				got := sshConfigFileRead(t, sshConfigName)
+			if len(tt.wantConfig.ssh) != 0 || tt.wantConfig.regexMatch != "" || len(tt.wantConfig.notWant) != 0 {
+				full := sshConfigFileRead(t, sshConfigName)
+				got := full
 				// Require that the generated config has the expected snippets in order.
 				for _, want := range tt.wantConfig.ssh {
 					idx := strings.Index(got, want)
@@ -749,7 +965,98 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				if tt.wantConfig.regexMatch != "" {
 					assert.Regexp(t, tt.wantConfig.regexMatch, got, "regex match")
 				}
+				for _, notWant := range tt.wantConfig.notWant {
+					assert.NotContains(t, full, notWant, "unexpected snippet found")
+				}
 			}
 		})
 	}
+}
+
+func TestConfigSSH_NoWildcard(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create two workspaces with names in reverse lexical order so that we can
+	// verify the SSH config entries are sorted by name, not by creation order.
+	// ws1 sorts after ws2 alphabetically.
+	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		Name:           "ws-beta",
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Name = "agent-beta"
+		return a
+	}).Do()
+	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		Name:           "ws-alpha",
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Name = "agent-alpha"
+		return a
+	}).Do()
+
+	sshConfigPath := sshConfigFileName(t)
+
+	runConfigSSH := func() {
+		inv, root := clitest.New(t,
+			"config-ssh",
+			"--ssh-config-file", sshConfigPath,
+			"--hostname-suffix", "coder",
+			"--no-wildcard",
+			"--yes",
+		)
+		//nolint:gocritic // This has always ran with the admin user.
+		clitest.SetupConfig(t, client, root)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+	}
+
+	// hostLines extracts lines beginning with "Host " from the SSH config.
+	// ProxyCommand lines embed a per-invocation temp path and are excluded so
+	// that two runs with different global-config dirs can still be compared.
+	hostLines := func(s string) []string {
+		var out []string
+		for line := range strings.SplitSeq(s, "\n") {
+			if strings.HasPrefix(line, "Host ") {
+				out = append(out, line)
+			}
+		}
+		return out
+	}
+
+	runConfigSSH()
+	config := sshConfigFileRead(t, sshConfigPath)
+
+	// The server always injects a "coder." hostname prefix in addition to the
+	// user-supplied "--hostname-suffix coder" entries. With stable workspace
+	// names we can assert the complete, ordered host-entry list exactly.
+	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
+	wantHosts := []string{
+		"Host coder." + ws2.Workspace.Name,      // coder.ws-alpha
+		"Host coder." + ws1.Workspace.Name,      // coder.ws-beta
+		"Host " + ws2.Workspace.Name + ".coder", // ws-alpha.coder
+		"Host " + ws1.Workspace.Name + ".coder", // ws-beta.coder
+	}
+	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
+
+	// No wildcard entries must appear in the Coder section.
+	require.NotContains(t, config, "Host *.coder")
+	require.NotContains(t, config, "Host *.")
+
+	// The no-wildcard option must be persisted in the header.
+	require.Contains(t, config, "# :no-wildcard=true")
+
+	// Running the command again must yield identical host entries, confirming
+	// that the ordering is stable across runs.
+	runConfigSSH()
+	require.Empty(t, cmp.Diff(wantHosts, hostLines(sshConfigFileRead(t, sshConfigPath))))
 }

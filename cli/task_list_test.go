@@ -20,8 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // makeAITask creates an AI-task workspace.
@@ -71,13 +71,13 @@ func TestExpTaskList(t *testing.T) {
 		inv, root := clitest.New(t, "task", "list")
 		clitest.SetupConfig(t, memberClient, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch("No tasks found.")
+		stdout.ExpectMatch(ctx, "No tasks found.")
 	})
 
 	t.Run("Single_Table", func(t *testing.T) {
@@ -95,16 +95,16 @@ func TestExpTaskList(t *testing.T) {
 		inv, root := clitest.New(t, "task", "list", "--column", "id,name,status,initial prompt")
 		clitest.SetupConfig(t, memberClient, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
 		// Validate the table includes the task and status.
-		pty.ExpectMatch(task.Name)
-		pty.ExpectMatch("initializing")
-		pty.ExpectMatch(wantPrompt)
+		stdout.ExpectMatch(ctx, task.Name)
+		stdout.ExpectMatch(ctx, "initializing")
+		stdout.ExpectMatch(ctx, wantPrompt)
 	})
 
 	t.Run("StatusFilter_JSON", func(t *testing.T) {
@@ -156,13 +156,13 @@ func TestExpTaskList(t *testing.T) {
 		//nolint:gocritic // Owner client is intended here smoke test the member task not showing up.
 		clitest.SetupConfig(t, client, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(task.Name)
+		stdout.ExpectMatch(ctx, task.Name)
 	})
 
 	t.Run("Quiet", func(t *testing.T) {

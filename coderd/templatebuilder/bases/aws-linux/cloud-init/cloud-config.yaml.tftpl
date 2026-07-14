@@ -1,0 +1,8 @@
+#cloud-config
+cloud_final_modules:
+  - [scripts-user, always]
+hostname: ${hostname}
+users:
+  - name: ${linux_user}
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash

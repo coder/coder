@@ -494,9 +494,10 @@ func LicensesEntitlements(
 			feature := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
 			switch {
 			case feature.Entitlement == codersdk.EntitlementNotEntitled:
-				// If the limit is not set
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Your deployment has %d active AI Governance seats but the license is not entitled to this feature.", actual))
+				// Not-entitled deployments can accumulate phantom ai_seat_state
+				// rows from prior Gateway testing or Task usage. Surfacing an
+				// error here is alarming and inactionable for customers who
+				// never purchased the AI Governance addon.
 			case feature.Entitlement == codersdk.EntitlementGracePeriod && feature.Limit != nil:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf(
@@ -565,7 +566,7 @@ func LicensesEntitlements(
 		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		if aiBridgeFeature.Enabled && aiBridgeFeature.Entitlement.Entitled() && !hasExplicitAIBridgeEntitlement {
 			entitlements.Warnings = append(entitlements.Warnings,
-				"The AI Governance add-on is required to use AI Bridge. Please reach out to your account team or sales@coder.com to learn more.")
+				"The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more.")
 		}
 	}
 

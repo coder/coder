@@ -1,0 +1,115 @@
+name: flake-go
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Base commit to diff against. Defaults to merge-base against origin/main."
+        required: false
+        type: string
+      head_sha:
+        description: "Head commit to analyze. Defaults to the checked out HEAD."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flake_go:
+    name: Flake Check
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
+    # This timeout must be greater than the Go test timeout set in `make test`
+    # (-timeout 20m) so we receive a goroutine trace before the runner kills
+    # the job. Mirrors the test-go-pg job in ci.yaml.
+    timeout-minutes: 25
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.inputs.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go"
+
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/coder/whichtests go:gotest.tools/gotestsum
+
+      - name: Select changed tests
+        id: selector
+        shell: bash
+        run: |
+          set -euo pipefail
+          whichtests \
+            --repo-root . \
+            --github-actions \
+            --coalesce \
+            --out-matrix "$RUNNER_TEMP/flake-matrix.json"
+
+      - name: Set up Terraform
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "terraform"
+
+      # Exports EMBEDDED_PG_CACHE_DIR, which startBuiltinPostgres uses as a
+      # shared binary archive cache in tests.
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
+      - name: Run targeted Go flake checks
+        id: flake_check
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: "13"
+          test-parallelism-packages: "4"
+          test-parallelism-tests: "16"
+          test-count: "35"
+          test-packages: ${{ fromJSON(steps.selector.outputs.matrix).include[0].package }}
+          run-regex: ${{ fromJSON(steps.selector.outputs.matrix).include[0].run_regex }}
+          test-shuffle: "on"
+          gotestsum-json-file: default
+
+      # The upload action only saves on main, so this is a no-op for PRs.
+      # A workflow_dispatch run on main seeds the cache that PR runs restore.
+      - name: Upload Embedded Postgres Cache
+        if: ${{ fromJSON(steps.selector.outputs.matrix).include[0] != null }}
+        uses: ./.github/actions/embedded-pg-cache/upload
+        with:
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
+
+      - name: Publish Go test failure report
+        if: failure() && steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: ./.github/actions/go-test-failure-report
+        with:
+          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}

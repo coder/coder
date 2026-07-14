@@ -13,8 +13,8 @@ import { docs } from "#/utils/docs";
  * ensure that we can't accidentally make typos when writing the badge text.
  */
 const featureStageBadgeTypes = {
-	early_access: "early access",
-	beta: "beta",
+	early_access: "Early Access",
+	beta: "Beta",
 } as const satisfies Record<string, ReactNode>;
 
 type FeatureStageBadgeProps = Readonly<
@@ -26,14 +26,21 @@ type FeatureStageBadgeProps = Readonly<
 >;
 
 const badgeColorClasses = {
-	early_access: "bg-surface-orange text-content-warning",
+	early_access: "border-border-pending bg-surface-sky text-highlight-sky",
 	beta: "bg-surface-sky text-highlight-sky",
 } as const;
 
 const badgeSizeClasses = {
-	xs: "text-2xs font-normal px-1.5 py-0.5 h-[18px] rounded border-0",
-	sm: "text-xs font-medium px-2 py-1",
-	md: "text-base px-2 py-1",
+	early_access: {
+		xs: "rounded-[5px] px-1.5 py-0.5 text-2xs font-normal leading-4",
+		sm: "rounded-[5px] px-2 py-0.5 text-[10px] font-normal leading-4",
+		md: "rounded-[5px] px-[7px] py-[3.5px] text-xs font-normal leading-4",
+	},
+	beta: {
+		xs: "text-2xs font-normal px-1.5 py-0.5 h-[18px] rounded border-0",
+		sm: "text-xs font-medium px-2 py-1",
+		md: "text-base px-2 py-1",
+	},
 } as const;
 
 export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
@@ -44,21 +51,23 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	...delegatedProps
 }) => {
 	const colorClasses = badgeColorClasses[contentType];
-	const sizeClasses = badgeSizeClasses[size];
+	const sizeClasses = badgeSizeClasses[contentType][size];
 
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<span
 					className={cn(
-						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border rounded-md transition-colors duration-200 ease-in-out bg-transparent border-solid border-transparent",
+						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap rounded-md border border-solid border-transparent transition-colors duration-200 ease-in-out",
 						sizeClasses,
 						colorClasses,
 						className,
 					)}
 					{...delegatedProps}
 				>
-					<span className="sr-only"> (This is a</span>
+					<span className="sr-only">
+						{` (This is ${contentType === "early_access" ? "an" : "a"} `}
+					</span>
 					<span className="first-letter:uppercase">
 						{labelText && `${labelText} `}
 						{featureStageBadgeTypes[contentType]}

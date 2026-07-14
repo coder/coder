@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PointerEventsCheckLevel } from "@testing-library/user-event";
 import type { FC } from "react";
 import { fn, userEvent, within } from "storybook/test";
 import {
@@ -42,9 +41,12 @@ const meta: Meta<typeof MobileMenu> = {
 		onSignOut: fn(),
 		isDefaultOpen: true,
 		canViewAuditLog: true,
+		canViewConnectionLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canViewAIBridge: true,
+		canViewAISettings: true,
 	},
 	decorators: [withNavbarMock],
 };
@@ -66,9 +68,12 @@ export const Auditor: Story = {
 	args: {
 		user: MockUserMember,
 		canViewAuditLog: true,
+		canViewConnectionLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: openAdminSettings,
 };
@@ -77,9 +82,12 @@ export const OrgAdmin: Story = {
 	args: {
 		user: MockUserMember,
 		canViewAuditLog: true,
+		canViewConnectionLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: true,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: openAdminSettings,
 };
@@ -88,15 +96,18 @@ export const Member: Story = {
 	args: {
 		user: MockUserMember,
 		canViewAuditLog: false,
+		canViewConnectionLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 };
 
 export const ProxySettings: Story = {
 	play: async ({ canvasElement }) => {
-		const user = setupUser();
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const menuItem = await body.findByRole("menuitem", {
 			name: /workspace proxy settings/i,
@@ -107,7 +118,7 @@ export const ProxySettings: Story = {
 
 export const UserSettings: Story = {
 	play: async ({ canvasElement }) => {
-		const user = setupUser();
+		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const menuItem = await body.findByRole("menuitem", {
 			name: /user settings/i,
@@ -124,21 +135,12 @@ function withNavbarMock(Story: FC) {
 	);
 }
 
-function setupUser() {
-	// It seems the dropdown component is disabling pointer events, which is
-	// causing Testing Library to throw an error. As a workaround, we can
-	// disable the pointer events check.
-	return userEvent.setup({
-		pointerEventsCheck: PointerEventsCheckLevel.Never,
-	});
-}
-
 async function openAdminSettings({
 	canvasElement,
 }: {
 	canvasElement: HTMLElement;
 }) {
-	const user = setupUser();
+	const user = userEvent.setup();
 	const body = within(canvasElement.ownerDocument.body);
 	const menuItem = await body.findByRole("menuitem", {
 		name: /admin settings/i,

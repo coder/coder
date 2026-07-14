@@ -20,8 +20,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestCreateDynamic(t *testing.T) {
@@ -74,14 +74,14 @@ func TestCreateDynamic(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		doneChan := make(chan error)
 		go func() {
 			doneChan <- inv.Run()
 		}()
 
-		pty.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 		err := testutil.RequireReceive(ctx, t, doneChan)
 		require.NoError(t, err)
 
@@ -103,14 +103,14 @@ func TestCreateDynamic(t *testing.T) {
 		}
 		inv, root = clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty = ptytest.New(t).Attach(inv)
+		stdout = expecter.NewAttachedToInvocation(t, inv)
 
 		doneChan = make(chan error)
 		go func() {
 			doneChan <- inv.Run()
 		}()
 
-		pty.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 
 		err = testutil.RequireReceive(ctx, t, doneChan)
 		require.NoError(t, err)
@@ -129,7 +129,8 @@ func TestCreateDynamic(t *testing.T) {
 	// When enable_region=true, the region parameter becomes required and CLI should prompt.
 	t.Run("PromptForConditionalParam", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, time.Hour)
+		logger := testutil.Logger(t)
 
 		template, _ := coderdtest.DynamicParameterTemplate(t, owner, first.OrganizationID, coderdtest.DynamicParameterTemplateParams{
 			MainTF: conditionalParamTF,
@@ -143,7 +144,8 @@ func TestCreateDynamic(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		doneChan := make(chan error)
 		go func() {
@@ -151,14 +153,14 @@ func TestCreateDynamic(t *testing.T) {
 		}()
 
 		// CLI should prompt for the region parameter since enable_region=true
-		pty.ExpectMatchContext(ctx, "region")
-		pty.WriteLine("eu-west")
+		stdout.ExpectMatch(ctx, "region")
+		stdin.WriteLine("eu-west")
 
 		// Confirm creation
-		pty.ExpectMatchContext(ctx, "Confirm create?")
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "Confirm create?")
+		stdin.WriteLine("yes")
 
-		pty.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 
 		err := <-doneChan
 		require.NoError(t, err)
@@ -305,14 +307,14 @@ func TestCreateDynamic(t *testing.T) {
 			"-y",
 		)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		doneChan := make(chan error)
 		go func() {
 			doneChan <- inv.Run()
 		}()
 
-		pty.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 
 		err = <-doneChan
 		require.NoError(t, err, "slider=8 should succeed when max_slider=10")
@@ -331,6 +333,8 @@ func TestCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -348,7 +352,8 @@ func TestCreate(t *testing.T) {
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -363,9 +368,9 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 		<-doneChan
@@ -385,6 +390,8 @@ func TestCreate(t *testing.T) {
 
 	t.Run("CreateForOtherUser", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
@@ -403,7 +410,8 @@ func TestCreate(t *testing.T) {
 		//nolint:gocritic // Creating a workspace for another user requires owner permissions.
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -418,9 +426,9 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 		<-doneChan
@@ -439,6 +447,8 @@ func TestCreate(t *testing.T) {
 
 	t.Run("CreateWithSpecificTemplateVersion", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -467,7 +477,8 @@ func TestCreate(t *testing.T) {
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -482,9 +493,9 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 		<-doneChan
@@ -506,6 +517,8 @@ func TestCreate(t *testing.T) {
 
 	t.Run("InheritStopAfterFromTemplate", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -522,7 +535,8 @@ func TestCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		waiter := clitest.StartWithWaiter(t, inv)
 		matches := []struct {
 			match string
@@ -533,9 +547,9 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 		waiter.RequireSuccess()
@@ -570,6 +584,8 @@ func TestCreate(t *testing.T) {
 
 	t.Run("FromNothing", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -579,7 +595,8 @@ func TestCreate(t *testing.T) {
 		inv, root := clitest.New(t, "create", "")
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -592,8 +609,8 @@ func TestCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			stdout.ExpectMatch(ctx, match)
+			stdin.WriteLine(value)
 		}
 		<-doneChan
 
@@ -621,14 +638,14 @@ func TestCreate(t *testing.T) {
 		)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatchContext(ctx, "building in the background")
+		stdout.ExpectMatch(ctx, "building in the background")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify workspace was actually created.
@@ -658,14 +675,14 @@ func TestCreate(t *testing.T) {
 		)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatchContext(ctx, "building in the background")
+		stdout.ExpectMatch(ctx, "building in the background")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify workspace was created and parameters were applied.
@@ -706,14 +723,14 @@ func TestCreate(t *testing.T) {
 		)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatchContext(ctx, "building in the background")
+		stdout.ExpectMatch(ctx, "building in the background")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
@@ -801,7 +818,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 		setup func() []string
 		// handlePty optionally runs after the command is started.  It should handle
 		// all expected prompts from the pty.
-		handlePty func(pty *ptytest.PTY)
+		handlePty func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer)
 		// postRun runs after the command has finished but before the workspace is
 		// verified.  It must return the workspace name to check (used for the copy
 		// workspace tests).
@@ -818,15 +835,15 @@ func TestCreateWithRichParameters(t *testing.T) {
 	}{
 		{
 			name: "ValuesFromPrompt",
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Enter the value for each parameter as prompted.
 				for _, param := range params {
-					pty.ExpectMatch(param.name)
-					pty.WriteLine(param.value)
+					stdout.ExpectMatch(ctx, param.name)
+					stdin.WriteLine(param.value)
 				}
 				// Confirm the creation.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 		},
 		{
@@ -839,16 +856,16 @@ func TestCreateWithRichParameters(t *testing.T) {
 				}
 				return args
 			},
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Simply accept the defaults.
 				for _, param := range params {
-					pty.ExpectMatch(param.name)
-					pty.ExpectMatch(`Enter a value (default: "` + param.value + `")`)
-					pty.WriteLine("")
+					stdout.ExpectMatch(ctx, param.name)
+					stdout.ExpectMatch(ctx, `Enter a value (default: "`+param.value+`")`)
+					stdin.WriteLine("")
 				}
 				// Confirm the creation.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 		},
 		{
@@ -865,10 +882,10 @@ func TestCreateWithRichParameters(t *testing.T) {
 
 				return []string{"--rich-parameter-file", parameterFile.Name()}
 			},
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// No prompts, we only need to confirm.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 		},
 		{
@@ -881,10 +898,10 @@ func TestCreateWithRichParameters(t *testing.T) {
 				}
 				return args
 			},
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// No prompts, we only need to confirm.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 		},
 		{
@@ -920,9 +937,6 @@ func TestCreateWithRichParameters(t *testing.T) {
 			postRun: func(t *testing.T, tctx testContext) string {
 				inv, root := clitest.New(t, "create", "--copy-parameters-from", tctx.workspaceName, "other-workspace", "-y")
 				clitest.SetupConfig(t, tctx.member, root)
-				pty := ptytest.New(t).Attach(inv)
-				inv.Stdout = pty.Output()
-				inv.Stderr = pty.Output()
 				err := inv.Run()
 				require.NoError(t, err, "failed to create a workspace based on the source workspace")
 				return "other-workspace"
@@ -952,9 +966,6 @@ func TestCreateWithRichParameters(t *testing.T) {
 				// Then create the copy.  It should use the old template version.
 				inv, root := clitest.New(t, "create", "--copy-parameters-from", tctx.workspaceName, "other-workspace", "-y")
 				clitest.SetupConfig(t, tctx.member, root)
-				pty := ptytest.New(t).Attach(inv)
-				inv.Stdout = pty.Output()
-				inv.Stderr = pty.Output()
 				err := inv.Run()
 				require.NoError(t, err, "failed to create a workspace based on the source workspace")
 				return "other-workspace"
@@ -962,16 +973,16 @@ func TestCreateWithRichParameters(t *testing.T) {
 		},
 		{
 			name: "ValuesFromTemplateDefaults",
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Simply accept the defaults.
 				for _, param := range params {
-					pty.ExpectMatch(param.name)
-					pty.ExpectMatch(`Enter a value (default: "` + param.value + `")`)
-					pty.WriteLine("")
+					stdout.ExpectMatch(ctx, param.name)
+					stdout.ExpectMatch(ctx, `Enter a value (default: "`+param.value+`")`)
+					stdin.WriteLine("")
 				}
 				// Confirm the creation.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 			withDefaults: true,
 		},
@@ -980,14 +991,14 @@ func TestCreateWithRichParameters(t *testing.T) {
 			setup: func() []string {
 				return []string{"--use-parameter-defaults"}
 			},
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Default values should get printed.
 				for _, param := range params {
-					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+					stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", param.name, param.value))
 				}
 				// No prompts, we only need to confirm.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 			withDefaults: true,
 		},
@@ -1001,14 +1012,14 @@ func TestCreateWithRichParameters(t *testing.T) {
 				}
 				return args
 			},
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Default values should get printed.
 				for _, param := range params {
-					pty.ExpectMatch(fmt.Sprintf("%s: '%s'", param.name, param.value))
+					stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", param.name, param.value))
 				}
 				// No prompts, we only need to confirm.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 		},
 		{
@@ -1031,14 +1042,14 @@ cli_param: from file`)
 					"--parameter", "cli_param=from cli",
 				}
 			},
-			handlePty: func(pty *ptytest.PTY) {
+			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Should get prompted for the input param since it has no default.
-				pty.ExpectMatch("input_param")
-				pty.WriteLine("from input")
+				stdout.ExpectMatch(ctx, "input_param")
+				stdin.WriteLine("from input")
 
 				// Confirm the creation.
-				pty.ExpectMatch("Confirm create?")
-				pty.WriteLine("yes")
+				stdout.ExpectMatch(ctx, "Confirm create?")
+				stdin.WriteLine("yes")
 			},
 			withDefaults: true,
 			inputParameters: []param{
@@ -1082,6 +1093,8 @@ cli_param: from file`)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			parameters := params
 			if len(tt.inputParameters) > 0 {
@@ -1122,14 +1135,15 @@ cli_param: from file`)
 			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, member, root)
 			doneChan := make(chan error)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 			go func() {
 				doneChan <- inv.Run()
 			}()
 
 			// The test may do something with the pty.
 			if tt.handlePty != nil {
-				tt.handlePty(pty)
+				tt.handlePty(ctx, stdout, stdin)
 			}
 
 			// Wait for the command to exit.
@@ -1235,6 +1249,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI uses the specified preset instead of the default
 	t.Run("PresetFlag", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1263,17 +1278,15 @@ func TestCreateWithPreset(t *testing.T) {
 		workspaceName := "my-workspace"
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", preset.Name)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		// Should: display the selected preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		pty.ExpectMatch(presetName)
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1312,6 +1325,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI automatically uses the default preset to create the workspace
 	t.Run("DefaultPreset", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1340,22 +1354,17 @@ func TestCreateWithPreset(t *testing.T) {
 		workspaceName := "my-workspace"
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y")
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		// Should: display the default preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' (default) applied:", defaultPreset.Name)
-		pty.ExpectMatch(presetName)
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, tvPresets, 2)
@@ -1389,12 +1398,14 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI prompts the user to select a preset.
 	t.Run("NoDefaultPresetPromptUser", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		// Given: a template and a template version with two presets
+		// Given: a template and a template version with a single, non-default preset.
 		preset := proto.Preset{
 			Name:        "preset-test",
 			Description: "Preset Test.",
@@ -1414,7 +1425,8 @@ func TestCreateWithPreset(t *testing.T) {
 			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1422,18 +1434,16 @@ func TestCreateWithPreset(t *testing.T) {
 		}()
 
 		// Should: prompt the user for the preset
-		pty.ExpectMatch("Select a preset below:")
-		pty.WriteLine("\n")
-		pty.ExpectMatch("Preset 'preset-test' applied")
-		pty.ExpectMatch("Confirm create?")
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "Select a preset below:")
+		// We don't actually have to respond to the selector, since we hardcode the cliui.Select to return the
+		// first option in test scenarios (c.f. cliui/select.go)
+		stdout.ExpectMatch(ctx, "Preset 'preset-test' applied")
+		stdout.ExpectMatch(ctx, "Confirm create?")
+		stdin.WriteLine("yes")
 
 		<-doneChan
 
 		// Verify if the new workspace uses expected parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, tvPresets, 1)
@@ -1460,6 +1470,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// with workspace creation without applying any preset.
 	t.Run("TemplateVersionWithoutPresets", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1476,17 +1487,12 @@ func TestCreateWithPreset(t *testing.T) {
 			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
 			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
-		pty.ExpectMatch("No preset applied.")
+		stdout.ExpectMatch(ctx, "No preset applied.")
 
 		// Verify if the new workspace uses expected parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			Name: workspaceName,
 		})
@@ -1509,6 +1515,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// The workspace should be created without using any preset-defined parameters.
 	t.Run("PresetFlagNone", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1533,17 +1540,12 @@ func TestCreateWithPreset(t *testing.T) {
 			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
 			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
-		pty.ExpectMatch("No preset applied.")
+		stdout.ExpectMatch(ctx, "No preset applied.")
 
 		// Verify that the new workspace doesn't use the preset parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, tvPresets, 1)
@@ -1591,9 +1593,6 @@ func TestCreateWithPreset(t *testing.T) {
 		workspaceName := "my-workspace"
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y", "--preset", "invalid-preset")
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
 		err := inv.Run()
 
 		// Should: fail with an error indicating the preset was not found
@@ -1610,6 +1609,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// - and the value of parameter B from the parameter flag.
 	t.Run("PresetOverridesParameterFlagValues", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1633,21 +1633,16 @@ func TestCreateWithPreset(t *testing.T) {
 			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstOptionalParameterValue),
 			"--parameter", fmt.Sprintf("%s=%s", thirdParameterName, thirdParameterValue))
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		// Should: display the selected preset as well as its parameter
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		pty.ExpectMatch(presetName)
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, tvPresets, 1)
@@ -1679,6 +1674,7 @@ func TestCreateWithPreset(t *testing.T) {
 	// - and the value of parameter B from the file.
 	t.Run("PresetOverridesParameterFileValues", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1707,21 +1703,16 @@ func TestCreateWithPreset(t *testing.T) {
 			"--preset", preset.Name,
 			"--rich-parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		// Should: display the selected preset as well as its parameter
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		pty.ExpectMatch(presetName)
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, tvPresets, 1)
@@ -1748,7 +1739,8 @@ func TestCreateWithPreset(t *testing.T) {
 	// the CLI prompts the user for input to fill in the missing parameters.
 	t.Run("PromptsForMissingParametersWhenPresetIsIncomplete", func(t *testing.T) {
 		t.Parallel()
-
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -1769,7 +1761,8 @@ func TestCreateWithPreset(t *testing.T) {
 		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "--preset", preset.Name)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1778,21 +1771,18 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Should: display the selected preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		pty.ExpectMatch(presetName)
-		pty.ExpectMatch(fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
 
 		// Should: prompt for the missing parameter
-		pty.ExpectMatch(thirdParameterDescription)
-		pty.WriteLine(thirdParameterValue)
-		pty.ExpectMatch("Confirm create?")
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, thirdParameterDescription)
+		stdin.WriteLine(thirdParameterValue)
+		stdout.ExpectMatch(ctx, "Confirm create?")
+		stdin.WriteLine("yes")
 
 		<-doneChan
 
 		// Verify if the new workspace uses expected parameters.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, tvPresets, 1)
@@ -1857,7 +1847,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 	t.Run("ValidateString", func(t *testing.T) {
 		t.Parallel()
-
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -1869,7 +1860,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1885,9 +1877,9 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
@@ -1895,6 +1887,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 	t.Run("ValidateNumber", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1907,7 +1901,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1923,9 +1918,9 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
@@ -1933,6 +1928,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 	t.Run("ValidateNumber_CustomError", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1945,7 +1942,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1961,9 +1959,9 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
@@ -1971,6 +1969,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 	t.Run("ValidateBool", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -1983,7 +1983,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -1999,9 +2000,9 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
@@ -2018,15 +2019,18 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		t.Run("Prompt", func(t *testing.T) {
+			logger := testutil.Logger(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv, root := clitest.New(t, "create", "my-workspace-1", "--template", template.Name)
 			clitest.SetupConfig(t, member, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 			clitest.Start(t, inv)
 
-			pty.ExpectMatch(listOfStringsParameterName)
-			pty.ExpectMatch("aaa, bbb, ccc")
-			pty.ExpectMatch("Confirm create?")
-			pty.WriteLine("yes")
+			stdout.ExpectMatch(ctx, listOfStringsParameterName)
+			stdout.ExpectMatch(ctx, "aaa, bbb, ccc")
+			stdout.ExpectMatch(ctx, "Confirm create?")
+			stdin.WriteLine("yes")
 		})
 
 		t.Run("Default", func(t *testing.T) {
@@ -2049,6 +2053,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 	t.Run("ValidateListOfStrings_YAMLFile", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -2066,8 +2072,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
   - fff`)
 		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name())
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		clitest.Start(t, inv)
 
 		matches := []string{
@@ -2076,9 +2082,9 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 	})
@@ -2086,6 +2092,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 func TestCreateWithGitAuth(t *testing.T) {
 	t.Parallel()
+	logger := testutil.Logger(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	echoResponses := &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionInit: echo.InitComplete,
@@ -2120,13 +2128,14 @@ func TestCreateWithGitAuth(t *testing.T) {
 
 	inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
+	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 	clitest.Start(t, inv)
 
-	pty.ExpectMatch("You must authenticate with GitHub to create a workspace")
+	stdout.ExpectMatch(ctx, "You must authenticate with GitHub to create a workspace")
 	resp := coderdtest.RequestExternalAuthCallback(t, "github", member)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-	pty.ExpectMatch("Confirm create?")
-	pty.WriteLine("yes")
+	stdout.ExpectMatch(ctx, "Confirm create?")
+	stdin.WriteLine("yes")
 }

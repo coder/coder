@@ -90,3 +90,11 @@ export const textResponseStreamParts = [
 		text: "Storybook streamed answer.",
 	},
 ] satisfies readonly TypesGen.ChatMessagePart[];
+
+export const pinFixtureClock = () => {
+	const real = Date.now;
+	Date.now = () => FIXTURE_NOW;
+	return () => {
+		Date.now = real;
+	};
+};

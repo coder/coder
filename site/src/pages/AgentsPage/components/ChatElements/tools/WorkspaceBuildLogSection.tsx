@@ -108,7 +108,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 		if (isRunning && workspaceId) {
 			return (
 				<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-					<LoaderIcon className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+					<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
 					<span>Loading build logs…</span>
 				</div>
 			);
@@ -119,7 +119,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	if (fetchFailed) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<TriangleAlertIcon className="h-3 w-3" />
+				<TriangleAlertIcon className="size-3" />
 				<span>Failed to load build logs.</span>
 			</div>
 		);
@@ -128,7 +128,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	if (timedOut && !hasLogs) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<TriangleAlertIcon className="h-3 w-3" />
+				<TriangleAlertIcon className="size-3" />
 				<span>Build logs are taking longer than expected.</span>
 			</div>
 		);
@@ -150,7 +150,7 @@ export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
 	if (!logs || logs.length === 0) {
 		return (
 			<div className="flex items-center gap-2 py-3 px-4 text-xs text-content-secondary">
-				<LoaderIcon className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+				<LoaderIcon className="size-3 animate-spin motion-reduce:animate-none" />
 				<span>Loading build logs…</span>
 			</div>
 		);

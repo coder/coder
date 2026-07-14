@@ -69,6 +69,8 @@ type WorkspaceBuildBuilder struct {
 	jobErrorCode string // Error code for failed jobs
 
 	provisionerState []byte
+
+	prebuiltWorkspaceBuildStage sdkproto.PrebuiltWorkspaceBuildStage
 }
 
 // BuilderOption is a functional option for customizing job timestamps
@@ -146,6 +148,14 @@ func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuild
 func (b WorkspaceBuildBuilder) ProvisionerState(state []byte) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.provisionerState = state
+	return b
+}
+
+// MarkPrebuiltWorkspaceClaim marks the build's provisioner job as the claim
+// of a prebuilt workspace, mirroring wsbuilder.MarkPrebuiltWorkspaceClaim.
+func (b WorkspaceBuildBuilder) MarkPrebuiltWorkspaceClaim() WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.prebuiltWorkspaceBuildStage = sdkproto.PrebuiltWorkspaceBuildStage_CLAIM
 	return b
 }
 
@@ -368,7 +378,8 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 	// Create a provisioner job for the build!
 	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: b.seed.ID,
+		WorkspaceBuildID:            b.seed.ID,
+		PrebuiltWorkspaceBuildStage: b.prebuiltWorkspaceBuildStage,
 	})
 	require.NoError(b.t, err)
 

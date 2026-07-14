@@ -86,7 +86,7 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 		<InnerAutocomplete<OrganizationMemberWithUserData>
 			error={membersQuery.error}
 			isFetching={membersQuery.isFetching}
-			shouldFilter={true}
+			shouldFilter
 			setFilter={setFilter}
 			users={membersQuery.data?.members}
 			{...props}

@@ -61,7 +61,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}

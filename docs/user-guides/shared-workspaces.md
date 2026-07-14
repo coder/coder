@@ -50,6 +50,7 @@ To show who a workspace is shared with:
 To list shared workspaces:
 
 - `coder list --search shared:true`
+- `coder list --search shared_with_user:me`
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
 

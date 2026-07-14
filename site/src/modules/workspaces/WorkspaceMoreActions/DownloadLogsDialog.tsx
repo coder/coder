@@ -13,6 +13,7 @@ import {
 } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
+import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,
@@ -39,15 +40,12 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 	});
 
 	const allUniqueAgents = useMemo<readonly WorkspaceAgent[]>(() => {
-		const allAgents = workspace.latest_build.resources.flatMap(
-			(resource) => resource.agents ?? [],
-		);
+		const allAgents = getWorkspaceAgents(workspace);
 
 		// Can't use the "new Set()" trick because we're not dealing with primitives
 		const uniqueAgents = new Map(allAgents.map((agent) => [agent.id, agent]));
-		const iterable = [...uniqueAgents.values()];
-		return iterable;
-	}, [workspace.latest_build.resources]);
+		return [...uniqueAgents.values()];
+	}, [workspace]);
 
 	const agentLogQueries = useQueries({
 		queries: allUniqueAgents.map((agent) => ({

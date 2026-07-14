@@ -43,10 +43,6 @@ const connectTimeout = 30 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
-// toolsReloadTimeout bounds how long Tools waits for a
-// post-startup reload to settle.
-const toolsReloadTimeout = 35 * time.Second
-
 var (
 	// ErrInvalidToolName is returned when the tool name format
 	// is not "server__tool".
@@ -85,20 +81,20 @@ type Manager struct {
 	clock     quartz.Clock
 	closed    bool
 	servers   map[string]*serverEntry
-	tools     []workspacesdk.MCPToolInfo
+	catalog   []ServerStatus
 	snapshot  map[string]fileSnapshot
 	serverGen uint64
 	sf        tailscalesingleflight.Group[string, struct{}]
 
-	// startupSettled is closed once startup scripts reach a terminal
-	// state. Before that, missing MCP config files are unknown
-	// because startup scripts may still create them.
-	startupSettled chan struct{}
-	startupOnce    sync.Once
+	// onChange, when non-nil, is invoked (outside the cache lock)
+	// after a reload changes the per-server catalog, so the
+	// agentcontext manager can re-resolve and re-push the updated
+	// KindMCPServer resources.
+	onChange func()
 
 	// firstSyncSettled records that a reload body reached a
-	// terminal result, successful or not. It gates whether callers
-	// may receive cached tools after reload errors.
+	// terminal result, successful or not. It gates whether the
+	// SnapshotChanged short-circuit may skip a reload.
 	firstSyncSettled bool
 
 	// closedCh is closed by Close to unblock waiters that do not
@@ -106,6 +102,28 @@ type Manager struct {
 	// caller and may outlive Close).
 	closedCh  chan struct{}
 	closeOnce sync.Once
+
+	// lastPaths records the most recent config paths passed to
+	// Reload/Tools. The fsnotify-backed watcher uses these to
+	// drive its own reloads when ~/.mcp.json appears late on
+	// dual-agent workspaces.
+	lastPaths []string
+
+	// watcher fires a debounced Reload when any watched config
+	// file is created, written, removed, or renamed. It is armed
+	// lazily on the first Reload call so tests that never call
+	// Reload do not pay for an extra goroutine and file
+	// descriptor.
+	watcher       *configWatcher
+	watcherOnce   sync.Once
+	watchDebounce time.Duration
+
+	// connectStartedHook is a test hook invoked at the start of
+	// connectAll, before any client is dialed. Production code
+	// leaves this nil; tests set it to coordinate with an
+	// in-flight reload (for example, to verify Close()'s
+	// shutdown ordering does not stall on a stuck connect).
+	connectStartedHook func()
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -126,16 +144,16 @@ func NewManager(
 ) *Manager {
 	managerCtx, cancel := context.WithCancel(ctx)
 	return &Manager{
-		ctx:            managerCtx,
-		cancel:         cancel,
-		logger:         logger,
-		clock:          quartz.NewReal(),
-		execer:         execer,
-		updateEnv:      updateEnv,
-		servers:        make(map[string]*serverEntry),
-		snapshot:       make(map[string]fileSnapshot),
-		startupSettled: make(chan struct{}),
-		closedCh:       make(chan struct{}),
+		ctx:           managerCtx,
+		cancel:        cancel,
+		logger:        logger,
+		clock:         quartz.NewReal(),
+		execer:        execer,
+		updateEnv:     updateEnv,
+		servers:       make(map[string]*serverEntry),
+		snapshot:      make(map[string]fileSnapshot),
+		closedCh:      make(chan struct{}),
+		watchDebounce: defaultWatchDebounce,
 	}
 }
 
@@ -159,80 +177,15 @@ func (m *Manager) Reload(ctx context.Context, paths []string) error {
 	return m.waitReload(ctx, ch, 0)
 }
 
-// MarkStartupSettled marks startup scripts as terminal for MCP
-// config purposes. Missing config files after this point are a real
-// empty config, not an unknown startup state.
-func (m *Manager) MarkStartupSettled() {
-	m.startupOnce.Do(func() { close(m.startupSettled) })
-}
-
-// Tools returns the current MCP tool cache after startup-safe config
-// synchronization.
-//
-// Before startup has settled via MarkStartupSettled, Tools blocks until
-// settlement or ctx cancels. After settlement, it drives a config reload
-// bounded by toolsReloadTimeout.
-//
-// On error before the first sync settles, Tools returns nil tools and
-// the error. On error after a prior sync, it returns cached tools and
-// the error so callers can degrade gracefully.
-func (m *Manager) Tools(ctx context.Context, paths []string) ([]workspacesdk.MCPToolInfo, error) {
-	if err := m.waitForStartupSettled(ctx); err != nil {
-		return nil, err
-	}
-
-	ch, started, err := m.startReloadIfNeeded(paths)
-	if err != nil {
-		return m.toolsAfterReloadError(err)
-	}
-	if !started {
-		return normalizeTools(m.cachedTools()), nil
-	}
-
-	if err := m.waitReload(ctx, ch, toolsReloadTimeout); err != nil {
-		return m.toolsAfterReloadError(err)
-	}
-	return normalizeTools(m.cachedTools()), nil
-}
-
-func (m *Manager) waitForStartupSettled(ctx context.Context) error {
-	select {
-	case <-m.startupSettled:
-		return nil
-	default:
-	}
-
-	select {
-	case <-m.startupSettled:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-m.ctx.Done():
-		if err := m.closeErr(); err != nil {
-			return err
-		}
-		return m.ctx.Err()
-	case <-m.closedCh:
-		return ErrManagerClosed
-	}
-}
-
-func (m *Manager) toolsAfterReloadError(err error) ([]workspacesdk.MCPToolInfo, error) {
-	m.mu.RLock()
-	firstSyncSettled := m.firstSyncSettled
-	tools := slices.Clone(m.tools)
-	m.mu.RUnlock()
-	if !firstSyncSettled {
-		return nil, err
-	}
-	return normalizeTools(tools), err
-}
-
-func normalizeTools(tools []workspacesdk.MCPToolInfo) []workspacesdk.MCPToolInfo {
-	if tools == nil {
-		return []workspacesdk.MCPToolInfo{}
-	}
-	return tools
+// SetOnReload registers a callback fired (outside the cache lock) after
+// a reload changes the per-server catalog. The agent wires this to the
+// agentcontext manager's Trigger so discovery re-resolves and re-pushes
+// the updated KindMCPServer resources. It must be called before the
+// first Reload.
+func (m *Manager) SetOnReload(fn func()) {
+	m.mu.Lock()
+	m.onChange = fn
+	m.mu.Unlock()
 }
 
 // startReloadIfNeeded registers the reload with the singleflight group
@@ -258,6 +211,14 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 		}
 		return nil, false, err
 	}
+	// Arm the fsnotify watcher before deciding whether to short
+	// circuit. The first call lazily creates it; subsequent calls
+	// re-sync the watched path set if it changed. Arming before
+	// the SnapshotChanged check ensures any Create event that
+	// races with parseAndDedup is still delivered: the watcher
+	// is running when parseAndDedup returns the empty snapshot.
+	m.armWatcher(paths)
+
 	if firstSyncSettled && !m.SnapshotChanged(paths) {
 		return nil, false, nil
 	}
@@ -268,6 +229,82 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 		return struct{}{}, err
 	})
 	return ch, true, nil
+}
+
+// armWatcher lazily initializes the fsnotify-backed configWatcher
+// and syncs it to the latest config paths. Lazy initialization
+// keeps unit tests that never call Reload free of extra goroutines
+// and file descriptors.
+//
+// If the underlying watcher cannot be created (e.g. inotify limit
+// reached), the error is logged once and the manager continues
+// without a watcher. The lazy stat-on-request path remains the
+// primary mechanism; the watcher is an optimization that closes
+// the dual-agent race window.
+func (m *Manager) armWatcher(paths []string) {
+	m.watcherOnce.Do(func() {
+		cw, err := newConfigWatcher(
+			m.logger.Named("config_watcher"),
+			m.clock,
+			m.watchDebounce,
+			m.handleWatchedConfigChange,
+		)
+		if err != nil {
+			m.logger.Warn(m.ctx,
+				"failed to start MCP config watcher; falling back to lazy stat",
+				slog.Error(err))
+			return
+		}
+		// Close the watcher if the manager was closed between
+		// newConfigWatcher returning and us acquiring m.mu.
+		// Otherwise its goroutine and inotify fd leak.
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			_ = cw.Close()
+			return
+		}
+		m.watcher = cw
+		m.mu.Unlock()
+	})
+
+	m.mu.Lock()
+	m.lastPaths = slices.Clone(paths)
+	w := m.watcher
+	closed := m.closed
+	m.mu.Unlock()
+	if w == nil || closed {
+		return
+	}
+	w.Sync(paths)
+}
+
+// handleWatchedConfigChange is invoked by the watcher on a
+// debounced fire. It triggers a singleflight Reload using the
+// most recently observed path set so the cached server map and
+// snapshot are refreshed without waiting for the next HTTP
+// request.
+func (m *Manager) handleWatchedConfigChange() {
+	m.mu.RLock()
+	paths := slices.Clone(m.lastPaths)
+	closed := m.closed
+	m.mu.RUnlock()
+	if closed || len(paths) == 0 {
+		return
+	}
+
+	logger := m.logger.With(slog.F("trigger", "fsnotify"))
+	logger.Debug(m.ctx, "reloading due to config change")
+	if err := m.Reload(m.ctx, paths); err != nil {
+		if errors.Is(err, ErrManagerClosed) ||
+			errors.Is(err, context.Canceled) {
+			logger.Debug(m.ctx,
+				"watched reload short-circuited by shutdown",
+				slog.Error(err))
+			return
+		}
+		logger.Warn(m.ctx, "watched reload failed", slog.Error(err))
+	}
 }
 
 func (m *Manager) waitReload(ctx context.Context, ch <-chan reloadResult, timeout time.Duration) error {
@@ -421,11 +458,12 @@ func (m *Manager) doReload(ctx context.Context, mcpConfigFiles []string) error {
 		_ = entry.client.Close()
 	}
 
-	// Refresh tools outside the lock to avoid blocking
-	// concurrent reads during network I/O.
-	if err := m.RefreshTools(ctx); err != nil {
-		logger := m.logger.With(agentchat.Fields(ctx)...)
-		logger.Warn(ctx, "failed to refresh MCP tools after connect", slog.Error(err))
+	// Rebuild the per-server catalog outside the lock to avoid
+	// blocking concurrent reads during network I/O, then notify the
+	// agentcontext manager when it changed so it re-resolves and
+	// re-pushes the KindMCPServer resources.
+	if m.refreshCatalog(ctx, wanted) {
+		m.fireOnChange()
 	}
 	return nil
 }
@@ -514,6 +552,10 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 // Failed connects are logged and skipped.
 func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
+
+	if hook := m.connectStartedHook; hook != nil {
+		hook()
+	}
 
 	var (
 		mu        sync.Mutex
@@ -617,12 +659,24 @@ func captureSnapshot(paths []string) map[string]fileSnapshot {
 	return snap
 }
 
-// cachedTools returns the cached tool list. Thread-safe.
-func (m *Manager) cachedTools() []workspacesdk.MCPToolInfo {
+// Catalog returns a deep copy of the current per-server MCP snapshot. It
+// never blocks on I/O: the agentcontext resolver calls it on every
+// re-resolve to build KindMCPServer resources.
+func (m *Manager) Catalog() []ServerStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	return cloneServerStatuses(m.catalog)
+}
 
-	return slices.Clone(m.tools)
+// fireOnChange invokes the registered reload callback, if any, without
+// holding the cache lock.
+func (m *Manager) fireOnChange() {
+	m.mu.RLock()
+	fn := m.onChange
+	m.mu.RUnlock()
+	if fn != nil {
+		fn()
+	}
 }
 
 // CallTool proxies a tool call to the appropriate MCP server.
@@ -656,15 +710,17 @@ func (m *Manager) CallTool(ctx context.Context, req workspacesdk.CallMCPToolRequ
 	return convertResult(result), nil
 }
 
-// RefreshTools re-fetches tool lists from all connected servers
-// in parallel and rebuilds the cache. On partial failure, tools
-// from servers that responded successfully are merged with the
-// existing cached tools for servers that failed, so a single
-// dead server doesn't block updates from healthy ones.
-func (m *Manager) RefreshTools(ctx context.Context) error {
+// refreshCatalog re-lists tools from the connected servers and rebuilds
+// the per-server catalog the agentcontext resolver consumes. Every
+// declared server in wanted appears in the result: a server with a live
+// client contributes its listed tools (or its list error), and a server
+// that never connected appears as an unreadable entry so it surfaces in
+// the snapshot instead of vanishing. It returns whether the catalog
+// changed so the caller can fire the reload callback.
+func (m *Manager) refreshCatalog(ctx context.Context, wanted map[string]ServerConfig) bool {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
-	// Snapshot servers under read lock.
+	// Snapshot the connected servers under the read lock.
 	m.mu.RLock()
 	servers := make(map[string]*serverEntry, len(m.servers))
 	for k, v := range m.servers {
@@ -673,16 +729,15 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 	gen := m.serverGen
 	m.mu.RUnlock()
 
-	// Fetch tool lists in parallel without holding any lock.
-	type serverTools struct {
-		name  string
-		tools []workspacesdk.MCPToolInfo
+	// List tools from every connected server in parallel, without
+	// holding any lock.
+	type listResult struct {
+		tools []ToolInfo
+		err   error
 	}
 	var (
 		mu      sync.Mutex
-		results []serverTools
-		failed  []string
-		errs    []error
+		results = make(map[string]listResult, len(servers))
 	)
 	var eg errgroup.Group
 	for name, entry := range servers {
@@ -696,73 +751,89 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 					slog.Error(err),
 				)
 				mu.Lock()
-				errs = append(errs, xerrors.Errorf("list tools from %q: %w", name, err))
-				failed = append(failed, name)
+				results[name] = listResult{err: err}
 				mu.Unlock()
 				return nil
 			}
-			var tools []workspacesdk.MCPToolInfo
+			tools := make([]ToolInfo, 0, len(result.Tools))
 			for _, tool := range result.Tools {
-				tools = append(tools, workspacesdk.MCPToolInfo{
-					ServerName:  name,
-					Name:        name + ToolNameSep + tool.Name,
+				tools = append(tools, ToolInfo{
+					Name:        tool.Name,
 					Description: tool.Description,
-					Schema:      tool.InputSchema.Properties,
-					Required:    tool.InputSchema.Required,
+					InputSchema: toolInputSchemaMap(tool.InputSchema),
 				})
 			}
 			mu.Lock()
-			results = append(results, serverTools{name: name, tools: tools})
+			results[name] = listResult{tools: tools}
 			mu.Unlock()
 			return nil
 		})
 	}
 	_ = eg.Wait()
 
-	// Build the new tool list. For servers that failed, preserve
-	// their tools from the existing cache so a single dead server
-	// doesn't remove healthy tools.
-	var merged []workspacesdk.MCPToolInfo
-	for _, st := range results {
-		merged = append(merged, st.tools...)
-	}
-	if len(failed) > 0 {
-		failedSet := make(map[string]struct{}, len(failed))
-		for _, f := range failed {
-			failedSet[f] = struct{}{}
+	// Build one status per declared server so a server that never
+	// connected surfaces as an unreadable entry rather than vanishing.
+	catalog := make([]ServerStatus, 0, len(wanted))
+	for name := range wanted {
+		st := ServerStatus{Name: name}
+		switch res, ok := results[name]; {
+		case ok && res.err == nil:
+			st.Connected = true
+			st.Tools = res.tools
+		case ok:
+			st.Err = res.err.Error()
+		default:
+			st.Err = "failed to connect"
 		}
-		m.mu.RLock()
-		for _, t := range m.tools {
-			if _, ok := failedSet[t.ServerName]; ok {
-				merged = append(merged, t)
-			}
-		}
-		m.mu.RUnlock()
+		catalog = append(catalog, st)
 	}
-	slices.SortFunc(merged, func(a, b workspacesdk.MCPToolInfo) int {
+	slices.SortFunc(catalog, func(a, b ServerStatus) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 
 	m.mu.Lock()
-	// Skip the write if the server map changed since the
-	// snapshot. A doReload that bumped the generation will
-	// produce a correct tool list; this write would be stale.
-	if m.serverGen == gen {
-		m.tools = merged
+	defer m.mu.Unlock()
+	// Skip the write if the server map changed since the snapshot. A
+	// doReload that bumped the generation will rebuild the catalog.
+	if m.serverGen != gen {
+		return false
 	}
-	m.mu.Unlock()
-
-	return errors.Join(errs...)
+	if reflect.DeepEqual(m.catalog, catalog) {
+		return false
+	}
+	m.catalog = catalog
+	return true
 }
 
 // Close terminates all MCP server connections and child
-// processes.
+// processes, stops the config file watcher, and waits for any
+// in-flight watcher-driven reload to complete.
 func (m *Manager) Close() error {
+	// Mark the manager closed and signal closedCh first, then
+	// hand the watcher off and release the lock. Marking closed
+	// before w.Close() ensures that any in-flight
+	// handleWatchedConfigChange short-circuits and any Reload
+	// blocked in waitReload observes m.closedCh, instead of
+	// blocking firesWG.Wait() inside w.Close() until a 30 s
+	// connectAll times out.
+	m.mu.Lock()
+	m.closed = true
+	m.closeOnce.Do(func() { close(m.closedCh) })
+	w := m.watcher
+	m.watcher = nil
+	m.mu.Unlock()
+
+	// Close the watcher outside the manager lock. Its goroutine
+	// may call handleWatchedConfigChange, which takes m.mu, so
+	// holding m.mu while waiting for the watcher to drain would
+	// deadlock. Close on a nil watcher is a no-op.
+	if w != nil {
+		_ = w.Close()
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.closed = true
-	m.closeOnce.Do(func() { close(m.closedCh) })
 	var errs []error
 	for _, entry := range m.servers {
 		if err := entry.client.Close(); err != nil {
@@ -776,10 +847,10 @@ func (m *Manager) Close() error {
 		}
 	}
 	m.servers = make(map[string]*serverEntry)
-	// Prevent an in-flight RefreshTools from repopulating tools
-	// after Close clears the cache.
+	// Prevent an in-flight refreshCatalog from repopulating the
+	// catalog after Close clears it.
 	m.serverGen++
-	m.tools = nil
+	m.catalog = nil
 
 	// Cancel while holding the lock so waiters that observe
 	// m.ctx.Done also observe m.closed when checking closeErr.
@@ -843,15 +914,19 @@ func (m *Manager) createTransport(ctx context.Context, cfg ServerConfig) (transp
 			}),
 		), nil
 	case "http", "":
-		return transport.NewStreamableHTTP(
-			cfg.URL,
-			transport.WithHTTPHeaders(cfg.Headers),
-		)
+		var opts []transport.StreamableHTTPCOption
+		opts = append(opts, transport.WithHTTPHeaders(cfg.Headers))
+		if c := mcpHTTPClient(); c != nil {
+			opts = append(opts, transport.WithHTTPBasicClient(c))
+		}
+		return transport.NewStreamableHTTP(cfg.URL, opts...)
 	case "sse":
-		return transport.NewSSE(
-			cfg.URL,
-			transport.WithHeaders(cfg.Headers),
-		)
+		var sseOpts []transport.ClientOption
+		sseOpts = append(sseOpts, transport.WithHeaders(cfg.Headers))
+		if c := mcpHTTPClient(); c != nil {
+			sseOpts = append(sseOpts, transport.WithHTTPClient(c))
+		}
+		return transport.NewSSE(cfg.URL, sseOpts...)
 	default:
 		return nil, xerrors.Errorf("unsupported transport %q", cfg.Transport)
 	}
@@ -957,4 +1032,65 @@ func convertResult(result *mcp.CallToolResult) workspacesdk.CallMCPToolResponse 
 		Content: content,
 		IsError: result.IsError,
 	}
+}
+
+// ServerStatus is a point-in-time view of one MCP server's connection
+// state and tools, used by the agentcontext resolver to build
+// KindMCPServer resources. Tool names are exactly as the server
+// reported them (no server prefix); the resource carries the server
+// name separately.
+type ServerStatus struct {
+	Name      string
+	Connected bool
+	Err       string
+	Tools     []ToolInfo
+}
+
+// ToolInfo is one tool exposed by an MCP server. InputSchema is the
+// JSON-Schema-shaped object the server reported for the tool's
+// arguments, or nil when the schema is empty.
+type ToolInfo struct {
+	Name        string
+	Description string
+	InputSchema map[string]any
+}
+
+// toolInputSchemaMap converts an mcp-go tool input schema into the
+// JSON-Schema-shaped map ToolInfo carries. Required is converted to
+// []any so the downstream protobuf/structpb encoding accepts it. An
+// empty schema yields nil so the tool ships with InputSchema unset.
+func toolInputSchemaMap(s mcp.ToolInputSchema) map[string]any {
+	out := map[string]any{}
+	if s.Type != "" {
+		out["type"] = s.Type
+	}
+	if len(s.Properties) > 0 {
+		out["properties"] = s.Properties
+	}
+	if len(s.Required) > 0 {
+		required := make([]any, len(s.Required))
+		for i, req := range s.Required {
+			required[i] = req
+		}
+		out["required"] = required
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// cloneServerStatuses deep-copies a catalog so callers cannot mutate the
+// Manager's cache. Tool input schemas are treated as immutable and
+// shared by reference.
+func cloneServerStatuses(in []ServerStatus) []ServerStatus {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ServerStatus, len(in))
+	for i, s := range in {
+		s.Tools = slices.Clone(s.Tools)
+		out[i] = s
+	}
+	return out
 }

@@ -1,0 +1,6 @@
+{
+	"id": "digitalocean-linux",
+	"display_name": "DigitalOcean Droplet (Linux)",
+	"os": "linux",
+	"default_context": {}
+}

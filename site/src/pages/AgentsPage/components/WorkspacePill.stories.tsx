@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
 	MockListeningPortsResponse,
@@ -139,7 +139,7 @@ export const WithAllApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -168,6 +168,51 @@ export const WithAllApps: Story = {
 	},
 };
 
+export const WithRemoveAction: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: agentWithApps,
+		onRemoveWorkspace: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const workspaceMenuButton = canvas.getByRole("button", {
+			name: `${MockWorkspace.name} workspace menu`,
+		});
+		expect(
+			canvas.queryByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(workspaceMenuButton);
+		let detachWorkspaceItem: HTMLElement | null = null;
+		await waitFor(() => {
+			const menuId = workspaceMenuButton.getAttribute("aria-controls");
+			if (!menuId) {
+				throw new Error("Expected workspace pill to control a menu.");
+			}
+
+			const menu = canvasElement.ownerDocument.getElementById(menuId);
+			if (!(menu instanceof HTMLElement)) {
+				throw new Error("Expected workspace menu to render.");
+			}
+
+			detachWorkspaceItem = within(menu).getByRole("menuitem", {
+				name: "Detach workspace",
+			});
+			expect(detachWorkspaceItem).toBeVisible();
+		});
+		if (!detachWorkspaceItem) {
+			throw new Error("Expected detach workspace menu item to render.");
+		}
+
+		await userEvent.click(detachWorkspaceItem);
+		expect(args.onRemoveWorkspace).toHaveBeenCalledTimes(1);
+	},
+};
+
 export const WithBuiltinAppsOnly: Story = {
 	args: {
 		...defaultProps,
@@ -176,7 +221,7 @@ export const WithBuiltinAppsOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -198,7 +243,7 @@ export const WithExternalAppsOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -221,7 +266,7 @@ export const NoApps: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -239,7 +284,7 @@ export const WithHiddenApp: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		await waitFor(() => {
@@ -324,7 +369,7 @@ export const WithListeningPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		const body = within(document.body);
@@ -374,7 +419,7 @@ export const WithSharedPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		const body = within(document.body);
@@ -418,7 +463,7 @@ export const EmptyPorts: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const pill = canvas.getByText("Test-Workspace");
+		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
 
 		const body = within(document.body);
@@ -430,6 +475,108 @@ export const EmptyPorts: Story = {
 
 		await waitFor(() => {
 			expect(body.getByText("No open ports detected.")).toBeInTheDocument();
+		});
+	},
+};
+
+const mobilePortsStoryConfig = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: {
+			...MockWorkspaceAgent,
+			name: "a-workspace-agent",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [375] },
+		queries: [
+			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
+			{
+				key: ["portForward", MockWorkspaceAgent.id],
+				data: MockListeningPortsResponse,
+			},
+			{
+				key: ["sharedPorts", MockWorkspace.id],
+				data: MockSharedPortsResponse,
+			},
+		],
+	},
+} satisfies Partial<Story>;
+
+const openMobilePortsPanel = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const pill = await canvas.findByRole("button", {
+		name: /workspace menu/,
+	});
+	await userEvent.click(pill);
+
+	const body = within(document.body);
+	const portsItem = await body.findByText(/Ports \(\d+\)/);
+	await userEvent.click(portsItem);
+
+	return { body, pill };
+};
+
+export const MobilePortsInlinePanel: Story = {
+	...mobilePortsStoryConfig,
+	play: async ({ canvasElement }) => {
+		const { body, pill } = await openMobilePortsPanel(canvasElement);
+
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByText("Shared Ports")).toBeInTheDocument();
+			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			expect(body.getByRole("menuitem", { name: /Back/ })).toHaveFocus();
+			expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
+		});
+
+		const portsHeader = body.getByText("Listening Ports");
+		const dropdown: HTMLElement | null = portsHeader.closest(
+			"[data-radix-popper-content-wrapper]",
+		);
+		expect(dropdown).not.toBeNull();
+		if (dropdown === null) {
+			throw new Error("Expected dropdown wrapper to exist");
+		}
+		const rect = dropdown.getBoundingClientRect();
+		expect(rect.right).toBeLessThanOrEqual(innerWidth);
+		expect(rect.left).toBeGreaterThanOrEqual(0);
+
+		await userEvent.click(body.getByRole("menuitem", { name: /Back/ }));
+		await waitFor(() => {
+			expect(body.getByText("View Workspace")).toBeInTheDocument();
+			expect(body.getByRole("menuitem", { name: /Ports/ })).toHaveFocus();
+			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(body.getByText(/Ports \(\d+\)/));
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByRole("menuitem", { name: /Back/ })).toHaveFocus();
+		});
+
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(pill);
+		await waitFor(() => {
+			expect(body.getByText("View Workspace")).toBeInTheDocument();
+			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const MobilePortsInlinePanelOpen: Story = {
+	...mobilePortsStoryConfig,
+	play: async ({ canvasElement }) => {
+		const { body } = await openMobilePortsPanel(canvasElement);
+
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
 		});
 	},
 };

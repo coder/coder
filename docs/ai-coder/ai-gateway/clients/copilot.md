@@ -17,7 +17,7 @@ For general information about GitHub Copilot, see the [GitHub Copilot documentat
 For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
-For provider configuration (admin), see [GitHub Copilot provider setup](../setup.md#github-copilot).
+For provider configuration (admin), see [GitHub Copilot provider setup](../providers.md#github-copilot).
 
 ## Copilot CLI
 
@@ -40,7 +40,7 @@ Note: if [TLS is not enabled](../ai-gateway-proxy/setup.md#proxy-tls-configurati
 Copilot CLI is built on Node.js and uses the `NODE_EXTRA_CA_CERTS` environment variable for custom certificates:
 
 ```shell
-export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
+export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#trusting-the-ca-certificate) for details on how to obtain the certificate file.
@@ -48,7 +48,7 @@ See [Client Configuration CA certificate trust](../ai-gateway-proxy/setup.md#tru
 When [TLS is enabled](../ai-gateway-proxy/setup.md#proxy-tls-configuration) on the proxy, combine the MITM CA certificate and the TLS certificate into a single file:
 
 ```shell
-cat coder-aibridge-proxy-ca.pem listener.crt > combined-ca.pem
+cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem
 export NODE_EXTRA_CA_CERTS="/path/to/combined-ca.pem"
 ```
 

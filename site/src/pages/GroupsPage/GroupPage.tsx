@@ -9,6 +9,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
+import type { GroupMemberWithAICostControl } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	deleteGroup,
@@ -16,8 +17,10 @@ import {
 	groupMembers,
 	groupPermissions,
 } from "#/api/queries/groups";
-import type { Group, ReducedUser } from "#/api/typesGenerated";
+import type { Group } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
@@ -32,10 +35,11 @@ import {
 import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { pageTitle } from "#/utils/page";
+import { AIBudgetPeriod } from "./AIBudgetPeriod";
 
 export type GroupPageOutletContext = {
 	group: Group;
-	members: readonly ReducedUser[];
+	members: readonly GroupMemberWithAICostControl[];
 	permissions: { canUpdateGroup: boolean };
 	organization: string;
 	groupQuery: ReturnType<typeof useQuery>;
@@ -112,9 +116,20 @@ const GroupPage: FC = () => {
 
 			<div className="flex align-baseline justify-between w-full">
 				<SettingsHeader>
-					<SettingsHeaderTitle>
-						{groupData.display_name || groupData.name || "Unknown Group"}
-					</SettingsHeaderTitle>
+					<AvatarData
+						avatar={
+							<Avatar
+								src={groupData.avatar_url}
+								fallback={groupData.display_name || groupData.name}
+								size="lg"
+							/>
+						}
+						title={
+							<SettingsHeaderTitle>
+								{groupData.display_name || groupData.name || "Unknown Group"}
+							</SettingsHeaderTitle>
+						}
+					/>
 					<SettingsHeaderDescription>
 						Manage members for this group.
 					</SettingsHeaderDescription>
@@ -135,8 +150,11 @@ const GroupPage: FC = () => {
 			</div>
 			<div className="flex flex-col gap-10 w-full">
 				{canUpdateGroup && (
-					<LinkTabs active={activeTab}>
-						<LinkTabsList className="w-full justify-start">
+					<LinkTabs
+						active={activeTab}
+						className="flex items-baseline justify-between"
+					>
+						<LinkTabsList className="justify-start">
 							<TabLink to="." value="members">
 								Group members
 							</TabLink>
@@ -144,6 +162,7 @@ const GroupPage: FC = () => {
 								Group settings
 							</TabLink>
 						</LinkTabsList>
+						{activeTab === "members" && <AIBudgetPeriod />}
 					</LinkTabs>
 				)}
 

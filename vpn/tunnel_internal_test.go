@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/ipn/ipnstate"
@@ -53,9 +54,10 @@ func (f *fakeClient) NewConn(context.Context, *url.URL, string, *Options) (Conn,
 
 func newFakeConn(state tailnet.WorkspaceUpdate, hsTime time.Time) *fakeConn {
 	return &fakeConn{
-		closed: make(chan struct{}),
-		state:  state,
-		hsTime: hsTime,
+		closed:  make(chan struct{}),
+		rebinds: make(chan struct{}, 1),
+		state:   state,
+		hsTime:  hsTime,
 	}
 }
 
@@ -69,6 +71,7 @@ type fakeConn struct {
 	returnPing chan struct{}
 	hsTime     time.Time
 	closed     chan struct{}
+	rebinds    chan struct{}
 	doClose    sync.Once
 }
 
@@ -120,6 +123,10 @@ func (f *fakeConn) GetPeerDiagnostics(uuid.UUID) tailnet.PeerDiagnostics {
 	return tailnet.PeerDiagnostics{
 		LastWireguardHandshake: f.hsTime,
 	}
+}
+
+func (f *fakeConn) Rebind() {
+	f.rebinds <- struct{}{}
 }
 
 func (f *fakeConn) Close() error {
@@ -186,6 +193,81 @@ func TestTunnel_StartStop(t *testing.T) {
 
 	err = mgr.Close()
 	require.NoError(t, err)
+}
+
+func TestTunnel_Wake(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client := newFakeClient(ctx, t)
+	conn := newFakeConn(tailnet.WorkspaceUpdate{}, time.Time{})
+
+	mClock := quartz.NewMock(t)
+	_, mgr := setupTunnel(t, ctx, client, mClock)
+
+	sendWake := func() *TunnelMessage {
+		wakeCh := make(chan *TunnelMessage, 1)
+		go func() {
+			defer close(wakeCh)
+			r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+				Msg: &ManagerMessage_Wake{
+					Wake: &WakeRequest{},
+				},
+			})
+			assert.NoError(t, err)
+			wakeCh <- r
+		}()
+		return testutil.TryReceive(ctx, t, wakeCh)
+	}
+	requireNoRebind := func() {
+		// Rebinds happen before the RPC reply, so any rebind would
+		// already be buffered by now.
+		select {
+		case <-conn.rebinds:
+			t.Fatal("unexpected rebind")
+		default:
+		}
+	}
+
+	// Waking before the tunnel is started must not rebind.
+	wakeResp := sendWake()
+	require.True(t, wakeResp.GetWake().GetSuccess())
+	requireNoRebind()
+
+	startCh := make(chan *TunnelMessage, 1)
+	go func() {
+		defer close(startCh)
+		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
+			Msg: &ManagerMessage_Start{
+				Start: &StartRequest{
+					TunnelFileDescriptor: 2,
+					CoderUrl:             "https://coder.example.com",
+					ApiToken:             "fakeToken",
+				},
+			},
+		})
+		assert.NoError(t, err)
+		startCh <- r
+	}()
+	testutil.RequireSend(ctx, t, client.ch, conn)
+	startResp := testutil.TryReceive(ctx, t, startCh)
+	require.NotNil(t, startResp.GetStart())
+
+	// The first wake after start triggers a rebind.
+	wakeResp = sendWake()
+	require.True(t, wakeResp.GetWake().GetSuccess())
+	testutil.TryReceive(ctx, t, conn.rebinds)
+
+	// A wake within the debounce window is dropped but still succeeds.
+	wakeResp = sendWake()
+	require.True(t, wakeResp.GetWake().GetSuccess())
+	requireNoRebind()
+
+	// After the debounce window elapses, a wake rebinds again.
+	mClock.Advance(wakeRebindDebounce).MustWait(ctx)
+	wakeResp = sendWake()
+	require.True(t, wakeResp.GetWake().GetSuccess())
+	testutil.TryReceive(ctx, t, conn.rebinds)
 }
 
 func TestTunnel_PeerUpdate(t *testing.T) {

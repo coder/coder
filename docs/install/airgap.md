@@ -6,7 +6,7 @@ air-gapped with Kubernetes or Docker.
 
 |                           | Public deployments                                                                                                                                                                                                                                                 | Air-gapped deployments                                                                                                                                                                                                                                                                               |
 |---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Terraform binary          | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                                                                   |
+| Terraform binary          | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](../../provisioner/terraform/install.go#L23-L24)                                                                                                                                                      |
 | Terraform registry        | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                                                           |
 | STUN                      | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../reference/cli/server.md#--derp-server-stun-addresses) users can still connect via [relayed connections](../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../reference/cli/server.md#--derp-server-stun-addresses) |
 | DERP                      | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../admin/networking/index.md#relayed-connections).                                                                                                                             | By default, Coder's built-in DERP relay can be used, or [custom relays](../admin/networking/index.md#custom-relays).                                                                                                                                                                                 |
@@ -33,7 +33,7 @@ following:
 
 > [!NOTE]
 > Coder includes the latest
-> [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
+> [supported version](../../provisioner/terraform/install.go#L23-L24)
 > of Terraform in the official Docker images. If you need to bundle a different
 > version of terraform, you can do so by customizing the image.
 
@@ -50,10 +50,10 @@ RUN apk add curl unzip
 RUN mkdir -p /opt/terraform
 
 # Terraform is already included in the official Coder image.
-# See https://github.com/coder/coder/blob/main/scripts/Dockerfile.base#L15
+# See ../../scripts/Dockerfile.base#L15
 # If you need to install a different version of Terraform, you can do so here.
 # The below step is optional if you wish to keep the existing version.
-# See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
+# See ../../provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
 ARG TERRAFORM_VERSION=1.11.0
 RUN apk update && \
@@ -115,7 +115,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 > [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the
 > provider version matches any templates or
-> [example templates](https://github.com/coder/coder/tree/main/examples/templates)
+> [example templates](../../examples/templates)
 > you intend to use.
 
 ```tf
@@ -233,6 +233,31 @@ server, as demonstrated in the example below:
 
 With these steps, you'll have the Coder documentation hosted on your server and
 accessible for your team to use.
+
+## Template builder
+
+The template builder requires outbound access to `registry.coder.com` for
+`terraform init` to resolve module sources at template composition time.
+
+For fully air-gapped deployments, disable the template builder:
+
+```sh
+CODER_DISABLE_TEMPLATE_BUILDER=true
+```
+
+When the builder is disabled, template creation falls back to the standard
+upload and CLI workflows. The **New Template** button on the **Templates** page
+links to the starter templates page instead of the builder.
+
+For deployments using a self-hosted module registry mirror, set the registry URL
+instead of disabling the builder:
+
+```sh
+CODER_TEMPLATE_BUILDER_REGISTRY_URL=registry.internal.example.com
+```
+
+This makes the builder generate module source paths pointing at your mirror
+rather than `registry.coder.com`.
 
 ## Coder Modules
 

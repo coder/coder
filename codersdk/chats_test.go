@@ -23,19 +23,19 @@ func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testin
 	t.Parallel()
 
 	sendReasoning := true
-	effort := "high"
+	thinkingDisplay := "summarized"
 
 	raw, err := json.Marshal(codersdk.ChatModelProviderOptions{
 		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-			SendReasoning: &sendReasoning,
-			Effort:        &effort,
+			SendReasoning:   &sendReasoning,
+			ThinkingDisplay: &thinkingDisplay,
 		},
 	})
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), `"type":"anthropic.options"`)
 	require.NotContains(t, string(raw), `"data":`)
 	require.Contains(t, string(raw), `"send_reasoning":true`)
-	require.Contains(t, string(raw), `"effort":"high"`)
+	require.Contains(t, string(raw), `"thinking_display":"summarized"`)
 }
 
 func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *testing.T) {
@@ -44,7 +44,7 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 	raw := []byte(`{
 		"anthropic": {
 			"send_reasoning": true,
-			"effort": "high"
+			"thinking_display": "summarized"
 		}
 	}`)
 
@@ -54,12 +54,8 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 	require.NotNil(t, decoded.Anthropic)
 	require.NotNil(t, decoded.Anthropic.SendReasoning)
 	require.True(t, *decoded.Anthropic.SendReasoning)
-	require.NotNil(t, decoded.Anthropic.Effort)
-	require.Equal(
-		t,
-		"high",
-		*decoded.Anthropic.Effort,
-	)
+	require.NotNil(t, decoded.Anthropic.ThinkingDisplay)
+	require.Equal(t, "summarized", *decoded.Anthropic.ThinkingDisplay)
 }
 
 func TestChatUsageLimitExceededFrom(t *testing.T) {
@@ -166,6 +162,42 @@ func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedRetry.Kind)
 }
 
+func TestChatStreamEvent_JSONRoundTripIncludesResetTypesAndPartMetadata(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	events := []codersdk.ChatStreamEvent{
+		{Type: codersdk.ChatStreamEventTypePreviewReset, ChatID: chatID},
+		{Type: codersdk.ChatStreamEventTypeHistoryReset, ChatID: chatID},
+		{
+			Type:   codersdk.ChatStreamEventTypeMessagePart,
+			ChatID: chatID,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role:              codersdk.ChatMessageRoleAssistant,
+				Part:              codersdk.ChatMessageText("partial"),
+				HistoryVersion:    12,
+				GenerationAttempt: 3,
+				Seq:               4,
+			},
+		},
+	}
+	data, err := json.Marshal(events)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"type":"preview_reset"`)
+	require.Contains(t, string(data), `"type":"history_reset"`)
+	require.Contains(t, string(data), `"history_version":12`)
+	require.Contains(t, string(data), `"generation_attempt":3`)
+	require.Contains(t, string(data), `"seq":4`)
+
+	var decoded []codersdk.ChatStreamEvent
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Equal(t, codersdk.ChatStreamEventTypePreviewReset, decoded[0].Type)
+	require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, decoded[1].Type)
+	require.Equal(t, int64(12), decoded[2].MessagePart.HistoryVersion)
+	require.Equal(t, int64(3), decoded[2].MessagePart.GenerationAttempt)
+	require.Equal(t, int64(4), decoded[2].MessagePart.Seq)
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 
@@ -244,6 +276,18 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.Equal(t, "hello", part.Text)
 		assert.Equal(t, codersdk.ChatMessagePartTypeText, part.Type)
 	})
+}
+
+func TestChatModelReasoningEffortConfigEnumTags(t *testing.T) {
+	t.Parallel()
+
+	want := strings.Join(codersdk.ChatModelReasoningEffortValues(), ",")
+	typ := reflect.TypeOf(codersdk.ChatModelReasoningEffortConfig{})
+	for _, fieldName := range []string{"Default", "Max"} {
+		field, ok := typ.FieldByName(fieldName)
+		require.True(t, ok)
+		require.Equal(t, want, field.Tag.Get("enum"))
+	}
 }
 
 // TestChatMessagePartVariantTags validates the `variants` struct tags
@@ -393,6 +437,70 @@ func TestChatMessagePart_CreatedAt_JSON(t *testing.T) {
 	})
 }
 
+func TestChatMessagePart_ReasoningTimestamps_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RoundTrips", func(t *testing.T) {
+		t.Parallel()
+		startedAt := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		completedAt := startedAt.Add(2 * time.Second)
+		part := codersdk.ChatMessagePart{
+			Type:        codersdk.ChatMessagePartTypeReasoning,
+			Text:        "thinking out loud",
+			CreatedAt:   &startedAt,
+			CompletedAt: &completedAt,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+		require.Contains(t, string(data), `"completed_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.NotNil(t, decoded.CompletedAt)
+		require.True(t, startedAt.Equal(*decoded.CreatedAt))
+		require.True(t, completedAt.Equal(*decoded.CompletedAt))
+	})
+
+	t.Run("OmittedWhenNil", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: "thinking out loud",
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"created_at"`)
+		require.NotContains(t, string(data), `"completed_at"`)
+	})
+
+	t.Run("LegacyCreatedAtWithoutCompletedAt", func(t *testing.T) {
+		t.Parallel()
+		// CompletedAt is omitted on messages persisted before this
+		// feature shipped. Confirm round-trip leaves CompletedAt nil
+		// while preserving CreatedAt so legacy data does not break
+		// API consumers.
+		startedAt := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		part := codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeReasoning,
+			Text:      "legacy reasoning",
+			CreatedAt: &startedAt,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+		require.NotContains(t, string(data), `"completed_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.Nil(t, decoded.CompletedAt)
+	})
+}
+
 func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
 	t.Parallel()
 
@@ -438,6 +546,31 @@ func TestChatModelCallConfig_UnmarshalLegacyPricing(t *testing.T) {
 	require.NotNil(t, decoded.Cost)
 	require.NotNil(t, decoded.Cost.InputPricePerMillionTokens)
 	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("1.5")))
+}
+
+func TestChatModelCallConfig_UnmarshalStrict(t *testing.T) {
+	t.Parallel()
+
+	var decoded codersdk.ChatModelCallConfig
+	err := decoded.UnmarshalStrict([]byte(`{
+		"temperature": 0.5,
+		"cost": {"input_price_per_million_tokens": "5"},
+		"input_price_per_million_tokens": 1.5,
+		"provider_options": {"anthropic": {"thinking": {"budget_tokens": 1024}}}
+	}`))
+	require.NoError(t, err)
+	require.NotNil(t, decoded.Temperature)
+	require.True(t, decoded.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("5")))
+
+	err = decoded.UnmarshalStrict([]byte(`{"provider_options": {"anthropic": {"bogus_setting": true}}}`))
+	require.ErrorContains(t, err, `unknown field "bogus_setting"`)
+
+	// Trailing data after the first value is rejected, matching json.Unmarshal.
+	err = decoded.UnmarshalStrict([]byte(`{"temperature": 0.5} {"bogus_setting": true}`))
+	require.ErrorContains(t, err, "trailing data")
+
+	// UnmarshalJSON stays lenient.
+	require.NoError(t, json.Unmarshal([]byte(`{"bogus_setting": true}`), &decoded))
 }
 
 func TestChatCostSummary_JSONRoundTrip(t *testing.T) {

@@ -298,6 +298,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:   agentID,
 		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
+		Logger:    s.logger,
 	})
 
 	// Since we now have an open conn, be careful to close it if we error
@@ -529,6 +530,8 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 			Logger:      logger,
 			Coordinatee: coordinatee,
 			SendAcks:    false, // we are a client, connecting to multiple agents
+			Initiator:   codersdk.DisconnectInitiatorServer,
+			Direction:   codersdk.ConnectionDirectionServerToAgent,
 		},
 		logger:              logger,
 		tracer:              tracer,

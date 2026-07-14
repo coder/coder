@@ -756,13 +756,11 @@ func TestBackedPipe_DuplicateReconnectionPrevention(t *testing.T) {
 
 	// Start all goroutines
 	for i := 0; i < numConcurrent; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
+		wg.Go(func() {
 			// Wait for the signal to start
-			<-startSignals[idx]
-			errors[idx] = bp.ForceReconnect()
-		}(i)
+			<-startSignals[i]
+			errors[i] = bp.ForceReconnect()
+		})
 	}
 
 	// Start the first ForceReconnect and wait for it to block

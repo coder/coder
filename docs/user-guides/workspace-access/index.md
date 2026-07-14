@@ -43,6 +43,51 @@ Or, you can configure plain SSH on your client below.
 > SSH command. For users who need the full functionality of SSH, use the
 > configuration method below.
 
+### Running remote commands with quoting
+
+Arguments after `--` are joined with spaces into a single command
+string before being sent to the workspace agent (per
+[RFC 4254 §6.5](https://www.rfc-editor.org/rfc/rfc4254#section-6.5),
+which defines the SSH exec request as a single string). Your local
+shell consumes outer quotes before the CLI ever sees the arguments,
+so inner quoting is not preserved on the wire.
+
+This means a common pattern from interactive shells does not behave
+as you might expect:
+
+```console
+# Surprising: prints an empty line, NOT "ready"
+coder ssh my-workspace -- bash -c 'echo ready'
+```
+
+The local shell strips the single-quotes, the CLI receives the argv
+`[bash, -c, echo, ready]`, and the remote agent runs
+`bash -c echo ready`; `echo` gets no arguments and `ready` is bound to
+`$0`. The same caveat applies to plain `ssh user@host -- bash -c '...'`;
+this is SSH protocol semantics, not a `coder ssh` limitation.
+
+For commands that need preserved quoting, use one of these patterns:
+
+**Heredoc via stdin** (recommended for multi-line scripts):
+
+```console
+coder ssh my-workspace -- bash <<'EOF'
+echo ready
+EOF
+```
+
+**A single-argument script payload**:
+
+```console
+coder ssh my-workspace -- /path/to/script.sh
+```
+
+**Exit-code-only probe** (when you only need to know if the command succeeded):
+
+```console
+coder ssh my-workspace -- true && echo "agent is reachable"
+```
+
 ### Configure SSH
 
 Coder generates [SSH key pairs](../../admin/security/secrets.md#ssh-keys) for
@@ -79,6 +124,13 @@ successful, you'll see the following message:
 
 Your workspace is now accessible via `ssh coder.<workspace_name>`
 (for example, `ssh coder.myEnv` if your workspace is named `myEnv`).
+
+> [!TIP]
+> If you use a third-party SSH client that discovers hosts by parsing
+> `~/.ssh/config` (such as the VS Code Remote-SSH sidebar or scripts that
+> enumerate known hosts), run `coder config-ssh --no-wildcard` instead. This
+> generates an individual `Host` entry per workspace rather than a single
+> wildcard block, making your workspaces visible to those tools.
 
 ## Visual Studio Code
 
@@ -132,7 +184,7 @@ on connecting your JetBrains IDEs.
 [code-server](https://github.com/coder/code-server) is our supported method of
 running VS Code in the web browser.
 Learn more about [what makes code-server different from VS Code web](./code-server.md) or visit the
-[documentation for code-server](https://coder.com/docs/code-server/latest).
+[documentation for code-server](https://coder.com/docs/code-server).
 
 ![code-server in a workspace](../../images/code-server-ide.png)
 
@@ -155,11 +207,24 @@ of tools for extending the capability of your workspace. If you have a request
 for a new IDE or tool, please file an issue in our
 [Modules repo](https://github.com/coder/registry/issues).
 
+## Coder Desktop
+
+[Coder Desktop](../desktop/index.md) is a native application that provides seamless access to your workspaces via a VPN tunnel. With Coder Desktop, you get:
+
+- **Automatic port forwarding**: All workspace ports are available at `workspace-name.coder:PORT` with no manual setup
+- **SSH access**: Connect with `ssh workspace-name.coder` using any SSH client
+- **File sync**: Bidirectional file synchronization between local and remote directories
+
+Coder Desktop is the recommended way to access workspace services for developers who want a seamless, native experience.
+
 ## Ports and Port forwarding
 
-You can manage listening ports on your workspace page through with the listening
+You can manage listening ports on your workspace page through the listening
 ports window in the dashboard. These ports are often used to run internal
 services or preview environments.
+
+> [!TIP]
+> For automatic access to all ports without manual configuration, use [Coder Desktop](../desktop/index.md).
 
 You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through

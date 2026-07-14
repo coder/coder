@@ -87,6 +87,27 @@ coder exp sync complete "$UNIT_NAME"
 
 </div>
 
+## Inspect Unit State
+
+Use `coder exp sync list` to see all registered units and their current state:
+
+```bash
+coder exp sync list
+```
+
+Example output:
+
+```bash
+UNIT           STATUS     READY
+git-clone      completed  true
+env-setup      started    true
+ide-configure  pending    false
+```
+
+To inspect a single unit and its dependencies in detail, use `coder exp sync status <unit>`.
+
+To verify the agent socket is reachable, use `coder exp sync ping`.
+
 ## Best Practices
 
 ### Test your changes before rolling out to all users
@@ -95,7 +116,7 @@ Before rolling out to all users:
 
 1. Create a test workspace from the updated template
 2. Check workspace build logs for sync messages
-3. Verify all units reach "completed" status
+3. Verify all units reach "completed" status using `coder exp sync list`
 4. Test workspace functionality
 
 Once you're satisfied, [promote the new template version](../../../reference/cli/templates_versions_promote.md).

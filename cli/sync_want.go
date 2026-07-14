@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+	"strings"
+
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -39,7 +42,7 @@ func (*RootCmd) syncWant(socketPath *string) *serpent.Command {
 				}
 			}
 
-			cliui.Info(i.Stdout, "Success")
+			cliui.Info(i.Stdout, fmt.Sprintf("Unit %q declared dependencies: [%s]", dependentUnit, strings.Join(i.Args[1:], ", ")))
 
 			return nil
 		},

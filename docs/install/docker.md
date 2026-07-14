@@ -8,24 +8,29 @@ You can install and run Coder using the official Docker images published on
 - Docker. See the
   [official installation documentation](https://docs.docker.com/install/).
 
-- A Linux machine. For macOS devices, start Coder using the
-  [standalone binary](./cli.md).
+- A Linux host.
 
 - 2 CPU cores and 4 GB memory free on your machine.
+
+> [!IMPORTANT]
+> This guide is for **Linux** hosts only. The `getent` and `--group-add`
+> Docker socket patterns used below are Linux-specific and do not translate
+> cleanly to macOS Docker runtimes. For macOS, install Coder using the
+> [standalone binary](./cli.md) instead.
 
 <div class="tabs">
 
 ## Install Coder via `docker compose`
 
 Coder publishes a
-[docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
+[docker compose example](../../compose.yaml)
 which includes a PostgreSQL container and volume.
 
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
 
 1. Download the
-   [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/compose.yaml)
+   [`docker-compose.yaml`](../../compose.yaml)
    file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
@@ -106,8 +111,27 @@ Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:
 
 Docker is not installed or not running on the host. Install Docker and start the
 daemon before creating a workspace from a Docker-based template. Refer to the
-[quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
+[Troubleshooting section of the get started guide](../get-started/index.md#cannot-connect-to-the-docker-daemon)
 for platform-specific steps.
+
+If Docker is installed and running but Coder still cannot connect, the daemon may expose its socket at a path other than `/var/run/docker.sock`.
+This can happen on any operating system when Docker runs through a tool that uses a per-user socket, such as rootless Docker on Linux, or Colima, Podman, or Rancher Desktop on macOS.
+Point Coder at the right socket with `DOCKER_HOST`.
+
+Find the socket path first.
+For example, run `colima status` for Colima, or `docker context inspect` to read the endpoint of the active Docker context.
+Default socket paths vary by tool, so consult your tool's documentation and treat the following as examples only:
+
+```sh
+# rootless Docker (Linux)
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
+
+# Colima (macOS)
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+```
+
+To persist the setting, add the `export` line to your shell's startup file, such as `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`.
+Then restart the Coder server.
 
 ### Docker-based workspace is stuck in "Connecting..."
 

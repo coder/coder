@@ -1767,6 +1767,17 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 {
   "dry_run": true,
   "log_level": "debug",
+  "on_success": {
+    "rich_parameter_values": [
+      {
+        "name": "string",
+        "value": "string"
+      }
+    ],
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+    "transition": "start"
+  },
   "orphan": true,
   "reason": "dashboard",
   "rich_parameter_values": [

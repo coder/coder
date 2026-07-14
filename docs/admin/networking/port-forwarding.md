@@ -4,17 +4,27 @@ Port forwarding lets developers securely access processes on their Coder
 workspace from a local machine. A common use case is testing web applications in
 a browser.
 
-There are three ways to forward ports in Coder:
+There are four ways to forward ports in Coder:
 
-- The `coder port-forward` command
-- Dashboard
-- SSH
+| Method                                 | Details                                                                                                                                                        |
+|:---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Desktop](#coder-desktop)        | Automatic port forwarding via VPN tunnel. All workspace ports are available at `workspace.coder:PORT` with no manual setup. Supports peer-to-peer connections. |
+| [CLI](#the-coder-port-forward-command) | Forwards specific TCP or UDP ports from the workspace to local ports. Supports peer-to-peer connections.                                                       |
+| [Dashboard](#dashboard)                | Proxies traffic through the Coder control plane.                                                                                                               |
+| [SSH](#ssh)                            | Forwards ports over an SSH connection.                                                                                                                         |
 
-The `coder port-forward` command is generally more performant than:
+Coder Desktop and `coder port-forward` are generally more performant than:
 
 1. The Dashboard which proxies traffic through the Coder control plane versus
-   peer-to-peer which is possible with the Coder CLI
+   peer-to-peer which is possible with the Coder CLI and Coder Desktop
 1. `sshd` which does double encryption of traffic with both Wireguard and SSH
+
+## Coder Desktop
+
+[Coder Desktop](../../user-guides/desktop/index.md) provides automatic port forwarding to every service running in your workspace.
+Once Coder Connect is enabled, any port your application listens on is instantly accessible at `<workspace-name>.coder:PORT` from your local machine, with no additional commands or configuration.
+
+This is the simplest option for most users. See the [Coder Desktop documentation](../../user-guides/desktop/index.md) for installation and setup.
 
 ## The `coder port-forward` command
 
