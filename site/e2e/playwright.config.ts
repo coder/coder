@@ -32,6 +32,7 @@ export const retries = (() => {
 const localURL = (port: number, path: string): string => {
 	return `http://localhost:${port}${path}`;
 };
+
 export default defineConfig({
 	retries,
 	globalSetup: require.resolve("./setup/preflight"),
