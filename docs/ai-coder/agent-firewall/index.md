@@ -238,16 +238,6 @@ Example of an allowed request (assuming stderr):
 
 <!-- SKELETON: expand each topic sentence below into a full paragraph. Headings, table, and links are final. -->
 
-Coder can automatically purge Agent Firewall boundary logs from the control plane database after a configurable retention period so the table does not grow unbounded.
+Coder can automatically purge Agent Firewall logs from the control plane database after a configurable retention period to avoid unbounded database growth. When retention is left at the default of `0`, boundary logs are retained indefinitely.
 
-| Setting                | CLI Flag                   | Environment Variable           | YAML                      | Default        |
-|------------------------|----------------------------|--------------------------------|---------------------------|----------------|
-| Boundary log retention | `--boundary-log-retention` | `CODER_BOUNDARY_LOG_RETENTION` | `retention.boundary_logs` | `0` (disabled) |
-
-When retention is left at the default of `0`, boundary logs are retained indefinitely.
-
-Boundary session records are removed only after all of their associated logs have been purged and the session has aged past the retention window.
-
-Retention is enforced by Coder's background purge process, which runs on a fixed interval and deletes eligible records in batches shared with the other retention policies.
-
-For configuration syntax, supported duration formats, and how boundary log retention relates to Coder's other retention settings, see [Data Retention](../../admin/setup/data-retention.md).
+For configuration syntax, supported duration formats, and how agent firewall log retention relates to Coder's other retention settings, see [Data Retention](../../admin/setup/data-retention.md).

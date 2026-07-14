@@ -261,7 +261,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		}
 
 		var purgedBoundaryLogs, purgedBoundarySessions int64
-		boundaryLogsRetention := i.vals.Retention.BoundaryLogs.Value()
+		boundaryLogsRetention := i.vals.Retention.AgentFirewallLogs.Value()
 		if boundaryLogsRetention > 0 {
 			deleteBoundaryLogsBefore := start.Add(-boundaryLogsRetention)
 			purgedBoundaryLogs, err = tx.DeleteOldBoundaryLogs(ctx, database.DeleteOldBoundaryLogsParams{

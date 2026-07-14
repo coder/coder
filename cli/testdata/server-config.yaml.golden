@@ -1158,6 +1158,12 @@ retention:
   # regulatory requirements.
   # (default: 0, type: duration)
   boundary_logs: 0s
+  # How long agent firewall audit log entries are retained. Agent firewall logs
+  # record HTTP requests processed by an Agent Firewall instance. Set to 0 to
+  # disable automatic deletion (keep indefinitely). Adjust to match your
+  # organization's regulatory requirements.
+  # (default: 0, type: duration)
+  agent_firewall_logs: 0s
 templateBuilder:
   # Disable the template builder feature for guided template creation. When
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.

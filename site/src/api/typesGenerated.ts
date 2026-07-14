@@ -7503,7 +7503,7 @@ export interface RetentionConfig {
 	 */
 	readonly workspace_agent_logs: number;
 	/**
-	 * BoundaryLogs controls how long boundary audit log entries are
+	 * AgentFirewallLogs controls how long boundary audit log entries are
 	 * retained. Boundary logs record every HTTP request processed by
 	 * a Boundary confinement proxy. Set to 0 to disable automatic
 	 * deletion (keep indefinitely). Adjust to match your

@@ -27,14 +27,14 @@ a YAML configuration file.
 
 ### Settings
 
-| Setting              | CLI Flag                           | Environment Variable                   | Default        | Description                             |
-|----------------------|------------------------------------|----------------------------------------|----------------|-----------------------------------------|
-| Audit Logs           | `--audit-logs-retention`           | `CODER_AUDIT_LOGS_RETENTION`           | `0` (disabled) | How long to retain Audit Log entries    |
-| Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs      |
-| Boundary Logs        | `--boundary-log-retention`         | `CODER_BOUNDARY_LOG_RETENTION`         | `0` (disabled) | How long to retain Agent Firewall boundary logs |
-| API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys     |
-| Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs |
-| AI Gateway           | `--ai-gateway-retention`           | `CODER_AI_GATEWAY_RETENTION`           | `60d`          | How long to retain AI Gateway records   |
+| Setting              | CLI Flag                           | Environment Variable                   | Default        | Description                                     |
+|----------------------|------------------------------------|----------------------------------------|----------------|-------------------------------------------------|
+| Audit Logs           | `--audit-logs-retention`           | `CODER_AUDIT_LOGS_RETENTION`           | `0` (disabled) | How long to retain Audit Log entries            |
+| Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs              |
+| Boundary Logs        | `--agent-firewall-logs-retention`  | `CODER_BOUNDARY_LOG_RETENTION`         | `0` (disabled) | How long to retain Agent Firewall boundary logs |
+| API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys             |
+| Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs         |
+| AI Gateway           | `--ai-gateway-retention`           | `CODER_AI_GATEWAY_RETENTION`           | `60d`          | How long to retain AI Gateway records           |
 
 > [!NOTE]
 > AI Gateway retention is configured separately from other retention settings.
@@ -58,7 +58,7 @@ Go duration units (`h`, `m`, `s`):
 coder server \
   --audit-logs-retention=365d \
   --connection-logs-retention=90d \
-  --boundary-log-retention=90d \
+  --agent-firewall-logs-retention=90d \
   --api-keys-retention=7d \
   --workspace-agent-logs-retention=7d \
   --ai-gateway-retention=60d

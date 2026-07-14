@@ -23216,7 +23216,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "boundary_logs": {
-                    "description": "BoundaryLogs controls how long boundary audit log entries are\nretained. Boundary logs record every HTTP request processed by\na Boundary confinement proxy. Set to 0 to disable automatic\ndeletion (keep indefinitely). Adjust to match your\norganization's regulatory requirements.",
+                    "description": "AgentFirewallLogs controls how long boundary audit log entries are\nretained. Boundary logs record every HTTP request processed by\na Boundary confinement proxy. Set to 0 to disable automatic\ndeletion (keep indefinitely). Adjust to match your\norganization's regulatory requirements.",
                     "type": "integer"
                 },
                 "connection_logs": {

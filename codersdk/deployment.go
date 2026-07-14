@@ -1226,12 +1226,12 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
-	// BoundaryLogs controls how long boundary audit log entries are
+	// AgentFirewallLogs controls how long boundary audit log entries are
 	// retained. Boundary logs record every HTTP request processed by
 	// a Boundary confinement proxy. Set to 0 to disable automatic
 	// deletion (keep indefinitely). Adjust to match your
 	// organization's regulatory requirements.
-	BoundaryLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
+	AgentFirewallLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -4809,10 +4809,28 @@ Write out the current server config as YAML to stdout.`,
 			Description: "How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.",
 			Flag:        "boundary-log-retention",
 			Env:         "CODER_BOUNDARY_LOG_RETENTION",
-			Value:       &c.Retention.BoundaryLogs,
+			Value:       &c.Retention.AgentFirewallLogs,
 			Default:     "0",
 			Group:       &deploymentGroupRetention,
 			YAML:        "boundary_logs",
+			Hidden:      true,
+			UseInstead: serpent.OptionSet{
+				{
+					Flag: "agent-firewall-logs-retention",
+					Env:  "CODER_AGENT_FIREWALL_LOGS_RETENTION",
+				},
+			},
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
+			Name:        "Agent Firewall Log Retention",
+			Description: "How long agent firewall audit log entries are retained. Agent firewall logs record HTTP requests processed by an Agent Firewall instance. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.",
+			Flag:        "agent-firewall-logs-retention",
+			Env:         "CODER_AGENT_FIREWALL_LOGS_RETENTION",
+			Value:       &c.Retention.AgentFirewallLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "agent_firewall_logs",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{

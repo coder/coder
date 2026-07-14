@@ -1837,7 +1837,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 		{
 			name: "RetentionEnabled",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(retentionPeriod),
+				AgentFirewallLogs: serpent.Duration(retentionPeriod),
 			},
 			oldLogTime:            beforeThreshold,
 			recentLogTime:         &afterThreshold,
@@ -1847,7 +1847,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 		{
 			name: "RetentionDisabled",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(0),
+				AgentFirewallLogs: serpent.Duration(0),
 			},
 			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
 			recentLogTime:         nil,
@@ -1857,7 +1857,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 		{
 			name: "RetentionNegative",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(-retentionPeriod),
+				AgentFirewallLogs: serpent.Duration(-retentionPeriod),
 			},
 			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
 			recentLogTime:         nil,
@@ -1976,7 +1976,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 		{
 			name: "SessionDeletedWhenAllLogsExpired",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(retentionPeriod),
+				AgentFirewallLogs: serpent.Duration(retentionPeriod),
 			},
 			sessionUpdatedAt:     oldTime,
 			logTime:              &oldTime, // log is old; will be purged first, leaving session empty
@@ -1985,7 +1985,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 		{
 			name: "SessionKeptWhenRecentLogExists",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(retentionPeriod),
+				AgentFirewallLogs: serpent.Duration(retentionPeriod),
 			},
 			sessionUpdatedAt:     oldTime,
 			logTime:              &recentTime, // recent log survives log purge, so session kept
@@ -1994,7 +1994,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 		{
 			name: "SessionKeptWhenRetentionDisabled",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(0),
+				AgentFirewallLogs: serpent.Duration(0),
 			},
 			sessionUpdatedAt:     oldTime,
 			logTime:              &oldTime,
@@ -2003,7 +2003,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 		{
 			name: "SessionKeptWhenRetentionNegative",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(-retentionPeriod),
+				AgentFirewallLogs: serpent.Duration(-retentionPeriod),
 			},
 			sessionUpdatedAt:     oldTime,
 			logTime:              &oldTime,
@@ -2012,7 +2012,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 		{
 			name: "SessionKeptWhenUpdatedAtRecent",
 			retentionConfig: codersdk.RetentionConfig{
-				BoundaryLogs: serpent.Duration(retentionPeriod),
+				AgentFirewallLogs: serpent.Duration(retentionPeriod),
 			},
 			sessionUpdatedAt:     recentTime, // session itself is recent. NOT eligible for session purge
 			logTime:              nil,        // no logs; but updated_at guard keeps it
