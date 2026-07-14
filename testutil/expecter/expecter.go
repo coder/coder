@@ -67,6 +67,18 @@ func New(t *testing.T, r io.Reader, name string) *Expecter {
 		<-logReady
 		_, err := io.Copy(logTee{out: out, lines: logLines}, r)
 		ex.Logf("copy done: %v", err)
+		if err != nil {
+			// out rejected a write (e.g. doMatchWithDeadline closed it
+			// after giving up on a match) while the command may still
+			// be running and writing. io.Copy stops on any destination
+			// error, so without this the command's next write blocks
+			// forever: nobody would be left reading r. Keep draining
+			// and discarding until the command's pipe actually closes,
+			// so its writes can never block on us.
+			ex.Logf("out closed early, draining remainder: %v", err)
+			_, err = io.Copy(io.Discard, r)
+			ex.Logf("drain done: %v", err)
+		}
 		ex.Logf("closing out")
 		err = out.closeErr(err)
 		ex.Logf("closed out: %v", err)
