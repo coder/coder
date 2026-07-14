@@ -109,17 +109,17 @@ scope_org := check_org_permissions([input.subject.scope], "org")
 
 # check_all_org_permissions creates a map from org ids to votes at each org
 # level, for each org that the subject is a member of. It doesn't actually check
-# if the object is in the same org. Instead we look up the correct vote from
-# this map based on the object's org id in `check_org_permissions`.
-# For example, the `org_map` will look something like this:
+# if the object is in the same org; the callers do that:
+#   - `org_ids_with_vote` picks the org ids with a given vote, and the known-org
+#     paths test the object's org id for membership in that set, and
+#   - the `any_org` clause of `check_org_permissions` takes the `max` vote.
+# For example, the map will look something like this:
 #
 #   {"<org_id_a>": 1, "<org_id_b>": 0, "<org_id_c>": -1}
 #
-# The caller then uses `output[input.object.org_owner]` to get the correct vote.
-#
-# We have to create this map, rather than just getting the vote of the object's
-# org id because the org id _might_ be unknown. In order to make sure that this
-# policy compresses down to simple queries we need to keep unknown values out of
+# We build the whole map, rather than just the vote for the object's org,
+# because the org id _might_ be unknown during partial evaluation. To keep this
+# policy compressible to simple queries we need to keep unknown values out of
 # comprehensions.
 check_all_org_permissions(roles, key) := {org_id: vote |
 	org_id := org_memberships[_]
@@ -285,6 +285,10 @@ role_allow if {
 # Org member authorization
 role_allow if {
 	not site = -1
+
+	# For a known org this is always true: `org` never votes -1 for a known org,
+	# because org-level deny is folded into `org_member`. It only blocks here in
+	# the any_org case, where `org` can be -1 via `max`.
 	not org = -1
 
 	org_member = 1
@@ -332,6 +336,9 @@ scope_allow if {
 	# by the site or org. The object *must* be owned by an organization.
 	object_is_included_in_scope_allow_list
 	not scope_site = -1
+
+	# As with `not org = -1` above, this only blocks in the any_org case; for a
+	# known org, scope org-level deny is folded into `scope_org_member`.
 	not scope_org = -1
 
 	scope_org_member = 1
