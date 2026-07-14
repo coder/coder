@@ -14,7 +14,7 @@ import {
 } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
-import { chatSearch } from "#/api/queries/chats";
+import { chatSearch, isCoderAssistantChat } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
@@ -208,11 +208,20 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		placeholderData: keepPreviousData,
 	});
 
+	// Coder Assistant chats live in the Assistant drawer, not the
+	// browsing UI, so exclude them from search results and recents.
+	const searchResults = (searchQuery.data ?? []).filter(
+		(chat) => !isCoderAssistantChat(chat),
+	);
+	const visibleRecentChats = (recentChats ?? []).filter(
+		(chat) => !isCoderAssistantChat(chat),
+	);
+
 	// Use search results count when a query is active, otherwise count
 	// recent chats so keyboard navigation works in the default view too.
-	const recentChatsSlice = (recentChats ?? []).slice(0, 10);
+	const recentChatsSlice = visibleRecentChats.slice(0, 10);
 	const resultCount = hasQuery
-		? (searchQuery.data?.length ?? 0)
+		? searchResults.length
 		: recentChatsSlice.length;
 	const safeSelectedChatIndex =
 		selectedChatIndex !== undefined && selectedChatIndex < resultCount
@@ -221,7 +230,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	const selectedChat =
 		safeSelectedChatIndex !== undefined
 			? hasQuery
-				? searchQuery.data?.[safeSelectedChatIndex]
+				? searchResults[safeSelectedChatIndex]
 				: recentChatsSlice[safeSelectedChatIndex]
 			: undefined;
 	const activeResultId =
@@ -233,7 +242,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 	const showResultsLoading =
 		hasQuery &&
 		(searchQuery.isLoading ||
-			(searchQuery.isFetching && (searchQuery.data?.length ?? 0) === 0));
+			(searchQuery.isFetching && searchResults.length === 0));
 	const isRefreshing =
 		hasQuery &&
 		searchQuery.isFetching &&
@@ -426,8 +435,8 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			</div>
 
 			<ChatSearchResults
-				chats={searchQuery.data}
-				recentChats={recentChats}
+				chats={searchQuery.data === undefined ? undefined : searchResults}
+				recentChats={visibleRecentChats}
 				error={searchQuery.error}
 				hasQuery={hasQuery}
 				location={location}
